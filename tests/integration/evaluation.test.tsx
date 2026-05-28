@@ -116,7 +116,7 @@ describe('Evaluation Forms & Live Navy Rules Integration Tests', () => {
     vi.clearAllMocks()
   })
 
-  // fallow-ignore-next-line complexity
+
   it('should validate name formatting and cycle periods correctly in useLiveValidation hook', () => {
     const invalidEvalData = {
       ...mockDataStore.evaluation,
@@ -135,7 +135,7 @@ describe('Evaluation Forms & Live Navy Rules Integration Tests', () => {
     expect(dateErr?.message).toContain('Period To cannot be before Period From')
   })
 
-  // fallow-ignore-next-line complexity
+
   it('should restrict promotion recommendations if EO or Bearing trait grade is 2.0 or lower', () => {
     const poorEoEvalData = {
       ...mockDataStore.evaluation,
@@ -153,7 +153,7 @@ describe('Evaluation Forms & Live Navy Rules Integration Tests', () => {
     expect(promoIssue?.message).toContain('limits the promotion recommendation')
   })
 
-  // fallow-ignore-next-line complexity
+
   it('should check Courier comments text bounds and detect box overflow capacity', () => {
     // 10-pitch text with a paragraph of 20 lines (exceeds the 18 max limit)
     const longText = Array(20).fill('THIS IS A MONOSPACE COMMENT LINE THAT FITS THE 10-PITCH WIDTH LIMIT.').join('\n')

@@ -5,8 +5,8 @@
 
 import { z } from 'zod'
 
-// fallow-ignore-next-line unused-export
-export const TRAIT_KEYS = [
+
+const TRAIT_KEYS = [
   'knowledge',
   'work',
   'eo',
@@ -15,9 +15,6 @@ export const TRAIT_KEYS = [
   'teamwork',
   'leadership'
 ] as const;
-
-// fallow-ignore-next-line unused-type
-export type TraitGrade = '1.0' | '2.0' | '3.0' | '4.0' | '5.0' | 'NOB';
 
 export const PROMOTION_RECOMMENDATIONS = [
   'Significant Problems',
@@ -35,8 +32,8 @@ export const DUTY_STATUS_OPTIONS = ['ACDU', 'TAR', 'INACT', 'AT/ADOS'] as const;
 export const PROMOTION_STATUS_OPTIONS = ['Regular', 'Frocked', 'Selected', 'Spot'] as const;
 
 // Helper to validate Navy dates in YYMMMDD format (e.g. 25JAN15)
-// fallow-ignore-next-line unused-export
-export const NAVY_DATE_REGEX = /^[0-9]{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}$/i;
+
+const NAVY_DATE_REGEX = /^[0-9]{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}$/i;
 
 export const EvalSchema = z.object({
   member_name: z
@@ -151,7 +148,7 @@ export const EvalSchema = z.object({
     .enum(RETENTION_OPTIONS, {
       errorMap: () => ({ message: 'Invalid retention recommendation (Block 47)' })
     }),
-// fallow-ignore-next-line complexity
+
 }).superRefine((data, ctx) => {
   // Validate period bounds
   const from = new Date(data.period_from);

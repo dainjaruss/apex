@@ -94,6 +94,7 @@ export const getSessionUserId = async () => {
 }
 
 // gets users roles to restrict dashboard view access
+
 // fallow-ignore-next-line unused-export
 export const getCurrentUserRoles = async () => {
   const userId = await getSessionUserId()

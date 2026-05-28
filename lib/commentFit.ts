@@ -15,7 +15,7 @@ export interface CommentFitResult {
  * Wraps text into lines based on a maximum characters-per-line constraint.
  * Preserves explicit newlines and handles words longer than the line width by force-splitting.
  */
-// fallow-ignore-next-line complexity
+
 function wrapText(text: string, charsPerLine: number): string[] {
   const paragraphs = text.split('\n');
   const lines: string[] = [];

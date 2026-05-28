@@ -53,6 +53,7 @@ export const loadById = async (id: string): Promise<Evaluation> => {
 /**
  * Lists evaluations associated with a user (either drafted by them or assigned to them for review).
  */
+
 // fallow-ignore-next-line unused-export
 export const listByUser = async (userId: string): Promise<Evaluation[]> => {
   const { data, error } = await supabase
@@ -71,6 +72,7 @@ export const listByUser = async (userId: string): Promise<Evaluation[]> => {
 /**
  * Deletes an evaluation draft.
  */
+
 // fallow-ignore-next-line unused-export
 export const deleteDraft = async (id: string): Promise<void> => {
   const { error } = await supabase
