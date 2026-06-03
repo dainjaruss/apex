@@ -85,3 +85,21 @@ export const deleteDraft = async (id: string): Promise<void> => {
     throw new Error(error.message)
   }
 }
+
+/**
+ * Updates the workflow status of an evaluation.
+ */
+export const updateStatus = async (id: string, status: string): Promise<Evaluation> => {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(`updateStatus failed for ID ${id} to ${status}:`, error.message)
+    throw new Error(error.message)
+  }
+  return data as Evaluation
+}

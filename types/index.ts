@@ -74,10 +74,11 @@ export interface ValidationIssue {
   field?: string;
   block?: number;
   message: string;
+  severity?: 'error' | 'warning';
 }
 
-// fallow-ignore-next-line unused-type
 export interface ValidationResult {
   success: boolean;
   errors: ValidationIssue[];
+  warnings: ValidationIssue[];
 }

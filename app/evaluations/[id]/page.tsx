@@ -103,6 +103,14 @@ export default function ViewEvaluationPage() {
               Edit Draft
             </button>
           )}
+          {isOwner && (
+            <button
+              onClick={() => router.push(`/evaluations/${evaluation.id}/export`)}
+              className="px-4 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-xs font-semibold text-white transition shadow-md"
+            >
+              Verify & Export
+            </button>
+          )}
         </div>
       </header>
 

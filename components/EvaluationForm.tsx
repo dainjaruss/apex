@@ -11,6 +11,8 @@ import Block33to39Traits from '@/components/blocks/Block33to39Traits'
 import Block43Comments from '@/components/blocks/Block43Comments'
 import Block42Signatures from '@/components/blocks/EvaluationFormParts/Block42Signatures'
 import { useLiveValidation } from '@/hooks/useLiveValidation'
+import { useFinalValidation } from '@/hooks/useFinalValidation'
+import ValidationResultsModal from '@/components/ValidationResultsModal'
 
 interface EvaluationFormProps {
   initialData: Evaluation;
@@ -23,6 +25,10 @@ export default function EvaluationForm({ initialData, onSave, onCancel, isSaving
   const [formData, setFormData] = useState<Evaluation>(initialData)
   const { issues } = useLiveValidation(formData)
   const [saveError, setSaveError] = useState<string | null>(null)
+  
+  // On-demand rules verification modal state
+  const { isValidating, errors, warnings, runCheck } = useFinalValidation()
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const handleFieldChange = (fields: Partial<Evaluation>) => {
     setFormData((prev) => ({ ...prev, ...fields }));
@@ -45,41 +51,63 @@ export default function EvaluationForm({ initialData, onSave, onCancel, isSaving
     }
   };
 
+  const handleTriggerVerify = async () => {
+    await runCheck(formData)
+    setIsModalOpen(true)
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-20">
-      {/* 1. Admin & Command Details (Blocks 1‑32) */}
-      <Block1Admin
-        evalData={formData}
-        onChange={handleFieldChange}
-        issues={issues}
-        handleBlockValueChange={handleBlockValueChange}
-      />
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6 pb-20">
+        {/* 1. Admin & Command Details (Blocks 1‑32) */}
+        <Block1Admin
+          evalData={formData}
+          onChange={handleFieldChange}
+          issues={issues}
+          handleBlockValueChange={handleBlockValueChange}
+        />
 
-      {/* 2. Trait Ratings (Blocks 33‑39, auto‑computes Block 40 average) */}
-      <Block33to39Traits
-        evalData={formData}
-        onChange={handleFieldChange}
-        issues={issues}
-      />
+        {/* 2. Trait Ratings (Blocks 33‑39, auto‑computes Block 40 average) */}
+        <Block33to39Traits
+          evalData={formData}
+          onChange={handleFieldChange}
+          issues={issues}
+        />
 
-      {/* 3. Comments (Block 43) */}
-      <Block43Comments
-        evalData={formData}
-        onChange={handleFieldChange}
-        issues={issues}
-      />
+        {/* 3. Comments (Block 43) */}
+        <Block43Comments
+          evalData={formData}
+          onChange={handleFieldChange}
+          issues={issues}
+        />
 
-      {/* 4. Recommendations & Signatures (Blocks 41, 44‑52) */}
-      <Block42Signatures
-        evalData={formData}
-        onChange={handleFieldChange}
-        handleBlockValueChange={handleBlockValueChange}
-        issues={issues}
-      />
+        {/* 4. Recommendations & Signatures (Blocks 41, 44‑52) */}
+        <Block42Signatures
+          evalData={formData}
+          onChange={handleFieldChange}
+          handleBlockValueChange={handleBlockValueChange}
+          issues={issues}
+        />
 
-      {/* Save / Status Panel */}
-      <StatusBar issues={issues} saveError={saveError} isSaving={isSaving} onCancel={onCancel} />
-    </form>
+        {/* Save / Status Panel */}
+        <StatusBar
+          issues={issues}
+          saveError={saveError}
+          isSaving={isSaving}
+          onCancel={onCancel}
+          onVerify={handleTriggerVerify}
+          isValidating={isValidating}
+        />
+      </form>
+
+      {/* Rules Validation Details Modal */}
+      <ValidationResultsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        errors={errors}
+        warnings={warnings}
+      />
+    </>
   );
 }
 
@@ -92,11 +120,15 @@ function StatusBar({
   saveError,
   isSaving,
   onCancel,
+  onVerify,
+  isValidating,
 }: {
   issues: ValidationIssue[]
   saveError: string | null
   isSaving: boolean
   onCancel: () => void
+  onVerify: () => void
+  isValidating: boolean
 }) {
   return (
     <div className="glass-panel rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-800">
@@ -122,6 +154,14 @@ function StatusBar({
           className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition duration-150"
         >
           Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onVerify}
+          disabled={isValidating}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-slate-300 rounded-lg transition"
+        >
+          {isValidating ? 'Checking...' : 'Verify Rules'}
         </button>
         <button
           type="submit"
