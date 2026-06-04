@@ -9,8 +9,8 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById, updateStatus } from '@/lib/evaluationService'
-import { runFullValidation, ValidationResult } from '@/lib/validationEngine'
-import { Evaluation } from '@/types'
+import { runFullValidation } from '@/lib/validationEngine'
+import { Evaluation, ValidationResult } from '@/types'
 
 export default function EvaluationExportPage() {
   const params = useParams()
