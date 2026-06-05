@@ -54,7 +54,7 @@ export default function EvaluationExportPage() {
     if (!evaluation || !validationResult?.success) return;
     setIsFinalizing(true)
     try {
-      await updateStatus(evaluation.id, 'completed')
+      await updateStatus(evaluation.id!, 'completed')
       setEvaluation((prev) => prev ? { ...prev, status: 'completed' } : null)
       router.push('/dashboard')
     } catch (err: any) {
