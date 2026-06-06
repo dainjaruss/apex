@@ -19,13 +19,13 @@ export interface Evaluation {
   ship_station: string;
   promotion_status: 'Regular' | 'Frocked' | 'Selected' | 'Spot' | string;
   trait_grades: {
-    knowledge: string; // '1.0' - '5.0' or 'NOB'
-    work: string;
-    eo: string;
-    bearing: string;
-    accomplishment: string;
-    teamwork: string;
-    leadership: string;
+    knowledge?: string; // '1.0' - '5.0' or 'NOB'
+    work?: string;
+    eo?: string;
+    bearing?: string;
+    accomplishment?: string;
+    teamwork?: string;
+    leadership?: string;
   };
   trait_average?: number;
   comments: string;
