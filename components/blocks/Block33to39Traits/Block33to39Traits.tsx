@@ -71,7 +71,7 @@ export default function Block33to39Traits({ evalData, onChange, issues }: Block3
             key={key}
             traitKey={key}
             label={label}
-            value={currentGrades[key]}
+            value={currentGrades[key] || '3.0'}
             error={getError(key)}
             onChange={onChange}
             gradeValues={GRADE_VALUES}
