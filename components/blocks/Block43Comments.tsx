@@ -106,7 +106,7 @@ export default function Block43Comments({ evalData, onChange, issues }: Block43C
         {/* Real-time Courier wrapped box preview */}
         <div className="space-y-2">
           <div className="text-xs text-slate-400 flex justify-between items-center">
-            <span>Physical Courier Box Preview ({fitResult.maxCpl} CPL max)</span>
+            <span>Physical Courier Box Preview ({fitResult.charsPerLine} CPL max)</span>
             <span className="text-[10px] text-slate-500">Fixed Font Rendering</span>
           </div>
 
