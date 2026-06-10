@@ -141,12 +141,12 @@ export const EvalSchema = z.object({
 
   promotion_recommendation: z
     .enum(PROMOTION_RECOMMENDATIONS, {
-      errorMap: () => ({ message: 'Invalid promotion recommendation (Block 45)' })
+      message: 'Invalid promotion recommendation (Block 45)'
     }),
 
   retention: z
     .enum(RETENTION_OPTIONS, {
-      errorMap: () => ({ message: 'Invalid retention recommendation (Block 47)' })
+      message: 'Invalid retention recommendation (Block 47)'
     }),
 
 }).superRefine((data, ctx) => {
