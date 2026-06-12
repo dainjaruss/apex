@@ -11,7 +11,9 @@ import { getSession } from '@/lib/auth'
 import { loadById, updateStatus } from '@/lib/evaluationService'
 import { runFullValidation } from '@/lib/validationEngine'
 import { Evaluation, ValidationResult } from '@/types'
+import PDFPreview from '@/components/PDFPreview'
 
+// fallow-ignore-next-line complexity
 export default function EvaluationExportPage() {
   const params = useParams()
   const router = useRouter()
@@ -194,6 +196,16 @@ export default function EvaluationExportPage() {
           </div>
         </div>
 
+        {/* Real-time PDF Preview component */}
+        {success && (
+          <div id="apex-pdf-preview-section" className="space-y-4">
+            <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
+              Official NAVPERS 1616/26 Document Preview
+            </h3>
+            <PDFPreview evaluation={evaluation} />
+          </div>
+        )}
+
         {/* Action Panel */}
         <div className="glass-panel rounded-xl p-6 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
@@ -225,10 +237,13 @@ export default function EvaluationExportPage() {
                   {isFinalizing ? 'Finalizing...' : evaluation.status === 'completed' ? 'Finalized' : 'Finalize & Submit'}
                 </button>
                 <button
-                  onClick={() => alert('PDF Generator (Week 6 Milestone) is locked until Week 6. Your validation checks passed successfully!')}
+                  onClick={() => {
+                    const el = document.getElementById('apex-pdf-preview-section')
+                    el?.scrollIntoView({ behavior: 'smooth' })
+                  }}
                   className="px-5 py-2.5 rounded-lg bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition shadow-lg"
                 >
-                  Generate PDF (Week 6)
+                  View Document Preview
                 </button>
               </>
             )}
