@@ -86,7 +86,8 @@ vi.mock('@/lib/supabaseClient', () => {
                 return { data: mockDataStore.evaluation, error: null }
               }
               return { data: null, error: new Error('Not found') }
-            }
+            },
+            order: () => Promise.resolve({ data: [], error: null })
           })
         })
       })

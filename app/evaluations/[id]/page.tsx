@@ -1,6 +1,6 @@
 // app/evaluations/[id]/page.tsx
 //
-// Page route for viewing evaluation details.
+// Page route for viewing evaluation details, reviewer feedback, and audit logs.
 //
 
 "use client"
@@ -9,8 +9,11 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById } from '@/lib/evaluationService'
-import { Evaluation } from '@/types'
+import { getProfile } from '@/lib/profileService'
+import { fetchAuditLogs, AuditLog } from '@/lib/auditService'
+import { Evaluation, Profile } from '@/types'
 import { checkCommentFit } from '@/lib/commentFit'
+import ReviewPanel from '@/components/Reviewer/ReviewPanel'
 
 // fallow-ignore-next-line complexity
 export default function ViewEvaluationPage() {
@@ -19,33 +22,39 @@ export default function ViewEvaluationPage() {
   const id = params?.id as string
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'review' | 'audit'>('details')
+
+  const loadAllData = async () => {
+    try {
+      const session = await getSession()
+      if (!session?.user) {
+        router.push('/login')
+        return
+      }
+
+      const prof = await getProfile(session.user.id)
+      setProfile(prof)
+
+      if (!id) return;
+      const evalData = await loadById(id)
+      setEvaluation(evalData)
+
+      const logs = await fetchAuditLogs(id)
+      setAuditLogs(logs || [])
+    } catch (err: any) {
+      console.error('Failed to load evaluation context:', err)
+      setError(err.message || 'Failed to load evaluation')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    // fallow-ignore-next-line complexity
-    const checkAuthAndLoad = async () => {
-      try {
-        const session = await getSession()
-        if (!session?.user) {
-          router.push('/login')
-          return
-        }
-        setUserId(session.user.id)
-
-        if (!id) return;
-        const data = await loadById(id)
-        setEvaluation(data)
-      } catch (err: any) {
-        console.error('Failed to load evaluation:', err)
-        setError(err.message || 'Failed to load evaluation')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    checkAuthAndLoad()
+    loadAllData()
   }, [id, router])
 
   if (loading) {
@@ -56,7 +65,7 @@ export default function ViewEvaluationPage() {
     )
   }
 
-  if (error || !evaluation) {
+  if (error || !evaluation || !profile) {
     return (
       <div className="min-h-screen bg-[#0b132b] flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-red-950/35 border border-red-900/40 rounded-xl p-6 max-w-md space-y-4">
@@ -75,12 +84,11 @@ export default function ViewEvaluationPage() {
 
   const pitch = evaluation.block_values?.comment_pitch || '10'
   const fitResult = checkCommentFit(evaluation.comments || '', pitch)
-
-  const isOwner = evaluation.created_by === userId;
+  const isOwner = evaluation.created_by === profile.id
 
   return (
     <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      {/* Header (inlined — previously EvaluationHeader component) */}
+      {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
         <div className="flex items-center gap-3">
           <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
@@ -145,228 +153,336 @@ export default function ViewEvaluationPage() {
           </div>
         </div>
 
-        {/* 1. Identity Grid (Blocks 1-19) */}
-        <div className="glass-panel rounded-xl p-6">
-          <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
-            Blocks 1 - 19: Identity & Report Occasion
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
-            <div>
-              <div className="text-xs text-slate-500">Block 1: Name</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.member_name}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 2: Grade/Rate</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.grade_rate}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 3: Designator</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.designator || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 4: DoD ID</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.dod_id}</div>
-            </div>
-
-            <div>
-              <div className="text-xs text-slate-500">Block 5: Duty Status</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.duty_status}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 6: UIC</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.uic}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 7: Ship/Station</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.ship_station}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 8: Promotion Status</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.promotion_status}</div>
-            </div>
-
-            <div>
-              <div className="text-xs text-slate-500">Block 9: Date Reported</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.date_reported || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Period of Report</div>
-              <div className="font-semibold text-white mt-0.5">
-                {evaluation.period_from} to {evaluation.period_to}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Occasion</div>
-              <div className="font-semibold text-white mt-0.5">
-                {evaluation.block_values?.periodic ? 'Periodic (Block 10)' : ''}
-                {evaluation.block_values?.detachment_individual ? 'Detachment of Individual (Block 11)' : ''}
-                {evaluation.block_values?.detachment_senior ? 'Detachment of Senior (Block 12)' : ''}
-                {evaluation.block_values?.special ? 'Special (Block 13)' : ''}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Report Type</div>
-              <div className="font-semibold text-white mt-0.5 font-mono">
-                {evaluation.block_values?.regular_report ? 'Regular (Block 17)' : ''}
-                {evaluation.block_values?.concurrent_report ? 'Concurrent (Block 18)' : ''}
-                {evaluation.block_values?.ops_commander_report ? 'Ops Commander (Block 19)' : ''}
-                {evaluation.block_values?.not_observed ? 'Not Observed (Block 16)' : ''}
-              </div>
-            </div>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-800 gap-1">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+              activeTab === 'details'
+                ? 'border-blue-500 text-white bg-slate-900/40'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Form Details
+          </button>
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+              activeTab === 'review'
+                ? 'border-blue-500 text-white bg-slate-900/40'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Review Workflow
+          </button>
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+              activeTab === 'audit'
+                ? 'border-blue-500 text-white bg-slate-900/40'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Audit History
+          </button>
         </div>
 
-        {/* 2. Command Details & Reporting Senior (Blocks 20-31) */}
-        <div className="glass-panel rounded-xl p-6">
-          <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
-            Blocks 20 - 31: Command Context & Counseling
-          </h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm mb-6">
-            <div>
-              <div className="text-xs text-slate-500">Block 20: Physical Readiness</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.physical_readiness || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 21: Billet Subcategory</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.billet_subcategory || 'NA'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 22: Reporting Senior</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.reporting_senior_name || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 23: RS Grade & UIC</div>
-              <div className="font-semibold text-white mt-0.5">
-                {evaluation.block_values?.reporting_senior_grade || ''} | {evaluation.block_values?.reporting_senior_uic || ''}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs text-slate-500">Block 25: RS Title</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.reporting_senior_title || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 30: Date Counseled</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.date_counseled || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 31: Counselor</div>
-              <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.counselor || 'N/A'}</div>
-            </div>
-          </div>
-
-          <div className="space-y-4 text-sm border-t border-slate-800/60 pt-4">
-            <div>
-              <div className="text-xs text-slate-500">Block 28: Command Employment and Achievements</div>
-              <p className="mt-1 text-slate-300 whitespace-pre-wrap">{evaluation.block_values?.command_achievements || 'None listed.'}</p>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 29: Primary/Collateral/Watchstanding Duties</div>
-              <p className="mt-1 text-slate-300 whitespace-pre-wrap">{evaluation.block_values?.primary_duties || 'None listed.'}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Trait Ratings Breakdown (Blocks 33-40) */}
-        <div className="glass-panel rounded-xl p-6">
-          <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
-            Blocks 33 - 40: Trait Ratings Breakdown
-          </h3>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4 text-center">
-            {Object.entries(evaluation.trait_grades || {}).map(([key, val]) => (
-              <div key={key} className="bg-slate-950/45 p-3 rounded-lg border border-slate-800/80">
-                <div className="text-[10px] text-slate-500 font-semibold uppercase truncate">
-                  {key === 'eo' ? 'Climate/EO' : key}
+        {/* Details Tab */}
+        {activeTab === 'details' && (
+          <div className="space-y-6">
+            {/* Identity Grid (Blocks 1-19) */}
+            <div className="glass-panel rounded-xl p-6">
+              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+                Blocks 1 - 19: Identity & Report Occasion
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
+                <div>
+                  <div className="text-xs text-slate-500">Block 1: Name</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.member_name}</div>
                 </div>
-                <div className="text-base font-bold text-white mt-1">{val}</div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 2: Grade/Rate</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.grade_rate}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 3: Designator</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.designator || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 4: DoD ID</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.dod_id}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500">Block 5: Duty Status</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.duty_status}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 6: UIC</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.uic}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 7: Ship/Station</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.ship_station}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 8: Promotion Status</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.promotion_status}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500">Block 9: Date Reported</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.date_reported || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Period of Report</div>
+                  <div className="font-semibold text-white mt-0.5">
+                    {evaluation.period_from} to {evaluation.period_to}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Occasion</div>
+                  <div className="font-semibold text-white mt-0.5">
+                    {evaluation.block_values?.periodic ? 'Periodic (Block 10) ' : ''}
+                    {evaluation.block_values?.detachment_individual ? 'Detachment of Individual (Block 11) ' : ''}
+                    {evaluation.block_values?.detachment_senior ? 'Detachment of Senior (Block 12) ' : ''}
+                    {evaluation.block_values?.special ? 'Special (Block 13) ' : ''}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Report Type</div>
+                  <div className="font-semibold text-white mt-0.5 font-mono">
+                    {evaluation.block_values?.regular_report ? 'Regular (Block 17) ' : ''}
+                    {evaluation.block_values?.concurrent_report ? 'Concurrent (Block 18) ' : ''}
+                    {evaluation.block_values?.ops_commander_report ? 'Ops Commander (Block 19) ' : ''}
+                    {evaluation.block_values?.not_observed ? 'Not Observed (Block 16) ' : ''}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* 4. Narrative Comments (Block 43) */}
-        <div className="glass-panel rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
-            <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-              Block 43: Narrative Comments
-            </h3>
-            <span className="text-[10px] text-slate-500 font-mono">
-              Pitch Selected: {pitch}-Pitch | Lines: {fitResult.linesUsed} / 18
-            </span>
-          </div>
+            {/* Command Details & Reporting Senior (Blocks 20-31) */}
+            <div className="glass-panel rounded-xl p-6">
+              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+                Blocks 20 - 31: Command Context & Counseling
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm mb-6">
+                <div>
+                  <div className="text-xs text-slate-500">Block 20: Physical Readiness</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.physical_readiness || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 21: Billet Subcategory</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.billet_subcategory || 'NA'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 22: Reporting Senior</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.reporting_senior_name || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 23: RS Grade & UIC</div>
+                  <div className="font-semibold text-white mt-0.5">
+                    {evaluation.block_values?.reporting_senior_grade || ''} | {evaluation.block_values?.reporting_senior_uic || ''}
+                  </div>
+                </div>
 
-          <div className="w-full bg-slate-950/60 rounded-xl p-5 border border-slate-900 font-mono text-xs overflow-x-auto text-slate-200 min-h-[160px]">
-            {fitResult.wrappedLines.length === 0 ? (
-              <p className="italic text-slate-600">No narrative entered.</p>
-            ) : (
-              <div className="space-y-0.5">
-                {fitResult.wrappedLines.map((line, idx) => (
-                  <div key={idx} className="flex">
-                    <span className="w-6 text-[10px] text-slate-700 pr-1.5 mr-2 text-right border-r border-slate-900 select-none">
-                      {idx + 1}
-                    </span>
-                    <span className="whitespace-pre">{line}</span>
+                <div>
+                  <div className="text-xs text-slate-500">Block 25: RS Title</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.reporting_senior_title || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 30: Date Counseled</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.date_counseled || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 31: Counselor</div>
+                  <div className="font-semibold text-white mt-0.5">{evaluation.block_values?.counselor || 'N/A'}</div>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-sm border-t border-slate-800/60 pt-4">
+                <div>
+                  <div className="text-xs text-slate-500">Block 28: Command Employment and Achievements</div>
+                  <p className="mt-1 text-slate-300 whitespace-pre-wrap">{evaluation.block_values?.command_achievements || 'None listed.'}</p>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 29: Primary/Collateral/Watchstanding Duties</div>
+                  <p className="mt-1 text-slate-300 whitespace-pre-wrap">{evaluation.block_values?.primary_duties || 'None listed.'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trait Ratings Breakdown (Blocks 33-40) */}
+            <div className="glass-panel rounded-xl p-6">
+              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+                Blocks 33 - 40: Trait Ratings Breakdown
+              </h3>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4 text-center">
+                {Object.entries(evaluation.trait_grades || {}).map(([key, val]) => (
+                  <div key={key} className="bg-slate-950/45 p-3 rounded-lg border border-slate-800/80">
+                    <div className="text-[10px] text-slate-500 font-semibold uppercase truncate">
+                      {key === 'eo' ? 'Climate/EO' : key}
+                    </div>
+                    <div className="text-base font-bold text-white mt-1">{val}</div>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Narrative Comments (Block 43) */}
+            <div className="glass-panel rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
+                <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
+                  Block 43: Narrative Comments
+                </h3>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Pitch Selected: {pitch}-Pitch | Lines: {fitResult.linesUsed} / 18
+                </span>
+              </div>
+
+              <div className="w-full bg-slate-950/60 rounded-xl p-5 border border-slate-900 font-mono text-xs overflow-x-auto text-slate-200 min-h-[160px]">
+                {fitResult.wrappedLines.length === 0 ? (
+                  <p className="italic text-slate-600">No narrative entered.</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {fitResult.wrappedLines.map((line, idx) => (
+                      <div key={idx} className="flex">
+                        <span className="w-6 text-[10px] text-slate-700 pr-1.5 mr-2 text-right border-r border-slate-900 select-none">
+                          {idx + 1}
+                        </span>
+                        <span className="whitespace-pre">{line}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recommendations & Signatures (Blocks 44-52) */}
+            <div className="glass-panel rounded-xl p-6">
+              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+                Blocks 41, 44 - 52: Recommendations & Signatures
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-6">
+                <div>
+                  <div className="text-xs text-slate-500">Block 41: Career Recommendations</div>
+                  <ul className="list-disc pl-5 mt-1 font-semibold text-white">
+                    {(evaluation.career_recommendations || []).filter(Boolean).map((rec, i) => (
+                      <li key={i}>{rec}</li>
+                    ))}
+                    {(!evaluation.career_recommendations || evaluation.career_recommendations.filter(Boolean).length === 0) && (
+                      <li className="italic text-slate-600">None</li>
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 45: Promotion Recommendation</div>
+                  <div className="font-bold text-white mt-1">{evaluation.promotion_recommendation || 'NOB'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Block 47: Retention Recommendation</div>
+                  <div className="font-semibold text-white mt-1">{evaluation.retention || 'N/A'}</div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <div className="text-xs text-slate-500 mb-1">Block 44: Qualifications/Achievements</div>
+                <p className="text-slate-300 text-sm whitespace-pre-wrap">{evaluation.block_values?.qualifications_achievements || 'None listed.'}</p>
+              </div>
+
+              <div className="border-t border-slate-800/80 pt-4 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-xs">
+                <div>
+                  <div className="text-slate-500">Block 42: Rater Signature</div>
+                  <div className="font-semibold text-white mt-1">{evaluation.block_values?.rater_signature || 'UNINITIALIZED'}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Block 48: Senior Rater Signature</div>
+                  <div className="font-semibold text-white mt-1">{evaluation.block_values?.senior_rater_signature || 'UNINITIALIZED'}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Block 49: Member Signature</div>
+                  <div className="font-semibold text-white mt-1">{evaluation.block_values?.member_signature || 'UNINITIALIZED'}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Block 50: Reporting Senior Signature</div>
+                  <div className="font-semibold text-white mt-1">{evaluation.block_values?.reporting_senior_signature || 'UNINITIALIZED'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Review Tab */}
+        {activeTab === 'review' && (
+          <ReviewPanel
+            evaluation={evaluation}
+            currentUser={profile}
+            onWorkflowAction={loadAllData}
+          />
+        )}
+
+        {/* Audit Tab */}
+        {activeTab === 'audit' && (
+          <div className="glass-panel border border-slate-800 rounded-xl p-6 space-y-6">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span className="text-[#3e6e99]">✦</span> Record Change History & Audit Logs
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Every action taken on this report is logged for structural integrity and administrative audit.
+              </p>
+            </div>
+
+            {auditLogs.length === 0 ? (
+              <p className="text-xs font-mono text-slate-500">No audit logs found for this evaluation.</p>
+            ) : (
+              <div className="border border-slate-900 rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-semibold">
+                      <th className="p-3">Timestamp</th>
+                      <th className="p-3">User</th>
+                      <th className="p-3">Action</th>
+                      <th className="p-3">Metadata</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-900/20 text-slate-300">
+                        <td className="p-3 whitespace-nowrap font-mono text-slate-500">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                        <td className="p-3">
+                          {log.profiles ? (
+                            <span className="font-medium text-slate-200">
+                              {log.profiles.last_name}, {log.profiles.first_name}
+                              <span className="text-[10px] text-slate-500 block">
+                                {log.profiles.preferred_role}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">System</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold tracking-wide bg-blue-950 text-blue-400 border border-blue-900/40">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono text-[10px] text-slate-400 max-w-xs truncate">
+                          {JSON.stringify(log.details)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-        </div>
-
-        {/* 5. Recommendations & Signatures (Blocks 44-52) */}
-        <div className="glass-panel rounded-xl p-6">
-          <h3 className="text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
-            Blocks 41, 44 - 52: Recommendations & Signatures
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-6">
-            <div>
-              <div className="text-xs text-slate-500">Block 41: Career Recommendations</div>
-              <ul className="list-disc pl-5 mt-1 font-semibold text-white">
-                {(evaluation.career_recommendations || []).filter(Boolean).map((rec, i) => (
-                  <li key={i}>{rec}</li>
-                ))}
-                {(!evaluation.career_recommendations || evaluation.career_recommendations.filter(Boolean).length === 0) && (
-                  <li className="italic text-slate-600">None</li>
-                )}
-              </ul>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 45: Promotion Recommendation</div>
-              <div className="font-bold text-white mt-1">{evaluation.promotion_recommendation || 'NOB'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">Block 47: Retention Recommendation</div>
-              <div className="font-semibold text-white mt-1">{evaluation.retention || 'N/A'}</div>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <div className="text-xs text-slate-500 mb-1">Block 44: Qualifications/Achievements</div>
-            <p className="text-slate-300 text-sm whitespace-pre-wrap">{evaluation.block_values?.qualifications_achievements || 'None listed.'}</p>
-          </div>
-
-          <div className="border-t border-slate-800/80 pt-4 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-xs">
-            <div>
-              <div className="text-slate-500">Block 42: Rater Signature</div>
-              <div className="font-semibold text-white mt-1">{evaluation.block_values?.rater_signature || 'UNINITIALIZED'}</div>
-            </div>
-            <div>
-              <div className="text-slate-500">Block 48: Senior Rater Signature</div>
-              <div className="font-semibold text-white mt-1">{evaluation.block_values?.senior_rater_signature || 'UNINITIALIZED'}</div>
-            </div>
-            <div>
-              <div className="text-slate-500">Block 49: Member Signature</div>
-              <div className="font-semibold text-white mt-1">{evaluation.block_values?.member_signature || 'UNINITIALIZED'}</div>
-            </div>
-            <div>
-              <div className="text-slate-500">Block 50: Reporting Senior Signature</div>
-              <div className="font-semibold text-white mt-1">{evaluation.block_values?.reporting_senior_signature || 'UNINITIALIZED'}</div>
-            </div>
-          </div>
-        </div>
+        )}
       </main>
     </div>
   )

@@ -20,6 +20,7 @@ export default function EvaluationExportPage() {
   const id = params?.id as string
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
@@ -33,6 +34,7 @@ export default function EvaluationExportPage() {
           router.push('/login')
           return
         }
+        setUserId(session.user.id)
 
         if (!id) return;
         const data = await loadById(id)
@@ -56,7 +58,7 @@ export default function EvaluationExportPage() {
     if (!evaluation || !validationResult?.success) return;
     setIsFinalizing(true)
     try {
-      await updateStatus(evaluation.id!, 'completed')
+      await updateStatus(evaluation.id!, 'completed', userId || undefined)
       setEvaluation((prev) => prev ? { ...prev, status: 'completed' } : null)
       router.push('/dashboard')
     } catch (err: any) {
