@@ -6,6 +6,7 @@
 import React from 'react'
 import { Evaluation, ValidationIssue } from '@/types'
 import { PROMOTION_RECOMMENDATIONS, RETENTION_OPTIONS } from '@/types/navpers'
+import SignaturePad from '@/components/SignaturePad'
 
 type Props = {
   evalData: Evaluation
@@ -120,19 +121,33 @@ function SignatureRow({
     { block: 50, label: 'Reporting Senior Signature', key: 'reporting_senior_signature' },
   ] as const
 
+  const isLocked = evalData.status === 'completed' || evalData.status === 'archived'
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t border-slate-800/60 pt-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-800/60 pt-4">
       {sigs.map(({ block, label, key }) => (
-        <div key={key}>
-          <label className={LABEL}>Block {block}: {label}</label>
-          <input
-            type="text"
-            placeholder="e.g. Signature on file"
-            value={evalData.block_values?.[key] || ''}
-            onChange={(e) => handleBlockValueChange({ [key]: e.target.value })}
-            className={FIELD}
-          />
-        </div>
+        <SignaturePad
+          key={key}
+          label={label}
+          blockNumber={block}
+          existingSignature={evalData.block_values?.[`${key}_data`] || null}
+          existingTypedName={evalData.block_values?.[key] || null}
+          disabled={isLocked}
+          onSave={(data) => {
+            handleBlockValueChange({
+              [key]: data.typedName,
+              [`${key}_data`]: data.signatureDataUrl,
+              [`${key}_date`]: data.dateSigned,
+            })
+          }}
+          onClear={() => {
+            handleBlockValueChange({
+              [key]: '',
+              [`${key}_data`]: '',
+              [`${key}_date`]: '',
+            })
+          }}
+        />
       ))}
     </div>
   )

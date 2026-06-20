@@ -566,6 +566,61 @@ export async function generateEvalPdf(evaluation: Evaluation, templateBuffer: Ar
       color: blackColor,
     })
   }
+  // --- PAGE 2: SIGNATURE BLOCKS 42, 48, 49, 50 ---
+  const sigFields = [
+    { key: 'rater_signature', dataKey: 'rater_signature_data', dateKey: 'rater_signature_date', label: '42. RATER', y: 200 },
+    { key: 'senior_rater_signature', dataKey: 'senior_rater_signature_data', dateKey: 'senior_rater_signature_date', label: '48. SR RATER', y: 160 },
+    { key: 'member_signature', dataKey: 'member_signature_data', dateKey: 'member_signature_date', label: '49. MEMBER', y: 120 },
+    { key: 'reporting_senior_signature', dataKey: 'reporting_senior_signature_data', dateKey: 'reporting_senior_signature_date', label: '50. RS', y: 80 },
+  ]
+
+  for (const sig of sigFields) {
+    const typedName = evaluation.block_values?.[sig.key]
+    const sigDataUrl = evaluation.block_values?.[sig.dataKey]
+    const dateSigned = evaluation.block_values?.[sig.dateKey]
+
+    // Draw typed name
+    if (typedName) {
+      page2.drawText(typedName.toUpperCase(), {
+        x: 120,
+        y: sig.y + 8,
+        size: 8,
+        font: helvetica,
+        color: blackColor,
+      })
+    }
+
+    // Draw date signed
+    if (dateSigned) {
+      page2.drawText(dateSigned, {
+        x: 420,
+        y: sig.y + 8,
+        size: 7,
+        font: courier,
+        color: blackColor,
+      })
+    }
+
+    // Draw signature image if available
+    if (sigDataUrl && sigDataUrl.startsWith('data:image/png')) {
+      try {
+        const base64Data = sigDataUrl.split(',')[1]
+        const sigBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+        const sigImage = await pdfDoc.embedPng(sigBytes)
+        const sigDims = sigImage.scale(0.25)
+
+        page2.drawImage(sigImage, {
+          x: 200,
+          y: sig.y - 2,
+          width: Math.min(sigDims.width, 150),
+          height: Math.min(sigDims.height, 25),
+        })
+      } catch {
+        // If signature image fails to embed, continue without it
+        console.error(`Failed to embed signature image for ${sig.key}`)
+      }
+    }
+  }
 
   // Serialize the PDF document to bytes
   return await pdfDoc.save()
