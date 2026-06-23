@@ -6,6 +6,7 @@ import { signOut, getSession } from '@/lib/auth'
 import { useEvaluations } from '@/hooks/useEvaluations'
 import { createBrowserClient } from '@/lib/supabaseClient'
 import { getEvalSeed } from '@/lib/formDefinitions'
+import { hasPermission } from '@/lib/permissions'
 
 const supabase = createBrowserClient()
 
@@ -29,6 +30,9 @@ function getMockEval(profile: any) {
 }
 
 function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () => void }) {
+  const router = useRouter()
+  const isAdmin = profile && hasPermission(profile.preferred_role, 'manage_users')
+
   return (
     <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel">
       <div className="flex items-center gap-3">
@@ -36,6 +40,14 @@ function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () =
         <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">DASHBOARD</span>
       </div>
       <div className="flex items-center gap-4">
+        {isAdmin && (
+          <button
+            onClick={() => router.push('/admin')}
+            className="px-3 py-1.5 rounded bg-red-950/30 hover:bg-red-900/40 text-xs font-semibold text-red-300 border border-red-900/30 transition-all"
+          >
+            Admin Panel
+          </button>
+        )}
         <div className="text-right hidden sm:block">
           <div className="text-sm font-semibold text-white">
             {profile ? `${profile.navy_rank} ${profile.last_name}` : 'Loading...'}
