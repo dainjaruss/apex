@@ -63,7 +63,8 @@ vi.mock('@/lib/supabaseClient', () => {
               eq: () => ({
                 order: () => Promise.resolve({ data, error: null })
               }),
-              order: () => Promise.resolve({ data, error: null })
+              order: () => Promise.resolve({ data, error: null }),
+              in: () => Promise.resolve({ data, error: null })
             }
           }
         }
@@ -121,7 +122,7 @@ describe('APEX Full Evaluation Lifecycle E2E Integration Test', () => {
       designator: '1110',
       period_from: '2025-01-01',
       period_to: '2025-12-31',
-      duty_status: 'ACDU',
+      duty_status: 'ACT',
       uic: '12345',
       ship_station: 'USS NEVERSAIL',
       promotion_status: 'Regular',
@@ -140,16 +141,20 @@ describe('APEX Full Evaluation Lifecycle E2E Integration Test', () => {
       retention: 'Recommended',
       status: 'draft',
       block_values: {
-        physical_readiness: 'P/P',
-        reporting_senior_name: 'SMITH, ALAN J',
+        physical_readiness: 'PPP',
+        date_reported: '2024-01-15',
+        periodic: true,        // Block 10 — occasion
+        regular_report: true,  // Block 17 — type
+        reporting_senior_name: 'SMITH, A J',
         reporting_senior_grade: 'CDR',
         reporting_senior_designator: '1110',
-        reporting_senior_title: 'COMMANDING OFFICER',
+        reporting_senior_title: 'CO',
         reporting_senior_uic: '12345',
+        reporting_senior_dod_id: '0987654321',
         command_achievements: 'LEAD LPO',
         primary_duties: 'DIVISION LEAD',
         date_counseled: '25JAN15',
-        counselor: 'SMITH, ALAN J',
+        counselor: 'SMITH, A J',
         comment_pitch: '10',
         billet_subcategory: 'NA',
       }

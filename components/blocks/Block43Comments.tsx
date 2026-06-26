@@ -1,133 +1,102 @@
 // components/blocks/Block43Comments.tsx
 //
-// Monospace narrative editor displaying pitch selection (10 vs 12)
-// and a live wrapped monospace preview of Courier printing bounds.
-//
+// Narrative step: Block 43 (Comments on Performance) and Block 44 (Qualifications /
+// Achievements). Both use the shared MeasuredCourierField canvas, which wraps exactly as
+// the printed form. Block 43 keeps its 10/12-pitch toggle (90/84 CPL); Block 44 is a fixed
+// 10-pitch / 91 CPL / 2-line block per BUPERSINST 1610.10H.
+
+"use client"
 
 import React from 'react'
 import { Evaluation, ValidationIssue } from '@/types'
-import { checkCommentFit } from '@/lib/commentFit'
+import { FIELD_FIT } from '@/lib/commentFit'
+import BupersGuidelinesInline from '@/components/blocks/BupersGuidelinesInline'
+import MeasuredCourierField from '@/components/blocks/MeasuredCourierField'
 
 interface Block43CommentsProps {
-  evalData: Evaluation;
-  onChange: (fields: Partial<Evaluation>) => void;
-  issues: ValidationIssue[];
+  evalData: Evaluation
+  onChange: (fields: Partial<Evaluation>) => void
+  issues: ValidationIssue[]
+  onFocusField?: (field: string | null) => void
+  activeField?: string | null
 }
 
-// fallow-ignore-next-line complexity
-export default function Block43Comments({ evalData, onChange, issues }: Block43CommentsProps) {
-  const currentText = evalData.comments || '';
-  const currentPitch = evalData.block_values?.comment_pitch || '10';
+export default function Block43Comments({ evalData, onChange, issues, onFocusField, activeField }: Block43CommentsProps) {
+  const pitch = (evalData.block_values?.comment_pitch || '10') as '10' | '12'
+  const commentsCpl = pitch === '10' ? 90 : 84
 
-  // Perform live math calculation of lines and fitting state
-  const fitResult = checkCommentFit(currentText, currentPitch);
+  const setPitch = (p: '10' | '12') =>
+    onChange({ block_values: { ...evalData.block_values, comment_pitch: p } })
 
-  const handlePitchChange = (pitch: '10' | '12') => {
-    onChange({
-      block_values: {
-        ...evalData.block_values,
-        comment_pitch: pitch
-      }
-    });
-  };
+  const setBlockValue = (key: string, val: string) =>
+    onChange({ block_values: { ...evalData.block_values, [key]: val } })
 
-  const getError = () => {
-    return issues.find((i) => i.field === 'comments')?.message;
-  };
-
-  const isNearingLimit = fitResult.linesUsed >= 16 && fitResult.linesUsed <= 18;
-  const isOverflowed = !fitResult.fit;
-
-  let counterColor = 'text-slate-400';
-  if (isNearingLimit) counterColor = 'text-amber-500 font-bold';
-  if (isOverflowed) counterColor = 'text-red-500 font-extrabold animate-pulse';
+  const qualSpec = FIELD_FIT.qualifications
 
   return (
-    <div className="glass-panel rounded-xl p-6 mb-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-700/40 pb-2">
-        <div>
-          <h3 className="text-lg font-bold gold-accent">
-            Block 43: Comments on Performance
-          </h3>
-          <p className="text-xs text-slate-400">NAVPERS 1616/26 allows up to 18 lines of monospace printing.</p>
-        </div>
-
-        {/* Pitch config selection */}
-        <div className="mt-3 sm:mt-0 flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-semibold uppercase">Printing Pitch:</span>
-          <div className="flex rounded-md border border-slate-800 bg-[#1c2541]/40 p-0.5">
-            <button
-              type="button"
-              onClick={() => handlePitchChange('10')}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition duration-150 ${
-                currentPitch === '10' ? 'bg-[#3e6e99] text-white' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              10-Pitch (70 CPL)
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePitchChange('12')}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition duration-150 ${
-                currentPitch === '12' ? 'bg-[#3e6e99] text-white' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              12-Pitch (84 CPL)
-            </button>
+    <div className="glass-panel rounded-xl p-6 mb-6 space-y-8">
+      {/* ── Block 43: Comments on Performance ── */}
+      <div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-700/40 pb-2">
+          <div>
+            <h3 className="text-lg font-bold gold-accent">43: Comments on Performance</h3>
+            <p className="text-xs text-slate-400">Type directly in the Courier box — it wraps exactly as the printed form ({commentsCpl} chars/line × 18 lines).</p>
+          </div>
+          <div className="mt-3 sm:mt-0 flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-semibold uppercase">Printing Pitch:</span>
+            <div className="flex rounded-md border border-slate-800 bg-[#1c2541]/40 p-0.5">
+              <PitchButton label="10-Pitch (90 CPL)" active={pitch === '10'} onClick={() => setPitch('10')} />
+              <PitchButton label="12-Pitch (84 CPL)" active={pitch === '12'} onClick={() => setPitch('12')} />
+            </div>
           </div>
         </div>
+
+        <BupersGuidelinesInline activeField={activeField || null} sectionFields={['comments']} />
+
+        <MeasuredCourierField
+          value={evalData.comments || ''}
+          onChange={(v) => onChange({ comments: v })}
+          charsPerLine={commentsCpl}
+          maxLines={18}
+          placeholder="TYPE PERFORMANCE NARRATIVE HERE…"
+          onFocus={() => onFocusField?.('comments')}
+          error={issues.find((i) => i.field === 'comments')?.message}
+          ariaLabel="Block 43 Comments on Performance"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monospace raw input textarea */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-xs text-slate-400">
-            <span>Editor Input</span>
-            <span className={counterColor}>
-              Lines: {fitResult.linesUsed} / {fitResult.maxLines}
-            </span>
-          </div>
-
-          <textarea
-            value={currentText}
-            onChange={(e) => onChange({ comments: e.target.value })}
-            placeholder="Type performance narrative here... Use ALL CAPS to conform with standard NAVPERS layout rules."
-            className={`w-full h-[240px] bg-slate-950/45 border rounded-xl p-4 font-mono text-sm focus:outline-none transition duration-150 ${
-              isOverflowed
-                ? 'border-red-500/80 focus:border-red-400 focus:ring-1 focus:ring-red-400'
-                : 'border-slate-800 focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]'
-            }`}
-          />
-          {getError() && (
-            <p className="text-red-400 text-xs mt-1">{getError()}</p>
-          )}
+      {/* ── Block 44: Qualifications / Achievements ── */}
+      <div>
+        <div className="mb-3 border-b border-slate-700/40 pb-2">
+          <h3 className="text-lg font-bold gold-accent">44: Qualifications / Achievements</h3>
+          <p className="text-xs text-slate-400">Education, awards, community involvement, etc., during this period ({qualSpec.charsPerLine} chars/line × {qualSpec.maxLines} lines).</p>
         </div>
 
-        {/* Real-time Courier wrapped box preview */}
-        <div className="space-y-2">
-          <div className="text-xs text-slate-400 flex justify-between items-center">
-            <span>Physical Courier Box Preview ({fitResult.charsPerLine} CPL max)</span>
-            <span className="text-[10px] text-slate-500">Fixed Font Rendering</span>
-          </div>
+        <BupersGuidelinesInline activeField={activeField || null} sectionFields={['qualifications']} />
 
-          <div className="w-full h-[240px] bg-slate-950/70 border border-slate-900 rounded-xl p-4 font-mono text-[11px] overflow-y-auto text-slate-200 leading-[1.3] select-none">
-            {fitResult.wrappedLines.length === 0 ? (
-              <span className="text-slate-700 italic">No narrative input.</span>
-            ) : (
-              <div className="space-y-0">
-                {fitResult.wrappedLines.map((line, idx) => (
-                  <div key={idx} className="flex">
-                    <span className="w-6 text-[9px] text-slate-700 pr-1.5 mr-2 text-right border-r border-slate-900 select-none">
-                      {idx + 1}
-                    </span>
-                    <span className="whitespace-pre">{line}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <MeasuredCourierField
+          value={evalData.block_values?.qualifications || ''}
+          onChange={(v) => setBlockValue('qualifications', v)}
+          charsPerLine={qualSpec.charsPerLine}
+          maxLines={qualSpec.maxLines}
+          placeholder="EDUCATION, AWARDS, COMMUNITY INVOLVEMENT…"
+          onFocus={() => onFocusField?.('qualifications')}
+          error={issues.find((i) => i.field === 'qualifications')?.message}
+          ariaLabel="Block 44 Qualifications and Achievements"
+        />
       </div>
     </div>
-  );
+  )
+}
+
+function PitchButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1 text-xs font-bold rounded-md transition duration-150 ${active ? 'bg-[#3e6e99] text-white' : 'text-slate-400 hover:text-slate-200'}`}
+    >
+      {label}
+    </button>
+  )
 }

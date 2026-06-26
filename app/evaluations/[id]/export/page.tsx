@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById, updateStatus } from '@/lib/evaluationService'
+import { getSummaryGroupAverage } from '@/lib/summaryGroupService'
 import { runFullValidation } from '@/lib/validationEngine'
 import { Evaluation, ValidationResult } from '@/types'
 import PDFPreview from '@/components/PDFPreview'
@@ -38,8 +39,19 @@ export default function EvaluationExportPage() {
 
         if (!id) return;
         const data = await loadById(id)
+
+        // Block 50: compute the summary group average for the rendered PDF when this eval
+        // belongs to a summary group (pooled across the group's graded traits).
+        if (data?.summary_group_id) {
+          try {
+            const { average } = await getSummaryGroupAverage(data.summary_group_id)
+            data.summary_group_average = average
+          } catch (e) {
+            console.warn('Could not compute summary group average:', e)
+          }
+        }
         setEvaluation(data)
-        
+
         // Run full validation
         const valRes = runFullValidation(data)
         setValidationResult(valRes)

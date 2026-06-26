@@ -214,7 +214,7 @@ describe('APEX Comprehensive Test Coverage Suite', () => {
 
   it('should render DashboardPage correctly', () => {
     render(<DashboardPage />)
-    expect(screen.getByText(/Active Evaluation Drafts/i)).toBeDefined()
+    expect(screen.getByText(/My Drafts/i)).toBeDefined()
   })
 
   it('should execute middleware successfully', async () => {

@@ -4,7 +4,7 @@
 //
 
 import { describe, it, expect } from 'vitest'
-import { hasPermission, canPerformAction, getAvailableActions, getRoleDescription } from '@/lib/permissions'
+import { hasPermission, canPerformAction, getAvailableActions, getRoleDescription, canSignBlock } from '@/lib/permissions'
 import { Profile, Evaluation } from '@/types'
 
 const mockEvaluation: Evaluation = {
@@ -127,10 +127,18 @@ describe('RBAC Permission Engine', () => {
       expect(canPerformAction(admin, 'delete_evaluation', mockEvaluation)).toBe(true)
     })
 
-    it('should only allow the member to sign block 49', () => {
-      expect(canPerformAction(sailor, 'sign_block_49', mockEvaluation)).toBe(true)
+    it('should only allow the member (Individual Evaluated) to sign block 51', () => {
+      expect(canPerformAction(sailor, 'sign_block_51', mockEvaluation)).toBe(true)
       const otherSailor = { ...sailor, id: 'other-sailor' }
-      expect(canPerformAction(otherSailor, 'sign_block_49', mockEvaluation)).toBe(false)
+      expect(canPerformAction(otherSailor, 'sign_block_51', mockEvaluation)).toBe(false)
+    })
+
+    it('should map the Senior Rater signature to block 49 (not 48), and bar Sailors from it', () => {
+      // Block 49 is the Senior Rater signature on the real NAVPERS 1616/26.
+      expect(hasPermission('Senior Rater', 'sign_block_49')).toBe(true)
+      expect(hasPermission('Sailor', 'sign_block_49')).toBe(false)
+      // Block 48 is the RS address, not a signature — no sign action exists for it.
+      expect(hasPermission('Admin', 'sign_block_48' as any)).toBe(false)
     })
   })
 
@@ -139,7 +147,7 @@ describe('RBAC Permission Engine', () => {
       const actions = getAvailableActions(sailor, mockEvaluation)
       expect(actions).toContain('edit_evaluation')
       expect(actions).toContain('submit_for_review')
-      expect(actions).toContain('sign_block_49')
+      expect(actions).toContain('sign_block_51')
       expect(actions).not.toContain('approve_evaluation')
       expect(actions).not.toContain('manage_users')
     })
@@ -156,6 +164,38 @@ describe('RBAC Permission Engine', () => {
     it('should return a description for each known role', () => {
       expect(getRoleDescription('Sailor')).toContain('evaluation')
       expect(getRoleDescription('Admin')).toContain('unrestricted')
+    })
+  })
+
+  describe('canSignBlock (report-screen signing enforcement)', () => {
+    // mockEvaluation.created_by === 'sailor-1'
+    it('gates reviewer-chain blocks by role possession', () => {
+      // Rater may sign Block 42 but not 49/50/52
+      expect(canSignBlock(rater, 42, mockEvaluation)).toBe(true)
+      expect(canSignBlock(rater, 49, mockEvaluation)).toBe(false)
+      expect(canSignBlock(rater, 50, mockEvaluation)).toBe(false)
+      // Senior Rater may sign 42 and 49 but not 50
+      expect(canSignBlock({ ...rater, preferred_role: 'Senior Rater' }, 49, mockEvaluation)).toBe(true)
+      expect(canSignBlock({ ...rater, preferred_role: 'Senior Rater' }, 50, mockEvaluation)).toBe(false)
+      // Reporting Senior may sign 50 and 52
+      expect(canSignBlock(reportingSenior, 50, mockEvaluation)).toBe(true)
+      expect(canSignBlock(reportingSenior, 52, mockEvaluation)).toBe(true)
+      // Sailor may sign none of the reviewer-chain blocks
+      expect(canSignBlock(sailor, 42, mockEvaluation)).toBe(false)
+    })
+
+    it('restricts member blocks (51, 32) to the evaluated member (created_by) or Admin', () => {
+      expect(canSignBlock(sailor, 51, mockEvaluation)).toBe(true)   // sailor is created_by
+      expect(canSignBlock(sailor, 32, mockEvaluation)).toBe(true)
+      const otherSailor = { ...sailor, id: 'other-sailor' }
+      expect(canSignBlock(otherSailor, 51, mockEvaluation)).toBe(false)
+      expect(canSignBlock(rater, 51, mockEvaluation)).toBe(false)   // role has perm but is not the member
+      expect(canSignBlock(admin, 51, mockEvaluation)).toBe(true)    // Admin bypass
+    })
+
+    it('rejects non-signature blocks', () => {
+      expect(canSignBlock(admin, 48, mockEvaluation)).toBe(false)   // Block 48 is an address
+      expect(canSignBlock(admin, 99, mockEvaluation)).toBe(false)
     })
   })
 })

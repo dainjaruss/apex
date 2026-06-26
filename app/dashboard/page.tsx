@@ -5,33 +5,16 @@ import { useRouter } from 'next/navigation'
 import { signOut, getSession } from '@/lib/auth'
 import { useEvaluations } from '@/hooks/useEvaluations'
 import { createBrowserClient } from '@/lib/supabaseClient'
-import { getEvalSeed } from '@/lib/formDefinitions'
-import { hasPermission } from '@/lib/permissions'
+import { hasPermission, canManageSummaryGroups } from '@/lib/permissions'
 
 const supabase = createBrowserClient()
 
-function getMemberName(profile: any) {
-  if (!profile) return 'DOE, JOHN A'
-  const mi = profile.middle_initial ? ` ${profile.middle_initial}` : ''
-  return `${profile.last_name}, ${profile.first_name}${mi}`.toUpperCase().trim()
-}
 
-function getMockEval(profile: any) {
-  const seed = getEvalSeed()
-  const p = profile || {}
-
-  seed.member_name = getMemberName(profile)
-  seed.dod_id = p.dod_id || '1234567890'
-  seed.grade_rate = p.navy_rank || 'SN'
-  seed.ship_station = p.command || 'USS NEVERSAIL'
-  seed.uic = p.uic || ''
-  seed.comments = 'Sailor demonstrates high professionalism and technical competency. Completed all CIS capstone objectives.'
-  return seed
-}
 
 function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () => void }) {
   const router = useRouter()
   const isAdmin = profile && hasPermission(profile.preferred_role, 'manage_users')
+  const canGroups = profile && canManageSummaryGroups(profile)
 
   return (
     <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel">
@@ -40,6 +23,14 @@ function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () =
         <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">DASHBOARD</span>
       </div>
       <div className="flex items-center gap-4">
+        {canGroups && (
+          <button
+            onClick={() => router.push('/summary-groups')}
+            className="px-3 py-1.5 rounded bg-[#1c2541] hover:bg-slate-800 text-xs font-semibold text-blue-300 border border-blue-900/30 transition-all"
+          >
+            Summary Groups
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={() => router.push('/admin')}
@@ -65,7 +56,7 @@ function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () =
   )
 }
 
-function DraftsList({ loading, evaluations, onDraftMock }: { loading: boolean; evaluations: any[]; onDraftMock: () => void }) {
+function DraftsList({ loading, evaluations, emptyMessage }: { loading: boolean; evaluations: any[]; emptyMessage: string }) {
   const router = useRouter()
   if (loading && evaluations.length === 0) {
     return (
@@ -78,13 +69,7 @@ function DraftsList({ loading, evaluations, onDraftMock }: { loading: boolean; e
   if (evaluations.length === 0) {
     return (
       <div className="p-12 rounded-xl glass-panel text-center space-y-3">
-        <p className="text-sm text-[#608bb3]">No evaluation drafts found in database.</p>
-        <button
-          onClick={onDraftMock}
-          className="text-xs text-blue-400 hover:underline font-semibold"
-        >
-          Create a demo draft to verify database connections
-        </button>
+        <p className="text-sm text-[#608bb3]">{emptyMessage}</p>
       </div>
     )
   }
@@ -145,20 +130,17 @@ interface DashboardContentProps {
   profile: any
   evaluations: any[]
   loading: boolean
-  actionLoading: boolean
   error: string | null
-  onDraftMock: () => void
 }
 
 function DashboardContent({
   profile,
   evaluations,
   loading,
-  actionLoading,
   error,
-  onDraftMock,
 }: DashboardContentProps) {
   const router = useRouter()
+  const { inbox, drafts } = partitionEvals(evaluations, profile?.id)
   return (
     <main className="flex-1 max-w-6xl w-full mx-auto p-6 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -174,17 +156,6 @@ function DashboardContent({
         </button>
       </div>
 
-      <div className="p-4 rounded-xl border border-blue-900/40 bg-blue-950/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h4 className="text-sm font-semibold text-blue-300">Milestone 3 Integration Status</h4>
-          <p className="text-xs text-[#91aec9]">Database connectivity is operational. Click the Draft button to verify real-time Supabase writing.</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-green-400 bg-green-950/20 border border-green-900/40 px-3 py-1 rounded-full w-fit">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse"></span>
-          Database Connected
-        </div>
-      </div>
-
       {error && (
         <div className="p-4 rounded bg-red-950/30 border border-red-900/30 text-xs text-red-300">
           {error}
@@ -192,18 +163,30 @@ function DashboardContent({
       )}
 
       <div className="space-y-4">
-        <h3 className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">Active Evaluation Drafts</h3>
-        <DraftsList loading={loading} evaluations={evaluations} onDraftMock={onDraftMock} />
+        <h3 className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Awaiting Your Action</h3>
+        <DraftsList loading={loading} evaluations={inbox} emptyMessage="Nothing is awaiting your action." />
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">My Drafts</h3>
+        <DraftsList loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found in database." />
       </div>
     </main>
   )
 }
 
+/** Split evals into the custodian inbox (routed to me for action) vs my own drafts. */
+function partitionEvals(evaluations: any[], profileId?: string) {
+  const mine = (e: any) => e.current_holder_id === profileId
+  const drafts = evaluations.filter((e) => mine(e) && (e.routing_stage === 'sailor' || !e.routing_stage))
+  const inbox = evaluations.filter((e) => mine(e) && e.routing_stage && e.routing_stage !== 'sailor' && e.routing_stage !== 'locked')
+  return { inbox, drafts }
+}
+
 function useDashboardState() {
   const router = useRouter()
-  const { evaluations, loading, error, saveEvaluation } = useEvaluations()
+  const { evaluations, loading, error } = useEvaluations()
   const [profile, setProfile] = useState<any>(null)
-  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     const checkAuthAndLoad = async () => {
@@ -218,12 +201,12 @@ function useDashboardState() {
         .select('*')
         .eq('id', session.user.id)
         .single()
-      
+
       if (data) {
         setProfile(data)
       }
     }
-    
+
     checkAuthAndLoad()
   }, [router])
 
@@ -232,26 +215,12 @@ function useDashboardState() {
     router.push('/login')
   }
 
-  const handleCreateMockEval = async () => {
-    setActionLoading(true)
-    try {
-      const seed = getMockEval(profile)
-      await saveEvaluation(seed)
-    } catch (err) {
-      console.error('Failed to create mock eval:', err)
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   return {
     evaluations,
     loading,
     error,
     profile,
-    actionLoading,
     handleSignOut,
-    handleCreateMockEval,
   }
 }
 
@@ -261,9 +230,7 @@ export default function DashboardPage() {
     loading,
     error,
     profile,
-    actionLoading,
     handleSignOut,
-    handleCreateMockEval,
   } = useDashboardState()
 
   return (
@@ -273,9 +240,7 @@ export default function DashboardPage() {
         profile={profile}
         evaluations={evaluations}
         loading={loading}
-        actionLoading={actionLoading}
         error={error}
-        onDraftMock={handleCreateMockEval}
       />
     </div>
   )

@@ -71,6 +71,20 @@ export default function EditEvaluationPage() {
     }
   }
 
+  // Persist to the DB but STAY on the edit page (recovered-draft "Save") — no navigation.
+  const handleSaveInPlace = async (updatedData: Evaluation) => {
+    setIsSaving(true)
+    try {
+      if (!userId) throw new Error('Unauthenticated session')
+      return await saveDraft(userId, updatedData)
+    } catch (err: any) {
+      console.error('Failed to save edit in place:', err)
+      throw err
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0b132b] text-[#608bb3] font-mono text-sm">
@@ -122,6 +136,7 @@ export default function EditEvaluationPage() {
         <EvaluationForm
           initialData={evaluation}
           onSave={handleSave}
+          onSaveInPlace={handleSaveInPlace}
           onCancel={() => router.push('/dashboard')}
           isSaving={isSaving}
         />

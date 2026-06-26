@@ -121,121 +121,90 @@ export const updateStatus = async (id: string, status: string, userId?: string):
 }
 
 /**
- * Submits an evaluation for internal review.
+ * Shared review-workflow transition: update the evaluation row, record a
+ * review_approvals row, and write an audit log. submit / return / approve differ
+ * only in the status set, the approval_status recorded, the audit action, and the
+ * actor — so each is a thin wrapper over this helper.
  */
-export const submitForReview = async (id: string, reviewerId: string, userId: string): Promise<Evaluation> => {
+type ReviewTransition = {
+  label: string                              // function name, for the error log
+  evalUpdate: Record<string, unknown>        // fields to set on the evaluation
+  approvalStatus: 'pending' | 'returned' | 'approved'
+  reviewerComments?: string                  // omitted from the approval row when undefined
+  action: string                             // audit action
+  actor: string                              // userId passed to logAction
+  meta?: Record<string, unknown>             // audit metadata
+}
+
+const applyReviewTransition = async (id: string, reviewerId: string, t: ReviewTransition): Promise<Evaluation> => {
   const { data, error } = await supabase
     .from('evaluations')
-    .update({
-      status: 'ready_for_review',
-      reviewer_id: reviewerId,
-      updated_at: new Date().toISOString()
-    })
+    .update({ ...t.evalUpdate, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
 
   if (error) {
-    console.error(`submitForReview failed for ID ${id}:`, error.message)
+    console.error(`${t.label} failed for ID ${id}:`, error.message)
     throw new Error(error.message)
   }
 
-  // Insert review approval record in pending state
-  const { error: revError } = await supabase
-    .from('review_approvals')
-    .insert([
-      {
-        evaluation_id: id,
-        reviewer_id: reviewerId,
-        approval_status: 'pending'
-      }
-    ])
-
-  if (revError) {
-    console.error(`Failed to insert pending review approval for evaluation ${id}:`, revError.message)
+  const approval = {
+    evaluation_id: id,
+    reviewer_id: reviewerId,
+    approval_status: t.approvalStatus,
+    ...(t.reviewerComments !== undefined ? { reviewer_comments: t.reviewerComments } : {})
   }
 
-  await logAction(id, userId, 'SUBMITTED_FOR_REVIEW', { reviewer_id: reviewerId })
+  const { error: revError } = await supabase.from('review_approvals').insert([approval])
+  if (revError) {
+    console.error(`Failed to insert ${t.approvalStatus} review approval for evaluation ${id}:`, revError.message)
+  }
+
+  await logAction(id, t.actor, t.action, t.meta)
   return data as Evaluation
 }
+
+/**
+ * Submits an evaluation for internal review.
+ */
+export const submitForReview = (id: string, reviewerId: string, userId: string): Promise<Evaluation> =>
+  applyReviewTransition(id, reviewerId, {
+    label: 'submitForReview',
+    evalUpdate: { status: 'ready_for_review', reviewer_id: reviewerId },
+    approvalStatus: 'pending',
+    action: 'SUBMITTED_FOR_REVIEW',
+    actor: userId,
+    meta: { reviewer_id: reviewerId }
+  })
 
 /**
  * Returns an evaluation to draft status for correction.
  */
-export const returnForCorrection = async (id: string, reviewerId: string, comments: string): Promise<Evaluation> => {
-  const { data, error } = await supabase
-    .from('evaluations')
-    .update({
-      status: 'draft',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    console.error(`returnForCorrection failed for ID ${id}:`, error.message)
-    throw new Error(error.message)
-  }
-
-  // Insert returned review approval record
-  const { error: revError } = await supabase
-    .from('review_approvals')
-    .insert([
-      {
-        evaluation_id: id,
-        reviewer_id: reviewerId,
-        approval_status: 'returned',
-        reviewer_comments: comments
-      }
-    ])
-
-  if (revError) {
-    console.error(`Failed to insert returned review approval for evaluation ${id}:`, revError.message)
-  }
-
-  await logAction(id, reviewerId, 'RETURNED_FOR_CORRECTION', { comments })
-  return data as Evaluation
-}
+export const returnForCorrection = (id: string, reviewerId: string, comments: string): Promise<Evaluation> =>
+  applyReviewTransition(id, reviewerId, {
+    label: 'returnForCorrection',
+    evalUpdate: { status: 'draft' },
+    approvalStatus: 'returned',
+    reviewerComments: comments,
+    action: 'RETURNED_FOR_CORRECTION',
+    actor: reviewerId,
+    meta: { comments }
+  })
 
 /**
  * Approves an evaluation and marks it completed.
  */
-export const approveEvaluation = async (id: string, reviewerId: string, comments: string = ''): Promise<Evaluation> => {
-  const { data, error } = await supabase
-    .from('evaluations')
-    .update({
-      status: 'completed',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    console.error(`approveEvaluation failed for ID ${id}:`, error.message)
-    throw new Error(error.message)
-  }
-
-  // Insert approved review approval record
-  const { error: revError } = await supabase
-    .from('review_approvals')
-    .insert([
-      {
-        evaluation_id: id,
-        reviewer_id: reviewerId,
-        approval_status: 'approved',
-        reviewer_comments: comments
-      }
-    ])
-
-  if (revError) {
-    console.error(`Failed to insert approved review approval for evaluation ${id}:`, revError.message)
-  }
-
-  await logAction(id, reviewerId, 'REVIEW_APPROVED', { comments })
-  return data as Evaluation
-}
+export const approveEvaluation = (id: string, reviewerId: string, comments: string = ''): Promise<Evaluation> =>
+  applyReviewTransition(id, reviewerId, {
+    label: 'approveEvaluation',
+    evalUpdate: { status: 'completed' },
+    approvalStatus: 'approved',
+    reviewerComments: comments,
+    action: 'REVIEW_APPROVED',
+    actor: reviewerId,
+    meta: { comments }
+  })
 
 /**
  * Retrieves the historical approvals and comments for an evaluation.
@@ -265,3 +234,36 @@ export const fetchReviewApprovals = async (evaluationId: string) => {
   }
   return data
 }
+
+/* ── Custody routing (server-enforced via service-role routes) ─────────────── */
+
+async function postRoute(url: string, body: Record<string, any>) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Request failed')
+  return json
+}
+
+/** Hand custody to the next person in the chain. */
+export const routeForward = (evaluationId: string, toUserId: string) =>
+  postRoute('/api/eval-route', { evaluationId, action: 'route_forward', toUserId })
+
+/** Recycle one step back to the previous holder (comments required). */
+export const recycleForCorrection = (evaluationId: string, comments: string) =>
+  postRoute('/api/eval-route', { evaluationId, action: 'recycle', comments })
+
+/** Begin debrief at the reporting senior / admin stage (opens minor corrections). */
+export const beginDebrief = (evaluationId: string) =>
+  postRoute('/api/eval-route', { evaluationId, action: 'begin_debrief' })
+
+/** Apply a minor (key-whitelisted) correction during debrief. */
+export const applyMinorCorrection = (evaluationId: string, patch: Record<string, any>) =>
+  postRoute('/api/eval-correct', { evaluationId, patch })
+
+/** Lock / unlock the report (reporting senior / admin). */
+export const setLock = (evaluationId: string, lock: boolean) =>
+  postRoute('/api/eval-lock', { evaluationId, lock })

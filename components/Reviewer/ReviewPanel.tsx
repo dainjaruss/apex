@@ -1,270 +1,236 @@
 // components/Reviewer/ReviewPanel.tsx
 //
-// Interactive dashboard/panel for evaluation review workflows (Submit, Approve, Return).
-//
+// Routing panel for the report screen's "Review Workflow" tab. Renders the action(s)
+// available at the eval's current routing_stage to the current custodian (route
+// forward / recycle / begin debrief / minor corrections / unlock), a status banner for
+// everyone else, and the recycle-comment feedback timeline. Each piece is a small
+// sub-component so the panel stays well under fallow's unit-size band.
 
 "use client"
 
 import React, { useEffect, useState } from 'react'
 import { Evaluation, Profile } from '@/types'
 import { createBrowserClient } from '@/lib/supabaseClient'
+import { hasPermission } from '@/lib/permissions'
+import { NEXT_ROLE_BY_STAGE, MINOR_CORRECTION_KEYS } from '@/lib/routing'
 import {
-  submitForReview,
-  approveEvaluation,
-  returnForCorrection,
-  fetchReviewApprovals
+  routeForward, recycleForCorrection, beginDebrief, applyMinorCorrection, setLock, fetchReviewApprovals,
 } from '@/lib/evaluationService'
+import { listOpenGroups, attachSummaryGroup } from '@/lib/summaryGroupService'
 
-interface ReviewPanelProps {
-  evaluation: Evaluation
-  currentUser: Profile
-  onWorkflowAction: () => void
+const BTN = 'px-4 py-2 rounded text-xs font-bold text-white transition disabled:opacity-50'
+const FIELD = 'w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#3e6e99]'
+const STAGE_LABEL: Record<string, string> = {
+  sailor: 'Sailor (draft)', rater: 'Rater', senior_rater: 'Senior Rater',
+  reporting_senior: 'Reporting Senior', admin: 'Admin', debrief: 'Debrief', locked: 'Locked',
 }
+type Run = (fn: () => Promise<any>) => void
 
-const supabase = createBrowserClient()
+interface Props { evaluation: Evaluation; currentUser: Profile; onWorkflowAction: () => void }
 
-// fallow-ignore-next-line complexity
-export default function ReviewPanel({ evaluation, currentUser, onWorkflowAction }: ReviewPanelProps) {
-  const [reviewers, setReviewers] = useState<Profile[]>([])
-  const [selectedReviewerId, setSelectedReviewerId] = useState<string>('')
-  const [reviewerComments, setReviewerComments] = useState<string>('')
-  const [pastApprovals, setPastApprovals] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(true)
+export default function ReviewPanel({ evaluation, currentUser, onWorkflowAction }: Props) {
+  const [approvals, setApprovals] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
-
-  const isCreator = evaluation.created_by === currentUser.id
-  const isAssignedReviewer = evaluation.reviewer_id === currentUser.id
-  const hasReviewerRole = ['Rater', 'Senior Rater', 'Reporting Senior', 'Admin'].includes(currentUser.preferred_role)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const history = await fetchReviewApprovals(evaluation.id!)
-        setPastApprovals(history || [])
-      } catch (err: any) {
-        console.error('Failed to load review history:', err)
-      } finally {
-        setLoadingHistory(false)
-      }
-    }
+    if (evaluation.id) fetchReviewApprovals(evaluation.id).then((d) => setApprovals(d || [])).catch(() => {})
+  }, [evaluation.id])
 
-    const fetchPotentialReviewers = async () => {
-      try {
-        const { data, error: profError } = await supabase
-          .from('profiles')
-          .select('*')
-          .neq('preferred_role', 'Sailor')
-        
-        if (profError) throw profError;
-        setReviewers(data || [])
-        if (data && data.length > 0) {
-          setSelectedReviewerId(data[0].id)
-        }
-      } catch (err: any) {
-        console.error('Failed to load eligible reviewers:', err)
-      }
-    }
+  const stage = evaluation.routing_stage || 'sailor'
+  const isHolder = evaluation.current_holder_id === currentUser.id
+  const locked = !!evaluation.signature_locked || stage === 'locked'
+  const canDebrief = hasPermission(currentUser.preferred_role, 'debrief_evaluation')
 
-    if (evaluation.id) {
-      fetchHistory()
-    }
-    if (evaluation.status === 'draft' && isCreator) {
-      fetchPotentialReviewers()
-    }
-  }, [evaluation.id, evaluation.status, isCreator])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedReviewerId) return;
-    setLoading(true)
-    setError(null)
-    try {
-      await submitForReview(evaluation.id!, selectedReviewerId, currentUser.id)
-      onWorkflowAction()
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit report for review.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleApprove = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      await approveEvaluation(evaluation.id!, currentUser.id, reviewerComments)
-      setReviewerComments('')
-      onWorkflowAction()
-    } catch (err: any) {
-      setError(err.message || 'Failed to approve evaluation.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleReturn = async () => {
-    if (!reviewerComments.trim()) {
-      setError('You must specify comments explaining what needs correction before returning.')
-      return;
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      await returnForCorrection(evaluation.id!, currentUser.id, reviewerComments)
-      setReviewerComments('')
-      onWorkflowAction()
-    } catch (err: any) {
-      setError(err.message || 'Failed to return evaluation.')
-    } finally {
-      setLoading(false)
-    }
+  const run: Run = async (fn) => {
+    setLoading(true); setError(null)
+    try { await fn(); onWorkflowAction() }
+    catch (e: any) { setError(e.message || 'Action failed.') }
+    finally { setLoading(false) }
   }
 
   return (
-    <div className="space-y-6">
-      {/* Review Actions Panel */}
-      <div className="glass-panel border border-slate-800 rounded-xl p-6 space-y-6">
-        <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <span className="text-[#3e6e99]">✦</span> Review Action Center
-          </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Current Status: <span className="text-blue-400 font-bold uppercase">{evaluation.status.replace(/_/g, ' ')}</span>
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-3 bg-red-950/20 border border-red-900/40 rounded-lg text-xs text-red-300">
-            {error}
-          </div>
-        )}
-
-        {/* 1. Draft creator submits to a Reviewer */}
-        {evaluation.status === 'draft' && isCreator && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                Select Reviewer / Reporting Senior
-              </label>
-              {reviewers.length > 0 ? (
-                <select
-                  value={selectedReviewerId}
-                  onChange={(e) => setSelectedReviewerId(e.target.value)}
-                  className="w-full bg-[#1c2541] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  {reviewers.map((rev) => (
-                    <option key={rev.id} value={rev.id}>
-                      {rev.last_name}, {rev.first_name} ({rev.preferred_role} - {rev.navy_rank || 'No Rank'})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-xs text-amber-400">No reviewers registered yet. Invite other staff officers to register.</p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={loading || reviewers.length === 0}
-              className="w-full py-2.5 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-xs font-bold text-white transition tracking-wide shadow-lg"
-            >
-              {loading ? 'Submitting...' : 'Submit Evaluation for Review'}
-            </button>
-          </form>
-        )}
-
-        {/* 2. Reviewer performs actions */}
-        {evaluation.status === 'ready_for_review' && (isAssignedReviewer || currentUser.preferred_role === 'Admin') && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                Reviewer Remarks / Feedback
-              </label>
-              <textarea
-                value={reviewerComments}
-                onChange={(e) => setReviewerComments(e.target.value)}
-                placeholder="Enter feedback or corrections here (required to Return for Correction)..."
-                rows={4}
-                className="w-full bg-[#1c2541] border border-slate-800 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleReturn}
-                disabled={loading}
-                className="flex-1 py-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/40 text-red-200 border border-red-900/50 text-xs font-bold transition"
-              >
-                Return for Correction
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={loading}
-                className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg"
-              >
-                Approve & Complete
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 3. Report is in review but current user is not the reviewer */}
-        {evaluation.status === 'ready_for_review' && !isAssignedReviewer && currentUser.preferred_role !== 'Admin' && (
-          <div className="p-4 bg-slate-900/40 border border-slate-800 rounded-lg text-xs text-slate-400">
-            This evaluation is currently awaiting review by the assigned staff officer.
-          </div>
-        )}
-
-        {/* 4. Completed reports */}
-        {evaluation.status === 'completed' && (
-          <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-lg text-xs text-emerald-300">
-            This evaluation report is approved and locked. No further modifications or approvals are required.
-          </div>
-        )}
+    <div className="glass-panel rounded-xl p-6 space-y-6">
+      <div className="border-b border-slate-800 pb-3">
+        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">Routing Workflow</h3>
+        <p className="text-xs text-slate-400 mt-1">
+          Current stage: <span className="font-semibold text-white">{STAGE_LABEL[stage] || stage}</span>
+          {locked && <span className="ml-2 text-amber-400 font-semibold">· Locked</span>}
+        </p>
       </div>
 
-      {/* Review Feedback History */}
-      <div className="glass-panel border border-slate-800 rounded-xl p-6 space-y-4">
-        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-          Review Feedback History
-        </h4>
+      {error && <p className="text-red-400 text-xs font-semibold">{error}</p>}
 
-        {loadingHistory ? (
-          <p className="text-xs font-mono text-slate-500">Loading historical feedback...</p>
-        ) : pastApprovals.length === 0 ? (
-          <p className="text-xs text-slate-500">No review approvals or returns have been recorded yet.</p>
-        ) : (
-          <div className="relative border-l border-slate-800 ml-2 pl-4 space-y-6">
-            {pastApprovals.map((app, idx) => (
-              <div key={app.id || idx} className="relative space-y-1">
-                <span className={`absolute -left-[21px] top-1.5 h-2 w-2 rounded-full ${
-                  app.approval_status === 'approved' ? 'bg-emerald-500' :
-                  app.approval_status === 'returned' ? 'bg-red-500' : 'bg-slate-500'
-                }`} />
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-200">
-                    {app.profiles?.last_name}, {app.profiles?.first_name} ({app.profiles?.preferred_role})
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${
-                    app.approval_status === 'approved' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' :
-                    app.approval_status === 'returned' ? 'bg-red-950/40 text-red-400 border-red-900/50' :
-                    'bg-slate-800 text-slate-400 border-slate-700'
-                  }`}>
-                    {app.approval_status}
-                  </span>
-                </div>
-                {app.reviewer_comments && (
-                  <p className="text-xs text-slate-400 italic bg-slate-950/30 p-2.5 rounded-lg border border-slate-900/60 mt-1">
-                    "{app.reviewer_comments}"
-                  </p>
-                )}
-                <span className="text-[10px] text-slate-500 block">
-                  {new Date(app.created_at).toLocaleString()}
-                </span>
-              </div>
-            ))}
+      {locked ? (
+        <LockedBanner canDebrief={canDebrief} loading={loading} onUnlock={() => run(() => setLock(evaluation.id!, false))} />
+      ) : stage === 'debrief' ? (
+        <DebriefActions evaluation={evaluation} currentUser={currentUser} run={run} loading={loading} />
+      ) : isHolder ? (
+        <HolderActions evaluation={evaluation} stage={stage} canDebrief={canDebrief} run={run} loading={loading} />
+      ) : (
+        <p className="text-sm text-slate-400 bg-[#0d1b2a]/40 border border-slate-800/60 rounded-lg p-4">
+          This report is currently with the <span className="font-semibold text-white">{STAGE_LABEL[stage] || stage}</span>. You'll
+          regain access if it is recycled to you or opened for debrief corrections.
+        </p>
+      )}
+
+      <FeedbackTimeline approvals={approvals} />
+    </div>
+  )
+}
+
+/* ── Stage actions for the current holder ─────────────────────────────────── */
+
+function HolderActions({ evaluation, stage, canDebrief, run, loading }: {
+  evaluation: Evaluation; stage: string; canDebrief: boolean; run: Run; loading: boolean
+}) {
+  return (
+    <div className="space-y-5">
+      <RouteForward evaluation={evaluation} stage={stage} run={run} loading={loading} />
+      {stage !== 'sailor' && <RecycleAction evaluation={evaluation} run={run} loading={loading} />}
+      {(stage === 'reporting_senior' || stage === 'admin') && canDebrief && (
+        <button className={`${BTN} bg-amber-700 hover:bg-amber-600`} disabled={loading}
+          onClick={() => run(() => beginDebrief(evaluation.id!))}>
+          Begin Debrief
+        </button>
+      )}
+    </div>
+  )
+}
+
+function RouteForward({ evaluation, stage, run, loading }: {
+  evaluation: Evaluation; stage: string; run: Run; loading: boolean
+}) {
+  const role = NEXT_ROLE_BY_STAGE[stage]
+  const [targets, setTargets] = useState<any[]>([])
+  const [sel, setSel] = useState('')
+
+  useEffect(() => {
+    if (!role) return
+    createBrowserClient().from('profiles').select('id,first_name,last_name,preferred_role').eq('preferred_role', role)
+      .then(({ data }) => { setTargets(data || []); if (data && data[0]) setSel(data[0].id) })
+  }, [role])
+
+  if (!role) return null
+  return (
+    <div className="space-y-2">
+      {stage === 'sailor' && <GroupPicker evaluation={evaluation} run={run} loading={loading} />}
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Route forward to a {role}</label>
+      <select className={FIELD} value={sel} onChange={(e) => setSel(e.target.value)}>
+        {targets.length === 0 && <option value="">No {role} found</option>}
+        {targets.map((t) => <option key={t.id} value={t.id}>{t.last_name}, {t.first_name}</option>)}
+      </select>
+      <button className={`${BTN} bg-[#3e6e99] hover:bg-[#4e82b0]`} disabled={loading || !sel}
+        onClick={() => run(() => routeForward(evaluation.id!, sel))}>
+        Route Forward →
+      </button>
+    </div>
+  )
+}
+
+function GroupPicker({ evaluation, run, loading }: { evaluation: Evaluation; run: Run; loading: boolean }) {
+  const [groups, setGroups] = useState<any[]>([])
+  const [sel, setSel] = useState(evaluation.summary_group_id || '')
+  useEffect(() => { listOpenGroups().then(setGroups).catch(() => {}) }, [])
+  return (
+    <div className="space-y-2 pb-3 mb-1 border-b border-slate-800/60">
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Summary Group (optional)</label>
+      <select className={FIELD} value={sel} onChange={(e) => setSel(e.target.value)}>
+        <option value="">— None —</option>
+        {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+      </select>
+      <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading}
+        onClick={() => run(() => attachSummaryGroup(evaluation.id!, sel || null))}>
+        Attach Group
+      </button>
+    </div>
+  )
+}
+
+function RecycleAction({ evaluation, run, loading }: { evaluation: Evaluation; run: Run; loading: boolean }) {
+  const [comments, setComments] = useState('')
+  return (
+    <div className="space-y-2 border-t border-slate-800/60 pt-4">
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Recycle for correction (one step back)</label>
+      <textarea className={`${FIELD} h-16`} placeholder="What needs correcting?" value={comments} onChange={(e) => setComments(e.target.value)} />
+      <button className={`${BTN} bg-red-800 hover:bg-red-700`} disabled={loading || !comments.trim()}
+        onClick={() => run(() => recycleForCorrection(evaluation.id!, comments))}>
+        ← Recycle to Previous Holder
+      </button>
+    </div>
+  )
+}
+
+function DebriefActions({ evaluation, currentUser, run, loading }: {
+  evaluation: Evaluation; currentUser: Profile; run: Run; loading: boolean
+}) {
+  const isParticipant = (evaluation.participants || []).includes(currentUser.id)
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-amber-300 bg-amber-950/20 border border-amber-900/40 rounded-lg p-3">
+        Debrief in progress — participants may make minor corrections. The Reporting Senior signs Block 50 (Details tab) to lock the report.
+      </p>
+      {isParticipant
+        ? <MinorCorrectionForm evaluation={evaluation} run={run} loading={loading} />
+        : <p className="text-xs text-slate-500">Only people who handled this report may make corrections.</p>}
+    </div>
+  )
+}
+
+function MinorCorrectionForm({ evaluation, run, loading }: { evaluation: Evaluation; run: Run; loading: boolean }) {
+  const bv = evaluation.block_values || {}
+  const [patch, setPatch] = useState<Record<string, string>>({
+    comments: evaluation.comments || '',
+    qualifications: bv.qualifications || '',
+  })
+  const set = (k: string, v: string) => setPatch((p) => ({ ...p, [k]: v }))
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Block 43: Comments</label>
+      <textarea className={`${FIELD} h-20`} value={patch.comments} onChange={(e) => set('comments', e.target.value)} />
+      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Block 44: Qualifications</label>
+      <textarea className={`${FIELD} h-14`} value={patch.qualifications} onChange={(e) => set('qualifications', e.target.value)} />
+      <button className={`${BTN} bg-[#3e6e99] hover:bg-[#4e82b0]`} disabled={loading}
+        onClick={() => run(() => applyMinorCorrection(evaluation.id!, patch))}>
+        Apply Minor Corrections
+      </button>
+      <p className="text-[10px] text-slate-500">Only {MINOR_CORRECTION_KEYS.length} whitelisted fields are editable during debrief.</p>
+    </div>
+  )
+}
+
+function LockedBanner({ canDebrief, loading, onUnlock }: { canDebrief: boolean; loading: boolean; onUnlock: () => void }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-emerald-300 bg-emerald-950/20 border border-emerald-900/40 rounded-lg p-3">
+        ✓ Signed by the Reporting Senior and locked for editing. Export it from the report header for transmission to PERS-32 or printing.
+      </p>
+      {canDebrief && (
+        <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading} onClick={onUnlock}>
+          Unlock / Release for Correction
+        </button>
+      )}
+    </div>
+  )
+}
+
+function FeedbackTimeline({ approvals }: { approvals: any[] }) {
+  if (!approvals.length) return null
+  return (
+    <div className="border-t border-slate-800 pt-4 space-y-3">
+      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Recycle / Review History</h4>
+      <div className="space-y-3 pl-5 border-l border-slate-800">
+        {approvals.map((a, idx) => (
+          <div key={a.id || idx} className="relative space-y-1">
+            <span className={`absolute -left-[21px] top-1.5 h-2 w-2 rounded-full ${a.approval_status === 'approved' ? 'bg-emerald-500' : a.approval_status === 'returned' ? 'bg-red-500' : 'bg-slate-500'}`} />
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-slate-200">{a.profiles?.last_name}, {a.profiles?.first_name} ({a.profiles?.preferred_role})</span>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border bg-slate-800 text-slate-400 border-slate-700">{a.approval_status}</span>
+            </div>
+            {a.reviewer_comments && <p className="text-xs text-slate-400 italic bg-slate-950/30 p-2.5 rounded-lg border border-slate-900/60 mt-1">"{a.reviewer_comments}"</p>}
+            <span className="text-[10px] text-slate-500 block">{new Date(a.created_at).toLocaleString()}</span>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )

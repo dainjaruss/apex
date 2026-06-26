@@ -4,28 +4,62 @@
 
 import React from 'react'
 import Block1Name from '@/components/blocks/Block1Name'
+import BupersGuidelinesInline from '@/components/blocks/BupersGuidelinesInline'
+import MeasuredCourierField from '@/components/blocks/MeasuredCourierField'
 import { Evaluation, ValidationIssue } from '@/types'
+import { BILLET_SUBCATEGORY_OPTIONS, STARRED_BILLET_SUBCATEGORIES, COUNSELOR_MAX } from '@/types/navpers'
+import { FIELD_FIT, PRIMARY_DUTY_ABBREV_MAX } from '@/lib/commentFit'
 
 type Props = {
   evalData: Evaluation
   onChange: (fields: Partial<Evaluation>) => void
   issues: ValidationIssue[]
   handleBlockValueChange: (fields: Record<string, any>) => void
+  onFocusField?: (field: string | null) => void
+  activeField?: string | null
 }
 
-const LABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1'
-const FIELD = 'w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-foreground focus:outline-none focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99] transition duration-150'
+// Fields covered by the inline BUPERS guideline banner in the command/RS section.
+const COMMAND_SECTION_FIELDS = [
+  'physical_readiness',
+  'billet_subcategory',
+  'reporting_senior_name',
+  'reporting_senior_grade',
+  'reporting_senior_designator',
+  'reporting_senior_title',
+  'reporting_senior_uic',
+  'reporting_senior_dod_id',
+  'command_achievements',
+  'primary_duties',
+  'date_counseled',
+  'counselor',
+]
 
-export default function Block1Admin({ evalData, onChange, issues, handleBlockValueChange }: Props) {
+const LABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1'
+// Sub-field caption (e.g. 29A / 29B) — same color as the block LABEL.
+const SUBLABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5'
+const fieldClass = (hasError: boolean) =>
+  `w-full bg-[#1c2541]/40 border rounded px-3 py-2 text-foreground focus:outline-none transition duration-150 ${
+    hasError
+      ? 'border-red-500/80 focus:border-red-400 focus:ring-1 focus:ring-red-400'
+      : 'border-slate-700/60 focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]'
+  }`;
+
+export default function Block1Admin({ evalData, onChange, issues, handleBlockValueChange, onFocusField, activeField }: Props) {
   return (
-    <>
-      <Block1Name evalData={evalData} onChange={onChange} issues={issues} />
+    <div className="glass-panel rounded-xl p-6 space-y-6">
+      <h3 className="text-lg font-bold gold-accent mb-4 border-b border-slate-700/40 pb-2">
+        Administrative Info
+      </h3>
+      <Block1Name evalData={evalData} onChange={onChange} issues={issues} onFocusField={onFocusField} activeField={activeField} />
       <CommandDetailsSection
         evalData={evalData}
         issues={issues}
         handleBlockValueChange={handleBlockValueChange}
+        onFocusField={onFocusField}
+        activeField={activeField}
       />
-    </>
+    </div>
   )
 }
 
@@ -40,6 +74,8 @@ function BlockInput({
   handleBlockValueChange,
   maxLength,
   transform = 'uppercase',
+  issues,
+  onFocusField,
 }: {
   label: string
   fieldKey: string
@@ -47,13 +83,19 @@ function BlockInput({
   evalData: Evaluation
   handleBlockValueChange: (f: Record<string, any>) => void
   maxLength?: number
-  transform?: 'uppercase' | 'digits' | 'none'
+  transform?: 'uppercase' | 'digits' | 'pfa' | 'none'
+  issues: ValidationIssue[]
+  onFocusField?: (field: string | null) => void
 }) {
   const xform = (v: string) => {
     if (transform === 'uppercase') return v.toUpperCase()
     if (transform === 'digits') return v.replace(/[^0-9]/g, '')
+    // Block 20 PFA codes: uppercase and strip anything that isn't a valid code.
+    if (transform === 'pfa') return v.toUpperCase().replace(/[^PBFMWN]/g, '')
     return v
   }
+
+  const hasError = issues.some((i) => i.field === fieldKey && i.severity === 'error')
 
   return (
     <div>
@@ -64,8 +106,64 @@ function BlockInput({
         maxLength={maxLength}
         value={evalData.block_values?.[fieldKey] || ''}
         onChange={(e) => handleBlockValueChange({ [fieldKey]: xform(e.target.value) })}
-        className={FIELD}
+        onFocus={() => onFocusField?.(fieldKey)}
+        className={fieldClass(hasError)}
       />
+      {hasError && (
+        <p className="text-red-400 text-xs mt-1">
+          {issues.find((i) => i.field === fieldKey && i.severity === 'error')?.message}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Dropdown for block_values fields with a fixed option set (e.g. Block 21). */
+function BlockSelect({
+  label,
+  fieldKey,
+  options,
+  evalData,
+  handleBlockValueChange,
+  issues,
+  onFocusField,
+  renderLabel,
+  deriveChanges,
+}: {
+  label: string
+  fieldKey: string
+  options: string[]
+  evalData: Evaluation
+  handleBlockValueChange: (f: Record<string, any>) => void
+  issues: ValidationIssue[]
+  onFocusField?: (field: string | null) => void
+  // Display-only label transform (the stored option value is unchanged).
+  renderLabel?: (opt: string) => string
+  // Optional side-effect: derive additional block_values to set from the new selection.
+  deriveChanges?: (value: string) => Record<string, any>
+}) {
+  const hasError = issues.some((i) => i.field === fieldKey && i.severity === 'error')
+  return (
+    <div>
+      <label className={LABEL}>{label}</label>
+      <select
+        value={evalData.block_values?.[fieldKey] || ''}
+        onChange={(e) =>
+          handleBlockValueChange({ [fieldKey]: e.target.value, ...deriveChanges?.(e.target.value) })
+        }
+        onFocus={() => onFocusField?.(fieldKey)}
+        className={fieldClass(hasError)}
+      >
+        <option value="">Select…</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{renderLabel ? renderLabel(opt) : opt}</option>
+        ))}
+      </select>
+      {hasError && (
+        <p className="text-red-400 text-xs mt-1">
+          {issues.find((i) => i.field === fieldKey && i.severity === 'error')?.message}
+        </p>
+      )}
     </div>
   )
 }
@@ -75,82 +173,282 @@ function CommandDetailsSection({
   evalData,
   issues,
   handleBlockValueChange,
+  onFocusField,
+  activeField,
 }: {
   evalData: Evaluation
   issues: ValidationIssue[]
   handleBlockValueChange: (f: Record<string, any>) => void
+  onFocusField?: (field: string | null) => void
+  activeField?: string | null
 }) {
-  const ROW_1 = [
-    { label: 'Block 20: Physical Readiness', fieldKey: 'physical_readiness', placeholder: 'e.g. P/P', maxLength: 10 },
-    { label: 'Block 21: Billet Subcategory', fieldKey: 'billet_subcategory', placeholder: 'e.g. NA' },
-    { label: 'Block 22: RS Name (Last, First MI)', fieldKey: 'reporting_senior_name', placeholder: 'SENIOR, IM A' },
-    { label: 'Block 23: RS Grade', fieldKey: 'reporting_senior_grade', placeholder: 'e.g. CDR' },
-  ] as const
-
-  const ROW_2 = [
-    { label: 'Block 24: RS Designator', fieldKey: 'reporting_senior_designator', placeholder: 'e.g. 1110', transform: 'digits' as const },
-    { label: 'Block 25: RS Title', fieldKey: 'reporting_senior_title', placeholder: 'e.g. COMMANDING OFFICER' },
-    { label: 'Block 26: RS UIC', fieldKey: 'reporting_senior_uic', placeholder: 'e.g. 00241', maxLength: 5 },
-  ] as const
-
   return (
-    <div className="glass-panel rounded-xl p-6">
-      <h3 className="text-lg font-bold gold-accent mb-4 border-b border-slate-700/40 pb-2">
-        Command Context &amp; Reporting Senior (Blocks 20 - 32)
-      </h3>
+    <>
+      <BupersGuidelinesInline activeField={activeField || null} sectionFields={COMMAND_SECTION_FIELDS} />
 
       {/* Row 1: Blocks 20‑23 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        {ROW_1.map((cfg) => (
-          <BlockInput key={cfg.fieldKey} {...cfg} evalData={evalData} handleBlockValueChange={handleBlockValueChange} />
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+        <div className="md:col-span-2">
+          <BlockInput
+            label="20: Physical Readiness"
+            fieldKey="physical_readiness"
+            placeholder="e.g. PPP"
+            transform="pfa"
+            maxLength={10}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <BlockSelect
+            label="21: Billet Subcategory"
+            fieldKey="billet_subcategory"
+            options={BILLET_SUBCATEGORY_OPTIONS}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+            // Annotate starred standard subcategories with "*" (must match Block 29).
+            renderLabel={(opt) =>
+              (STARRED_BILLET_SUBCATEGORIES as readonly string[]).includes(opt) ? `${opt}*` : opt
+            }
+            // A starred Block 21 code must match Block 29 — auto-fill 29A with the code.
+            // Switching to a non-starred code clears a previously auto-filled code.
+            deriveChanges={(value) => {
+              const starred = (STARRED_BILLET_SUBCATEGORIES as readonly string[]).includes(value)
+              if (starred) return { primary_duty_abbrev: value }
+              const current = evalData.block_values?.primary_duty_abbrev || ''
+              if ((STARRED_BILLET_SUBCATEGORIES as readonly string[]).includes(current)) {
+                return { primary_duty_abbrev: '' }
+              }
+              return {}
+            }}
+          />
+        </div>
+        <div className="md:col-span-5">
+          <BlockInput
+            label="22: RS Name (Last, FI MI)"
+            fieldKey="reporting_senior_name"
+            placeholder="STJOHN, O F"
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <BlockInput
+            label="23: RS Grade"
+            fieldKey="reporting_senior_grade"
+            placeholder="e.g. CDR"
+            maxLength={5}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
       </div>
 
-      {/* Row 2: Blocks 24‑26 + 30 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        {ROW_2.map((cfg) => (
-          <BlockInput key={cfg.fieldKey} {...cfg} evalData={evalData} handleBlockValueChange={handleBlockValueChange} />
-        ))}
-
-        {/* Block 30: Date Counseled (has validation message) */}
-        <div>
-          <label className={LABEL}>Block 30: Date Counseled</label>
-          <input
-            type="text"
-            placeholder="YYMMMDD or NOT REQ"
-            value={evalData.block_values?.date_counseled || ''}
-            onChange={(e) => handleBlockValueChange({ date_counseled: e.target.value.toUpperCase() })}
-            className={FIELD}
+      {/* Row 2: Blocks 24‑26 (Reporting Senior designator, title, UIC) */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+        <div className="md:col-span-3">
+          <BlockInput
+            label="24: RS Designator"
+            fieldKey="reporting_senior_designator"
+            placeholder="e.g. 1110 / USAF"
+            transform="uppercase"
+            maxLength={4}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
           />
+        </div>
+        <div className="md:col-span-4">
+          <BlockInput
+            label="25: RS Title (max 14)"
+            fieldKey="reporting_senior_title"
+            placeholder="e.g. CO"
+            maxLength={14}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <BlockInput
+            label="26: RS UIC"
+            fieldKey="reporting_senior_uic"
+            placeholder="e.g. 00241"
+            maxLength={5}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <BlockInput
+            label="27: RS DoD ID"
+            fieldKey="reporting_senior_dod_id"
+            placeholder="10-digit DoD ID"
+            transform="digits"
+            maxLength={10}
+            evalData={evalData}
+            handleBlockValueChange={handleBlockValueChange}
+            issues={issues}
+            onFocusField={onFocusField}
+          />
+        </div>
+      </div>
+
+      {/* Block 28 — Command Employment and Achievements (measured canvas, 95 CPL x 3 lines) */}
+      <div className="mb-6">
+        <MeasuredCourierField
+          label="28: Command Employment and Achievements"
+          value={evalData.block_values?.command_achievements || ''}
+          onChange={(v) => handleBlockValueChange({ command_achievements: v })}
+          charsPerLine={FIELD_FIT.command_achievements.charsPerLine}
+          maxLines={FIELD_FIT.command_achievements.maxLines}
+          placeholder="DESCRIBE COMMAND EMPLOYMENT AND ACHIEVEMENTS…"
+          onFocus={() => onFocusField?.('command_achievements')}
+          error={issues.find((i) => i.field === 'command_achievements')?.message}
+          ariaLabel="Block 28 Command Employment and Achievements"
+        />
+      </div>
+
+      {/* Block 29 — (A) 14-char primary-duty abbreviation + (B) narrative (95 CPL x 3 lines) */}
+      <div className="mb-6">
+        <label className={LABEL}>29: Primary/Collateral/Watchstanding Duties</label>
+        <div className="mb-4">
+          <span className={SUBLABEL}>29A · Most-significant primary duty abbreviation (max {PRIMARY_DUTY_ABBREV_MAX})</span>
+          {/* Matches the 28 / 29B Courier box styling, minus the line-number gutter. */}
+          <div
+            className={`flex w-fit max-w-full bg-slate-950/60 border rounded-xl py-3 ${
+              issues.some((i) => i.field === 'primary_duty_abbrev' && i.severity === 'error')
+                ? 'border-red-500/80'
+                : 'border-slate-800 focus-within:border-[#3e6e99] focus-within:ring-1 focus-within:ring-[#3e6e99]'
+            }`}
+          >
+            <input
+              type="text"
+              maxLength={PRIMARY_DUTY_ABBREV_MAX}
+              placeholder="IT COMM TECH"
+              value={evalData.block_values?.primary_duty_abbrev || ''}
+              onChange={(e) => handleBlockValueChange({ primary_duty_abbrev: e.target.value.toUpperCase() })}
+              onFocus={() => onFocusField?.('primary_duties')}
+              spellCheck={false}
+              aria-label="Block 29A most-significant primary duty abbreviation"
+              className="block bg-transparent text-slate-100 p-0 mx-3 focus:outline-none placeholder:text-slate-600"
+              style={{
+                fontFamily: "'Courier Prime', 'Courier New', Courier, monospace",
+                fontSize: '13px',
+                lineHeight: '22px',
+                width: `${PRIMARY_DUTY_ABBREV_MAX}ch`,
+              }}
+            />
+          </div>
+          {issues.find((i) => i.field === 'primary_duty_abbrev') && (
+            <p className="text-red-400 text-xs mt-2">{issues.find((i) => i.field === 'primary_duty_abbrev')?.message}</p>
+          )}
+        </div>
+        <MeasuredCourierField
+          label="29B · Duties narrative"
+          value={evalData.block_values?.primary_duties || ''}
+          onChange={(v) => handleBlockValueChange({ primary_duties: v })}
+          charsPerLine={FIELD_FIT.primary_duties.charsPerLine}
+          maxLines={FIELD_FIT.primary_duties.maxLines}
+          firstLineLead={FIELD_FIT.primary_duties.firstLineLead}
+          placeholder="PRI: …; COLL: …; JOB SCOPE: …; PFA …"
+          onFocus={() => onFocusField?.('primary_duties')}
+          error={issues.find((i) => i.field === 'primary_duties')?.message}
+          ariaLabel="Block 29 Primary Duties narrative"
+        />
+      </div>
+
+      {/* Mid‑Term Counseling — Blocks 30‑31 (Block 32 signature is applied on the report screen) */}
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+        Mid‑Term Counseling (Blocks 30 - 31)
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Block 30: Date Counseled — calendar picker (ISO), or NOT REQ / NOT PERF */}
+        <div>
+          <label className={LABEL}>30: Date Counseled</label>
+          {(() => {
+            const dc = evalData.block_values?.date_counseled || ''
+            const isDate = /^\d{4}-\d{2}-\d{2}$/.test(dc)
+            const hasError = issues.some((i) => i.field === 'date_counseled' && i.severity === 'error')
+            return (
+              <>
+                <input
+                  type="date"
+                  value={isDate ? dc : ''}
+                  onChange={(e) => handleBlockValueChange({ date_counseled: e.target.value })}
+                  onFocus={() => onFocusField?.('date_counseled')}
+                  className={fieldClass(hasError)}
+                />
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500">If not counseled:</span>
+                  {(['NOT REQ', 'NOT PERF'] as const).map((code) => {
+                    const active = dc.toUpperCase() === code
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          onFocusField?.('date_counseled')
+                          handleBlockValueChange({ date_counseled: active ? '' : code })
+                        }}
+                        className={`px-2 py-1 text-[11px] font-semibold rounded border transition ${
+                          active
+                            ? 'bg-[#3e6e99] border-[#3e6e99] text-white'
+                            : 'bg-[#1c2541]/40 border-slate-700/60 text-slate-300 hover:border-[#3e6e99]'
+                        }`}
+                      >
+                        {code}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
           {issues.find((i) => i.field === 'date_counseled') && (
             <p className="text-red-400 text-xs mt-1">
               {issues.find((i) => i.field === 'date_counseled')?.message}
             </p>
           )}
         </div>
+
+        {/* Block 31: Counselor (required — has validation message) */}
+        <div>
+          <label className={LABEL}>31: Counselor</label>
+          <input
+            type="text"
+            placeholder="COUNSELOR, FI"
+            maxLength={COUNSELOR_MAX}
+            value={evalData.block_values?.counselor || ''}
+            onChange={(e) => handleBlockValueChange({ counselor: e.target.value.toUpperCase() })}
+            onFocus={() => onFocusField?.('counselor')}
+            className={fieldClass(issues.some((i) => i.field === 'counselor' && i.severity === 'error'))}
+          />
+          {issues.find((i) => i.field === 'counselor') && (
+            <p className="text-red-400 text-xs mt-1">
+              {issues.find((i) => i.field === 'counselor')?.message}
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Free‑form text areas: Blocks 28 & 29 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className={LABEL}>Block 28: Command Employment and Achievements</label>
-          <textarea
-            placeholder="Describe command achievements..."
-            value={evalData.block_values?.command_achievements || ''}
-            onChange={(e) => handleBlockValueChange({ command_achievements: e.target.value })}
-            className={`${FIELD} h-20`}
-          />
-        </div>
-        <div>
-          <label className={LABEL}>Block 29: Primary/Collateral/Watchstanding Duties</label>
-          <textarea
-            placeholder="Describe sailor primary duties..."
-            value={evalData.block_values?.primary_duties || ''}
-            onChange={(e) => handleBlockValueChange({ primary_duties: e.target.value })}
-            className={`${FIELD} h-20`}
-          />
-        </div>
-      </div>
-    </div>
+      {/* Block 32: Signature of Individual Counseled — signed on the report screen (optional per EVALMAN) */}
+      <p className="text-slate-500 text-[10px] mb-2">
+        Block 32 (Signature of Individual Counseled) is signed by the member on the report screen after
+        saving. Per BUPERSINST 1610.10H it is optional and may be left blank.
+      </p>
+    </>
   )
 }

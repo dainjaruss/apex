@@ -1,53 +1,61 @@
-// components/blocks/Block33to39Traits/Block33to39Traits.tsx
-
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { Evaluation, ValidationIssue } from '@/types'
 import TraitRow from '@/components/blocks/Block33to39Traits/TraitRow'
+import BupersGuidelinesInline from '@/components/blocks/BupersGuidelinesInline'
+import { computeTraitAverage } from '@/lib/traitAverage'
 
 interface Block33to39TraitsProps {
   evalData: Evaluation;
   onChange: (fields: Partial<Evaluation>) => void;
   issues: ValidationIssue[];
+  onFocusField?: (field: string | null) => void;
+  activeField?: string | null;
 }
 
 const TRAIT_KEYS = [
-  { key: 'knowledge', label: 'Professional Knowledge (Block 33)' },
-  { key: 'work', label: 'Quality of Work (Block 34)' },
-  { key: 'eo', label: 'Command Climate / Equal Opportunity (Block 35)' },
-  { key: 'bearing', label: 'Military Bearing / Character (Block 36)' },
-  { key: 'accomplishment', label: 'Personal Job Accomplishment / Initiative (Block 37)' },
-  { key: 'teamwork', label: 'Teamwork (Block 38)' },
-  { key: 'leadership', label: 'Leadership (Block 39)' },
+  { key: 'knowledge', label: 'Professional Knowledge (33)' },
+  { key: 'work', label: 'Quality of Work (34)' },
+  { key: 'eo', label: 'Command Climate / Equal Opportunity (35)' },
+  { key: 'bearing', label: 'Military Bearing / Character (36)' },
+  { key: 'accomplishment', label: 'Personal Job Accomplishment / Initiative (37)' },
+  { key: 'teamwork', label: 'Teamwork (38)' },
+  { key: 'leadership', label: 'Leadership (39)' },
 ] as const
 
 const GRADE_VALUES = ['1.0', '2.0', '3.0', '4.0', '5.0', 'NOB'] as const
 
-export default function Block33to39Traits({ evalData, onChange, issues }: Block33to39TraitsProps) {
-  const currentGrades = evalData.trait_grades || {
-    knowledge: '3.0',
-    work: '3.0',
-    eo: '3.0',
-    bearing: '3.0',
-    accomplishment: '3.0',
-    teamwork: '3.0',
-    leadership: '3.0',
+export default function Block33to39Traits({ evalData, onChange, issues, onFocusField, activeField }: Block33to39TraitsProps) {
+  // Only the grades the rater has actually set. Per EVALMAN an untouched trait is blank
+  // and ungraded (excluded from the average) — never a silent 3.0 default.
+  const currentGrades = useMemo(
+    () => (evalData.trait_grades || {}) as Record<string, string | undefined>,
+    [evalData.trait_grades],
+  )
+
+  // Sync the Block 40 average over the graded traits only. Null = nothing graded yet
+  // (stored as 0, the "none graded" sentinel).
+  useEffect(() => {
+    const { average } = computeTraitAverage(currentGrades)
+    const next = average ?? 0
+    if (evalData.trait_average !== next) {
+      onChange({ trait_average: next })
+    }
+  }, [currentGrades, evalData.trait_average, onChange])
+
+  // The parent's handleFieldChange does a SHALLOW merge, so sending only the changed
+  // trait would replace the whole trait_grades object and wipe its siblings (collapsing
+  // the average to the last grade clicked). Merge with the other current grades first.
+  const handleTraitChange = (fields: Partial<Evaluation>) => {
+    if (fields.trait_grades) {
+      onChange({ ...fields, trait_grades: { ...currentGrades, ...fields.trait_grades } })
+    } else {
+      onChange(fields)
+    }
   }
 
-  // Compute and sync trait average
-  useEffect(() => {
-    let sum = 0
-    let count = 0
-    Object.values(currentGrades).forEach((grade) => {
-      if (grade !== 'NOB') {
-        const val = parseFloat(grade)
-        if (!isNaN(val)) { sum += val; count++ }
-      }
-    })
-    const average = count > 0 ? parseFloat((sum / count).toFixed(2)) : 0.0
-    if (evalData.trait_average !== average) {
-      onChange({ trait_average: average })
-    }
-  }, [currentGrades, onChange, evalData.trait_average])
+  // Live Block 40 average for the header — computed from the grades directly so it never
+  // lags the stored round-trip (null = a fully NOB report).
+  const { average: liveAverage } = computeTraitAverage(currentGrades)
 
   const getError = (trait: string) => {
     return issues.find((i) => i.field === `trait_grades.${trait}`)?.message
@@ -58,12 +66,30 @@ export default function Block33to39Traits({ evalData, onChange, issues }: Block3
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-700/40 pb-2">
         <h3 className="text-lg font-bold gold-accent">Trait Performance Ratings (Blocks 33 - 39)</h3>
         <div className="mt-2 sm:mt-0 px-4 py-1.5 rounded-lg bg-[#111c38]/40 border border-slate-800 text-sm font-semibold flex items-center gap-2">
-          <span className="text-slate-400 text-xs uppercase">Trait Average (Block 40):</span>
+          <span className="text-slate-400 text-xs uppercase">Trait Average (40):</span>
           <span className="text-emerald-400 font-bold font-mono text-base">
-            {evalData.trait_average ? evalData.trait_average.toFixed(2) : '0.00'}
+            {liveAverage != null ? liveAverage.toFixed(2) : '—'}
           </span>
         </div>
       </div>
+
+      <p className="text-xs text-slate-500 mb-4 -mt-2">
+        Click a grade to set it; click the selected grade again to clear it. Untouched traits stay ungraded
+        and are excluded from the Block 40 average (per BUPERSINST 1610.10H).
+      </p>
+
+      <BupersGuidelinesInline
+        activeField={activeField || null}
+        sectionFields={[
+          'trait_grades.knowledge',
+          'trait_grades.work',
+          'trait_grades.eo',
+          'trait_grades.bearing',
+          'trait_grades.accomplishment',
+          'trait_grades.teamwork',
+          'trait_grades.leadership'
+        ]}
+      />
 
       <div className="space-y-4">
         {TRAIT_KEYS.map(({ key, label }) => (
@@ -71,10 +97,11 @@ export default function Block33to39Traits({ evalData, onChange, issues }: Block3
             key={key}
             traitKey={key}
             label={label}
-            value={currentGrades[key] || '3.0'}
+            value={currentGrades[key] || ''}
             error={getError(key)}
-            onChange={onChange}
+            onChange={handleTraitChange}
             gradeValues={GRADE_VALUES}
+            onFocus={() => onFocusField?.(`trait_grades.${key}`)}
           />
         ))}
       </div>

@@ -1,4 +1,38 @@
 import { createBrowserClient as createSupabaseBrowser, createServerClient as createSupabaseServer } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
+
+// Trusted server-ONLY client using the service-role key. Bypasses RLS, so it must
+// only ever be used inside an API route AFTER an application-level permission check
+// (see app/api/sign/route.ts). NEVER import this from a client component.
+export const createAdminClient = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceKey) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is not configured — required for server-side signature enforcement. ' +
+      'Add it to .env.local (Supabase dashboard → Settings → API → service_role).'
+    )
+  }
+  return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+
+// Returns the authenticated caller's user id inside a route handler (cookie session),
+// or null. Used by the routing/correction endpoints to identify who is acting.
+export const getRouteUserId = async (): Promise<string | null> => {
+  const supabase = createServerClient()
+  const { data } = await supabase.auth.getUser()
+  return data?.user?.id ?? null
+}
+
+// Ephemeral anon client used to VERIFY submitted credentials in a route without
+// touching the caller's browser session cookies (no persistence / refresh).
+export const createCredentialVerifierClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
 
 // Custom browser client for APEX dashboard and profile pages
 export const createBrowserClient = () => {

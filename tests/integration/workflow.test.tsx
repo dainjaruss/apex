@@ -1,6 +1,6 @@
 // tests/integration/workflow.test.tsx
 //
-// Integration tests for the ReviewPanel workflow component.
+// Integration tests for the custodian RoutingPanel (ReviewPanel) component.
 //
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -9,42 +9,42 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ReviewPanel from '@/components/Reviewer/ReviewPanel'
 import { Evaluation, Profile } from '@/types'
 
-// Mock evaluation services
 vi.mock('@/lib/evaluationService', () => ({
-  submitForReview: vi.fn().mockResolvedValue({ status: 'ready_for_review' }),
-  approveEvaluation: vi.fn().mockResolvedValue({ status: 'completed' }),
-  returnForCorrection: vi.fn().mockResolvedValue({ status: 'draft' }),
+  routeForward: vi.fn().mockResolvedValue({ ok: true }),
+  recycleForCorrection: vi.fn().mockResolvedValue({ ok: true }),
+  beginDebrief: vi.fn().mockResolvedValue({ ok: true }),
+  applyMinorCorrection: vi.fn().mockResolvedValue({ ok: true }),
+  setLock: vi.fn().mockResolvedValue({ ok: true }),
   fetchReviewApprovals: vi.fn().mockResolvedValue([
     {
       id: 'approval-1',
       approval_status: 'returned',
       reviewer_comments: 'Please fix block 43 comment length.',
       created_at: new Date().toISOString(),
-      profiles: {
-        first_name: 'Alan',
-        last_name: 'Smith',
-        preferred_role: 'Reporting Senior'
-      }
-    }
-  ])
+      profiles: { first_name: 'Alan', last_name: 'Smith', preferred_role: 'Senior Rater' },
+    },
+  ]),
+}))
+
+vi.mock('@/lib/summaryGroupService', () => ({
+  listOpenGroups: vi.fn().mockResolvedValue([]),
+  attachSummaryGroup: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/supabaseClient', () => ({
   createBrowserClient: () => ({
     from: () => ({
       select: () => ({
-        neq: () => Promise.resolve({
-          data: [
-            { id: 'reviewer-id-1', first_name: 'Alan', last_name: 'Smith', preferred_role: 'Reporting Senior', assigned_roles: [] }
-          ],
-          error: null
-        })
-      })
-    })
-  })
+        eq: () => Promise.resolve({
+          data: [{ id: 'rater-id-1', first_name: 'Ray', last_name: 'Rater', preferred_role: 'Rater' }],
+          error: null,
+        }),
+      }),
+    }),
+  }),
 }))
 
-const mockDraftEvaluation: Evaluation = {
+const baseEval: Evaluation = {
   id: 'test-eval-id-1',
   created_by: 'creator-user-id',
   form_definition_id: 'EVAL',
@@ -61,107 +61,46 @@ const mockDraftEvaluation: Evaluation = {
   promotion_recommendation: 'Promotable',
   retention: 'Recommended',
   status: 'draft',
-  block_values: {}
+  block_values: {},
+  trait_grades: {},
+  current_holder_id: 'creator-user-id',
+  routing_stage: 'sailor',
+  participants: ['creator-user-id'],
 }
 
-const mockCreatorProfile: Profile = {
-  id: 'creator-user-id',
-  first_name: 'John',
-  last_name: 'Sailor',
-  preferred_role: 'Sailor',
-  assigned_roles: ['Sailor']
-}
+const sailor: Profile = { id: 'creator-user-id', first_name: 'John', last_name: 'Sailor', preferred_role: 'Sailor', assigned_roles: ['Sailor'] }
+const rater: Profile = { id: 'rater-user-id', first_name: 'Ray', last_name: 'Rater', preferred_role: 'Rater', assigned_roles: ['Rater'] }
 
-const mockReviewerProfile: Profile = {
-  id: 'reviewer-user-id',
-  first_name: 'Alan',
-  last_name: 'Smith',
-  preferred_role: 'Reporting Senior',
-  assigned_roles: ['Reporting Senior']
-}
+describe('APEX RoutingPanel Integration Tests', () => {
+  const onWorkflowAction = vi.fn()
+  beforeEach(() => vi.clearAllMocks())
 
-describe('APEX ReviewPanel Integration Tests', () => {
-  const onWorkflowActionMock = vi.fn()
+  it('lets the sailor (current holder, draft) route forward to a Rater', async () => {
+    const { routeForward } = await import('@/lib/evaluationService')
+    render(<ReviewPanel evaluation={baseEval} currentUser={sailor} onWorkflowAction={onWorkflowAction} />)
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    expect(screen.getByText(/Routing Workflow/i)).toBeDefined()
+    expect(await screen.findByText(/Route forward to a Rater/i)).toBeDefined()
 
-  it('should render reviewer selection list and submit button when in draft status and viewed by creator', async () => {
-    render(
-      <ReviewPanel
-        evaluation={mockDraftEvaluation}
-        currentUser={mockCreatorProfile}
-        onWorkflowAction={onWorkflowActionMock}
-      />
-    )
-
-    // Check header
-    expect(screen.getByText(/Review Action Center/i)).toBeDefined()
-
-    // Wait for the async reviewers dropdown to load
-    const combobox = await screen.findByRole('combobox')
-    expect(combobox).toBeDefined()
-    expect(screen.getAllByText(/Smith, Alan/i).length).toBeGreaterThanOrEqual(1)
-
-    // Submit button should be enabled
-    const submitBtn = screen.getByRole('button', { name: /Submit Evaluation for Review/i })
-    expect(submitBtn).toBeDefined()
-    
-    // Trigger submission
-    fireEvent.click(submitBtn)
-
+    fireEvent.click(screen.getByRole('button', { name: /Route Forward/i }))
     await waitFor(() => {
-      expect(onWorkflowActionMock).toHaveBeenCalled()
+      expect(routeForward).toHaveBeenCalled()
+      expect(onWorkflowAction).toHaveBeenCalled()
     })
   })
 
-  it('should render review actions (Approve & Return) when ready_for_review and viewed by assigned reviewer', async () => {
-    const readyEval: Evaluation = {
-      ...mockDraftEvaluation,
-      status: 'ready_for_review',
-      reviewer_id: 'reviewer-user-id'
-    }
+  it('shows route-forward + recycle to the holder at the rater stage', async () => {
+    const raterHeld: Evaluation = { ...baseEval, routing_stage: 'rater', current_holder_id: 'rater-user-id', previous_holder_id: 'creator-user-id' }
+    render(<ReviewPanel evaluation={raterHeld} currentUser={rater} onWorkflowAction={onWorkflowAction} />)
 
-    render(
-      <ReviewPanel
-        evaluation={readyEval}
-        currentUser={mockReviewerProfile}
-        onWorkflowAction={onWorkflowActionMock}
-      />
-    )
-
-    expect(screen.getByText(/READY FOR REVIEW/i)).toBeDefined()
-    expect(screen.getByPlaceholderText(/Enter feedback or corrections/i)).toBeDefined()
-
-    const approveBtn = screen.getByRole('button', { name: /Approve & Complete/i })
-    const returnBtn = screen.getByRole('button', { name: /Return for Correction/i })
-
-    expect(approveBtn).toBeDefined()
-    expect(returnBtn).toBeDefined()
-
-    // Try approving
-    fireEvent.click(approveBtn)
-
-    await waitFor(() => {
-      expect(onWorkflowActionMock).toHaveBeenCalled()
-    })
+    expect(screen.getByText(/Route forward to a Senior Rater/i)).toBeDefined()
+    expect(screen.getByRole('button', { name: /Recycle to Previous Holder/i })).toBeDefined()
   })
 
-  it('should display history list of previous returns/approvals', async () => {
-    render(
-      <ReviewPanel
-        evaluation={mockDraftEvaluation}
-        currentUser={mockCreatorProfile}
-        onWorkflowAction={onWorkflowActionMock}
-      />
-    )
-
-    // Wait for history elements to load
-    const historyHeader = await screen.findByText(/Review Feedback History/i)
+  it('displays the recycle/review feedback history', async () => {
+    render(<ReviewPanel evaluation={baseEval} currentUser={sailor} onWorkflowAction={onWorkflowAction} />)
+    const historyHeader = await screen.findByText(/Recycle \/ Review History/i)
     expect(historyHeader).toBeDefined()
-
-    expect(screen.getAllByText(/Smith, Alan/i).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Please fix block 43 comment length/i)).toBeDefined()
   })
 })

@@ -13,9 +13,9 @@ This document provides mapping, policy details, and reference citations for ever
 *   **Code Enforcement:** `types/navpers.ts` (`EvalSchema.member_name` regex validation).
 
 ### Block 2: Grade/Rate
-*   **Rule:** Grade/Rate must be provided and must match the rating worn on the report ending date.
+*   **Rule:** Grade/Rate must be provided, must match the rating worn on the report ending date, and must contain only letters and numbers (no special characters or spaces).
 *   **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-2 (Instructions for Block 2).
-*   **Code Enforcement:** `types/navpers.ts` (`EvalSchema.grade_rate` min length check).
+*   **Code Enforcement:** `types/navpers.ts` (`EvalSchema.grade_rate` regex validation).
 
 ### Block 4: DoD ID / SSN
 *   **Rule:** DoD ID must be exactly 10 digits. APEX restricts records to synthetic/test data and strictly prohibits PII (SSNs).
@@ -23,7 +23,7 @@ This document provides mapping, policy details, and reference citations for ever
 *   **Code Enforcement:** `types/navpers.ts` (`EvalSchema.dod_id` regex validation).
 
 ### Block 5: Duty/Competitive Status
-*   **Rule:** Duty Status is required and must match one of the standard Navy designations: `ACDU`, `TAR`, `INACT`, or `AT/ADOS`.
+*   **Rule:** Duty Status is required and must match one of the standard Navy designations: T`, `TAR`, `INACT`, or `AT/ADOS`.
 *   **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-5.
 *   **Code Enforcement:** `types/navpers.ts` (`EvalSchema.duty_status` min length check).
 
@@ -80,7 +80,7 @@ The Navy enforces strict policy restrictions on promotion recommendations based 
 
 ### Block 43: Comments on Performance
 *   **Rule:** Comment text must fit strictly within the physical boundaries of Block 43 on the NAVPERS 1616/26 sheet. Using a monospace Courier New font, the capacity is capped at exactly **18 lines** under:
-    *   **10-Pitch:** Max 70 characters per line (CPL).
+    *   **10-Pitch:** Max 90 characters per line (CPL).
     *   **12-Pitch:** Max 84 characters per line (CPL).
     *   Continuation sheets are not accepted.
 *   **Citation:** BUPERSINST 1610.10H, Chapter 13.

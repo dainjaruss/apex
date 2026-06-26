@@ -8,7 +8,7 @@ async function queryEvaluations(userId: string) {
   const { data, error } = await supabase
     .from('evaluations')
     .select('*')
-    .or(`created_by.eq.${userId},reviewer_id.eq.${userId}`)
+    .or(`created_by.eq.${userId},reviewer_id.eq.${userId},current_holder_id.eq.${userId}`)
     .order('updated_at', { ascending: false })
 
   if (error) throw error

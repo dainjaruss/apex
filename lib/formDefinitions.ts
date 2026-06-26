@@ -78,21 +78,18 @@ export const getEvalSeed = () => {
     uic: '00000',
     ship_station: '',
     promotion_status: 'Regular',
-    trait_grades: {
-      knowledge: '3.0',
-      work: '3.0',
-      eo: '3.0',
-      bearing: '3.0',
-      accomplishment: '3.0',
-      teamwork: '3.0',
-      leadership: '3.0'
-    },
-    trait_average: 3.00,
+    // Traits start ungraded — per BUPERSINST 1610.10H an untouched trait is blank, not a
+    // default grade. The rater grades each trait (or marks the report Not Observed).
+    trait_grades: {},
     comments: '',
     career_recommendations: ['', ''],
     promotion_recommendation: 'Promotable',
     retention: 'Recommended',
     status: 'draft',
-    block_values: {}
+    // Occasion (Blocks 10-13) and Type (Blocks 16-18) start unchecked — the preparer
+    // selects them. Both groups are multi-select per BUPERSINST 1610.10H.
+    block_values: {
+      billet_subcategory: 'NA',
+    }
   }
 }

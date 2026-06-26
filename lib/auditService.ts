@@ -45,24 +45,15 @@ export const logAction = async (
 }
 
 /**
- * Retrieves audit logs for a specific evaluation, including user profile details.
+ * Retrieves audit logs for a specific evaluation, enriched with the acting user's
+ * profile. We fetch profiles separately and merge rather than using a PostgREST embed,
+ * because audit_logs.user_id references auth.users (not public.profiles), so there is no
+ * direct relationship for the embed to resolve.
  */
 export const fetchAuditLogs = async (evaluationId: string) => {
-  const { data, error } = await supabase
+  const { data: logs, error } = await supabase
     .from('audit_logs')
-    .select(`
-      id,
-      evaluation_id,
-      user_id,
-      action,
-      details,
-      timestamp,
-      profiles (
-        first_name,
-        last_name,
-        preferred_role
-      )
-    `)
+    .select('id, evaluation_id, user_id, action, details, timestamp')
     .eq('evaluation_id', evaluationId)
     .order('timestamp', { ascending: false })
 
@@ -70,5 +61,14 @@ export const fetchAuditLogs = async (evaluationId: string) => {
     console.error(`fetchAuditLogs failed for evaluation ${evaluationId}:`, error.message)
     throw new Error(error.message)
   }
-  return data
+  if (!logs || logs.length === 0) return []
+
+  const userIds = Array.from(new Set(logs.map((l) => l.user_id).filter(Boolean)))
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, preferred_role')
+    .in('id', userIds)
+
+  const byId = new Map((profiles || []).map((p) => [p.id, p]))
+  return logs.map((l) => ({ ...l, profiles: byId.get(l.user_id) || null }))
 }

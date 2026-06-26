@@ -43,7 +43,7 @@ const mockDataStore = {
     designator: '1110',
     period_from: '2025-01-01',
     period_to: '2025-12-31',
-    duty_status: 'ACDU',
+    duty_status: 'ACT',
     uic: '00241',
     ship_station: 'USS NEVERSAIL',
     promotion_status: 'Regular',

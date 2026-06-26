@@ -27,7 +27,7 @@ const mockData: Evaluation = {
   designator: '1110',
   period_from: '2025-01-01',
   period_to: '2025-12-31',
-  duty_status: 'ACDU',
+  duty_status: 'ACT',
   uic: '12345',
   ship_station: 'USS NEVERSAIL',
   promotion_status: 'Regular',
@@ -53,6 +53,39 @@ describe('EvaluationForm On-Demand Rules Check Integration Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('should not surface inline field errors by default (no red borders on load)', () => {
+    render(
+      <EvaluationForm
+        initialData={mockData}
+        onSave={onSaveMock}
+        onCancel={onCancelMock}
+        isSaving={false}
+      />
+    )
+
+    // member_name is invalid, but on a fresh form its inline error must stay hidden
+    // until the user leaves the field or runs Verify/Save.
+    expect(screen.queryByText(/Name must be in LAST, FIRST MI format/i)).toBeNull()
+  })
+
+  it('should reveal inline field errors after Verify Rules is clicked', async () => {
+    render(
+      <EvaluationForm
+        initialData={mockData}
+        onSave={onSaveMock}
+        onCancel={onCancelMock}
+        isSaving={false}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Verify Rules/i }))
+
+    // Verify reveals everything: the inline field error now renders alongside the modal.
+    await waitFor(() => {
+      expect(screen.getAllByText(/Name must be in LAST, FIRST MI format/i).length).toBeGreaterThanOrEqual(2)
+    }, { timeout: 1500 })
   })
 
   it('should display validation blockers in ValidationResultsModal when Verify Rules is clicked', async () => {

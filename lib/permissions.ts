@@ -17,13 +17,19 @@ export type Action =
   | 'approve_evaluation'
   | 'return_evaluation'
   | 'sign_block_42'   // Rater signature
-  | 'sign_block_48'   // Senior Rater signature
-  | 'sign_block_49'   // Member signature
+  | 'sign_block_49'   // Senior Rater signature
   | 'sign_block_50'   // Reporting Senior signature
+  | 'sign_block_51'   // Member (Individual Evaluated) signature
+  | 'sign_block_52'   // Regular Reporting Senior signature (Concurrent Report)
   | 'export_pdf'
   | 'view_audit_log'
   | 'manage_users'
   | 'view_all_evaluations'
+  | 'route_evaluation'        // hand custody to the next person in the chain (contextual: current holder)
+  | 'manage_summary_groups'   // create/close promotion-recommendation summary groups
+  | 'debrief_evaluation'      // begin debrief + open minor corrections
+// NOTE: Block 48 on the NAVPERS 1616/26 is the Reporting Senior *address* (a text
+// field), not a signature — so it has no sign_block_48 action.
 
 /**
  * Static role-to-action permission map.
@@ -34,19 +40,21 @@ const ROLE_PERMISSIONS: Record<Role, Action[]> = {
     'create_evaluation',
     'edit_evaluation',
     'view_evaluation',
+    'route_evaluation',
     'submit_for_review',
-    'sign_block_49',
+    'sign_block_51',
     'export_pdf',
   ],
   Rater: [
     'create_evaluation',
     'edit_evaluation',
     'view_evaluation',
+    'route_evaluation',
     'submit_for_review',
     'approve_evaluation',
     'return_evaluation',
     'sign_block_42',
-    'sign_block_49',
+    'sign_block_51',
     'export_pdf',
     'view_audit_log',
   ],
@@ -54,12 +62,13 @@ const ROLE_PERMISSIONS: Record<Role, Action[]> = {
     'create_evaluation',
     'edit_evaluation',
     'view_evaluation',
+    'route_evaluation',
     'submit_for_review',
     'approve_evaluation',
     'return_evaluation',
     'sign_block_42',
-    'sign_block_48',
     'sign_block_49',
+    'sign_block_51',
     'export_pdf',
     'view_audit_log',
   ],
@@ -67,33 +76,41 @@ const ROLE_PERMISSIONS: Record<Role, Action[]> = {
     'create_evaluation',
     'edit_evaluation',
     'view_evaluation',
+    'route_evaluation',
     'submit_for_review',
     'approve_evaluation',
     'return_evaluation',
     'sign_block_42',
-    'sign_block_48',
     'sign_block_49',
     'sign_block_50',
+    'sign_block_51',
+    'sign_block_52',
     'export_pdf',
     'view_audit_log',
     'view_all_evaluations',
+    'manage_summary_groups',
+    'debrief_evaluation',
   ],
   Admin: [
     'create_evaluation',
     'edit_evaluation',
     'delete_evaluation',
     'view_evaluation',
+    'route_evaluation',
     'submit_for_review',
     'approve_evaluation',
     'return_evaluation',
     'sign_block_42',
-    'sign_block_48',
     'sign_block_49',
     'sign_block_50',
+    'sign_block_51',
+    'sign_block_52',
     'export_pdf',
     'view_audit_log',
     'manage_users',
     'view_all_evaluations',
+    'manage_summary_groups',
+    'debrief_evaluation',
   ],
 }
 
@@ -145,14 +162,19 @@ export function canPerformAction(user: Profile, action: Action, evaluation?: Eva
                evaluation.reviewer_id === user.id ||
                hasPermission(role, 'view_all_evaluations')
 
-      case 'sign_block_49':
-        // Member signature — only the evaluation subject (creator in our model)
+      case 'route_evaluation':
+        // Only the current custodian may route the eval onward, and not once locked.
+        return evaluation.current_holder_id === user.id && !evaluation.signature_locked
+
+      case 'sign_block_51':
+        // Member (Individual Evaluated) signature — only the evaluation subject (creator in our model)
         return evaluation.created_by === user.id
 
       case 'sign_block_42':
-      case 'sign_block_48':
+      case 'sign_block_49':
       case 'sign_block_50':
-        // Reviewer/Senior signatures — must be the assigned reviewer
+      case 'sign_block_52':
+        // Rater / Senior Rater / Reporting Senior signatures — must be the assigned reviewer
         return evaluation.reviewer_id === user.id ||
                hasPermission(role, 'view_all_evaluations')
 
@@ -171,10 +193,54 @@ export function getAvailableActions(user: Profile, evaluation: Evaluation): Acti
   const allActions: Action[] = [
     'edit_evaluation', 'delete_evaluation', 'view_evaluation',
     'submit_for_review', 'approve_evaluation', 'return_evaluation',
-    'sign_block_42', 'sign_block_48', 'sign_block_49', 'sign_block_50',
+    'sign_block_42', 'sign_block_49', 'sign_block_50', 'sign_block_51', 'sign_block_52',
     'export_pdf', 'view_audit_log',
   ]
   return allActions.filter(action => canPerformAction(user, action, evaluation))
+}
+
+/**
+ * Maps each signable NAVPERS block number to the RBAC action that governs it.
+ * Block 48 is the Reporting Senior address (not a signature) and is absent.
+ * Module-private — consumed only by canPerformAction below.
+ */
+const SIGN_ACTION_BY_BLOCK: Record<number, Action> = {
+  32: 'sign_block_51', // Signature of Individual Counseled — the evaluated member
+  42: 'sign_block_42', // Rater
+  49: 'sign_block_49', // Senior Rater
+  50: 'sign_block_50', // Reporting Senior
+  51: 'sign_block_51', // Individual Evaluated (member)
+  52: 'sign_block_52', // Regular Reporting Senior (Concurrent Report)
+}
+
+/**
+ * Server- and client-safe (React-free) check for whether a user may sign a given
+ * signature block. Single source of truth for the report-screen signing flow.
+ *
+ * Member blocks (32 Individual Counseled, 51 Individual Evaluated) require the
+ * evaluated member (created_by) or an Admin. Reviewer-chain blocks (42/49/50/52)
+ * require only that the signer holds the role — the schema carries a single
+ * reviewer_id, so role possession (not reviewer assignment) gates the chain.
+ */
+export function canSignBlock(user: Profile, block: number, evaluation: Evaluation): boolean {
+  const action = SIGN_ACTION_BY_BLOCK[block]
+  if (!action) return false
+  const role = user.preferred_role as Role
+  if (!hasPermission(role, action)) return false
+  if (block === 32 || block === 51) {
+    return evaluation.created_by === user.id || role === 'Admin'
+  }
+  return true
+}
+
+/**
+ * Whether a user may create/close summary groups. Reporting Senior and Admin have it
+ * by role; any other user can be granted it by adding 'GroupManager' to assigned_roles
+ * (so an Admin can delegate without changing the user's primary role).
+ */
+export function canManageSummaryGroups(user: Profile): boolean {
+  if (hasPermission(user.preferred_role, 'manage_summary_groups')) return true
+  return (user.assigned_roles || []).includes('GroupManager')
 }
 
 /**

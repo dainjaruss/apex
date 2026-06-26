@@ -1,0 +1,385 @@
+{
+  "member_name": {
+    "title": "Name",
+    "block": "Block 1",
+    "excerpt": "Enter the member's last name, first name, middle initial, and suffix (if any) separated by spaces. Place a comma after the last name. Omit spaces and punctuation within a name (e.g., Denney, John A; STJohn, Melvin J II; Walters, J Arthur; Obrien, Mary S; Martin, Paul T JR; SmithJones, Ann.). The full middle name is acceptable but not required. NMN may be used if member does not have a middle name.",
+    "rules": [
+      "Must have exactly one comma separating Last Name and First Name.",
+      "Uppercase letters only.",
+      "Do not include periods (use 'JR' instead of 'JR.').",
+      "Allowed characters: A-Z, spaces, comma, hyphen, apostrophe."
+    ]
+  },
+  "grade_rate": {
+    "title": "Grade/Rate",
+    "block": "Block 2",
+    "excerpt": "Enter the grade or rate the Service member is actually wearing on the ending date of the report. Enlisted: Use standard rate abbreviations (e.g., SA, ADAN, CS2, BM1, LNC, EMCS, PSCM, etc.). Officers: Use standard grade abbreviations (e.g., CAPT, CDR, LCDR, LT, LTJG, ENS, CWO5, CWO4, CWO3, CWO2, WO1 etc.). Note 1: This field is used for summary group comparison. Note 2: The CHIEFEVAL identifies this block as “Rating.” Standard abbreviations remain as the required information and the rate/rating the member is currently wearing should be entered here.",
+    "rules": [
+      "Must be the official standard navy abbreviation (all caps).",
+      "Must contain letters and numbers only (no spaces, hyphens, or special characters).",
+      "Examples: PO2, YN3, ADC, LT, CDR, CMDCM."
+    ]
+  },
+  "designator": {
+    "title": "Designator",
+    "block": "Block 3",
+    "excerpt": "Enter officer designator or enlisted warfare qualification designation. Enlisted: Enter up to two enlisted warfare/qualification designators. If two designators are entered, separate with a slash. Do not leave spaces (e.g., AW, AW/PJ, SS/DV etc.) (if none, leave blank). Officers: Enter the four-digit officer designator as of the ending date of report. Do not use an alpha character for a numerical character. Note: This field is used for summary group comparison.",
+    "rules": [
+      "Officers must enter exactly 4 digits.",
+      "Enlisted enter warfare designators in all caps, separated by slashes if multiple (e.g. SW/AW).",
+      "If none, enter '---' or leave blank (warning triggers if empty)."
+    ]
+  },
+  "dod_id": {
+    "title": "DoD ID Number",
+    "block": "Block 4",
+    "excerpt": "Department of Defense (DoD) ID/SSN. Enter the Service member's full SSN with hyphens after the third and fifth digits. It should be used for all reports that are mailed (e.g., 000-00-0000). [Note: In the APEX web interface, enter the member's 10-digit DoD ID instead of the SSN to protect personally identifiable information (PII).]",
+    "rules": [
+      "Must be exactly 10 numeric digits.",
+      "Cannot be empty.",
+      "SSN must not be entered here."
+    ]
+  },
+  "duty_status": {
+    "title": "Duty/Competitive Status",
+    "block": "Block 5",
+    "excerpt": "ACT – All active duty (ACDU) Navy who compete together for the same active-duty promotion quotas. TAR – All Navy Reserve personnel designated TAR who compete for TAR promotion quotas. INACT – All Navy reservists on INACT duty (drill status) who compete for INACT promotion quotas (refer to chapter 9). AT/ADOS – All Navy Reservists on temporary ACDU but still compete for INACT promotion quotas. Includes all annual training (AT), active duty for training (ADT), active duty for ADOS, 1-year recall (OYR), canvasser recruiter (CANREC), mobilization, recall, etc. (refer to chapter 10).",
+    "rules": [
+      "Must match one of the standard Navy designations: ACT, TAR, INACT, or AT/ADOS.",
+      "Used for summary group comparison and must be consistent across all reports in a summary group.",
+      "Cannot be left blank."
+    ]
+  },
+  "uic": {
+    "title": "Unit Identification Code (UIC)",
+    "block": "Block 6",
+    "excerpt": "Enter the UIC of the Service member's ship or station. Normally a UIC is a breakout for enlisted personnel; however, if reporting seniors have more than one UIC with enlisted personnel attached, but desires to group all enlisted personnel together, they may do so. If using UIC as a summary group comparison, block 6 should match the primary UIC of the reporting senior in block 26. For activities which no UIC is assigned, enter five zeros. The first four characters of a UIC must be numbers. Reserve Members: For Regular reports on INACT duty reservists, enter the Service member’s assigned unit mobilization unit identification code (UMUIC), and not the member’s Navy Reserve activity (NRA) UIC. Use training unit identification code (TRUIC) if member is in assignment processing (IAP) (refer to chapter 9). Note: This field is used for summary group comparison.",
+    "rules": [
+      "Must be exactly 5 alphanumeric characters.",
+      "The first four characters of a UIC must be numbers.",
+      "If the command has no UIC, enter five zeros (00000).",
+      "If used for summary group comparison, must match the reporting senior's primary UIC in block 26."
+    ]
+  },
+  "ship_station": {
+    "title": "Ship/Station",
+    "block": "Block 7",
+    "excerpt": "Enter the abbreviated name of the activity to which the member is assigned, for the duty reported on. Do not spell out letters and numbers (e.g., use A instead of ALFA, 1 instead of ONE etc.). Enlisted: Use the command name, even if a component UIC is entered in block 6. Officers: Enter the activity where the officer is assigned, not the reporting senior’s command. For Service members assigned to civilian or foreign activities, enter the civilian or foreign activity, not the administrative commander's activity. The entry may fill the space allowed, but it must be unique and recognizable within the first 18 characters and spaces (the number stored in the NAVPERSCOM data file). Format the entry as follows: Ship: Enter the hull number followed by the name. Omit USS (e.g., DDG-90 CHAFEE). Aviation Wing or Squadron: Enter short-form wing or squadron designation (e.g., CVW9, VR-58). Staff or Shore Activity: Use the plain language address (PLA) or a commonly accepted short title. Further condense the PLA (if necessary) to make it recognizable within the first 18 positions (e.g., COMSUBDEVRON 12, COMLANTFLT NORFOLK VA, RLSO MIDLANT).",
+    "rules": [
+      "Do not spell out letters or numbers (use 'A' instead of 'ALFA', '1' instead of 'ONE').",
+      "Must be unique and recognizable within the first 18 characters and spaces.",
+      "For Ships: enter hull number followed by name and omit 'USS' (e.g. DDG-90 CHAFEE).",
+      "For Aviation: enter short-form designation (e.g. CVW9, VR-58).",
+      "For Staff/Shore: use Plain Language Address (PLA) or commonly accepted short title."
+    ]
+  },
+  "promotion_status": {
+    "title": "Promotion Status",
+    "block": "Block 8",
+    "excerpt": "Enter the member's promotion status on the ending date of the report period as follows: Regular – Regularly promoted to the grade or rate entered in block 2, not currently frocked, spot-promoted, or selected to higher grade. Frocked – Frocked to the grade or rate entered in block 2, but not yet regularly promoted. Selected – Selected to a grade or rate higher than shown in block 2, but not yet frocked or regularly promoted or advanced. Enlisted personnel selected for commissioning programs that would make them ineligible for the E-7 through E-9 selection boards (i.e., limited duty officer (LDO)/chief warrant officer (CWO) In-service Program) may use this promotion status. Spot – Spot-promoted to the new paygrade entered in block 2. (Use SPOT rather than SELECTED for a spot-promoted Service member who has been promoted for the next higher grade). Note: This field is used for summary group comparison.",
+    "rules": [
+      "Must match one of the standard designations: REGULAR, FROCKED, SELECTED, or SPOT.",
+      "Used for summary group comparison and must be consistent across all reports in a summary group.",
+      "Cannot be left blank."
+    ]
+  },
+  "date_reported": {
+    "title": "Date Reported",
+    "block": "Block 9",
+    "excerpt": "Use the date the Service member reported to the command in block 7. Date may be selected from the drop-down calendar or recorded in YYMMMDD format (e.g., 96OCT17).",
+    "rules": [
+      "Must be in YYMMMDD format (e.g., 24JAN15).",
+      "Must match the date the member reported to the command in Block 7."
+    ]
+  },
+  "occasion": {
+    "title": "Occasion for Report",
+    "block": "Blocks 10-13",
+    "excerpt": "Select all applicable options or place an “X” in each block that applies. See chapter 3 for reporting occasions. Note: More than one occasion may apply, except Special cannot be combined with another occasion. Do not submit a Special report if another occasion applies.",
+    "rules": [
+      "Indicates the occasion for the report: Periodic (Block 10), Detachment of Individual (Block 11), Promotion/Frocking (Block 12), or Special (Block 13).",
+      "More than one occasion may apply, except Special (Block 13) cannot be combined with any other occasion."
+    ]
+  },
+  "period_from": {
+    "title": "Period of Report (From)",
+    "block": "Block 14",
+    "excerpt": "Enter the beginning FROM and ending TO dates of the report period. Date may be selected from the drop-down calendar or recorded in YYMMMDD format (e.g., 96OCT17). Regular Reports: The FROM date must be the day following the TO date of the last Regular report. It can be earlier than block 9 if en route leave, travel, or temporary duty (TEMDU) is included. First EVAL on Enlisted Member: The FROM date is the date detached from initial entry training. First FITREP on Newly Commissioned Officer: The FROM date is the commissioning date. First FITREP on Enlisted Member Commissioned from Officer Candidate School, etc.: The FROM date will start the day after the ending date of the last enlisted report. First ACDU Report on Recalled Member: The FROM date is the recall date.",
+    "rules": [
+      "Must be in YYMMMDD format (e.g., 24JAN15).",
+      "Must be on or before the To date.",
+      "For Regular reports, must be the day immediately following the TO date of the last Regular report."
+    ]
+  },
+  "period_to": {
+    "title": "Period of Report (To)",
+    "block": "Block 15",
+    "excerpt": "Enter the beginning FROM and ending TO dates of the report period. Date may be selected from the drop-down calendar or recorded in YYMMMDD format (e.g., 96OCT17). Regular Reports: The FROM date must be the day following the TO date of the last Regular report. It can be earlier than block 9 if en route leave, travel, or temporary duty (TEMDU) is included. First EVAL on Enlisted Member: The FROM date is the date detached from initial entry training. First FITREP on Newly Commissioned Officer: The FROM date is the commissioning date. First FITREP on Enlisted Member Commissioned from Officer Candidate School, etc.: The FROM date will start the day after the ending date of the last enlisted report. First ACDU Report on Recalled Member: The FROM date is the recall date.",
+    "rules": [
+      "Must be in YYMMMDD format (e.g., 24JAN15).",
+      "Must be on or after the From date.",
+      "For deserter reports, report end date should be the date the member is moved from the command's UIC to Navy Absentee Collection and Information Center."
+    ]
+  },
+  "type": {
+    "title": "Type of Report",
+    "block": "Blocks 16-18",
+    "excerpt": "NOT OBSERVED REPORT (NOB) (Block 16): If this is a wholly Not Observed report, select the NOB option or enter an “X” in block 16. The trait grades must be left blank, no career recommendation is permitted, the promotion recommendation must be NOB, and the promotion recommendation summary must be left blank. Comments are allowed but should be limited primarily to administrative, training/educational/schools/fellowship performance. TYPE OF REPORT (Blocks 17-19): Select the option or place an “X” in the block that applies. If this is a Concurrent/Regular report, place an “X” in blocks 17 and 18. Note: This field is used for summary group comparison.",
+    "rules": [
+      "Must select one of: Regular (Block 17), Concurrent (Block 18), or Not Observed (Block 16).",
+      "If Not Observed (NOB) is selected, trait grades and promotion summary must be blank, and promotion recommendation must be NOB.",
+      "For Concurrent/Regular report, place an 'X' in both blocks 17 and 18."
+    ]
+  },
+  "physical_readiness": {
+    "title": "Physical Readiness",
+    "block": "Block 20",
+    "excerpt": "Document all official PFAs/CFAs conducted during the reporting period using single-letter codes, oldest to most recent (e.g., PPP means the member passed three official PFAs/CFAs). Do not enter spaces or slashes between the characters; enter specific PFA cycle ID information in block 29. Codes: P = passed overall PFA/CFA; B = passed BCA but authorized non-participation in the PRT/CFT (requires a block 29 comment); F = overall PFA/CFA failure; M = medically waived from the entire PFA/CFA; W = passed or medically-waived BCA and waived one or more PRT/CFT events; N = no PFA conducted (non-participation due to deployment/operations, IA, pregnancy, TEMADD, or excused). Ensure data matches the official PRIMS 2.",
+    "rules": [
+      "Use only the codes P, B, F, M, W, N — no spaces, slashes, or other characters.",
+      "List the codes oldest to most recent (e.g., PBF).",
+      "Must match official PRIMS 2 results; record the cycle IDs in Block 29."
+    ]
+  },
+  "billet_subcategory": {
+    "title": "Billet Subcategory",
+    "block": "Block 21",
+    "excerpt": "Select or enter the billet subcategory code, if authorized, or enter 'NA.' Do not leave blank. Qualifying commands may subcategorize certain members by billet type when determining summary groups. Do not use any code that does not appear in table 1-1. 'NA' should appear in most reports. Standard Billet Subcategories use is optional. All Service members in each subcategory must be summarized together. If annotated with an * below, Block 21 should match entry in Block 29.",
+    "rules": [
+      "Select from the approved list; never leave blank (use NA if subcategories are not used).",
+      "Starred standard codes (CRF*, CANVASSER*, RESIDENT*, INTERN*, STUDENT*) should match an entry in Block 29.",
+      "SPECIAL01–SPECIAL20 codes must be approved by PERS-32 before use; do not use any code outside table 1-1.",
+      "For SCREENED, enter the member's normal subcategory into Block 29."
+    ]
+  },
+  "reporting_senior_name": {
+    "title": "Reporting Senior — Name",
+    "block": "Block 22",
+    "excerpt": "Enter the last name, initials, and suffix (if any) of the reporting senior. Place a comma after the last name (e.g., STJOHN, O F). Omit spaces and punctuation within a name. Block 22 must be the same on all reports in the batch. Be sure the name and signature match. Note: This field is used for summary group comparison.",
+    "rules": [
+      "Format: LASTNAME, FI MI (e.g., STJOHN, O F) — a comma follows the last name.",
+      "Uppercase; omit spaces and punctuation within a name.",
+      "Must be identical on all reports in the batch and match the signature."
+    ]
+  },
+  "reporting_senior_grade": {
+    "title": "Reporting Senior — Grade",
+    "block": "Block 23",
+    "excerpt": "Enter the reporting senior's grade. Navy/Other Sea Service Officers: ADM, VADM, RADM, RDML, CAPT, CDR, LCDR, LT, LTJG, ENS, CWO5–CWO2, WO1. Army/Air Force/Marine/Space Force Officers: GEN, LGEN, MGEN, BGEN, COL, LTC, MAJ, CPT, 1LT, 2LT, CWO5–CWO2, WO1. Enlisted: same rules as block 2. Civilian: U.S. Federal civilian grade (e.g., GS15, SES4); if none, enter 'CIV.' Entry must be five characters or less. Do not use hyphens. Do not leave blank.",
+    "rules": [
+      "Five characters or fewer; no hyphens; cannot be blank.",
+      "Use the standard grade abbreviation (e.g., CDR, CAPT, GS15, CIV).",
+      "Reservists submitting as civilians use their civilian grade, not military grade."
+    ]
+  },
+  "reporting_senior_designator": {
+    "title": "Reporting Senior — Designator",
+    "block": "Block 24",
+    "excerpt": "Enter the reporting senior's four-digit officer designator. Exceptions: if an assigned reporting senior is enclosing a letter report, enter 'LTR' (see chapter 7); if the reporting senior is a member of another Service, enter the branch abbreviation (e.g., USAF, USA, USMC, USCG, USSF, USPH (U.S. Public Health Service), NOAA (National Oceanic and Atmospheric Administration)). If the reporting senior is Navy enlisted or civilian, leave blank.",
+    "rules": [
+      "Officers: enter the four-digit designator.",
+      "Use 'LTR' for a letter report, or the other-Service branch abbreviation (USAF, USA, USMC, USCG, USSF, USPH, NOAA).",
+      "Leave blank for Navy enlisted or civilian reporting seniors."
+    ]
+  },
+  "reporting_senior_title": {
+    "title": "Reporting Senior — Title",
+    "block": "Block 25",
+    "excerpt": "Enter the reporting senior's title (abbreviated if necessary). The entry may be up to 14 characters and spaces. Always use 'CO' for commanding officer and 'OIC' for officer in charge. For other titles, use the complete title or a common abbreviation (e.g., commander, XO, Dept. Head, DCNO etc.). Delegated reporting seniors indicate the level of delegation rather than function (e.g., XO vice ACTING CO; DEPT HEAD rather than SUPPLY OFFICER). DIRECTOR, standing alone, may be used only as a command title. Delegated reporting seniors use DEPT DIRECTOR, DIV DIRECTOR, etc. Exception for Assigned Reporting Seniors, Immediate Superiors in Command or their Designee, or General Courts-Martial Convening Authorities (GCMCA): Enter 'Assigned,' 'ISIC,' 'ISIC Designee,' or 'GCMCA.' (Provide command's title in EVAL block 48 or FITREP block 44.)",
+    "rules": [
+      "Maximum 14 characters and spaces.",
+      "Always use 'CO' for commanding officer and 'OIC' for officer in charge.",
+      "Delegated reporting seniors indicate the level of delegation (e.g., XO, DEPT HEAD).",
+      "Assigned reporting seniors, ISICs or their Designee, and GCMCAs must enter 'Assigned', 'ISIC', 'ISIC Designee', or 'GCMCA', and provide the command's title in EVAL Block 48."
+    ]
+  },
+  "reporting_senior_uic": {
+    "title": "Reporting Senior — UIC",
+    "block": "Block 26",
+    "excerpt": "Enter the UIC of the reporting senior's command. All reports from the same command must use the same reporting senior UIC (a delegated reporting senior must enter the same UIC used on reports submitted by the CO). Note: Reporting senior UIC may vary from the member's UIC in block 6.",
+    "rules": [
+      "Exactly 5 characters.",
+      "The first four characters of a UIC must be numbers.",
+      "All reports from the same command must use the same reporting senior UIC.",
+      "May differ from the member's UIC in Block 6."
+    ]
+  },
+  "reporting_senior_dod_id": {
+    "title": "Reporting Senior — DoD ID",
+    "block": "Block 27",
+    "excerpt": "Enter the reporting senior's full SSN with hyphens after the third and fifth digits (e.g., 000-00-0000). It is optional for reporting seniors to provide a copy of a report without their SSN to the member and command files. The copy for filing to the member's OMPF must have the reporting senior's full SSN to track the reporting senior's cumulative average. Protect PII. [Note: In the APEX web interface, enter the reporting senior's 10-digit DoD ID instead of the SSN to protect personally identifiable information (PII), consistent with Block 4.]",
+    "rules": [
+      "Must be exactly 10 numeric digits.",
+      "Cannot be empty.",
+      "SSN must not be entered here — APEX uses the DoD ID in lieu of the SSN (see Block 4)."
+    ]
+  },
+  "command_achievements": {
+    "title": "Command Employment and Achievements",
+    "block": "Block 28",
+    "excerpt": "Enter a brief statement of command employment and significant command awards or achievements during the period of the report. Provide information that helps report users understand the context in which the member's duties were performed. Operating Forces: operational, training, and maintenance periods, including general areas and months (unclassified only) (e.g., upkeep/Training-8; Deployed WESTPAC-3). Shore Activities: state the command mission, or identify the member's department/division and summarize its function.",
+    "rules": [
+      "Briefly describe command employment and significant awards or achievements.",
+      "Operating Forces: list operational, training, and maintenance periods (unclassified only).",
+      "Do not include classified information."
+    ]
+  },
+  "primary_duties": {
+    "title": "Primary / Collateral / Watchstanding Duties / PFA",
+    "block": "Block 29",
+    "excerpt": "Enter an abbreviation of 14 or fewer characters for the most significant primary duty in the small box, then list duty titles and the number of months each was assigned, in order: most significant primary duty, other primary duties, collateral duties, then watch-standing duties (e.g., COMMUNICATIONS OFFICER-7; ASST COMM-3; MESS TREASURER-8; OOD UNDERWAY-3). Optionally add a job-scope statement, periods not available for duty, and PFA/CFA cycle results from PRIMS (e.g., '26-1: P/WS/95/OH').",
+    "rules": [
+      "Lead with a 14-character-or-fewer abbreviation for the most significant primary duty.",
+      "List duties in order: primary, other primary, collateral, then watch-standing, with months assigned.",
+      "Record the PFA/CFA cycle results referenced in Block 20 (e.g., 26-1: P/WS/95/OH)."
+    ]
+  },
+  "date_counseled": {
+    "title": "Date Counseled",
+    "block": "Block 30",
+    "excerpt": "If mid-term counseling was received during the report period, enter the date counseled from the counseling worksheet. Date may be selected from the drop-down calendar or recorded in YYMMMDD format (e.g., 22FEB20). Counseling Not Performed During Report Period: A mid-term counseling session should be documented only once on the report for the period in which it occurred. If counseling was not performed because the counseling date did not fall within the report period, enter 'NOT REQ' in block 30. If counseling was not performed for any other reason, enter 'NOT PERF.' Note: See Chapter 18 for guidance on performing mid-term counseling.",
+    "rules": [
+      "Select the counseling date from the calendar (or enter YYMMMDD, e.g., 22FEB20), taken from the counseling worksheet.",
+      "Enter 'NOT REQ' if the counseling date did not fall within the report period.",
+      "Enter 'NOT PERF' if counseling was not performed for any other reason."
+    ]
+  },
+  "counselor": {
+    "title": "Counselor",
+    "block": "Block 31",
+    "excerpt": "This block is signed on the counseling worksheet only. On the fitness or evaluation report, type the name of the counselor from the counseling worksheet. If the entry in block 30 is NOT PERF, enter a brief explanation in block 31 (e.g., TEMADD or ILLNESS). If a longer explanation is needed, enter 'SEE COMMENT' and provide an explanation in the Comments block.",
+    "rules": [
+      "Type the counselor's name from the counseling worksheet (the worksheet, not this block, is signed).",
+      "Keep the entry to 22 characters or fewer so it fits the printed block.",
+      "If Block 30 is 'NOT PERF', enter a brief reason here (e.g., TEMADD or ILLNESS).",
+      "If the explanation is long, enter 'SEE COMMENT' and explain it in Block 43."
+    ]
+  },
+  "career_recommendations": {
+    "title": "Career Recommendations",
+    "block": "Block 41",
+    "excerpt": "Enter one or two career recommendations. The second recommendation is not required. Each entry may have a maximum of 20 characters and spaces. If necessary, use two lines for the entry. Do not leave blank. If no recommendation is appropriate, enter \"NA\" or \"NONE\" in the first block. These are the reporting senior's recommendations, based on performance. They are not binding on detailers; do not preclude consideration for other opportunities or replace duty preference cards. Be realistic. Do not recommend for programs or assignments that the member is not or cannot become qualified for. Be specific. The instructions on the form give examples of areas to be considered, not necessarily the specific entries desired. For officers, the first recommendation should be for their next significant career milestone.",
+    "rules": [
+      "Enter one or two recommendations; the second slot is optional.",
+      "Each entry is limited to 20 characters, including spaces.",
+      "At least one is required — never leave blank; enter 'NA' or 'NONE' if none applies.",
+      "For officers, the first recommendation should be their next significant career milestone."
+    ]
+  },
+  "comments": {
+    "title": "Comments on Performance",
+    "block": "Block 43",
+    "excerpt": "COMMENTS ON PERFORMANCE. See chapter 13 for specific guidance on preparation, organization, style, reporting on misconduct, prohibited comments, and special interest items (e.g., Get Real Get Better behaviors (GRGB)) that must be mentioned when they apply.",
+    "rules": [
+      "Must wrap correctly at the selected pitch width.",
+      "Cannot exceed the line limit (16 lines for 10-pitch, 12 lines for 12-pitch).",
+      "Do not use non-standard acronyms or classified information.",
+      "Specifically substantiate, with verifiable comments, any 1.0 mark, three or more 2.0 marks, and any 2.0 in Block 35 (Command/Organizational Climate/EO)."
+    ]
+  },
+  "qualifications": {
+    "title": "Qualifications / Achievements",
+    "block": "Block 44",
+    "excerpt": "Enter courses and credit hours completed, degrees or certificates awarded, special Navy or other qualifications attained or renewed, personal awards or letters of commendations received, other special honors or recognition received, and or community involvement. This block is reserved for completed not anticipated achievements. Do not repeat information from earlier reports. For E-7 through O-6 members, use FITREP block 41 or CHIEFEVAL block 40 for qualifications and achievements.",
+    "rules": [
+      "List only completed achievements — not anticipated ones.",
+      "Do not repeat information from earlier reports.",
+      "Fits within 2 lines at 91 characters per line on the printed form."
+    ]
+  },
+  "promotion_recommendation": {
+    "title": "Promotion Recommendation",
+    "block": "Block 45",
+    "excerpt": "Select an option or place an \"X\" in the box for the promotion recommendation. The recommendation may be NOB if appropriate (e.g., short period and no more than three trait grades are entered). Promotable, Must Promote, and Early Promote are all recommendations for promotion. The recommendation should be consistent with the performance trait grades and consistent with comments block(s). A recommendation of Must Promote or Early Promote may not be assigned with any trait assessed as 2.0. A Promotable or higher recommendation may not be assigned with any trait graded 1.0. Command or Organizational Climate and Equal Opportunity must be evaluated as 3.0 or higher to maintain eligibility for a recommendation of Promotable.",
+    "rules": [
+      "Must be consistent with the trait grades and the Block 43 comments.",
+      "Must Promote or Early Promote cannot be assigned if any trait is 2.0.",
+      "No Promotable-or-higher recommendation if any trait is 1.0.",
+      "Block 35 (Command Climate/EO) must be 3.0 or higher to remain eligible for Promotable."
+    ]
+  },
+  "retention": {
+    "title": "Retention Recommendation",
+    "block": "Block 47",
+    "excerpt": "Select or place an \"X\" in Not Recommended or Recommended. Recommended means that the reporting senior recommends reenlistment or extension based on performance but does not certify that all reenlistment requirements have been met. If the report contains any adverse mark or comment, briefly explain the retention recommendation in block 43 in the context of the adverse matter. Note: For officers and CPOs, a retention recommendation will be assumed unless the report is adverse.",
+    "rules": [
+      "Select Recommended or Not Recommended.",
+      "Recommended reflects performance; it does not certify all reenlistment requirements are met.",
+      "If the report has any adverse mark or comment, explain the recommendation in Block 43."
+    ]
+  },
+  "reporting_senior_address": {
+    "title": "Reporting Senior Address",
+    "block": "Block 48",
+    "excerpt": "Enter the reporting senior's address and phone number for receiving NAVPERSCOM inquiries concerning the report. For ACDU reporting seniors with transfer or retirement orders, enter the address of the next command or home address (as appropriate). Navy Reserve Reporting Seniors: For all INACT duty reports, use either the reporting senior's civilian mailing address or the reporting senior's NRA mailing address. Note: It is optional for reporting seniors to provide a copy of a report without their home address to the member. Reporting seniors must still provide their address for the report copy that is submitted to the member's OMPF.",
+    "rules": [
+      "Enter the reporting senior's mailing address and phone number for NAVPERSCOM inquiries.",
+      "For a reporting senior with transfer or retirement orders, use the next command or home address.",
+      "Fits within 3 lines at 30 characters per line on the printed form."
+    ]
+  },
+  "trait_grades.knowledge": {
+    "title": "Professional Knowledge",
+    "block": "Block 33",
+    "excerpt": "Professional Knowledge (Block 33): Assess mastery of rating, specialty, or job. Measures technical/professional expertise and its application to solve problems.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.work": {
+    "title": "Quality of Work",
+    "block": "Block 34",
+    "excerpt": "Quality of Work (Block 34): Measure of quality, neatness, and accuracy of completed work. Assess supervision needs and error rates.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.eo": {
+    "title": "Command Climate / Equal Opportunity",
+    "block": "Block 35",
+    "excerpt": "Command or Organizational Climate/Equal Opportunity (Block 35): In reports on COs, executive officers, CMDCMs, department heads, division officers, CPOs, and leading petty officers who are responsible for officer and enlisted personnel, comment on efforts by the member and quality of results in fostering a command and workplace environment conducive to growth and development of personnel. Transparency, sensitivity, and responsiveness to concerns are hallmarks of superior performance in this area. Consider member's contribution to personnel advancement, increased educational opportunities, overall career development, and results of retention excellence award programs.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative.",
+      "Command climate is critical for leadership evaluations."
+    ]
+  },
+  "trait_grades.bearing": {
+    "title": "Military Bearing / Character",
+    "block": "Block 36",
+    "excerpt": "Military Bearing and Character (Block 36): Strict adherence of every member to the highest personal and professional standards of conduct is paramount in assessing military bearing and character. This performance trait also encompasses standards of physical appearance, fitness, and readiness. To merit high marks, a member must meet and model the highest standards of professionalism in demeanor, deportment, and interaction with, and treatment of, superiors, peers, and subordinates.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.accomplishment": {
+    "title": "Personal Job Accomplishment / Initiative",
+    "block": "Block 37",
+    "excerpt": "Personal Job Accomplishment / Initiative (Block 37): Measure of drive, resourcefulness, quantity of work, and performance under pressure.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.teamwork": {
+    "title": "Teamwork",
+    "block": "Block 38",
+    "excerpt": "Teamwork (Block 38): Cooperation and support of others, fostering synergy, and building collaboration across sections.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.leadership": {
+    "title": "Leadership",
+    "block": "Block 39",
+    "excerpt": "Leadership (Block 39): Organizing, motivating, and developing others. Inspirational leadership and subordinate development.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  }
+}

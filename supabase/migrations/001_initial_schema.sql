@@ -52,7 +52,7 @@ create table public.profiles (
     first_name text not null,
     last_name text not null,
     middle_initial text,
-    dod_id text check (length(dod_id) = 10),
+    dod_id text unique check (length(dod_id) = 10),
     email text,
     navy_rank text,
     uic text, -- Temporarily removed FK to commands lookup for MVP. The  command to UIC cross-eference table is maintined by the Navy and did not add any meaningul value for the MVP.
@@ -302,7 +302,7 @@ values (
                 "label": "Duty/Competitive Status",
                 "type": "enum",
                 "required": true,
-                "options": ["ACDU", "TAR", "INACT", "AT/ADOS"],
+                "options": ["ACT", "TAR", "INACT", "AT/ADOS"],
                 "note": "Active duty, Training and Administration of Reserves, Inactive duty, or Active Duty for Operational Support"
             },
             {
@@ -337,8 +337,10 @@ values (
                 "label": "Date Reported Current Station/Vessel",
                 "type": "date",
                 "required": true,
-                "format": "YYMMMDD",
-                "note": "Date member reported to current duty station (e.g., 24JAN15)"
+                "inputFormat": "YYYY-MM-DD",
+                "displayFormat": "YYMMMDD",
+                "constraint": "onOrBeforeToday",
+                "note": "Date member reported to current duty station. Must be a valid calendar date, today or earlier. Entered and stored as YYYY-MM-DD (same as Period From/To, blocks 14/15); printed on the rendered form in Navy YYMMMDD format (e.g., 24JAN15)."
             },
             {
                 "number": 10,
@@ -358,11 +360,11 @@ values (
             },
             {
                 "number": 12,
-                "name": "Detachment of Reporting Senior",
-                "label": "Detachment of Reporting Senior",
+                "name": "Promotion/Frocking",
+                "label": "Promotion/Frocking",
                 "type": "checkbox",
                 "required": false,
-                "note": "Check if reporting senior is detaching"
+                "note": "Check if this report is occasioned by the member''s promotion or frocking"
             },
             {
                 "number": 13,
@@ -378,8 +380,9 @@ values (
                 "label": "Period of Report: From",
                 "type": "date",
                 "required": true,
-                "format": "YYMMMDD",
-                "note": "Start date of the evaluation report period"
+                "inputFormat": "YYYY-MM-DD",
+                "displayFormat": "YYMMMDD",
+                "note": "Start date of the evaluation report period. Stored as YYYY-MM-DD; printed in Navy YYMMMDD format."
             },
             {
                 "number": 15,
@@ -387,8 +390,9 @@ values (
                 "label": "Period of Report: To",
                 "type": "date",
                 "required": true,
-                "format": "YYMMMDD",
-                "note": "End date of the evaluation report period"
+                "inputFormat": "YYYY-MM-DD",
+                "displayFormat": "YYMMMDD",
+                "note": "End date of the evaluation report period. Stored as YYYY-MM-DD; printed in Navy YYMMMDD format. Must not precede Period From."
             },
             {
                 "number": 16,
@@ -412,15 +416,7 @@ values (
                 "label": "Concurrent",
                 "type": "checkbox",
                 "required": false,
-                "note": "Check if this is a Concurrent report"
-            },
-            {
-                "number": 19,
-                "name": "Ops Commander Report",
-                "label": "Ops Commander",
-                "type": "checkbox",
-                "required": false,
-                "note": "Check if submitted by operational commander"
+                "note": "Check if this is a Concurrent report. NOTE: the NAVPERS 1616/26 has no block 19; numbering goes 18 (Concurrent) -> 20 (Physical Readiness)."
             },
             {
                 "number": 20,
@@ -434,9 +430,17 @@ values (
                 "number": 21,
                 "name": "Billet Subcategory",
                 "label": "Billet Subcategory",
-                "type": "text",
-                "required": false,
-                "note": "Usually NA for enlisted; must not be left blank if applicable"
+                "type": "enum",
+                "required": true,
+                "options": [
+                    "NA", "BASIC", "APPROVED", "INDIV AUG", "CO AFLOAT", "CO ASHORE", "OIC", "SEA COMP",
+                    "CRF", "CANVASSER", "RESIDENT", "INTERN", "INSTRUCTOR", "STUDENT", "RESAC1", "RESAC6", "SCREENED",
+                    "SPECIAL01", "SPECIAL02", "SPECIAL03", "SPECIAL04", "SPECIAL05", "SPECIAL06", "SPECIAL07",
+                    "SPECIAL08", "SPECIAL09", "SPECIAL10", "SPECIAL11", "SPECIAL12", "SPECIAL13", "SPECIAL14",
+                    "SPECIAL15", "SPECIAL16", "SPECIAL17", "SPECIAL18", "SPECIAL19", "SPECIAL20"
+                ],
+                "starredOptions": ["CRF", "CANVASSER", "RESIDENT", "INTERN", "STUDENT"],
+                "note": "Required -- select NA if not used. Must be a valid code from BUPERSINST 1610.10H table 1-1. Starred codes (CRF, CANVASSER, RESIDENT, INTERN, STUDENT) should match an entry in Block 29. SPECIAL01-SPECIAL20 require PERS-32 approval."
             },
             {
                 "number": 22,
@@ -481,12 +485,12 @@ values (
             },
             {
                 "number": 27,
-                "name": "Reporting Senior Date Signed",
-                "label": "RS Date Signed",
-                "type": "date",
+                "name": "Reporting Senior DoD ID",
+                "label": "RS DoD ID Number",
+                "type": "text",
                 "required": true,
-                "format": "YYMMMDD",
-                "note": "Date reporting senior signed the report"
+                "pattern": "^[0-9]{10}$",
+                "note": "10-digit DoD Identification Number of the reporting senior (in lieu of SSN, per APEX PII policy; parallels member Block 4). The reporting senior''s signature date is captured with the Block 50 signature, not here."
             },
             {
                 "number": 28,
@@ -502,7 +506,32 @@ values (
                 "label": "Primary/Collateral/Watchstanding Duties",
                 "type": "textarea",
                 "required": true,
-                "note": "Enter primary duty abbreviation in box. List primary duty, collateral duties, and watchstanding duties with months served. Include job scope statement for shore commands."
+                "charsPerLine": 91,
+                "maxLines": 3,
+                "sections": [
+                    {
+                        "ref": "29A",
+                        "name": "Primary Duty Abbreviation",
+                        "field": "primary_duty_abbrev",
+                        "type": "text",
+                        "required": false,
+                        "maxLength": 14,
+                        "pattern": "^[A-Za-z0-9 /-]{0,14}$",
+                        "note": "Most-significant primary duty abbreviation. Letters, numbers, and spaces only (slash/hyphen allowed), 14 characters max. Shares Block 29''s first printed line, so the 29B narrative''s first line holds ~20 fewer characters."
+                    },
+                    {
+                        "ref": "29B",
+                        "name": "Duties Narrative",
+                        "field": "primary_duties",
+                        "type": "textarea",
+                        "required": true,
+                        "charsPerLine": 91,
+                        "maxLines": 3,
+                        "firstLineLead": 20,
+                        "note": "List primary duty, collateral duties, and watchstanding duties with months served. Include job scope statement for shore commands."
+                    }
+                ],
+                "note": "Block 29 splits into the 29A abbreviation box and the 29B narrative, which share the first printed line of the block."
             },
             {
                 "number": 30,
@@ -605,8 +634,10 @@ values (
                 "label": "Career Recommendations",
                 "type": "text",
                 "required": true,
-                "maxLength": 40,
-                "note": "Enter one or two career recommendations (max 20 chars each). Enter NA or NONE if not applicable. Based on performance; not binding on detailers."
+                "maxLength": 20,
+                "maxItems": 2,
+                "minItems": 1,
+                "note": "Enter one or two career recommendations (max 20 characters and spaces each). The second is optional, but at least one is required — do not leave blank; enter NA or NONE if none applies. Based on performance; not binding on detailers."
             },
             {
                 "number": 42,
@@ -667,19 +698,19 @@ values (
             },
             {
                 "number": 48,
+                "name": "Reporting Senior Address",
+                "label": "Reporting Senior Address",
+                "type": "text",
+                "required": false,
+                "note": "Mailing address of the reporting senior''s command. This block is the RS address, NOT a signature."
+            },
+            {
+                "number": 49,
                 "name": "Signature of Senior Rater",
                 "label": "Signature of Senior Rater",
                 "type": "signature",
                 "required": false,
-                "note": "Required for E-6 and below per BUPERSINST. May be omitted if reporting senior is rater''s immediate supervisor."
-            },
-            {
-                "number": 49,
-                "name": "Signature of Member",
-                "label": "Signature of Member",
-                "type": "signature",
-                "required": true,
-                "note": "Member signs after reviewing report. For non-adverse reports where member is unavailable, enter ''Certified Copy Provided''."
+                "note": "Senior Rater signs here. Required for E-6 and below per BUPERSINST 1610.10H; may be omitted if the reporting senior is the rater''s immediate supervisor."
             },
             {
                 "number": 50,
@@ -691,11 +722,11 @@ values (
             },
             {
                 "number": 51,
-                "name": "Member Signature on Adverse Report",
-                "label": "Member Signature (Adverse Report)",
+                "name": "Signature of Individual Evaluated",
+                "label": "Signature of Individual Evaluated",
                 "type": "signature",
-                "required": false,
-                "note": "Required only if report contains adverse matter. See BUPERSINST Ch. 14."
+                "required": true,
+                "note": "The evaluated member signs here (\"I have seen this report, been apprised of my performance...\"). For non-adverse reports where the member is unavailable, enter ''Certified Copy Provided''."
             },
             {
                 "number": 52,

@@ -71,10 +71,27 @@ export default function NewEvaluationPage() {
       const session = await getSession()
       if (!session?.user) throw new Error('Unauthenticated session')
 
-      await saveDraft(session.user.id, data)
-      router.push('/dashboard')
+      const saved = await saveDraft(session.user.id, data)
+      // Land on the report screen (the workflow hub) rather than the dashboard.
+      router.push(saved?.id ? `/evaluations/${saved.id}` : '/dashboard')
     } catch (err: any) {
       console.error('Failed to create new draft:', err)
+      throw err
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Persist to the DB but STAY on this page (recovered-draft "Save"). Returns the saved record
+  // so the form can adopt its new id and later saves update the same row instead of inserting.
+  const handleSaveInPlace = async (data: Evaluation) => {
+    setIsSaving(true)
+    try {
+      const session = await getSession()
+      if (!session?.user) throw new Error('Unauthenticated session')
+      return await saveDraft(session.user.id, data)
+    } catch (err: any) {
+      console.error('Failed to save draft in place:', err)
       throw err
     } finally {
       setIsSaving(false)
@@ -115,6 +132,7 @@ export default function NewEvaluationPage() {
         <EvaluationForm
           initialData={initialData}
           onSave={handleSave}
+          onSaveInPlace={handleSaveInPlace}
           onCancel={() => router.push('/dashboard')}
           isSaving={isSaving}
         />
