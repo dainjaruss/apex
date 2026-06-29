@@ -4,7 +4,7 @@
 //
 
 import { describe, it, expect } from 'vitest'
-import { hasPermission, canPerformAction, getAvailableActions, getRoleDescription, canSignBlock } from '@/lib/permissions'
+import { hasPermission, canPerformAction, getAvailableActions, getRoleDescription, canSignBlock, canViewSummaryAverage } from '@/lib/permissions'
 import { Profile, Evaluation } from '@/types'
 
 const mockEvaluation: Evaluation = {
@@ -196,6 +196,33 @@ describe('RBAC Permission Engine', () => {
     it('rejects non-signature blocks', () => {
       expect(canSignBlock(admin, 48, mockEvaluation)).toBe(false)   // Block 48 is an address
       expect(canSignBlock(admin, 99, mockEvaluation)).toBe(false)
+    })
+  })
+
+  describe('canViewSummaryAverage (Block 50a visibility)', () => {
+    const draft = { status: 'draft' }
+
+    it('hides the summary group average from a Sailor while the report is in draft', () => {
+      expect(canViewSummaryAverage('Sailor', draft)).toBe(false)
+      expect(canViewSummaryAverage('Sailor', { status: 'ready_for_review' })).toBe(false)
+    })
+
+    it('shows it to the Sailor once the report is finalized (the official record)', () => {
+      expect(canViewSummaryAverage('Sailor', { status: 'completed' })).toBe(true)
+      expect(canViewSummaryAverage('Sailor', { signature_locked: true, status: 'draft' })).toBe(true)
+      expect(canViewSummaryAverage('Sailor', { routing_stage: 'locked' })).toBe(true)
+    })
+
+    it('always shows it to reviewers (the rating chain), even during draft', () => {
+      expect(canViewSummaryAverage('Rater', draft)).toBe(true)
+      expect(canViewSummaryAverage('Senior Rater', draft)).toBe(true)
+      expect(canViewSummaryAverage('Reporting Senior', draft)).toBe(true)
+      expect(canViewSummaryAverage('Admin', draft)).toBe(true)
+    })
+
+    it('denies an unknown or missing role on a draft', () => {
+      expect(canViewSummaryAverage(undefined, draft)).toBe(false)
+      expect(canViewSummaryAverage('UnknownRole', draft)).toBe(false)
     })
   })
 })

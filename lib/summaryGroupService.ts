@@ -7,6 +7,7 @@
 import { createBrowserClient } from './supabaseClient'
 import { SummaryGroup } from '@/types'
 import { computeSummaryGroupAverage, SummaryGroupAverageResult } from './traitAverage'
+import { RecDistribution } from './forcedDistribution'
 
 const supabase = createBrowserClient()
 
@@ -70,6 +71,59 @@ export const getSummaryGroupAverage = async (groupId: string): Promise<SummaryGr
   if (error) throw new Error(error.message)
   const memberGrades = (data || []).map((e: any) => e.trait_grades)
   return computeSummaryGroupAverage(memberGrades)
+}
+
+/**
+ * Block 50a pooled average for an evaluation via the service-role route, which both bypasses RLS
+ * (so peers are counted) and enforces who may see it (reviewers always; the member only once the
+ * report is finalized). Pass excludeSelf for the PEERS-only pool — the draft form combines it live
+ * with the member's in-progress grades. Omit it to pool the whole group (report / export screens).
+ * Throws on 403 when the caller isn't permitted to see the value.
+ */
+export const fetchGroupAveragePool = async (
+  evaluationId: string,
+  excludeSelf?: boolean,
+): Promise<SummaryGroupAverageResult> => {
+  const res = await fetch('/api/summary-average', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evaluationId, excludeSelf }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to fetch summary group average')
+  return json as SummaryGroupAverageResult
+}
+
+/**
+ * Block 46 distribution (counts per observed promotion-recommendation category) for an eval's
+ * summary group, via the service-role route (RLS-bypassed + visibility-gated). Pass excludeSelf for
+ * the peers-only tally so the draft form can add the member's live recommendation.
+ */
+export const fetchGroupDistribution = async (
+  evaluationId: string,
+  excludeSelf?: boolean,
+): Promise<{ distribution: RecDistribution; observedCount: number }> => {
+  const res = await fetch('/api/summary-distribution', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evaluationId, excludeSelf }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to fetch summary group distribution')
+  return json as { distribution: RecDistribution; observedCount: number }
+}
+
+/**
+ * Every member's promotion_recommendation in a group, read with the browser client. Used by the
+ * Reporting Senior's summary-groups page, where RLS oversight already exposes all group members.
+ */
+export const getGroupRecommendations = async (groupId: string): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('promotion_recommendation')
+    .eq('summary_group_id', groupId)
+  if (error) throw new Error(error.message)
+  return (data || []).map((e: any) => e.promotion_recommendation)
 }
 
 /** Attach (or detach with null) a summary group to an eval; the DB trigger inherits fields. */

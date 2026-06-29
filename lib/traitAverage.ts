@@ -22,7 +22,7 @@ export interface TraitAverageResult {
 }
 
 // Round half-up to 2 decimals, matching the printed form's X.XX precision.
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
@@ -53,6 +53,7 @@ export interface SummaryGroupAverageResult {
   average: number | null
   memberCount: number // members contributing at least one graded trait
   gradedTraitCount: number // total graded traits pooled across the group
+  gradedSum: number // pooled sum of the graded trait scores (lets a live UI combine peers + own)
 }
 
 // Summary group average (BUPERSINST 1610.10H, Exhibit 1-2 / 1-6): "sum all graded
@@ -76,6 +77,6 @@ export function computeSummaryGroupAverage(
     }
   }
   return totalCount === 0
-    ? { average: null, memberCount: 0, gradedTraitCount: 0 }
-    : { average: round2(totalSum / totalCount), memberCount, gradedTraitCount: totalCount }
+    ? { average: null, memberCount: 0, gradedTraitCount: 0, gradedSum: 0 }
+    : { average: round2(totalSum / totalCount), memberCount, gradedTraitCount: totalCount, gradedSum: totalSum }
 }

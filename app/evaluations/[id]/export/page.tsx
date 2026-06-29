@@ -9,8 +9,11 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById, updateStatus } from '@/lib/evaluationService'
-import { getSummaryGroupAverage } from '@/lib/summaryGroupService'
+import { fetchGroupAveragePool, fetchGroupDistribution } from '@/lib/summaryGroupService'
+import { getProfile } from '@/lib/profileService'
+import { canViewSummaryAverage } from '@/lib/permissions'
 import { runFullValidation } from '@/lib/validationEngine'
+import { checkForcedDistribution, ForcedDistributionResult } from '@/lib/forcedDistribution'
 import { Evaluation, ValidationResult } from '@/types'
 import PDFPreview from '@/components/PDFPreview'
 
@@ -25,6 +28,7 @@ export default function EvaluationExportPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  const [forcedDist, setForcedDist] = useState<ForcedDistributionResult | null>(null)
   const [isFinalizing, setIsFinalizing] = useState(false)
 
   useEffect(() => {
@@ -37,17 +41,30 @@ export default function EvaluationExportPage() {
         }
         setUserId(session.user.id)
 
+        const viewer = await getProfile(session.user.id)
         if (!id) return;
         const data = await loadById(id)
 
-        // Block 50: compute the summary group average for the rendered PDF when this eval
-        // belongs to a summary group (pooled across the group's graded traits).
-        if (data?.summary_group_id) {
+        // Block 50a on the rendered PDF: populate only when this viewer may see it — reviewers
+        // always; the evaluated member only once the report is finalized (so a sailor exporting
+        // their own draft does not see it). The service-role route enforces the same rule and
+        // returns the individual average for an ungrouped eval (a group of one).
+        if (canViewSummaryAverage(viewer.preferred_role, data)) {
           try {
-            const { average } = await getSummaryGroupAverage(data.summary_group_id)
-            data.summary_group_average = average
+            data.summary_group_average = (await fetchGroupAveragePool(data.id!)).average
           } catch (e) {
             console.warn('Could not compute summary group average:', e)
+          }
+          // Block 46 distribution + the EVALMAN forced-distribution check (used to hard-block
+          // finalize). Only meaningful when the eval is in a summary group.
+          if (data.summary_group_id) {
+            try {
+              const { distribution } = await fetchGroupDistribution(data.id!)
+              data.summary_group_distribution = distribution
+              setForcedDist(checkForcedDistribution(distribution, data.grade_rate))
+            } catch (e) {
+              console.warn('Could not compute summary group distribution:', e)
+            }
           }
         }
         setEvaluation(data)
@@ -68,6 +85,9 @@ export default function EvaluationExportPage() {
 
   const handleFinalize = async () => {
     if (!evaluation || !validationResult?.success) return;
+    // Hard block: a report cannot be finalized while its summary group exceeds the EVALMAN
+    // forced-distribution caps (BUPERSINST 1610.10H Table 1-2).
+    if (forcedDist && !forcedDist.compliant) return;
     setIsFinalizing(true)
     try {
       await updateStatus(evaluation.id!, 'completed', userId || undefined)
@@ -210,30 +230,84 @@ export default function EvaluationExportPage() {
           </div>
         </div>
 
-        {/* Real-time PDF Preview component */}
-        {success && (
-          <div id="apex-pdf-preview-section" className="space-y-4">
-            <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-              Official NAVPERS 1616/26 Document Preview
-            </h3>
-            <PDFPreview evaluation={evaluation} />
+        {/* Forced-distribution status (BUPERSINST 1610.10H Table 1-2) — a hard blocker for finalize */}
+        {forcedDist && (
+          <div className={`glass-panel rounded-xl p-6 border space-y-3 ${forcedDist.compliant ? 'border-slate-800' : 'border-red-500/30'}`}>
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">Summary Group Forced Distribution</h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider border ${
+                forcedDist.compliant
+                  ? 'bg-emerald-950 text-emerald-400 border-emerald-900/40'
+                  : 'bg-red-950 text-red-400 border-red-900/40'
+              }`}>
+                {forcedDist.compliant ? 'WITHIN LIMITS' : 'OVER LIMIT'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">
+              Observed group size: <span className="text-white font-semibold">{forcedDist.observedCount}</span> · Max Early Promote:{' '}
+              <span className="text-white font-semibold">{forcedDist.earlyPromoteMax}</span>
+              {forcedDist.combinedMax != null && (
+                <> · Max Early + Must Promote (E5–E6): <span className="text-white font-semibold">{forcedDist.combinedMax}</span></>
+              )}
+            </p>
+            {!forcedDist.compliant && (
+              <ul className="space-y-2">
+                {forcedDist.violations.map((v, i) => (
+                  <li key={i} className="p-3 bg-red-950/10 border border-red-900/20 rounded-lg text-xs text-red-200 flex items-start gap-2.5">
+                    <span className="text-red-400 font-bold mt-0.5">✕</span>
+                    <span>{v.message} This report cannot be finalized until the Reporting Senior brings the group within limits.</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
+
+        {/* Real-time PDF Preview — always available so anyone can see the report's progress,
+            even before it passes validation. Only the official download/finalize stay gated. */}
+        <div id="apex-pdf-preview-section" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
+              {success ? 'Official NAVPERS 1616/26 Document Preview' : 'Draft Preview (Not Finalized)'}
+            </h3>
+            {!success && (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-900/40 text-[10px] font-bold tracking-wider">
+                WORK IN PROGRESS
+              </span>
+            )}
+          </div>
+          {!success && (
+            <p className="text-xs text-amber-300/80 leading-relaxed">
+              Live preview of the report as drafted, so you can track progress. It still has open
+              validation blockers and cannot be downloaded or finalized until they are resolved.
+            </p>
+          )}
+          <PDFPreview evaluation={evaluation} allowDownload={success} />
+        </div>
 
         {/* Action Panel */}
         <div className="glass-panel rounded-xl p-6 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h4 className="text-sm font-semibold text-white">
-              {success ? 'Export & Production Actions' : 'Corrections Required'}
+              {success ? 'Export & Production Actions' : 'In Progress — Preview Available'}
             </h4>
             <p className="text-xs text-slate-400 mt-1">
               {success
                 ? 'Generate high-fidelity PDF copy or submit report to finalize status.'
-                : 'Click Edit Draft below to resolve the validation failures.'}
+                : 'Preview the report below to track progress. Resolve the blockers above to download or finalize.'}
             </p>
           </div>
 
           <div className="flex gap-3">
+            <button
+              onClick={() => {
+                const el = document.getElementById('apex-pdf-preview-section')
+                el?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="px-5 py-2.5 rounded-lg bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition shadow-lg"
+            >
+              View Document Preview
+            </button>
             {!success ? (
               <button
                 onClick={() => router.push(`/evaluations/${evaluation.id}/edit`)}
@@ -242,24 +316,14 @@ export default function EvaluationExportPage() {
                 Edit Draft
               </button>
             ) : (
-              <>
-                <button
-                  onClick={handleFinalize}
-                  disabled={isFinalizing || evaluation.status === 'completed'}
-                  className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-white transition border border-slate-700"
-                >
-                  {isFinalizing ? 'Finalizing...' : evaluation.status === 'completed' ? 'Finalized' : 'Finalize & Submit'}
-                </button>
-                <button
-                  onClick={() => {
-                    const el = document.getElementById('apex-pdf-preview-section')
-                    el?.scrollIntoView({ behavior: 'smooth' })
-                  }}
-                  className="px-5 py-2.5 rounded-lg bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition shadow-lg"
-                >
-                  View Document Preview
-                </button>
-              </>
+              <button
+                onClick={handleFinalize}
+                disabled={isFinalizing || evaluation.status === 'completed' || (forcedDist != null && !forcedDist.compliant)}
+                title={forcedDist != null && !forcedDist.compliant ? 'Blocked: summary group exceeds the forced-distribution caps' : undefined}
+                className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-white transition border border-slate-700"
+              >
+                {isFinalizing ? 'Finalizing...' : evaluation.status === 'completed' ? 'Finalized' : 'Finalize & Submit'}
+              </button>
             )}
           </div>
         </div>

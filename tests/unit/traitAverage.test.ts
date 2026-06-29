@@ -54,6 +54,7 @@ describe('computeSummaryGroupAverage (Block 50 — pooled across the group)', ()
     expect(r.average).toBe(3.0)
     expect(r.memberCount).toBe(2)
     expect(r.gradedTraitCount).toBe(14)
+    expect(r.gradedSum).toBe(42) // 28 + 14 — lets the live form combine peers + own grades
   })
 
   it('weights members with more graded traits (differs from an average-of-averages)', () => {
@@ -77,8 +78,8 @@ describe('computeSummaryGroupAverage (Block 50 — pooled across the group)', ()
   })
 
   it('returns null when the group has no graded traits', () => {
-    expect(computeSummaryGroupAverage([])).toEqual({ average: null, memberCount: 0, gradedTraitCount: 0 })
+    expect(computeSummaryGroupAverage([])).toEqual({ average: null, memberCount: 0, gradedTraitCount: 0, gradedSum: 0 })
     expect(computeSummaryGroupAverage([null, undefined, sevenOf('NOB')]))
-      .toEqual({ average: null, memberCount: 0, gradedTraitCount: 0 })
+      .toEqual({ average: null, memberCount: 0, gradedTraitCount: 0, gradedSum: 0 })
   })
 })

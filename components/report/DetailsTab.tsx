@@ -181,6 +181,22 @@ function RecommendationsSection({ e, onSign }: { e: Evaluation; onSign: OnSign }
         <Field label="47: Retention Recommendation" value={e.retention || 'N/A'} />
       </div>
       <div className="mb-6">
+        <div className="text-xs text-slate-500 mb-1">46: Promotion Recommendation Summary (Summary Group)</div>
+        {e.promotion_recommendation === 'NOB' ? (
+          <p className="text-slate-600 text-sm italic">Left blank — Not Observed report.</p>
+        ) : e.summary_group_distribution ? (
+          <div className="flex flex-wrap gap-2 mt-1 text-xs">
+            {['Significant Problems', 'Progressing', 'Promotable', 'Must Promote', 'Early Promote'].map((c) => (
+              <span key={c} className="px-2 py-1 rounded bg-slate-800/60 text-slate-200">
+                {c}: <span className="font-bold text-white">{e.summary_group_distribution?.[c] ?? 0}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-slate-600 text-sm italic">Not available.</p>
+        )}
+      </div>
+      <div className="mb-6">
         <div className="text-xs text-slate-500 mb-1">44: Qualifications/Achievements</div>
         <p className="text-slate-300 text-sm whitespace-pre-wrap">{bv.qualifications || 'None listed.'}</p>
       </div>

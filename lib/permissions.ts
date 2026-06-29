@@ -244,6 +244,22 @@ export function canManageSummaryGroups(user: Profile): boolean {
 }
 
 /**
+ * Who may SEE the summary group average (Block 50a). Reviewers — the rating chain, i.e. anyone who
+ * can approve an evaluation (Rater / Senior Rater / Reporting Senior / Admin) — may always see it.
+ * The evaluated member (a Sailor) must NOT see it while the report is still being drafted or
+ * reviewed; they see it only once the report is finalized (signed/locked or completed), where it
+ * is part of the official NAVPERS record they receive.
+ */
+export function canViewSummaryAverage(
+  role: Role | string | undefined,
+  evaluation?: { signature_locked?: boolean | null; routing_stage?: string | null; status?: string | null },
+): boolean {
+  if (role && hasPermission(role, 'approve_evaluation')) return true
+  const ev = evaluation || {}
+  return !!ev.signature_locked || ev.routing_stage === 'locked' || ev.status === 'completed' || ev.status === 'archived'
+}
+
+/**
  * Gets a human-readable description of a role's capabilities.
  */
 export function getRoleDescription(role: Role): string {

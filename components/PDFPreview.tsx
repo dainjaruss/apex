@@ -11,9 +11,12 @@ import { Evaluation } from '@/types'
 
 interface PDFPreviewProps {
   evaluation: Evaluation
+  // Whether the official PDF may be downloaded. Off for an unvalidated draft preview, where the
+  // document can be viewed (to track progress) but not yet exported as a finished artifact.
+  allowDownload?: boolean
 }
 
-export default function PDFPreview({ evaluation }: PDFPreviewProps) {
+export default function PDFPreview({ evaluation, allowDownload = true }: PDFPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -105,15 +108,19 @@ export default function PDFPreview({ evaluation }: PDFPreviewProps) {
         <span className="text-xs font-mono text-slate-400">
           Document Output: 2 Pages (Letter Size)
         </span>
-        <button
-          onClick={handleDownload}
-          className="px-3.5 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition flex items-center gap-1.5 shadow"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Download PDF Document
-        </button>
+        {allowDownload ? (
+          <button
+            onClick={handleDownload}
+            className="px-3.5 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition flex items-center gap-1.5 shadow"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download PDF Document
+          </button>
+        ) : (
+          <span className="text-[11px] text-slate-500 italic">Download unlocks once validation passes</span>
+        )}
       </div>
 
       {/* Frame container */}

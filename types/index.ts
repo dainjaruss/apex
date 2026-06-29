@@ -17,9 +17,10 @@ export interface SummaryGroup {
   name: string;
   reporting_senior_id: string;
   period_to: string;          // ending date YYYY-MM-DD
-  grade_rate: string;         // paygrade
+  grade_rate: string;         // paygrade (regardless of rating)
   promotion_status: string;
   command_employment: string;
+  uic?: string;               // enlisted breakout dimension (BUPERSINST 1610.10H); optional until migration 003
   report_type?: 'EVAL' | string;
   status?: 'open' | 'closed';
   created_by?: string;
@@ -55,6 +56,9 @@ export interface Evaluation {
   // group (average of the members' individual trait averages). Transient: attached to the
   // PDF payload, not a stored column.
   summary_group_average?: number | null;
+  // Block 46 promotion-recommendation summary — counts of the group's observed reports per
+  // category. Transient (computed at render time), keyed by the 5 observed category names.
+  summary_group_distribution?: { [category: string]: number } | null;
   comments: string;
   career_recommendations: string[];
   promotion_recommendation: 'Significant Problems' | 'Progressing' | 'Promotable' | 'Must Promote' | 'Early Promote' | 'NOB' | string;

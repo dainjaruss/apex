@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById, saveDraft } from '@/lib/evaluationService'
+import { getProfile } from '@/lib/profileService'
 import EvaluationForm from '@/components/EvaluationForm'
 import { Evaluation } from '@/types'
 
@@ -23,6 +24,7 @@ export default function EditEvaluationPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [viewerRole, setViewerRole] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     // fallow-ignore-next-line complexity
@@ -34,6 +36,9 @@ export default function EditEvaluationPage() {
           return
         }
         setUserId(session.user.id)
+        // Role gates Block 50a on the form (sailors don't see it while drafting; reviewers do).
+        const viewer = await getProfile(session.user.id).catch(() => null)
+        setViewerRole(viewer?.preferred_role)
 
         if (!id) return;
         const data = await loadById(id)
@@ -139,6 +144,7 @@ export default function EditEvaluationPage() {
           onSaveInPlace={handleSaveInPlace}
           onCancel={() => router.push('/dashboard')}
           isSaving={isSaving}
+          viewerRole={viewerRole}
         />
       </main>
     </div>

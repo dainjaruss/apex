@@ -11,9 +11,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById } from '@/lib/evaluationService'
 import { getProfile } from '@/lib/profileService'
+import { fetchGroupAveragePool, fetchGroupDistribution } from '@/lib/summaryGroupService'
+import { canViewSummaryAverage } from '@/lib/permissions'
 import { fetchAuditLogs, AuditLog } from '@/lib/auditService'
 import { Evaluation, Profile } from '@/types'
 import ReviewPanel from '@/components/Reviewer/ReviewPanel'
+import PDFPreview from '@/components/PDFPreview'
 import CredentialSignatureModal from '@/components/CredentialSignatureModal'
 import DetailsTab, { OnSign } from '@/components/report/DetailsTab'
 import AuditTab from '@/components/report/AuditTab'
@@ -36,9 +39,29 @@ export default function ViewEvaluationPage() {
     try {
       const session = await getSession()
       if (!session?.user) { router.push('/login'); return }
-      setProfile(await getProfile(session.user.id))
+      const viewer = await getProfile(session.user.id)
+      setProfile(viewer)
       if (!id) return
-      setEvaluation(await loadById(id))
+      const ev = await loadById(id)
+      // Block 50a: only fetch/show the summary group average when this viewer may see it
+      // (reviewers always; the evaluated member only once the report is finalized). The endpoint
+      // enforces the same rule and returns the individual average for an ungrouped eval.
+      if (canViewSummaryAverage(viewer.preferred_role, ev)) {
+        try {
+          ev.summary_group_average = (await fetchGroupAveragePool(ev.id!)).average
+        } catch (e) {
+          console.warn('Could not compute summary group average:', e)
+        }
+        // Block 46 promotion-recommendation distribution (counts per category in the group).
+        if (ev.summary_group_id) {
+          try {
+            ev.summary_group_distribution = (await fetchGroupDistribution(ev.id!)).distribution
+          } catch (e) {
+            console.warn('Could not compute summary group distribution:', e)
+          }
+        }
+      }
+      setEvaluation(ev)
       // Audit logs are a secondary tab — never let their failure block the whole report.
       try {
         setAuditLogs(((await fetchAuditLogs(id)) || []) as AuditLog[])
@@ -56,10 +79,20 @@ export default function ViewEvaluationPage() {
 
   useEffect(() => { loadAllData() }, [id, router])
 
+  // Honor a deep-linked tab (e.g. the summary-group page links members to ?tab=preview). Runs
+  // client-side only and before the tabs render (they're gated behind `loading`), so no flash.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    if (tab === 'details' || tab === 'preview' || tab === 'review' || tab === 'audit') {
+      setActiveTab(tab)
+    }
+  }, [])
+
   if (loading) return <CenterMessage text="Loading evaluation details..." />
   if (error || !evaluation || !profile) return <LoadError message={error} onBack={() => router.push('/dashboard')} />
 
   const isOwner = evaluation.created_by === profile.id
+  const canSeeSummaryAvg = canViewSummaryAverage(profile.preferred_role, evaluation)
   const onSign: OnSign = (block, label, signer) => setSigning({ block, label, signer })
 
   return (
@@ -72,10 +105,13 @@ export default function ViewEvaluationPage() {
         onExport={() => router.push(`/evaluations/${evaluation.id}/export`)}
       />
       <main className="max-w-5xl mx-auto px-4 pb-12 space-y-6">
-        <ReportBanner evaluation={evaluation} />
+        <ReportBanner evaluation={evaluation} showSummaryAverage={canSeeSummaryAvg} />
         <ReportTabs active={activeTab} onChange={setActiveTab} />
 
         {activeTab === 'details' && <DetailsTab evaluation={evaluation} onSign={onSign} />}
+        {/* Read-only PDF preview, visible to anyone who can view the report. Download and
+            finalize stay on the owner's Export page. */}
+        {activeTab === 'preview' && <PDFPreview evaluation={evaluation} allowDownload={false} />}
         {activeTab === 'review' && <ReviewPanel evaluation={evaluation} currentUser={profile} onWorkflowAction={loadAllData} />}
         {activeTab === 'audit' && <AuditTab auditLogs={auditLogs} />}
 

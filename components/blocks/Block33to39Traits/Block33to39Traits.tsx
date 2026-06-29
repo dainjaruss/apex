@@ -10,6 +10,11 @@ interface Block33to39TraitsProps {
   issues: ValidationIssue[];
   onFocusField?: (field: string | null) => void;
   activeField?: string | null;
+  // Block 50a — pooled summary group average (live), computed by the parent. Equals the Block 40
+  // individual average when the eval isn't in a summary group.
+  summaryGroupAverage?: number | null;
+  // Whether to show Block 50a at all. Hidden for the drafting member (sailor); shown to reviewers.
+  showSummaryGroupAverage?: boolean;
 }
 
 const TRAIT_KEYS = [
@@ -24,7 +29,7 @@ const TRAIT_KEYS = [
 
 const GRADE_VALUES = ['1.0', '2.0', '3.0', '4.0', '5.0', 'NOB'] as const
 
-export default function Block33to39Traits({ evalData, onChange, issues, onFocusField, activeField }: Block33to39TraitsProps) {
+export default function Block33to39Traits({ evalData, onChange, issues, onFocusField, activeField, summaryGroupAverage, showSummaryGroupAverage }: Block33to39TraitsProps) {
   // Only the grades the rater has actually set. Per EVALMAN an untouched trait is blank
   // and ungraded (excluded from the average) — never a silent 3.0 default.
   const currentGrades = useMemo(
@@ -65,11 +70,22 @@ export default function Block33to39Traits({ evalData, onChange, issues, onFocusF
     <div className="glass-panel rounded-xl p-6 mb-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-700/40 pb-2">
         <h3 className="text-lg font-bold gold-accent">Trait Performance Ratings (Blocks 33 - 39)</h3>
-        <div className="mt-2 sm:mt-0 px-4 py-1.5 rounded-lg bg-[#111c38]/40 border border-slate-800 text-sm font-semibold flex items-center gap-2">
-          <span className="text-slate-400 text-xs uppercase">Trait Average (40):</span>
-          <span className="text-emerald-400 font-bold font-mono text-base">
-            {liveAverage != null ? liveAverage.toFixed(2) : '—'}
-          </span>
+        <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
+          <div className="px-4 py-1.5 rounded-lg bg-[#111c38]/40 border border-slate-800 text-sm font-semibold flex items-center gap-2">
+            <span className="text-slate-400 text-xs uppercase">Trait Average (40):</span>
+            <span className="text-emerald-400 font-bold font-mono text-base">
+              {liveAverage != null ? liveAverage.toFixed(2) : '—'}
+            </span>
+          </div>
+          {showSummaryGroupAverage && (
+            <div className="px-4 py-1.5 rounded-lg bg-[#111c38]/40 border border-slate-800 text-sm font-semibold flex items-center gap-2"
+              title="Block 50a — pooled summary group average. Equals the Block 40 average when this report isn't in a summary group.">
+              <span className="text-slate-400 text-xs uppercase">Summary Group Avg (50a):</span>
+              <span className="text-sky-300 font-bold font-mono text-base">
+                {summaryGroupAverage != null ? summaryGroupAverage.toFixed(2) : '—'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

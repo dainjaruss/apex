@@ -135,6 +135,7 @@ export default function NewEvaluationPage() {
           onSaveInPlace={handleSaveInPlace}
           onCancel={() => router.push('/dashboard')}
           isSaving={isSaving}
+          viewerRole={profile?.preferred_role}
         />
       </main>
     </div>

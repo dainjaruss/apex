@@ -145,6 +145,8 @@ const C = {
     // block 45 individual promotion recommendation (X in a column, INDIVIDUAL row)
     promoRecCy: 189,
     promoRecCx: [110, 157, 208, 259, 310, 360], // NOB, SigProb, Progressing, Promotable, MustPromote, EarlyPromote
+    // block 46 summary row (counts), same columns one row below block 45. ESTIMATE — calibrate Y visually.
+    promoSummaryCy: 162,
 
     // block 47 retention
     retentionCy: 212.1,
@@ -162,7 +164,7 @@ const C = {
     // summary group average — the "Summary Group Average:" label sits in the Block 50
     // band (label ends ≈overlay-x 405, baseline ≈y 94 on the centered template; minus the
     // p2 offset → config ≈398, 108). Value is printed just to the right of the label.
-    summaryAvg_x: 410, summaryAvg_y: 108,
+    summaryAvg_x: 400, summaryAvg_y: 111,
 
     // signature dates
     date49_x: 215, date49_y: 128, date50_x: 515, date50_y: 128,
@@ -349,6 +351,19 @@ export async function generateOverlayPdf(evaluation: Evaluation, templateBytes: 
   // block 45 individual promotion recommendation
   const ri = recIndex(evaluation.promotion_recommendation)
   if (ri != null) mark(page2, p2.promoRecCx[ri], p2.promoRecCy)
+
+  // block 46 promotion-recommendation SUMMARY — the count of the summary group's OBSERVED reports
+  // in each of the five ranked columns. The NOB column already has a pre-printed "X" on the blank
+  // form (NOB reports aren't part of a summary group, BUPERSINST 1610.10H Table 1-3), so we never
+  // draw it. Left entirely blank when THIS report is itself NOB.
+  if (evaluation.promotion_recommendation !== 'NOB' && evaluation.summary_group_distribution) {
+    const dist = evaluation.summary_group_distribution
+    for (let i = 1; i < REC_COLS.length; i++) {
+      const n = String(dist[REC_COLS[i]] ?? 0)
+      const w = courier.widthOfTextAtSize(n, 11)
+      text(page2, n, p2.promoRecCx[i] - w / 2, p2.promoSummaryCy, 11)
+    }
+  }
 
   // block 47 retention
   const ret = (evaluation.retention || '').toUpperCase()

@@ -23,6 +23,12 @@ function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () =
         <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">DASHBOARD</span>
       </div>
       <div className="flex items-center gap-4">
+        <button
+          onClick={() => router.push('/profile')}
+          className="px-3 py-1.5 rounded bg-[#1c2541] hover:bg-slate-800 text-xs font-semibold text-blue-300 border border-blue-900/30 transition-all"
+        >
+          Profile
+        </button>
         {canGroups && (
           <button
             onClick={() => router.push('/summary-groups')}

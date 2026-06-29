@@ -11,7 +11,11 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Evaluation, ValidationIssue } from '@/types'
+import { Evaluation, SummaryGroup, ValidationIssue } from '@/types'
+import { listOpenGroups, fetchGroupAveragePool } from '@/lib/summaryGroupService'
+import { computeTraitAverage, round2 } from '@/lib/traitAverage'
+import { canViewSummaryAverage } from '@/lib/permissions'
+import { paygradeOf } from '@/lib/paygrade'
 import Block1Admin from '@/components/blocks/EvaluationFormParts/Block1Admin'
 import Block33to39Traits from '@/components/blocks/Block33to39Traits'
 import Block43Comments from '@/components/blocks/Block43Comments'
@@ -30,6 +34,9 @@ interface EvaluationFormProps {
   onSaveInPlace?: (data: Evaluation) => Promise<Evaluation | void>;
   onCancel: () => void;
   isSaving: boolean;
+  // The editing user's role — gates Block 50a (summary group average): sailors don't see it while
+  // drafting; reviewers do. Defaults to hidden when unknown.
+  viewerRole?: string;
 }
 
 const STEPS = [
@@ -41,7 +48,7 @@ const STEPS = [
 
 const GUIDELINES_PREF_KEY = 'apex:show-field-guidelines'
 
-export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onCancel, isSaving }: EvaluationFormProps) {
+export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onCancel, isSaving, viewerRole }: EvaluationFormProps) {
   // Stable per-evaluation autosave key (DB id when editing, per-user slot when new).
   const autosaveKey = useMemo(
     () => draftStorageKey({ id: initialData.id, createdBy: initialData.created_by }),
@@ -128,6 +135,57 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
       block_values: { ...prev.block_values, ...fields }
     }));
   };
+
+  // Attach (or detach) a promotion-recommendation summary group while drafting. On save the DB
+  // trigger (enforce_summary_group_fields) standardizes the group's shared BUPERSINST fields, so
+  // we mirror them into the form immediately — the preview then matches what will persist.
+  // Detaching clears only the link and leaves the values for the member to edit.
+  const handleSelectGroup = (group: SummaryGroup | null) => {
+    setDbSavedAt(null);
+    if (!group) {
+      setFormData((prev) => ({ ...prev, summary_group_id: null }));
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      summary_group_id: group.id ?? null,
+      period_to: group.period_to,
+      grade_rate: group.grade_rate,
+      promotion_status: group.promotion_status,
+      report_type: 'EVAL',
+      block_values: { ...prev.block_values, command_achievements: group.command_employment },
+    }));
+  };
+
+  // Block 50a (summary group average), shown live next to the Block 40 individual average — but
+  // only to reviewers. A sailor drafting their own report must NOT see it; that gate is enforced
+  // here AND server-side by the /api/summary-average route.
+  const canSeeGroupAvg = canViewSummaryAverage(viewerRole, formData)
+
+  // Peers' pooled grades (service-role route; RLS hides peers from a sailor). Fetched only for a
+  // saved, grouped draft this viewer may see; the member's own contribution is combined live below
+  // so the value tracks edits. With no group the pool is empty and this equals the individual
+  // average (a "group of one").
+  const [peerPool, setPeerPool] = useState<{ gradedSum: number; gradedTraitCount: number }>({ gradedSum: 0, gradedTraitCount: 0 })
+  useEffect(() => {
+    let active = true
+    if (!canSeeGroupAvg || !formData.summary_group_id || !formData.id) {
+      setPeerPool({ gradedSum: 0, gradedTraitCount: 0 })
+      return
+    }
+    fetchGroupAveragePool(formData.id, true)
+      .then((r) => { if (active) setPeerPool({ gradedSum: r.gradedSum || 0, gradedTraitCount: r.gradedTraitCount || 0 }) })
+      .catch(() => { if (active) setPeerPool({ gradedSum: 0, gradedTraitCount: 0 }) })
+    return () => { active = false }
+  }, [canSeeGroupAvg, formData.summary_group_id, formData.id])
+
+  const summaryGroupAverage = useMemo(() => {
+    if (!canSeeGroupAvg) return null
+    const own = computeTraitAverage((formData.trait_grades || {}) as Record<string, string | undefined>)
+    const sum = peerPool.gradedSum + own.gradedSum
+    const count = peerPool.gradedTraitCount + own.gradedCount
+    return count === 0 ? null : round2(sum / count)
+  }, [canSeeGroupAvg, formData.trait_grades, peerPool])
 
   // Track the active field and remember which fields have been visited.
   const handleFocusField = (field: string | null) => {
@@ -257,14 +315,22 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
         <form onSubmit={handleSubmit} className="space-y-6 pb-20">
           {/* Render Only the Active Step */}
           {currentStep === 0 && (
-            <Block1Admin
-              evalData={formData}
-              onChange={handleFieldChange}
-              issues={visibleIssues}
-              handleBlockValueChange={handleBlockValueChange}
-              onFocusField={handleFocusField}
-              activeField={activeField}
-            />
+            <>
+              <SummaryGroupSelector
+                value={formData.summary_group_id ?? null}
+                memberGradeRate={formData.grade_rate}
+                memberUic={formData.uic}
+                onSelect={handleSelectGroup}
+              />
+              <Block1Admin
+                evalData={formData}
+                onChange={handleFieldChange}
+                issues={visibleIssues}
+                handleBlockValueChange={handleBlockValueChange}
+                onFocusField={handleFocusField}
+                activeField={activeField}
+              />
+            </>
           )}
 
           {currentStep === 1 && (
@@ -274,6 +340,8 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
               issues={visibleIssues}
               onFocusField={handleFocusField}
               activeField={activeField}
+              summaryGroupAverage={summaryGroupAverage}
+              showSummaryGroupAverage={canSeeGroupAvg}
             />
           )}
 
@@ -355,6 +423,104 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
       </div>
     </GuidelinesVisibilityContext.Provider>
   );
+}
+
+/* ──────────────────────────────────────────────────
+   Summary-group selector (draft-time attachment)
+
+   Per BUPERSINST 1610.10H, an enlisted promotion-recommendation summary group is the set of
+   members in the same paygrade (regardless of rating) and same promotion status who receive the
+   same type of report from the same reporting senior on the same ending date — with UIC as a
+   further breakout. Shown at the top of the Admin step ONLY when one or more OPEN (enrollable)
+   groups exist. Selecting a group records summary_group_id on the draft; the DB trigger
+   standardizes the group's shared fields on save (mirrored into the form here so the preview
+   matches). The member's own paygrade/UIC are shown to help them pick the group they belong to.
+   ────────────────────────────────────────────────── */
+
+function SummaryGroupSelector({
+  value,
+  memberGradeRate,
+  memberUic,
+  onSelect,
+}: {
+  value: string | null
+  memberGradeRate?: string
+  memberUic?: string
+  onSelect: (group: SummaryGroup | null) => void
+}) {
+  const [groups, setGroups] = useState<SummaryGroup[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    listOpenGroups()
+      .then((g) => { if (active) setGroups(g) })
+      .catch(() => { /* read failure → selector simply stays hidden */ })
+      .finally(() => { if (active) setLoaded(true) })
+    return () => { active = false }
+  }, [])
+
+  const selected = groups.find((g) => g.id === value) || null
+
+  // Gate by paygrade: a summary group is a single paygrade, so an E-3 must not be offered an
+  // E-6 group. When the member's paygrade can't be parsed we don't gate (show all open groups)
+  // rather than hide everything. An already-attached group stays listed so it can be detached.
+  const memberPaygrade = paygradeOf(memberGradeRate)
+  const eligible = memberPaygrade
+    ? groups.filter((g) => paygradeOf(g.grade_rate) === memberPaygrade)
+    : groups
+  const visible = selected && !eligible.some((g) => g.id === selected.id)
+    ? [selected, ...eligible]
+    : eligible
+
+  // Only offer the option when an eligible (open, matching-paygrade) group exists.
+  if (!loaded || visible.length === 0) return null
+
+  const describe = (g: SummaryGroup) =>
+    `${g.name} · ${g.grade_rate}${g.uic ? ` · UIC ${g.uic}` : ''} · ${g.promotion_status} · ends ${g.period_to}`
+
+  return (
+    <div className="glass-panel rounded-xl p-5 border border-sky-900/30 space-y-3">
+      <div className="flex items-start gap-2.5">
+        <svg className="w-4 h-4 mt-0.5 text-sky-300 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+        </svg>
+        <div>
+          <h3 className="text-sm font-bold text-white">Summary Group <span className="text-slate-400 font-normal">(optional)</span></h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Attach this evaluation to a Reporting Senior&apos;s promotion-recommendation group. Only groups for your
+            paygrade are shown — pick the one for your promotion status, reporting senior, and ending date.
+            {(memberGradeRate || memberUic) && (
+              <span className="block mt-1 text-slate-500">
+                You: {memberGradeRate || '—'}{memberPaygrade ? ` (${memberPaygrade})` : ''}{memberUic ? ` · UIC ${memberUic}` : ''}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <select
+        value={value || ''}
+        onChange={(e) => onSelect(groups.find((g) => g.id === e.target.value) || null)}
+        className="w-full px-4 py-2.5 rounded bg-[#1c2541] border border-slate-700/50 text-[#f0f4f8] focus:outline-none focus:border-[#3e6e99] transition text-sm"
+      >
+        <option value="">— None (not part of a summary group) —</option>
+        {visible.map((g) => (
+          <option key={g.id} value={g.id}>{describe(g)}</option>
+        ))}
+      </select>
+
+      {selected && (
+        <div className="text-[11px] text-sky-200/90 bg-sky-950/30 border border-sky-900/40 rounded-lg p-3 leading-relaxed">
+          On save, these fields are standardized from <span className="font-semibold">{selected.name}</span> and shared
+          across the group: <span className="font-semibold">ending date</span> ({selected.period_to}),{' '}
+          <span className="font-semibold">paygrade</span> ({selected.grade_rate}),{' '}
+          <span className="font-semibold">promotion status</span> ({selected.promotion_status}), and{' '}
+          <span className="font-semibold">command employment</span> (Block 28).
+        </div>
+      )}
+    </div>
+  )
 }
 
 /* ──────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 import React from 'react'
 import { Evaluation } from '@/types'
 
-export type ReportTab = 'details' | 'review' | 'audit'
+export type ReportTab = 'details' | 'preview' | 'review' | 'audit'
 
 export function ReportHeader({ evaluation, isOwner, onDashboard, onEdit, onExport }: {
   evaluation: Evaluation; isOwner: boolean; onDashboard: () => void; onEdit: () => void; onExport: () => void
@@ -31,7 +31,7 @@ export function ReportHeader({ evaluation, isOwner, onDashboard, onEdit, onExpor
   )
 }
 
-export function ReportBanner({ evaluation }: { evaluation: Evaluation }) {
+export function ReportBanner({ evaluation, showSummaryAverage }: { evaluation: Evaluation; showSummaryAverage?: boolean }) {
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-6 rounded-xl border border-slate-800">
       <div>
@@ -45,9 +45,18 @@ export function ReportBanner({ evaluation }: { evaluation: Evaluation }) {
       </div>
       <div className="flex items-center gap-6 bg-[#111c38]/40 px-6 py-4 rounded-xl border border-slate-800">
         <div className="text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-semibold">Trait Average</div>
+          <div className="text-[10px] text-slate-500 uppercase font-semibold">Trait Average (40)</div>
           <div className="text-xl font-black text-emerald-400 mt-1">{evaluation.trait_average ? evaluation.trait_average.toFixed(2) : '0.00'}</div>
         </div>
+        {showSummaryAverage && (
+          <>
+            <div className="h-8 w-px bg-slate-800"></div>
+            <div className="text-center">
+              <div className="text-[10px] text-slate-500 uppercase font-semibold">Summary Group Avg (50a)</div>
+              <div className="text-xl font-black text-sky-300 mt-1">{evaluation.summary_group_average != null ? evaluation.summary_group_average.toFixed(2) : '—'}</div>
+            </div>
+          </>
+        )}
         <div className="h-8 w-px bg-slate-800"></div>
         <div className="text-center">
           <div className="text-[10px] text-slate-500 uppercase font-semibold">Promotion Rec</div>
@@ -60,6 +69,7 @@ export function ReportBanner({ evaluation }: { evaluation: Evaluation }) {
 
 const TABS: { id: ReportTab; label: string }[] = [
   { id: 'details', label: 'Form Details' },
+  { id: 'preview', label: 'Document Preview' },
   { id: 'review', label: 'Review Workflow' },
   { id: 'audit', label: 'Audit History' },
 ]

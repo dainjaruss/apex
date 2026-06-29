@@ -21,6 +21,10 @@ const SAMPLE = {
   period_to: '2017-11-15',
   trait_grades: { knowledge: '4.0', work: '4.0', eo: '4.0', bearing: '5.0', accomplishment: '5.0', teamwork: '4.0', leadership: '5.0' },
   trait_average: 4.29,
+  // Block 50a: ungrouped sample, so the summary group average equals the individual average.
+  summary_group_average: 4.29,
+  // Block 46: sample summary-group distribution (counts per observed category; NOB cell prints X).
+  summary_group_distribution: { 'Significant Problems': 0, Progressing: 1, Promotable: 3, 'Must Promote': 2, 'Early Promote': 1 },
   comments:
     '*** STAR PERFORMER. MY #2 OF 7 HIGHLY COMPETITIVE FIRST CLASS PETTY OFFICERS ***\n* PROVEN LEADER WHO CONSISTENTLY PERFORMS WELL ABOVE HER PAYGRADE-NO DOUBT FRONT RUNNER *\nSUPERB LEADER. Lead three Sailors in the tracking, managing, and maintenance of the Command\'s Administrative correspondence resulting in the creation of a more robust Unit Collateral Duty list.\nREADY TO LEAD AT COMMAND LEVEL - MAKE CHIEF NOW!',
   career_recommendations: ['CPO', 'CCC'],

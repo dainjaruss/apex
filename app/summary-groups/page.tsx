@@ -12,7 +12,8 @@ import { getSession } from '@/lib/auth'
 import { getProfile } from '@/lib/profileService'
 import { createBrowserClient } from '@/lib/supabaseClient'
 import { canManageSummaryGroups } from '@/lib/permissions'
-import { createSummaryGroup, listSummaryGroups, setGroupStatus, listEvalsInGroup } from '@/lib/summaryGroupService'
+import { createSummaryGroup, listSummaryGroups, setGroupStatus, listEvalsInGroup, getGroupRecommendations } from '@/lib/summaryGroupService'
+import { checkForcedDistribution, tallyRecommendations, ForcedDistributionResult } from '@/lib/forcedDistribution'
 import { PROMOTION_STATUS_OPTIONS } from '@/types/navpers'
 import { Profile, SummaryGroup } from '@/types'
 
@@ -121,6 +122,18 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
   const [open, setOpen] = useState(false)
   const [evals, setEvals] = useState<any[] | null>(null)
   const [busy, setBusy] = useState(false)
+  const [fd, setFd] = useState<ForcedDistributionResult | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Forced-distribution status for the whole group (the RS has oversight, so RLS exposes every
+  // member). Drives the inline status pill and the hard block on closing an over-cap group.
+  useEffect(() => {
+    let active = true
+    getGroupRecommendations(g.id!)
+      .then((recs) => { if (active) setFd(checkForcedDistribution(tallyRecommendations(recs).distribution, g.grade_rate)) })
+      .catch(() => { if (active) setFd(null) })
+    return () => { active = false }
+  }, [g.id, g.grade_rate])
 
   const toggleExpand = async () => {
     const next = !open
@@ -129,13 +142,19 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
   }
   const toggleStatus = async (e: React.MouseEvent) => {
     e.stopPropagation()
+    setErr(null)
+    // Hard block: a group that exceeds the EVALMAN forced-distribution caps may not be closed.
+    if (g.status === 'open' && fd && !fd.compliant) {
+      setErr(`Cannot close — fix the distribution first. ${fd.violations.map((v) => v.message).join(' ')}`)
+      return
+    }
     setBusy(true)
     try { await setGroupStatus(g.id!, g.status === 'open' ? 'closed' : 'open'); onChanged() }
     finally { setBusy(false) }
   }
 
   return (
-    <div className="glass-panel rounded-xl p-4 border border-[#1c2541] text-sm">
+    <div className={`glass-panel rounded-xl p-4 border text-sm ${fd && !fd.compliant ? 'border-red-900/40' : 'border-[#1c2541]'}`}>
       <div className="flex justify-between items-start gap-2">
         <button onClick={toggleExpand} className="text-left min-w-0">
           <h4 className="font-bold text-white truncate">{g.name}</h4>
@@ -147,6 +166,19 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
         </button>
       </div>
       <p className="text-xs text-slate-500 mt-1 truncate">{g.command_employment}</p>
+
+      {/* Block 46 distribution + forced-distribution status */}
+      {fd && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+          <span className={`px-1.5 py-0.5 rounded uppercase font-bold border ${fd.compliant ? 'bg-emerald-950/40 text-emerald-300 border-emerald-900/50' : 'bg-red-950/40 text-red-300 border-red-900/50'}`}>
+            {fd.compliant ? 'Within limits' : 'Over limit'}
+          </span>
+          <span className="text-slate-400">
+            EP {fd.distribution['Early Promote']}/{fd.earlyPromoteMax} · MP {fd.distribution['Must Promote']} · P {fd.distribution['Promotable']} · obs {fd.observedCount}
+          </span>
+        </div>
+      )}
+      {err && <p className="text-red-400 text-[11px] font-semibold mt-2">{err}</p>}
       <button onClick={toggleExpand} className="text-[11px] text-blue-400 hover:underline mt-2">
         {open ? 'Hide evaluations' : 'View evaluations in this group'}
       </button>
@@ -158,7 +190,8 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
             <p className="text-xs text-slate-500 italic">No evaluations in this group yet.</p>
           ) : (
             evals.map((ev) => (
-              <button key={ev.id} onClick={() => router.push(`/evaluations/${ev.id}`)}
+              <button key={ev.id} onClick={() => router.push(`/evaluations/${ev.id}?tab=preview`)}
+                title="Open the document preview for this evaluation"
                 className="w-full text-left flex justify-between items-center text-xs px-2 py-1 rounded hover:bg-slate-800/40">
                 <span className="text-slate-200 truncate">{ev.member_name}</span>
                 <span className="text-[10px] text-slate-500 uppercase shrink-0 ml-2">{ev.routing_stage}</span>
