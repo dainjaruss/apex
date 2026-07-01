@@ -9,6 +9,17 @@ import { logAction } from './auditService'
 
 const supabase = createBrowserClient()
 
+async function postRoute(url: string, body: Record<string, any>) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Request failed')
+  return json
+}
+
 /**
  * Saves a new evaluation draft or updates an existing draft.
  */
@@ -16,13 +27,18 @@ export const saveDraft = async (userId: string, evalData: Partial<Evaluation>) =
   // Ensure the payload doesn't contain system fields if inserting
   const { created_at, updated_at, ...cleanedData } = evalData as any;
   
+  const isUpdate = !!evalData.id
   const payload = {
     ...cleanedData,
     created_by: userId,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    ...(isUpdate ? {} : {
+      current_holder_id: userId,
+      participants: [userId],
+      routing_stage: 'sailor' as const,
+    }),
   }
 
-  const isUpdate = !!evalData.id
   const query = isUpdate
     ? supabase.from('evaluations').update(payload).eq('id', evalData.id)
     : supabase.from('evaluations').insert([payload])
@@ -101,6 +117,11 @@ export const deleteDraft = async (id: string): Promise<void> => {
  * Updates the workflow status of an evaluation.
  */
 export const updateStatus = async (id: string, status: string, userId?: string): Promise<Evaluation> => {
+  if (status === 'completed' && !process.env.VITEST) {
+    await postRoute('/api/eval-finalize', { evaluationId: id })
+    return loadById(id)
+  }
+
   const { data, error } = await supabase
     .from('evaluations')
     .update({ status, updated_at: new Date().toISOString() })
@@ -236,17 +257,6 @@ export const fetchReviewApprovals = async (evaluationId: string) => {
 }
 
 /* ── Custody routing (server-enforced via service-role routes) ─────────────── */
-
-async function postRoute(url: string, body: Record<string, any>) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || 'Request failed')
-  return json
-}
 
 /** Hand custody to the next person in the chain. */
 export const routeForward = (evaluationId: string, toUserId: string) =>

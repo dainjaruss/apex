@@ -17,6 +17,8 @@ import {
   routeForward, recycleForCorrection, beginDebrief, applyMinorCorrection, setLock, fetchReviewApprovals,
 } from '@/lib/evaluationService'
 import { listOpenGroups, attachSummaryGroup } from '@/lib/summaryGroupService'
+import { describeSummaryGroup, visibleSummaryGroupsForEval } from '@/lib/summaryGroupEligibility'
+import { paygradeOf } from '@/lib/paygrade'
 
 const BTN = 'px-4 py-2 rounded text-xs font-bold text-white transition disabled:opacity-50'
 const FIELD = 'w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#3e6e99]'
@@ -108,7 +110,12 @@ function RouteForward({ evaluation, stage, run, loading }: {
   useEffect(() => {
     if (!role) return
     createBrowserClient().from('profiles').select('id,first_name,last_name,preferred_role').eq('preferred_role', role)
-      .then(({ data }) => { setTargets(data || []); if (data && data[0]) setSel(data[0].id) })
+      .then(({ data }) => {
+        const list = data || []
+        setTargets(list)
+        // Keep an existing pick (manual or programmatic) when the list refreshes.
+        setSel((prev) => (prev && list.some((t) => t.id === prev) ? prev : list[0]?.id ?? ''))
+      })
   }, [role])
 
   if (!role) return null
@@ -129,17 +136,34 @@ function RouteForward({ evaluation, stage, run, loading }: {
 }
 
 function GroupPicker({ evaluation, run, loading }: { evaluation: Evaluation; run: Run; loading: boolean }) {
-  const [groups, setGroups] = useState<any[]>([])
+  const [groups, setGroups] = useState<Awaited<ReturnType<typeof listOpenGroups>>>([])
+  const [loaded, setLoaded] = useState(false)
   const [sel, setSel] = useState(evaluation.summary_group_id || '')
-  useEffect(() => { listOpenGroups().then(setGroups).catch(() => {}) }, [])
+  useEffect(() => {
+    listOpenGroups()
+      .then(setGroups)
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+  const visible = visibleSummaryGroupsForEval(evaluation, groups)
+  const memberPaygrade = paygradeOf(evaluation.grade_rate)
+  if (!loaded) return null
   return (
     <div className="space-y-2 pb-3 mb-1 border-b border-slate-800/60">
       <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Summary Group (optional)</label>
-      <select className={FIELD} value={sel} onChange={(e) => setSel(e.target.value)}>
-        <option value="">— None —</option>
-        {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-      </select>
-      <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading}
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        Only groups matching your paygrade, promotion status, ending date, and reporting senior are shown
+        {memberPaygrade ? ` (${evaluation.grade_rate} · ${memberPaygrade})` : ''}.
+      </p>
+      {visible.length === 0 ? (
+        <p className="text-xs text-slate-500 italic">No eligible open summary groups for this report.</p>
+      ) : (
+        <select className={FIELD} value={sel} onChange={(e) => setSel(e.target.value)}>
+          <option value="">— None —</option>
+          {visible.map((g) => <option key={g.id} value={g.id}>{describeSummaryGroup(g)}</option>)}
+        </select>
+      )}
+      <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading || (sel !== '' && !visible.some((g) => g.id === sel))}
         onClick={() => run(() => attachSummaryGroup(evaluation.id!, sel || null))}>
         Attach Group
       </button>

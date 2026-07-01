@@ -8,6 +8,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: [],
+    exclude: ["**/node_modules/**", "**/tests/e2e/**"],
     // Dummy Supabase creds so modules that construct a browser client at import time
     // (lib/*Service.ts) don't throw during test collection. Real calls are mocked per-suite.
     env: {

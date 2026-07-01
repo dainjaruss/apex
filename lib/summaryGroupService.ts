@@ -8,6 +8,7 @@ import { createBrowserClient } from './supabaseClient'
 import { SummaryGroup } from '@/types'
 import { computeSummaryGroupAverage, SummaryGroupAverageResult } from './traitAverage'
 import { RecDistribution } from './forcedDistribution'
+import { SummaryGroupWithRs } from './summaryGroupEligibility'
 
 const supabase = createBrowserClient()
 
@@ -30,14 +31,17 @@ export const listSummaryGroups = async (): Promise<SummaryGroup[]> => {
   return (data || []) as SummaryGroup[]
 }
 
-export const listOpenGroups = async (): Promise<SummaryGroup[]> => {
+export const listOpenGroups = async (): Promise<SummaryGroupWithRs[]> => {
   const { data, error } = await supabase
     .from('summary_groups')
-    .select('*')
+    .select('*, reporting_senior:profiles!reporting_senior_id(dod_id)')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data || []) as SummaryGroup[]
+  return (data || []).map((row: any) => ({
+    ...row,
+    reporting_senior_dod_id: row.reporting_senior?.dod_id ?? null,
+  })) as SummaryGroupWithRs[]
 }
 
 /** Open/close a group (closed = no new members may join). */
@@ -126,11 +130,13 @@ export const getGroupRecommendations = async (groupId: string): Promise<string[]
   return (data || []).map((e: any) => e.promotion_recommendation)
 }
 
-/** Attach (or detach with null) a summary group to an eval; the DB trigger inherits fields. */
+/** Attach (or detach with null) a summary group; enforced server-side for BUPERS eligibility. */
 export const attachSummaryGroup = async (evaluationId: string, groupId: string | null) => {
-  const { error } = await supabase
-    .from('evaluations')
-    .update({ summary_group_id: groupId })
-    .eq('id', evaluationId)
-  if (error) throw new Error(error.message)
+  const res = await fetch('/api/summary-group-attach', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evaluationId, groupId }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to attach summary group')
 }

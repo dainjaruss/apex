@@ -5,6 +5,11 @@
 
 # Testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/tests/e2e/.auth/
+/tests/fixtures/e2e-ids.json
 
 # Next.js build output
 /.next/

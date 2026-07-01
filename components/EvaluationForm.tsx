@@ -13,6 +13,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Evaluation, SummaryGroup, ValidationIssue } from '@/types'
 import { listOpenGroups, fetchGroupAveragePool } from '@/lib/summaryGroupService'
+import { describeSummaryGroup, EvalForSummaryGroup, visibleSummaryGroupsForEval } from '@/lib/summaryGroupEligibility'
 import { computeTraitAverage, round2 } from '@/lib/traitAverage'
 import { canViewSummaryAverage } from '@/lib/permissions'
 import { paygradeOf } from '@/lib/paygrade'
@@ -318,8 +319,15 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
             <>
               <SummaryGroupSelector
                 value={formData.summary_group_id ?? null}
-                memberGradeRate={formData.grade_rate}
-                memberUic={formData.uic}
+                evalContext={{
+                  grade_rate: formData.grade_rate,
+                  promotion_status: formData.promotion_status,
+                  period_to: formData.period_to,
+                  report_type: formData.report_type,
+                  uic: formData.uic,
+                  summary_group_id: formData.summary_group_id ?? null,
+                  block_values: formData.block_values,
+                }}
                 onSelect={handleSelectGroup}
               />
               <Block1Admin
@@ -439,16 +447,14 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
 
 function SummaryGroupSelector({
   value,
-  memberGradeRate,
-  memberUic,
+  evalContext,
   onSelect,
 }: {
   value: string | null
-  memberGradeRate?: string
-  memberUic?: string
+  evalContext: EvalForSummaryGroup
   onSelect: (group: SummaryGroup | null) => void
 }) {
-  const [groups, setGroups] = useState<SummaryGroup[]>([])
+  const [groups, setGroups] = useState<Awaited<ReturnType<typeof listOpenGroups>>>([])
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -461,23 +467,10 @@ function SummaryGroupSelector({
   }, [])
 
   const selected = groups.find((g) => g.id === value) || null
+  const visible = visibleSummaryGroupsForEval(evalContext, groups)
+  const memberPaygrade = paygradeOf(evalContext.grade_rate)
 
-  // Gate by paygrade: a summary group is a single paygrade, so an E-3 must not be offered an
-  // E-6 group. When the member's paygrade can't be parsed we don't gate (show all open groups)
-  // rather than hide everything. An already-attached group stays listed so it can be detached.
-  const memberPaygrade = paygradeOf(memberGradeRate)
-  const eligible = memberPaygrade
-    ? groups.filter((g) => paygradeOf(g.grade_rate) === memberPaygrade)
-    : groups
-  const visible = selected && !eligible.some((g) => g.id === selected.id)
-    ? [selected, ...eligible]
-    : eligible
-
-  // Only offer the option when an eligible (open, matching-paygrade) group exists.
   if (!loaded || visible.length === 0) return null
-
-  const describe = (g: SummaryGroup) =>
-    `${g.name} · ${g.grade_rate}${g.uic ? ` · UIC ${g.uic}` : ''} · ${g.promotion_status} · ends ${g.period_to}`
 
   return (
     <div className="glass-panel rounded-xl p-5 border border-sky-900/30 space-y-3">
@@ -489,10 +482,10 @@ function SummaryGroupSelector({
           <h3 className="text-sm font-bold text-white">Summary Group <span className="text-slate-400 font-normal">(optional)</span></h3>
           <p className="text-xs text-slate-400 mt-0.5">
             Attach this evaluation to a Reporting Senior&apos;s promotion-recommendation group. Only groups for your
-            paygrade are shown — pick the one for your promotion status, reporting senior, and ending date.
-            {(memberGradeRate || memberUic) && (
+            paygrade, promotion status, reporting senior, and ending date are shown.
+            {(evalContext.grade_rate || evalContext.uic) && (
               <span className="block mt-1 text-slate-500">
-                You: {memberGradeRate || '—'}{memberPaygrade ? ` (${memberPaygrade})` : ''}{memberUic ? ` · UIC ${memberUic}` : ''}
+                You: {evalContext.grade_rate || '—'}{memberPaygrade ? ` (${memberPaygrade})` : ''}{evalContext.uic ? ` · UIC ${evalContext.uic}` : ''}
               </span>
             )}
           </p>
@@ -501,12 +494,12 @@ function SummaryGroupSelector({
 
       <select
         value={value || ''}
-        onChange={(e) => onSelect(groups.find((g) => g.id === e.target.value) || null)}
+        onChange={(e) => onSelect(visible.find((g) => g.id === e.target.value) || null)}
         className="w-full px-4 py-2.5 rounded bg-[#1c2541] border border-slate-700/50 text-[#f0f4f8] focus:outline-none focus:border-[#3e6e99] transition text-sm"
       >
         <option value="">— None (not part of a summary group) —</option>
         {visible.map((g) => (
-          <option key={g.id} value={g.id}>{describe(g)}</option>
+          <option key={g.id} value={g.id}>{describeSummaryGroup(g)}</option>
         ))}
       </select>
 
