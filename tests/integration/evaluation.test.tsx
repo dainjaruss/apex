@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  usePathname: () => '/evaluations/mock-eval-id/edit',
   useParams: () => ({ id: 'mock-eval-id' })
 }))
 
@@ -173,7 +174,7 @@ describe('Evaluation Forms & Live Navy Rules Integration Tests', () => {
     await waitFor(() => {
       expect(screen.getByText(/Draft New Evaluation/i)).toBeDefined()
     })
-    expect(screen.getByText(/APEX/i)).toBeDefined()
+    expect(screen.getAllByText(/APEX/i).length).toBeGreaterThan(0)
   })
 
   it('should render ViewEvaluationPage showing evaluation status, trait ratings, and comments', async () => {

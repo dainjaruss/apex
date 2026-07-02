@@ -14,6 +14,10 @@ const config: Config = {
         border: "var(--border)",
         input: "var(--input)",
         ring: "var(--ring)",
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
         navy: {
           50: "#f0f4f8",
           100: "#dbe3ef",

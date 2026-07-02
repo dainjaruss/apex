@@ -1,19 +1,14 @@
 # APEX UI Redesign Mockups
 
-Three design directions for improved **contrast** and a **modern** feel. These are reference mockups — not yet implemented in code.
+Reference mockups for the milestone submission. **Implemented direction: Mockup 3 (primary) + Mockup 2 (forms).**
 
-| Mockup | Direction | Best for |
-|--------|-----------|----------|
-| `01-high-contrast-dark.png` | **Elevated dark dashboard** — brighter text, stronger card borders, clearer status badges | Dashboard, eval list, navigation |
-| `02-modern-wizard.png` | **Light-form wizard** — high-contrast inputs on soft panels, clear step pills | Evaluation form (Admin → Details) |
-| `03-refined-workflow.png` | **Sidebar + workflow** — Linear/Vercel-style layout, tabbed eval view | Review Workflow, routing, audit |
+| Mockup | Direction | Implemented in |
+|--------|-----------|----------------|
+| `03-refined-workflow.png` | **Sidebar + workflow** — cyan accents, tabbed eval view, Linear-style nav | `AppShell`, `ReportTabs`, eval `/evaluations/[id]` |
+| `02-modern-wizard.png` | **Light-form wizard** — soft panels, step pills, high-contrast inputs | `apex-form-panel`, `lib/formStyles.ts`, eval wizard blocks |
+| `01-high-contrast-dark.png` | Elevated dashboard cards, stat tiles, blue CTAs | `app/dashboard/page.tsx`, `apex-dashboard-*` CSS |
 
-## Recommended hybrid implementation
+## Design tokens (see `app/globals.css`)
 
-1. **Global tokens** — Raise `--foreground` contrast; use `#e8eef4` body text and `#ffffff` headings on `#080f1f` background.
-2. **Cards** — Replace low-opacity glass with `bg-[#121c32]` + `border border-white/10` + `shadow-lg shadow-black/20`.
-3. **Forms** — Input backgrounds `#0f1729`, borders `#2a3a5c`, focus ring `#4d8fd4`; labels at `#c5d4e8` (not `#608bb3`).
-4. **Primary actions** — Solid `#2563eb` → `#3b82f6` hover; secondary ghost with visible border.
-5. **Layout** — Optional sidebar nav (mockup 03) for Dashboard / Evaluations / Summary Groups / Profile.
-
-See milestone PDF Section C for current (pre-redesign) screenshots.
+- **Mockup 3:** Cyan (`#22d3ee`) for nav, tabs, primary buttons; gold for section titles; charcoal sidebar
+- **Mockup 2:** `--form-panel` / `--form-input-bg` for softer form sections inside the dark shell

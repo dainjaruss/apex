@@ -35,20 +35,13 @@ const COMMAND_SECTION_FIELDS = [
   'counselor',
 ]
 
-const LABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1'
-// Sub-field caption (e.g. 29A / 29B) — same color as the block LABEL.
-const SUBLABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5'
-const fieldClass = (hasError: boolean) =>
-  `w-full bg-[#1c2541]/40 border rounded px-3 py-2 text-foreground focus:outline-none transition duration-150 ${
-    hasError
-      ? 'border-red-500/80 focus:border-red-400 focus:ring-1 focus:ring-red-400'
-      : 'border-slate-700/60 focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]'
-  }`;
+import { FORM_PANEL, FORM_LABEL, FORM_SUBLABEL, FORM_SECTION_TITLE, formFieldClass } from '@/lib/formStyles'
 
 export default function Block1Admin({ evalData, onChange, issues, handleBlockValueChange, onFocusField, activeField }: Props) {
   return (
-    <div className="glass-panel rounded-xl p-6 space-y-6">
-      <h3 className="text-lg font-bold gold-accent mb-4 border-b border-slate-700/40 pb-2">
+    <div className={FORM_PANEL}>
+      <h3 className={FORM_SECTION_TITLE}>
+        <span className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]" aria-hidden />
         Administrative Info
       </h3>
       <Block1Name evalData={evalData} onChange={onChange} issues={issues} onFocusField={onFocusField} activeField={activeField} />
@@ -99,7 +92,7 @@ function BlockInput({
 
   return (
     <div>
-      <label className={LABEL}>{label}</label>
+      <label className={FORM_LABEL}>{label}</label>
       <input
         type="text"
         placeholder={placeholder}
@@ -107,7 +100,7 @@ function BlockInput({
         value={evalData.block_values?.[fieldKey] || ''}
         onChange={(e) => handleBlockValueChange({ [fieldKey]: xform(e.target.value) })}
         onFocus={() => onFocusField?.(fieldKey)}
-        className={fieldClass(hasError)}
+        className={formFieldClass(hasError)}
       />
       {hasError && (
         <p className="text-red-400 text-xs mt-1">
@@ -145,14 +138,14 @@ function BlockSelect({
   const hasError = issues.some((i) => i.field === fieldKey && i.severity === 'error')
   return (
     <div>
-      <label className={LABEL}>{label}</label>
+      <label className={FORM_LABEL}>{label}</label>
       <select
         value={evalData.block_values?.[fieldKey] || ''}
         onChange={(e) =>
           handleBlockValueChange({ [fieldKey]: e.target.value, ...deriveChanges?.(e.target.value) })
         }
         onFocus={() => onFocusField?.(fieldKey)}
-        className={fieldClass(hasError)}
+        className={formFieldClass(hasError)}
       >
         <option value="">Select…</option>
         {options.map((opt) => (
@@ -323,9 +316,9 @@ function CommandDetailsSection({
 
       {/* Block 29 — (A) 14-char primary-duty abbreviation + (B) narrative (95 CPL x 3 lines) */}
       <div className="mb-6">
-        <label className={LABEL}>29: Primary/Collateral/Watchstanding Duties</label>
+        <label className={FORM_LABEL}>29: Primary/Collateral/Watchstanding Duties</label>
         <div className="mb-4">
-          <span className={SUBLABEL}>29A · Most-significant primary duty abbreviation (max {PRIMARY_DUTY_ABBREV_MAX})</span>
+          <span className={FORM_SUBLABEL}>29A · Most-significant primary duty abbreviation (max {PRIMARY_DUTY_ABBREV_MAX})</span>
           {/* Matches the 28 / 29B Courier box styling, minus the line-number gutter. */}
           <div
             className={`flex w-fit max-w-full bg-slate-950/60 border rounded-xl py-3 ${
@@ -377,7 +370,7 @@ function CommandDetailsSection({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {/* Block 30: Date Counseled — calendar picker (ISO), or NOT REQ / NOT PERF */}
         <div>
-          <label className={LABEL}>30: Date Counseled</label>
+          <label className={FORM_LABEL}>30: Date Counseled</label>
           {(() => {
             const dc = evalData.block_values?.date_counseled || ''
             const isDate = /^\d{4}-\d{2}-\d{2}$/.test(dc)
@@ -389,7 +382,7 @@ function CommandDetailsSection({
                   value={isDate ? dc : ''}
                   onChange={(e) => handleBlockValueChange({ date_counseled: e.target.value })}
                   onFocus={() => onFocusField?.('date_counseled')}
-                  className={fieldClass(hasError)}
+                  className={formFieldClass(hasError)}
                 />
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className="text-[10px] uppercase tracking-wider text-slate-500">If not counseled:</span>
@@ -406,7 +399,7 @@ function CommandDetailsSection({
                         className={`px-2 py-1 text-[11px] font-semibold rounded border transition ${
                           active
                             ? 'bg-[#3e6e99] border-[#3e6e99] text-white'
-                            : 'bg-[#1c2541]/40 border-slate-700/60 text-slate-300 hover:border-[#3e6e99]'
+                            : 'bg-[var(--form-input-bg)] border-[var(--input-border)] text-slate-300 hover:border-[var(--accent-cyan)]'
                         }`}
                       >
                         {code}
@@ -426,7 +419,7 @@ function CommandDetailsSection({
 
         {/* Block 31: Counselor (required — has validation message) */}
         <div>
-          <label className={LABEL}>31: Counselor</label>
+          <label className={FORM_LABEL}>31: Counselor</label>
           <input
             type="text"
             placeholder="COUNSELOR, FI"
@@ -434,7 +427,7 @@ function CommandDetailsSection({
             value={evalData.block_values?.counselor || ''}
             onChange={(e) => handleBlockValueChange({ counselor: e.target.value.toUpperCase() })}
             onFocus={() => onFocusField?.('counselor')}
-            className={fieldClass(issues.some((i) => i.field === 'counselor' && i.severity === 'error'))}
+            className={formFieldClass(issues.some((i) => i.field === 'counselor' && i.severity === 'error'))}
           />
           {issues.find((i) => i.field === 'counselor') && (
             <p className="text-red-400 text-xs mt-1">

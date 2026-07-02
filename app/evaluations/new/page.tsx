@@ -12,6 +12,7 @@ import { createBrowserClient } from '@/lib/supabaseClient'
 import { getEvalSeed } from '@/lib/formDefinitions'
 import { saveDraft } from '@/lib/evaluationService'
 import EvaluationForm from '@/components/EvaluationForm'
+import AppShell from '@/components/layout/AppShell'
 import { Evaluation } from '@/types'
 
 const supabase = createBrowserClient()
@@ -100,44 +101,28 @@ export default function NewEvaluationPage() {
 
   if (loading || !initialData) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0b132b] text-[#608bb3] font-mono text-sm">
+      <div className="flex items-center justify-center min-h-screen text-sm font-mono" style={{ background: 'var(--background)', color: 'var(--muted-foreground)' }}>
         Initializing NAVPERS 1616/26 form template...
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      {/* Navigation Header */}
-      <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">NEW EVAL</span>
-        </div>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="text-xs text-slate-400 hover:text-white transition"
-        >
-          Back to Dashboard
-        </button>
-      </header>
-
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 py-2">
-        <div className="mb-6 px-4">
-          <h2 className="text-2xl font-bold text-white tracking-wide">Draft New Evaluation</h2>
-          <p className="text-sm text-[#91aec9]">Complete the blocks below. Navy policy rules will be verified in real time.</p>
-        </div>
-
-        <EvaluationForm
-          initialData={initialData}
-          onSave={handleSave}
-          onSaveInPlace={handleSaveInPlace}
-          onCancel={() => router.push('/dashboard')}
-          isSaving={isSaving}
-          viewerRole={profile?.preferred_role}
-        />
-      </main>
-    </div>
+    <AppShell
+      profile={profile}
+      title="Draft New Evaluation"
+      subtitle="Complete the blocks below — Navy policy rules verified in real time"
+      badge="New EVAL"
+      maxWidth="6xl"
+    >
+      <EvaluationForm
+        initialData={initialData}
+        onSave={handleSave}
+        onSaveInPlace={handleSaveInPlace}
+        onCancel={() => router.push('/dashboard')}
+        isSaving={isSaving}
+        viewerRole={profile?.preferred_role}
+      />
+    </AppShell>
   )
 }

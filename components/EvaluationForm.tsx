@@ -276,39 +276,29 @@ export default function EvaluationForm({ initialData, onSave, onSaveInPlace, onC
           <GuidelinesToggle on={showGuidelines} onToggle={toggleGuidelines} />
         </div>
 
-        {/* Horizontal Premium Stepper */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-8 bg-[#111c38]/40 border border-slate-800 p-4 rounded-xl gap-3 sm:gap-2">
+        {/* Wizard step pills */}
+        <div className="apex-stepper mb-8">
           {STEPS.map((step, idx) => {
             const isActive = currentStep === idx
             const isCompleted = currentStep > idx
             return (
-              <React.Fragment key={step.id}>
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(idx)}
-                  className="flex items-center gap-3 text-left focus:outline-none group"
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-200 ${
-                    isActive
-                      ? 'bg-[#3e6e99] text-white ring-4 ring-[#3e6e99]/20'
-                      : isCompleted
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-[#1c2541] text-slate-400 group-hover:text-slate-200'
-                  }`}>
-                    {isCompleted ? '✓' : idx + 1}
-                  </div>
-                  <span className={`text-xs font-semibold transition-colors duration-200 ${
-                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}>
-                    {step.title}
-                  </span>
-                </button>
-                {idx < STEPS.length - 1 && (
-                  <div className={`hidden lg:block flex-1 h-0.5 mx-2 rounded ${
-                    isCompleted ? 'bg-emerald-600/60' : 'bg-slate-800'
-                  }`} />
-                )}
-              </React.Fragment>
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setCurrentStep(idx)}
+                className={`apex-step-pill ${isActive ? 'apex-step-pill-active' : ''}`}
+              >
+                <div className={`apex-step-num ${
+                  isActive ? 'apex-step-num-active' : isCompleted ? 'apex-step-num-done' : 'apex-step-num-idle'
+                }`}>
+                  {isCompleted ? '✓' : idx + 1}
+                </div>
+                <span className={`text-xs font-semibold hidden sm:block ${
+                  isActive ? 'text-white' : isCompleted ? 'text-emerald-400' : ''
+                }`} style={!isActive && !isCompleted ? { color: 'var(--subtle)' } : undefined}>
+                  {step.title.replace(/^\d+\.\s*/, '')}
+                </span>
+              </button>
             )
           })}
         </div>
@@ -473,7 +463,7 @@ function SummaryGroupSelector({
   if (!loaded || visible.length === 0) return null
 
   return (
-    <div className="glass-panel rounded-xl p-5 border border-sky-900/30 space-y-3">
+    <div className="apex-card p-5 space-y-3 border-blue-500/20">
       <div className="flex items-start gap-2.5">
         <svg className="w-4 h-4 mt-0.5 text-sky-300 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />

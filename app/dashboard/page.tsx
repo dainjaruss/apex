@@ -2,186 +2,167 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signOut, getSession } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 import { useEvaluations } from '@/hooks/useEvaluations'
 import { createBrowserClient } from '@/lib/supabaseClient'
-import { hasPermission, canManageSummaryGroups } from '@/lib/permissions'
+import AppShell from '@/components/layout/AppShell'
+import UserAvatar, { getMemberInitials } from '@/components/brand/UserAvatar'
 
 const supabase = createBrowserClient()
 
+const STAGE_LABEL: Record<string, string> = {
+  sailor: 'Sailor',
+  rater: 'Rater',
+  senior_rater: 'Senior Rater',
+  reporting_senior: 'Reporting Senior',
+  admin: 'Admin',
+  debrief: 'Debrief',
+  locked: 'Locked',
+}
 
+function statusBadgeClass(status: string, routingStage?: string) {
+  if (routingStage === 'locked' || status === 'completed' || status === 'archived') return 'apex-badge-locked'
+  if (routingStage && routingStage !== 'sailor') return 'apex-badge-routing'
+  if (status === 'ready_for_review') return 'apex-badge-review'
+  return 'apex-badge-draft'
+}
 
-function DashboardHeader({ profile, onSignOut }: { profile: any; onSignOut: () => void }) {
-  const router = useRouter()
-  const isAdmin = profile && hasPermission(profile.preferred_role, 'manage_users')
-  const canGroups = profile && canManageSummaryGroups(profile)
+function statusLabel(status: string, routingStage?: string) {
+  if (routingStage && routingStage !== 'sailor' && routingStage !== 'locked') {
+    return STAGE_LABEL[routingStage] || routingStage.replace(/_/g, ' ')
+  }
+  return status.replace(/_/g, ' ')
+}
 
+function DashboardStat({ label, value, highlight }: { label: string; value: number | string; highlight?: boolean }) {
   return (
-    <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel">
-      <div className="flex items-center gap-3">
-        <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
-        <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">DASHBOARD</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.push('/profile')}
-          className="px-3 py-1.5 rounded bg-[#1c2541] hover:bg-slate-800 text-xs font-semibold text-blue-300 border border-blue-900/30 transition-all"
-        >
-          Profile
-        </button>
-        {canGroups && (
-          <button
-            onClick={() => router.push('/summary-groups')}
-            className="px-3 py-1.5 rounded bg-[#1c2541] hover:bg-slate-800 text-xs font-semibold text-blue-300 border border-blue-900/30 transition-all"
-          >
-            Summary Groups
-          </button>
-        )}
-        {isAdmin && (
-          <button
-            onClick={() => router.push('/admin')}
-            className="px-3 py-1.5 rounded bg-red-950/30 hover:bg-red-900/40 text-xs font-semibold text-red-300 border border-red-900/30 transition-all"
-          >
-            Admin Panel
-          </button>
-        )}
-        <div className="text-right hidden sm:block">
-          <div className="text-sm font-semibold text-white">
-            {profile ? `${profile.navy_rank} ${profile.last_name}` : 'Loading...'}
-          </div>
-          <div className="text-xs text-[#608bb3]">Role: {profile?.preferred_role}</div>
-        </div>
-        <button
-          onClick={onSignOut}
-          className="px-3.5 py-1.5 rounded bg-red-950/30 hover:bg-red-900/40 text-xs font-semibold text-red-300 border border-red-900/30 transition-all"
-        >
-          Sign Out
-        </button>
-      </div>
-    </header>
+    <div className="apex-dashboard-stat">
+      <span className="apex-dashboard-stat-value" style={highlight ? { color: '#fbbf24' } : undefined}>{value}</span>
+      <span className="apex-dashboard-stat-label">{label}</span>
+    </div>
   )
 }
 
-function DraftsList({ loading, evaluations, emptyMessage }: { loading: boolean; evaluations: any[]; emptyMessage: string }) {
+function evalAvatarTone(status: string, routingStage?: string): 'blue' | 'amber' | 'cyan' | 'slate' {
+  if (routingStage === 'locked' || status === 'completed' || status === 'archived') return 'slate'
+  if (routingStage && routingStage !== 'sailor') return 'amber'
+  if (status === 'ready_for_review') return 'cyan'
+  return 'blue'
+}
+
+function EvalCard({ ev, onView, onEdit, showEdit }: {
+  ev: any; onView: () => void; onEdit?: () => void; showEdit?: boolean
+}) {
+  const badgeClass = statusBadgeClass(ev.status, ev.routing_stage)
+  const badgeText = statusLabel(ev.status, ev.routing_stage).toUpperCase()
+
+  return (
+    <article className="apex-dashboard-card">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex gap-3 min-w-0 flex-1">
+          <UserAvatar
+            initials={getMemberInitials(ev.member_name)}
+            tone={evalAvatarTone(ev.status, ev.routing_stage)}
+            size="md"
+            className="mt-0.5"
+          />
+          <div className="min-w-0 space-y-1">
+            <h4 className="text-lg font-bold text-white truncate leading-tight">
+              {ev.member_name || 'UNNAMED SAILOR'}
+            </h4>
+            <p className="text-sm font-medium" style={{ color: 'var(--label)' }}>
+              {ev.grade_rate}
+              <span style={{ color: 'var(--subtle)' }}> · </span>
+              UIC {ev.uic || '—'}
+            </p>
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              Period {ev.period_from} – {ev.period_to}
+            </p>
+          </div>
+        </div>
+        <span className={`${badgeClass} shrink-0 px-2.5 py-1 text-[10px]`}>{badgeText}</span>
+      </div>
+
+      {ev.comments && (
+        <blockquote
+          className="text-sm line-clamp-2 italic rounded-lg px-3 py-2.5 border-l-2"
+          style={{
+            color: 'var(--muted-foreground)',
+            background: 'rgba(0,0,0,0.25)',
+            borderColor: '#3b82f6',
+          }}
+        >
+          {ev.comments}
+        </blockquote>
+      )}
+
+      <div
+        className="grid grid-cols-2 gap-3 text-xs rounded-lg px-3 py-2.5"
+        style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)' }}
+      >
+        <div>
+          <div className="uppercase tracking-wider font-semibold mb-0.5" style={{ color: 'var(--subtle)' }}>DoD ID</div>
+          <div className="font-mono text-white">{ev.dod_id || 'N/A'}</div>
+        </div>
+        <div>
+          <div className="uppercase tracking-wider font-semibold mb-0.5" style={{ color: 'var(--subtle)' }}>Promotion Rec</div>
+          <div className="font-bold text-white">{ev.promotion_recommendation || 'NOB'}</div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button type="button" onClick={onView} className="apex-btn-secondary py-2 px-4 text-sm">
+          View Report
+        </button>
+        {showEdit && onEdit && (
+          <button type="button" onClick={onEdit} className="apex-btn-dashboard py-2 px-4 text-sm">
+            Edit Draft
+          </button>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function EvalGrid({ loading, evaluations, emptyMessage, showEdit }: {
+  loading: boolean
+  evaluations: any[]
+  emptyMessage: string
+  showEdit?: boolean
+}) {
   const router = useRouter()
+
   if (loading && evaluations.length === 0) {
     return (
-      <div className="p-8 rounded-xl glass-panel text-center text-sm text-[#608bb3]">
-        Loading evaluation drafts from database...
+      <div className="apex-dashboard-card p-10 text-center">
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Loading evaluations…</p>
       </div>
     )
   }
 
   if (evaluations.length === 0) {
     return (
-      <div className="p-12 rounded-xl glass-panel text-center space-y-3">
-        <p className="text-sm text-[#608bb3]">{emptyMessage}</p>
+      <div className="apex-dashboard-card p-12 text-center">
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{emptyMessage}</p>
       </div>
     )
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {evaluations.map((ev: any) => (
-        <div key={ev.id} className="p-5 rounded-xl glass-panel border border-[#1c2541] flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all">
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-white">{ev.member_name || 'UNNAMED SAILOR'}</h4>
-                <p className="text-xs text-[#91aec9]">{ev.grade_rate} | UIC: {ev.uic} | Period: {ev.period_from} to {ev.period_to}</p>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-[#1c2541] text-blue-400 border border-blue-900/20">
-                {ev.status}
-              </span>
-            </div>
-
-            {ev.comments && (
-              <p className="text-xs text-[#608bb3] line-clamp-2 italic bg-[#0b132b]/40 p-2 rounded">
-                "{ev.comments}"
-              </p>
-            )}
-
-            <div className="flex justify-between items-center text-[10px] text-[#608bb3] border-t border-[#1c2541] pt-3">
-              <div>DoD ID: {ev.dod_id || 'N/A'}</div>
-              <div className="flex items-center gap-1.5">
-                <span>Recommendation:</span>
-                <span className="font-bold text-white">{ev.promotion_recommendation || 'NOB'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/40">
-            <button
-              onClick={() => router.push(`/evaluations/${ev.id}`)}
-              className="px-3 py-1 rounded bg-[#1c2541] hover:bg-slate-800 text-[11px] font-semibold text-slate-300 transition"
-            >
-              View
-            </button>
-            {ev.status === 'draft' && (
-              <button
-                onClick={() => router.push(`/evaluations/${ev.id}/edit`)}
-                className="px-3 py-1 rounded bg-blue-900/40 hover:bg-blue-800/50 text-[11px] font-semibold text-blue-300 border border-blue-800/30 transition"
-              >
-                Edit
-              </button>
-            )}
-          </div>
-        </div>
+    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-2">
+      {evaluations.map((ev) => (
+        <EvalCard
+          key={ev.id}
+          ev={ev}
+          showEdit={showEdit}
+          onView={() => router.push(`/evaluations/${ev.id}`)}
+          onEdit={() => router.push(`/evaluations/${ev.id}/edit`)}
+        />
       ))}
     </div>
   )
 }
 
-interface DashboardContentProps {
-  profile: any
-  evaluations: any[]
-  loading: boolean
-  error: string | null
-}
-
-function DashboardContent({
-  profile,
-  evaluations,
-  loading,
-  error,
-}: DashboardContentProps) {
-  const router = useRouter()
-  const { inbox, drafts } = partitionEvals(evaluations, profile?.id)
-  return (
-    <main className="flex-1 max-w-6xl w-full mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white tracking-wide">Evaluation Portal</h2>
-          <p className="text-sm text-[#91aec9]">Draft and validate NAVPERS 1616/26 evaluations</p>
-        </div>
-        <button
-          onClick={() => router.push('/evaluations/new')}
-          className="px-5 py-2.5 rounded-lg bg-[#3e6e99] hover:bg-[#4e82b0] text-white font-bold transition-all text-sm tracking-wide shadow-lg shadow-blue-900/20"
-        >
-          Draft New EVAL (NAVPERS 1616/26)
-        </button>
-      </div>
-
-      {error && (
-        <div className="p-4 rounded bg-red-950/30 border border-red-900/30 text-xs text-red-300">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <h3 className="text-xs font-semibold text-amber-300 uppercase tracking-wider">Awaiting Your Action</h3>
-        <DraftsList loading={loading} evaluations={inbox} emptyMessage="Nothing is awaiting your action." />
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">My Drafts</h3>
-        <DraftsList loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found in database." />
-      </div>
-    </main>
-  )
-}
-
-/** Split evals into the custodian inbox (routed to me for action) vs my own drafts. */
 function partitionEvals(evaluations: any[], profileId?: string) {
   const mine = (e: any) => e.current_holder_id === profileId
   const drafts = evaluations.filter((e) => mine(e) && (e.routing_stage === 'sailor' || !e.routing_stage))
@@ -189,66 +170,96 @@ function partitionEvals(evaluations: any[], profileId?: string) {
   return { inbox, drafts }
 }
 
-function useDashboardState() {
+export default function DashboardPage() {
   const router = useRouter()
   const { evaluations, loading, error } = useEvaluations()
   const [profile, setProfile] = useState<any>(null)
 
   useEffect(() => {
-    const checkAuthAndLoad = async () => {
+    (async () => {
       const session = await getSession()
-      if (!session?.user) {
-        router.push('/login')
-        return
-      }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-
-      if (data) {
-        setProfile(data)
-      }
-    }
-
-    checkAuthAndLoad()
+      if (!session?.user) { router.push('/login'); return }
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+      if (data) setProfile(data)
+    })()
   }, [router])
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push('/login')
-  }
-
-  return {
-    evaluations,
-    loading,
-    error,
-    profile,
-    handleSignOut,
-  }
-}
-
-export default function DashboardPage() {
-  const {
-    evaluations,
-    loading,
-    error,
-    profile,
-    handleSignOut,
-  } = useDashboardState()
+  const { inbox, drafts } = partitionEvals(evaluations, profile?.id)
+  const displayName = profile ? `${profile.navy_rank || ''} ${profile.last_name || ''}`.trim() : ''
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      <DashboardHeader profile={profile} onSignOut={handleSignOut} />
-      <DashboardContent
-        profile={profile}
-        evaluations={evaluations}
-        loading={loading}
-        error={error}
-      />
-    </div>
+    <AppShell
+      profile={profile}
+      title="Evaluation Portal"
+      subtitle="Draft and validate NAVPERS 1616/26 evaluations"
+      badge="Dashboard"
+      maxWidth="7xl"
+      headerActions={
+        <button type="button" onClick={() => router.push('/evaluations/new')} className="apex-btn-dashboard">
+          + Draft New EVAL
+        </button>
+      }
+    >
+      {error && (
+        <div className="mb-6 p-4 rounded-lg text-xs text-red-300 border border-red-500/30 bg-red-950/30">
+          {error}
+        </div>
+      )}
+
+      {/* Mockup 1 — welcome + stat tiles */}
+      <div className="mb-8 space-y-5">
+        {displayName && (
+          <div className="flex items-center gap-3">
+            <UserAvatar
+              firstName={profile?.first_name}
+              lastName={profile?.last_name}
+              size="lg"
+              plain
+            />
+            <p className="text-base" style={{ color: 'var(--muted-foreground)' }}>
+              Welcome back, <span className="font-bold text-white">{displayName}</span>
+              {profile?.preferred_role && (
+                <span className="ml-2 apex-badge-draft normal-case">{profile.preferred_role}</span>
+              )}
+            </p>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-4">
+          <DashboardStat label="Awaiting Action" value={inbox.length} highlight={inbox.length > 0} />
+          <DashboardStat label="My Drafts" value={drafts.length} />
+          <DashboardStat label="Total Visible" value={inbox.length + drafts.length} />
+        </div>
+      </div>
+
+      <div className="space-y-10">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="apex-dashboard-section-title">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden />
+              Awaiting Your Action
+              {inbox.length > 0 && (
+                <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {inbox.length}
+                </span>
+              )}
+            </h2>
+          </div>
+          <EvalGrid loading={loading} evaluations={inbox} emptyMessage="Nothing is awaiting your action." />
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="apex-dashboard-section-title">
+            <span className="inline-block h-2 w-2 rounded-full bg-blue-400" aria-hidden />
+            My Drafts
+            {drafts.length > 0 && (
+              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                {drafts.length}
+              </span>
+            )}
+          </h2>
+          <EvalGrid loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found." showEdit />
+        </section>
+      </div>
+    </AppShell>
   )
 }
-

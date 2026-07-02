@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signInWithPassword, resendVerificationEmail } from '@/lib/auth'
 import { loginSchema, type LoginFormData, type LoginFieldErrors } from '@/lib/schemas'
+import ApexLogo from '@/components/brand/ApexLogo'
+import NavyBranding from '@/components/brand/NavyBranding'
 
 type FieldErrors = LoginFieldErrors
 
@@ -82,7 +84,7 @@ function LoginForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">
+        <label className="apex-label">
           Email Address
         </label>
         <input
@@ -102,7 +104,7 @@ function LoginForm({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">
+        <label className="apex-label">
           Password
         </label>
         <input
@@ -124,7 +126,7 @@ function LoginForm({
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold transition-all disabled:opacity-50 text-sm tracking-wide shadow-lg shadow-blue-900/20"
+        className="apex-btn-primary w-full py-3 text-sm tracking-wide"
       >
         {loading ? 'Authenticating...' : 'Sign In'}
       </button>
@@ -182,9 +184,7 @@ function useLoginForm() {
   }
 
   const fieldClass = (field: keyof LoginFormData) =>
-    `w-full px-4 py-2.5 rounded bg-[#1c2541] border text-[#f0f4f8] focus:outline-none transition-all text-sm ${
-      fieldErrors[field] ? 'border-red-500/70 focus:border-red-400' : 'border-slate-700/50 focus:border-[#3e6e99]'
-    }`
+    `apex-input ${fieldErrors[field] ? '!border-red-500/70 focus:!border-red-400' : ''}`
 
   return { credentials, fieldErrors, serverError, loading, needsVerification, resendSuccess, handleChange, handleLogin, fieldClass, handleResend }
 }
@@ -204,11 +204,17 @@ export default function LoginPage() {
   } = useLoginForm()
 
   return (
-    <div className="flex min-h-screen bg-[#0b132b] items-center justify-center p-4">
-      <div className="w-full max-w-md p-8 rounded-2xl glass-panel space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-white tracking-wide">APEX Portal</h2>
-          <p className="text-sm text-[#91aec9]">Enter credentials to access evaluation portal</p>
+    <div className="flex min-h-screen items-center justify-center p-4" style={{ background: 'var(--background)' }}>
+      <div className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <ApexLogo size="xl" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold text-white tracking-wide">APEX Portal</h2>
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Enter credentials to access evaluation portal</p>
+          </div>
+          <NavyBranding sidebar className="mt-2" />
         </div>
 
         <AuthNotifications
@@ -228,10 +234,10 @@ export default function LoginPage() {
           fieldClass={fieldClass}
         />
 
-        <div className="text-center text-xs text-[#608bb3] pt-2">
+        <div className="text-center text-xs pt-2" style={{ color: 'var(--subtle)' }}>
           New to APEX?{' '}
-          <Link href="/register" className="text-blue-400 hover:underline">
-            &nbsp; Register for a profile
+          <Link href="/register" className="text-blue-400 hover:underline font-medium">
+            Register for a profile
           </Link>
         </div>
       </div>

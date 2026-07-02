@@ -10,7 +10,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
     refresh: mockRefresh
-  })
+  }),
+  usePathname: () => '/login',
 }))
 
 // Mock auth module

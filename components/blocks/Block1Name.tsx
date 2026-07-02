@@ -7,6 +7,7 @@ import React from 'react'
 import { Evaluation, ValidationIssue } from '@/types'
 import { DUTY_STATUS_OPTIONS, PROMOTION_STATUS_OPTIONS } from '@/types/navpers'
 import BupersGuidelinesInline from '@/components/blocks/BupersGuidelinesInline'
+import { FORM_LABEL, formFieldClass, formFieldsetClass } from '@/lib/formStyles'
 
 interface Block1NameProps {
   evalData: Evaluation;
@@ -36,14 +37,8 @@ export default function Block1Name({ evalData, onChange, issues, onFocusField, a
     });
   };
 
-  const fieldClass = (hasError: boolean) =>
-    `w-full bg-[#1c2541]/40 border rounded px-3 py-2 text-foreground focus:outline-none transition duration-150 ${
-      hasError
-        ? 'border-red-500/80 focus:border-red-400 focus:ring-1 focus:ring-red-400'
-        : 'border-slate-700/60 focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]'
-    }`;
-
-  const labelClass = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1';
+  const fieldClass = formFieldClass
+  const labelClass = FORM_LABEL
 
   return (
     <>
@@ -285,7 +280,7 @@ export default function Block1Name({ evalData, onChange, issues, onFocusField, a
 
 function CheckGroup({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
-    <fieldset className={`rounded-lg border p-3 bg-[#1c2541]/30 ${error ? 'border-red-500/70' : 'border-slate-700/60'}`}>
+    <fieldset className={formFieldsetClass(!!error)}>
       <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</legend>
       {children}
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}

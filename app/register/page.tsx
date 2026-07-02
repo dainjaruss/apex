@@ -12,6 +12,8 @@ import {
   type RegisterFieldErrors,
 } from '@/lib/schemas'
 import { z } from 'zod'
+import ApexLogo from '@/components/brand/ApexLogo'
+import NavyBranding from '@/components/brand/NavyBranding'
 
 function formatZodErrors(error: z.ZodError<RegisterFormData>): RegisterFieldErrors {
   const flat = error.flatten().fieldErrors
@@ -407,9 +409,15 @@ export default function RegisterPage() {
   return (
     <div className="flex min-h-screen bg-[#0b132b] items-center justify-center p-4">
       <div className="w-full max-w-lg p-8 rounded-2xl glass-panel space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-white tracking-wide">APEX Registry</h2>
-          <p className="text-sm text-[#91aec9]">Create a new profile to access the evaluation platform</p>
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <ApexLogo size="xl" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold text-white tracking-wide">APEX Registry</h2>
+            <p className="text-sm text-[#91aec9]">Create a new profile to access the evaluation platform</p>
+          </div>
+          <NavyBranding sidebar className="mt-2" />
         </div>
 
         {serverError && (

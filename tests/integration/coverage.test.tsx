@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
     push: mockPush,
     refresh: mockRefresh,
   }),
+  usePathname: () => '/dashboard',
 }))
 
 vi.mock('next/headers', () => ({
@@ -214,7 +215,7 @@ describe('APEX Comprehensive Test Coverage Suite', () => {
 
   it('should render DashboardPage correctly', () => {
     render(<DashboardPage />)
-    expect(screen.getByText(/My Drafts/i)).toBeDefined()
+    expect(screen.getByRole('heading', { name: /My Drafts/i })).toBeDefined()
   })
 
   it('should execute middleware successfully', async () => {

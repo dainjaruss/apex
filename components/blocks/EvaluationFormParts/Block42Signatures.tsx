@@ -26,21 +26,16 @@ type Props = {
 // Fields in this section that have BUPERSINST field-guide entries (Blocks 41, 45, 47, 48).
 const SECTION_FIELDS = ['career_recommendations', 'promotion_recommendation', 'retention', 'reporting_senior_address']
 
-const LABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1'
-const fieldClass = (hasError: boolean) =>
-  `w-full bg-[#1c2541]/40 border rounded px-3 py-2 text-foreground focus:outline-none transition duration-150 ${
-    hasError
-      ? 'border-red-500/80 focus:border-red-400 focus:ring-1 focus:ring-red-400'
-      : 'border-slate-700/60 focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]'
-  }`;
+import { FORM_PANEL, FORM_SECTION_TITLE, FORM_LABEL, formFieldClass } from '@/lib/formStyles'
 
 export default function Block42Signatures({ evalData, onChange, handleBlockValueChange, issues, onFocusField, activeField }: Props) {
   const issueFor = (field: string) => issues.find((i) => i.field === field && i.severity === 'error')
   const addrSpec = FIELD_FIT.reporting_senior_address
 
   return (
-    <div className="glass-panel rounded-xl p-6">
-      <h3 className="text-lg font-bold gold-accent mb-4 border-b border-slate-700/40 pb-2">
+    <div className={FORM_PANEL}>
+      <h3 className={FORM_SECTION_TITLE}>
+        <span className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]" aria-hidden />
         Recommendations &amp; Reporting Senior (Blocks 41, 45 - 48)
       </h3>
 
@@ -54,7 +49,7 @@ export default function Block42Signatures({ evalData, onChange, handleBlockValue
           Courier canvas so it wraps on screen exactly as the printed form's narrow cell
           ({addrSpec.charsPerLine} chars/line × {addrSpec.maxLines} lines). */}
       <div className="mb-2">
-        <label className={LABEL}>48: Reporting Senior Address</label>
+        <label className={FORM_LABEL}>48: Reporting Senior Address</label>
         <MeasuredCourierField
           value={evalData.block_values?.reporting_senior_address || ''}
           onChange={(v) => handleBlockValueChange({ reporting_senior_address: v })}
@@ -94,7 +89,7 @@ function RecommendationsRow({
       {/* Block 41 — exactly two slots (slot 1 required, slot 2 optional), max 20 chars each
           per BUPERSINST 1610.10H. "Do not leave blank" — enter NA/NONE if none applies. */}
       <div>
-        <label className={LABEL}>41: Career Recommendations</label>
+        <label className={FORM_LABEL}>41: Career Recommendations</label>
         {[0, 1].map((i) => {
           const recs = evalData.career_recommendations || []
           const val = recs[i] || ''
@@ -111,7 +106,7 @@ function RecommendationsRow({
                   next[i] = e.target.value
                   onChange({ career_recommendations: next })
                 }}
-                className={fieldClass(!!issueFor('career_recommendations'))}
+                className={formFieldClass(!!issueFor('career_recommendations'))}
               />
               <div className="flex justify-between mt-0.5">
                 <span className="text-[10px] text-slate-500">{i === 0 ? 'Required' : 'Optional'}</span>
@@ -129,12 +124,12 @@ function RecommendationsRow({
 
       {/* Block 45 */}
       <div>
-        <label className={LABEL}>45: Promotion Recommendation</label>
+        <label className={FORM_LABEL}>45: Promotion Recommendation</label>
         <select
           value={evalData.promotion_recommendation}
           onFocus={() => onFocusField?.('promotion_recommendation')}
           onChange={(e) => onChange({ promotion_recommendation: e.target.value as any })}
-          className={fieldClass(!!issueFor('promotion_recommendation'))}
+          className={formFieldClass(!!issueFor('promotion_recommendation'))}
         >
           {PROMOTION_RECOMMENDATIONS.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
@@ -149,12 +144,12 @@ function RecommendationsRow({
 
       {/* Block 47 */}
       <div>
-        <label className={LABEL}>47: Retention Recommendation</label>
+        <label className={FORM_LABEL}>47: Retention Recommendation</label>
         <select
           value={evalData.retention}
           onFocus={() => onFocusField?.('retention')}
           onChange={(e) => onChange({ retention: e.target.value as any })}
-          className={fieldClass(!!issueFor('retention'))}
+          className={formFieldClass(!!issueFor('retention'))}
         >
           {RETENTION_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>

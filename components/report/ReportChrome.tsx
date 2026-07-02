@@ -1,93 +1,113 @@
 // components/report/ReportChrome.tsx
 //
-// Presentational chrome for the report screen: header, banner, and tab strip.
+// Presentational chrome for the report screen (mockup 3 workflow layout).
 
 import React from 'react'
 import { Evaluation } from '@/types'
 
 export type ReportTab = 'details' | 'preview' | 'review' | 'audit'
 
-export function ReportHeader({ evaluation, isOwner, onDashboard, onEdit, onExport }: {
-  evaluation: Evaluation; isOwner: boolean; onDashboard: () => void; onEdit: () => void; onExport: () => void
+export function ReportHeaderActions({ evaluation, isOwner, onEdit, onExport }: {
+  evaluation: Evaluation; isOwner: boolean; onEdit: () => void; onExport: () => void
 }) {
   return (
-    <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
-      <div className="flex items-center gap-3">
-        <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
-        <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">
-          {evaluation?.status === 'draft' ? 'VIEW DRAFT' : 'VIEW REPORT'}
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <button onClick={onDashboard} className="text-xs text-slate-400 hover:text-white transition px-3 py-1.5">Dashboard</button>
-        {isOwner && evaluation?.status === 'draft' && (
-          <button onClick={onEdit} className="px-4 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-semibold text-white transition">Edit Draft</button>
-        )}
-        {isOwner && (
-          <button onClick={onExport} className="px-4 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-xs font-semibold text-white transition shadow-md">Verify & Export</button>
-        )}
-      </div>
-    </header>
+    <>
+      {isOwner && evaluation?.status === 'draft' && (
+        <button type="button" onClick={onEdit} className="apex-btn-secondary">Edit Draft</button>
+      )}
+      {isOwner && (
+        <button type="button" onClick={onExport} className="apex-btn-success">Verify & Export</button>
+      )}
+    </>
   )
 }
 
 export function ReportBanner({ evaluation, showSummaryAverage }: { evaluation: Evaluation; showSummaryAverage?: boolean }) {
+  const stage = evaluation.routing_stage?.replace(/_/g, ' ') || 'sailor'
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-6 rounded-xl border border-slate-800">
-      <div>
-        <span className="text-[10px] px-2.5 py-0.5 rounded bg-blue-950 text-blue-300 font-bold uppercase tracking-wider border border-blue-900/30">
-          {evaluation.status}
-        </span>
-        <h2 className="text-2xl font-bold text-white mt-2">{evaluation.member_name}</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          DoD ID: {evaluation.dod_id} | Grade/Rate: {evaluation.grade_rate} | UIC: {evaluation.uic}
+    <div className="apex-card-elevated p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <span className="apex-badge">{evaluation.status}</span>
+          {evaluation.routing_stage && <span className="apex-badge-amber">{stage}</span>}
+        </div>
+        <h2 className="text-2xl font-bold text-white">{evaluation.member_name}</h2>
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          DoD ID {evaluation.dod_id} · {evaluation.grade_rate} · UIC {evaluation.uic}
         </p>
       </div>
-      <div className="flex items-center gap-6 bg-[#111c38]/40 px-6 py-4 rounded-xl border border-slate-800">
-        <div className="text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-semibold">Trait Average (40)</div>
-          <div className="text-xl font-black text-emerald-400 mt-1">{evaluation.trait_average ? evaluation.trait_average.toFixed(2) : '0.00'}</div>
-        </div>
+      <div
+        className="flex items-center gap-6 rounded-xl px-6 py-4 w-full lg:w-auto"
+        style={{ background: 'var(--form-panel)', border: '1px solid var(--border-strong)' }}
+      >
+        <Stat label="Trait Avg (40)" value={evaluation.trait_average ? evaluation.trait_average.toFixed(2) : '0.00'} accent="text-emerald-400" />
         {showSummaryAverage && (
           <>
-            <div className="h-8 w-px bg-slate-800"></div>
-            <div className="text-center">
-              <div className="text-[10px] text-slate-500 uppercase font-semibold">Summary Group Avg (50a)</div>
-              <div className="text-xl font-black text-sky-300 mt-1">{evaluation.summary_group_average != null ? evaluation.summary_group_average.toFixed(2) : '—'}</div>
-            </div>
+            <Divider />
+            <Stat label="Group Avg (50a)" value={evaluation.summary_group_average != null ? evaluation.summary_group_average.toFixed(2) : '—'} accent="" style={{ color: 'var(--accent-cyan)' }} />
           </>
         )}
-        <div className="h-8 w-px bg-slate-800"></div>
-        <div className="text-center">
-          <div className="text-[10px] text-slate-500 uppercase font-semibold">Promotion Rec</div>
-          <div className="text-sm font-bold text-white mt-1">{evaluation.promotion_recommendation || 'NOB'}</div>
-        </div>
+        <Divider />
+        <Stat label="Promotion Rec" value={evaluation.promotion_recommendation || 'NOB'} accent="text-white text-sm" />
       </div>
     </div>
   )
 }
 
-const TABS: { id: ReportTab; label: string }[] = [
+function Stat({ label, value, accent, style }: { label: string; value: string; accent: string; style?: React.CSSProperties }) {
+  return (
+    <div className="text-center flex-1 lg:flex-none">
+      <div className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--subtle)' }}>{label}</div>
+      <div className={`text-2xl font-black mt-0.5 ${accent}`} style={style}>{value}</div>
+    </div>
+  )
+}
+
+function Divider() {
+  return <div className="h-10 w-px" style={{ background: 'var(--border)' }} />
+}
+
+/** Mockup 3 order — Review Workflow is the hub, placed early. */
+const TABS: { id: ReportTab; label: string; workflow?: boolean }[] = [
   { id: 'details', label: 'Form Details' },
+  { id: 'review', label: 'Review Workflow', workflow: true },
   { id: 'preview', label: 'Document Preview' },
-  { id: 'review', label: 'Review Workflow' },
   { id: 'audit', label: 'Audit History' },
 ]
 
 export function ReportTabs({ active, onChange }: { active: ReportTab; onChange: (t: ReportTab) => void }) {
   return (
-    <div className="flex border-b border-slate-800 gap-1">
+    <div className="apex-tabs" role="tablist">
       {TABS.map((t) => (
         <button
           key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={active === t.id}
           onClick={() => onChange(t.id)}
-          className={`px-4 py-2.5 text-sm font-semibold transition border-b-2 -mb-px ${
-            active === t.id ? 'border-[#3e6e99] text-white' : 'border-transparent text-slate-500 hover:text-slate-300'
-          }`}
+          className={`apex-tab ${active === t.id ? 'apex-tab-active' : ''} ${t.workflow && active !== t.id ? 'text-[var(--accent-gold)]/80' : ''}`}
         >
           {t.label}
         </button>
       ))}
     </div>
+  )
+}
+
+/** @deprecated Use ReportHeaderActions inside AppShell */
+export function ReportHeader({ evaluation, isOwner, onDashboard, onEdit, onExport }: {
+  evaluation: Evaluation; isOwner: boolean; onDashboard: () => void; onEdit: () => void; onExport: () => void
+}) {
+  return (
+    <header className="px-6 py-4 flex items-center justify-between border-b mb-6 apex-card rounded-none border-x-0 border-t-0">
+      <div className="flex items-center gap-3">
+        <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
+        <span className="apex-badge">{evaluation?.status === 'draft' ? 'VIEW DRAFT' : 'VIEW REPORT'}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onDashboard} className="apex-btn-ghost">Dashboard</button>
+        <ReportHeaderActions evaluation={evaluation} isOwner={isOwner} onEdit={onEdit} onExport={onExport} />
+      </div>
+    </header>
   )
 }

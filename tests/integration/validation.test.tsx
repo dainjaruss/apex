@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
   }),
+  usePathname: () => '/evaluations/new',
 }))
 
 const mockData: Evaluation = {

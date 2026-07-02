@@ -16,9 +16,10 @@ import { createSummaryGroup, listSummaryGroups, setGroupStatus, listEvalsInGroup
 import { checkForcedDistribution, tallyRecommendations, ForcedDistributionResult } from '@/lib/forcedDistribution'
 import { PROMOTION_STATUS_OPTIONS } from '@/types/navpers'
 import { Profile, SummaryGroup } from '@/types'
+import AppShell from '@/components/layout/AppShell'
+import { FORM_LABEL, formFieldClass } from '@/lib/formStyles'
 
-const FIELD = 'w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#3e6e99]'
-const LABEL = 'block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1'
+const FIELD = formFieldClass()
 
 export default function SummaryGroupsPage() {
   const router = useRouter()
@@ -47,18 +48,18 @@ export default function SummaryGroupsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
-        <span className="font-extrabold text-xl tracking-wider text-white">APEX <span className="text-xs text-[#3e6e99]">SUMMARY GROUPS</span></span>
-        <button onClick={() => router.push('/dashboard')} className="px-3 py-1.5 rounded bg-[#1c2541] hover:bg-slate-800 text-xs font-semibold text-slate-200 border border-slate-700/60 transition">
-          ← Back to Dashboard
-        </button>
-      </header>
-      <main className="max-w-4xl mx-auto px-4 pb-12 space-y-6">
+    <AppShell
+      profile={profile}
+      title="Summary Groups"
+      subtitle="Create promotion-recommendation groups and review forced distribution"
+      badge="Reporting Senior"
+      maxWidth="5xl"
+    >
+      <div className="space-y-6">
         <GroupForm seniors={seniors} createdBy={profile.id} onCreated={reload} />
         <GroupList groups={groups} onChanged={reload} />
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
 
@@ -78,24 +79,24 @@ function GroupForm({ seniors, createdBy, onCreated }: { seniors: any[]; createdB
   }
 
   return (
-    <div className="glass-panel rounded-xl p-6 space-y-4">
-      <h3 className="text-lg font-bold gold-accent border-b border-slate-700/40 pb-2">Create Summary Group</h3>
+    <div className="apex-form-panel space-y-4">
+      <h3 className="text-lg font-bold gold-accent border-b pb-2" style={{ borderColor: 'var(--border)' }}>Create Summary Group</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label className={LABEL}>Group Name</label><input className={FIELD} value={g.name} onChange={(e) => set('name', e.target.value)} placeholder="PO1 Regular 2025 / CDR SMITH" /></div>
-        <div><label className={LABEL}>Reporting Senior</label>
+        <div><label className={FORM_LABEL}>Group Name</label><input className={FIELD} value={g.name} onChange={(e) => set('name', e.target.value)} placeholder="PO1 Regular 2025 / CDR SMITH" /></div>
+        <div><label className={FORM_LABEL}>Reporting Senior</label>
           <select className={FIELD} value={g.reporting_senior_id} onChange={(e) => set('reporting_senior_id', e.target.value)}>
             <option value="">Select RS</option>
             {seniors.map((s) => <option key={s.id} value={s.id}>{s.last_name}, {s.first_name}</option>)}
           </select>
         </div>
-        <div><label className={LABEL}>Ending Date</label><input type="date" className={FIELD} value={g.period_to} onChange={(e) => set('period_to', e.target.value)} /></div>
-        <div><label className={LABEL}>Paygrade (Grade/Rate)</label><input className={FIELD} value={g.grade_rate} onChange={(e) => set('grade_rate', e.target.value.toUpperCase())} placeholder="PO1" /></div>
-        <div><label className={LABEL}>Promotion Status</label>
+        <div><label className={FORM_LABEL}>Ending Date</label><input type="date" className={FIELD} value={g.period_to} onChange={(e) => set('period_to', e.target.value)} /></div>
+        <div><label className={FORM_LABEL}>Paygrade (Grade/Rate)</label><input className={FIELD} value={g.grade_rate} onChange={(e) => set('grade_rate', e.target.value.toUpperCase())} placeholder="PO1" /></div>
+        <div><label className={FORM_LABEL}>Promotion Status</label>
           <select className={FIELD} value={g.promotion_status} onChange={(e) => set('promotion_status', e.target.value)}>
             {PROMOTION_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
-        <div className="md:col-span-2"><label className={LABEL}>Command Employment</label><textarea className={`${FIELD} h-16`} value={g.command_employment} onChange={(e) => set('command_employment', e.target.value)} /></div>
+        <div className="md:col-span-2"><label className={FORM_LABEL}>Command Employment</label><textarea className={`${FIELD} h-16`} value={g.command_employment} onChange={(e) => set('command_employment', e.target.value)} /></div>
       </div>
       {error && <p className="text-red-400 text-xs font-semibold">{error}</p>}
       <button onClick={submit} disabled={saving} className="px-5 py-2 rounded bg-[#3e6e99] hover:bg-[#4e82b0] disabled:opacity-50 text-white font-bold text-sm transition">
@@ -154,7 +155,7 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
   }
 
   return (
-    <div className={`glass-panel rounded-xl p-4 border text-sm ${fd && !fd.compliant ? 'border-red-900/40' : 'border-[#1c2541]'}`}>
+    <div className={`apex-card p-4 text-sm ${fd && !fd.compliant ? 'border-red-500/40' : ''}`}>
       <div className="flex justify-between items-start gap-2">
         <button onClick={toggleExpand} className="text-left min-w-0">
           <h4 className="font-bold text-white truncate">{g.name}</h4>

@@ -20,8 +20,10 @@ import { listOpenGroups, attachSummaryGroup } from '@/lib/summaryGroupService'
 import { describeSummaryGroup, visibleSummaryGroupsForEval } from '@/lib/summaryGroupEligibility'
 import { paygradeOf } from '@/lib/paygrade'
 
-const BTN = 'px-4 py-2 rounded text-xs font-bold text-white transition disabled:opacity-50'
-const FIELD = 'w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#3e6e99]'
+const BTN_PRIMARY = 'apex-btn-primary'
+const BTN_SECONDARY = 'apex-btn-secondary'
+const BTN_DANGER = 'apex-btn-danger'
+const FIELD = 'apex-input'
 const STAGE_LABEL: Record<string, string> = {
   sailor: 'Sailor (draft)', rater: 'Rater', senior_rater: 'Senior Rater',
   reporting_senior: 'Reporting Senior', admin: 'Admin', debrief: 'Debrief', locked: 'Locked',
@@ -52,10 +54,10 @@ export default function ReviewPanel({ evaluation, currentUser, onWorkflowAction 
   }
 
   return (
-    <div className="glass-panel rounded-xl p-6 space-y-6">
-      <div className="border-b border-slate-800 pb-3">
-        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">Routing Workflow</h3>
-        <p className="text-xs text-slate-400 mt-1">
+    <div className="apex-card p-6 space-y-6">
+      <div className="border-b pb-3" style={{ borderColor: 'var(--border)' }}>
+        <h3 className="apex-section-title">Routing Workflow</h3>
+        <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
           Current stage: <span className="font-semibold text-white">{STAGE_LABEL[stage] || stage}</span>
           {locked && <span className="ml-2 text-amber-400 font-semibold">· Locked</span>}
         </p>
@@ -70,7 +72,7 @@ export default function ReviewPanel({ evaluation, currentUser, onWorkflowAction 
       ) : isHolder ? (
         <HolderActions evaluation={evaluation} stage={stage} canDebrief={canDebrief} run={run} loading={loading} />
       ) : (
-        <p className="text-sm text-slate-400 bg-[#0d1b2a]/40 border border-slate-800/60 rounded-lg p-4">
+        <p className="text-sm rounded-lg p-4 apex-card" style={{ color: 'var(--muted-foreground)' }}>
           This report is currently with the <span className="font-semibold text-white">{STAGE_LABEL[stage] || stage}</span>. You'll
           regain access if it is recycled to you or opened for debrief corrections.
         </p>
@@ -91,7 +93,7 @@ function HolderActions({ evaluation, stage, canDebrief, run, loading }: {
       <RouteForward evaluation={evaluation} stage={stage} run={run} loading={loading} />
       {stage !== 'sailor' && <RecycleAction evaluation={evaluation} run={run} loading={loading} />}
       {(stage === 'reporting_senior' || stage === 'admin') && canDebrief && (
-        <button className={`${BTN} bg-amber-700 hover:bg-amber-600`} disabled={loading}
+        <button className={`${BTN_PRIMARY} !bg-amber-600 hover:!bg-amber-500`} disabled={loading}
           onClick={() => run(() => beginDebrief(evaluation.id!))}>
           Begin Debrief
         </button>
@@ -122,12 +124,12 @@ function RouteForward({ evaluation, stage, run, loading }: {
   return (
     <div className="space-y-2">
       {stage === 'sailor' && <GroupPicker evaluation={evaluation} run={run} loading={loading} />}
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Route forward to a {role}</label>
+      <label className="apex-label">Route forward to a {role}</label>
       <select className={FIELD} value={sel} onChange={(e) => setSel(e.target.value)}>
         {targets.length === 0 && <option value="">No {role} found</option>}
         {targets.map((t) => <option key={t.id} value={t.id}>{t.last_name}, {t.first_name}</option>)}
       </select>
-      <button className={`${BTN} bg-[#3e6e99] hover:bg-[#4e82b0]`} disabled={loading || !sel}
+      <button className={BTN_PRIMARY} disabled={loading || !sel}
         onClick={() => run(() => routeForward(evaluation.id!, sel))}>
         Route Forward →
       </button>
@@ -149,9 +151,9 @@ function GroupPicker({ evaluation, run, loading }: { evaluation: Evaluation; run
   const memberPaygrade = paygradeOf(evaluation.grade_rate)
   if (!loaded) return null
   return (
-    <div className="space-y-2 pb-3 mb-1 border-b border-slate-800/60">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Summary Group (optional)</label>
-      <p className="text-[11px] text-slate-500 leading-relaxed">
+    <div className="space-y-2 pb-3 mb-1 border-b" style={{ borderColor: 'var(--border)' }}>
+      <label className="apex-label">Summary Group (optional)</label>
+      <p className="text-[11px] leading-relaxed" style={{ color: 'var(--subtle)' }}>
         Only groups matching your paygrade, promotion status, ending date, and reporting senior are shown
         {memberPaygrade ? ` (${evaluation.grade_rate} · ${memberPaygrade})` : ''}.
       </p>
@@ -163,7 +165,7 @@ function GroupPicker({ evaluation, run, loading }: { evaluation: Evaluation; run
           {visible.map((g) => <option key={g.id} value={g.id}>{describeSummaryGroup(g)}</option>)}
         </select>
       )}
-      <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading || (sel !== '' && !visible.some((g) => g.id === sel))}
+      <button className={BTN_SECONDARY} disabled={loading || (sel !== '' && !visible.some((g) => g.id === sel))}
         onClick={() => run(() => attachSummaryGroup(evaluation.id!, sel || null))}>
         Attach Group
       </button>
@@ -174,10 +176,10 @@ function GroupPicker({ evaluation, run, loading }: { evaluation: Evaluation; run
 function RecycleAction({ evaluation, run, loading }: { evaluation: Evaluation; run: Run; loading: boolean }) {
   const [comments, setComments] = useState('')
   return (
-    <div className="space-y-2 border-t border-slate-800/60 pt-4">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Recycle for correction (one step back)</label>
+    <div className="space-y-2 border-t pt-4" style={{ borderColor: 'var(--border)' }}>
+      <label className="apex-label">Recycle for correction (one step back)</label>
       <textarea className={`${FIELD} h-16`} placeholder="What needs correcting?" value={comments} onChange={(e) => setComments(e.target.value)} />
-      <button className={`${BTN} bg-red-800 hover:bg-red-700`} disabled={loading || !comments.trim()}
+      <button className={BTN_DANGER} disabled={loading || !comments.trim()}
         onClick={() => run(() => recycleForCorrection(evaluation.id!, comments))}>
         ← Recycle to Previous Holder
       </button>
@@ -210,11 +212,11 @@ function MinorCorrectionForm({ evaluation, run, loading }: { evaluation: Evaluat
   const set = (k: string, v: string) => setPatch((p) => ({ ...p, [k]: v }))
   return (
     <div className="space-y-2">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Block 43: Comments</label>
+      <label className="apex-label">Block 43: Comments</label>
       <textarea className={`${FIELD} h-20`} value={patch.comments} onChange={(e) => set('comments', e.target.value)} />
-      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Block 44: Qualifications</label>
+      <label className="apex-label">Block 44: Qualifications</label>
       <textarea className={`${FIELD} h-14`} value={patch.qualifications} onChange={(e) => set('qualifications', e.target.value)} />
-      <button className={`${BTN} bg-[#3e6e99] hover:bg-[#4e82b0]`} disabled={loading}
+      <button className={BTN_PRIMARY} disabled={loading}
         onClick={() => run(() => applyMinorCorrection(evaluation.id!, patch))}>
         Apply Minor Corrections
       </button>
@@ -230,7 +232,7 @@ function LockedBanner({ canDebrief, loading, onUnlock }: { canDebrief: boolean; 
         ✓ Signed by the Reporting Senior and locked for editing. Export it from the report header for transmission to PERS-32 or printing.
       </p>
       {canDebrief && (
-        <button className={`${BTN} bg-slate-700 hover:bg-slate-600`} disabled={loading} onClick={onUnlock}>
+        <button className={BTN_SECONDARY} disabled={loading} onClick={onUnlock}>
           Unlock / Release for Correction
         </button>
       )}

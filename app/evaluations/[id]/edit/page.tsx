@@ -11,6 +11,7 @@ import { getSession } from '@/lib/auth'
 import { loadById, saveDraft } from '@/lib/evaluationService'
 import { getProfile } from '@/lib/profileService'
 import EvaluationForm from '@/components/EvaluationForm'
+import AppShell from '@/components/layout/AppShell'
 import { Evaluation } from '@/types'
 
 // fallow-ignore-next-line complexity
@@ -25,6 +26,7 @@ export default function EditEvaluationPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [viewerRole, setViewerRole] = useState<string | undefined>(undefined)
+  const [profile, setProfile] = useState<any>(null)
 
   useEffect(() => {
     // fallow-ignore-next-line complexity
@@ -39,6 +41,7 @@ export default function EditEvaluationPage() {
         // Role gates Block 50a on the form (sailors don't see it while drafting; reviewers do).
         const viewer = await getProfile(session.user.id).catch(() => null)
         setViewerRole(viewer?.preferred_role)
+        setProfile(viewer)
 
         if (!id) return;
         const data = await loadById(id)
@@ -92,7 +95,7 @@ export default function EditEvaluationPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0b132b] text-[#608bb3] font-mono text-sm">
+      <div className="flex items-center justify-center min-h-screen text-sm font-mono" style={{ background: 'var(--background)', color: 'var(--muted-foreground)' }}>
         Loading draft for edit...
       </div>
     )
@@ -100,14 +103,11 @@ export default function EditEvaluationPage() {
 
   if (error || !evaluation) {
     return (
-      <div className="min-h-screen bg-[#0b132b] flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-red-950/35 border border-red-900/40 rounded-xl p-6 max-w-md space-y-4">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--background)' }}>
+        <div className="apex-card p-6 max-w-md space-y-4 border-red-500/30">
           <h3 className="text-lg font-bold text-red-400">Cannot Edit Report</h3>
-          <p className="text-sm text-slate-400">{error || 'Access denied.'}</p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-white transition"
-          >
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{error || 'Access denied.'}</p>
+          <button type="button" onClick={() => router.push('/dashboard')} className="apex-btn-secondary">
             Return to Dashboard
           </button>
         </div>
@@ -116,37 +116,21 @@ export default function EditEvaluationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      {/* Header */}
-      <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">EDIT EVAL</span>
-        </div>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="text-xs text-slate-400 hover:text-white transition"
-        >
-          Back to Dashboard
-        </button>
-      </header>
-
-      {/* Container */}
-      <main className="max-w-6xl mx-auto px-4 py-2">
-        <div className="mb-6 px-4">
-          <h2 className="text-2xl font-bold text-white tracking-wide">Edit Evaluation Draft</h2>
-          <p className="text-sm text-[#91aec9]">Modify your performance comments or trait grades. Changes will be validated on-the-fly.</p>
-        </div>
-
-        <EvaluationForm
-          initialData={evaluation}
-          onSave={handleSave}
-          onSaveInPlace={handleSaveInPlace}
-          onCancel={() => router.push('/dashboard')}
-          isSaving={isSaving}
-          viewerRole={viewerRole}
-        />
-      </main>
-    </div>
+    <AppShell
+      profile={profile}
+      title="Edit Evaluation Draft"
+      subtitle="Modify performance comments or trait grades — validated in real time"
+      badge="Edit EVAL"
+      maxWidth="6xl"
+    >
+      <EvaluationForm
+        initialData={evaluation}
+        onSave={handleSave}
+        onSaveInPlace={handleSaveInPlace}
+        onCancel={() => router.push('/dashboard')}
+        isSaving={isSaving}
+        viewerRole={viewerRole}
+      />
+    </AppShell>
   )
 }
