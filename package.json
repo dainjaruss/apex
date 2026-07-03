@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "test:all": "TEST_SCOPE=all vitest run",
     "db:seed": "tsx scripts/seed-e2e.ts",
     "db:seed:reset": "tsx scripts/seed-e2e.ts --reset",
     "test:e2e": "playwright test",
