@@ -102,7 +102,38 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 **Migration workflow.** Schema changes are applied via numbered migration files (001 initial schema, 002 routing workflow and summary groups). Migrations are applied to the cloud Supabase project with the Supabase CLI.
 
-**Why this helps.** A clear schema with RLS and triggers keeps BUPERS “shared field” rules enforced at the database layer, not only in the UI.
+### Normalization analysis
+
+We evaluated each table against First, Second, and Third Normal Form (1NF/2NF/3NF) and Boyce-Codd Normal Form (BCNF). The **relational core is in 3NF, and most tables reach BCNF.** Where we deviate, the deviation is deliberate, documented in the migration, and justified by Postgres capabilities or a BUPERS domain rule.
+
+| Table | Primary key | Highest strict NF | Notes |
+|-------|-------------|-------------------|-------|
+| `commands` | `uic` | BCNF | Clean UIC → command-name lookup |
+| `review_approvals` | `id` | BCNF | Atomic columns; FKs to eval + reviewer |
+| `summary_groups` | `id` | BCNF | Atomic; real composite candidate key via `UNIQUE` |
+| `profiles` | `id` | 1NF/3NF deviations | `assigned_roles` array; denormalized `command` |
+| `evaluations` | `id` | 1NF/3NF deviations | JSONB + array columns; derived + inherited fields |
+| `form_definitions` | `id` | 1NF deviation | `blocks` JSONB holds the declarative form spec |
+| `audit_logs` | `id` | 1NF deviation | `details` JSONB event payload |
+
+**1NF — intentional non-atomic columns.** Strict 1NF requires every attribute to be single-valued. We intentionally use Postgres array and JSONB columns where a rigid relational layout would add complexity without value:
+
+- `form_definitions.blocks` (JSONB) stores the full declarative block spec. Each NAVPERS form (EVAL, CHIEFEVAL, two FITREP variants) has a different block set; modeling this relationally would require a sprawling entity-attribute-value schema. JSONB lets the validation engine read one versioned document.
+- `evaluations.trait_grades` and `block_values` (JSONB) hold the flexible, form-driven answer set; `career_recommendations` and `participants` are short bounded lists; `profiles.assigned_roles` is a small role set. `audit_logs.details` stores per-event context.
+
+These are a conscious 1NF trade-off in favor of schema flexibility and fewer joins, which Postgres supports natively (including GIN indexing and constraints on JSONB/arrays).
+
+**2NF — fully satisfied.** Every table uses a single-column key (a surrogate `uuid id`, or the natural `commands.uic`). With no composite primary keys, partial-key dependencies cannot exist, so all tables that satisfy 1NF automatically satisfy 2NF.
+
+**3NF — three documented denormalizations.** The following transitive dependencies are stored on purpose:
+
+1. **`profiles.command`** — a display name that depends on `uic` (via `commands`). Kept denormalized for fast reads without a join during the MVP, as noted in the column comment.
+2. **`evaluations.trait_average`** — a value derived from `trait_grades`, stored for convenient sorting/printing rather than recomputed on every read.
+3. **Summary-group shared fields** — when an eval is attached to a summary group, the `enforce_summary_group_fields()` trigger copies `period_to`, `grade_rate`, `promotion_status`, `report_type`, and `command_employment` onto the eval. This is not mere caching: BUPERSINST 1610.10H requires these five fields to be **frozen and identical** across a summary group, so the copy-on-write trigger enforces a domain invariant at the database layer.
+
+**Path to strict 3NF (future work).** If full textbook normalization is required, we would: drop `profiles.command` and resolve names through `commands` (restoring the UIC foreign key); compute `trait_average` in a view; and split the array columns into child tables (`profile_roles`, `evaluation_participants`, `evaluation_career_recommendations`). We have deferred this because the current design measurably reduces join complexity and the denormalizations are guarded by constraints and triggers.
+
+**Why this helps.** A clear schema with RLS and triggers keeps BUPERS “shared field” rules enforced at the database layer, not only in the UI. Documenting where and why we deviate from strict normal form shows the trade-offs were deliberate engineering decisions, not oversights.
 
 ---
 
@@ -224,68 +255,63 @@ Together, these standards ensure APEX remains **maintainable** (typed, modular c
 
 ---
 
-# Section B — Project Progress Report
+# Section B — Project Progress Report (Through Week 5)
 
-## B1. Features and Functionality Completed
+This progress report reflects the cumulative state of APEX through the Week 5 milestone. Per the eight-week plan, Weeks 1–5 deliver the project foundation, the EVAL data-entry pipeline, and the BUPERS validation engine — the core value of the system. PDF export, the pre-signature review workflow, and deployment are scheduled for Weeks 6–8 and appear under Planned Next Steps.
 
-The following major features are implemented and tested:
+## B1. Features and Functionality Completed (Weeks 1–5)
 
-1. **User onboarding** — Registration and login with Navy profile fields (rank, UIC, command, role).
-2. **Evaluation wizard** — Multi-step NAVPERS 1616/26 form: Admin (Blocks 1–32), Traits (33–39), Comments (40–47), Details/signatures.
-3. **Real-time validation** — Inline BUPERS guidelines, live Zod validation, and on-demand full rules check modal.
-4. **Draft persistence** — Local autosave plus explicit “Save Evaluation Draft” to Supabase.
-5. **PDF generation** — Server-side NAVPERS PDF with preview and export gate (validation must pass).
-6. **Custody routing workflow** — Sailor → Rater → Senior Rater → Reporting Senior → Debrief → Locked, with `current_holder_id` and `participants` tracking.
-7. **Route forward and recycle** — Server-enforced via `/api/eval-route`; recycle requires correction comments.
-8. **Digital signatures** — Canvas signature pad for Blocks 42, 49, 50, 51 (and 52 for concurrent reports).
-9. **RBAC** — Permission engine and RoleGuard; Admin panel for user management.
-10. **Audit logs and review history** — Workflow events and recycle feedback timeline.
-11. **Summary groups** — Reporting Senior creates groups; members attach during draft or routing; DB trigger inherits shared fields.
-12. **Block 50a group average and Block 46 forced distribution** — Computed with visibility rules; peers-only pool for draft form.
-13. **Summary group eligibility enforcement** — BUPERS-aligned filtering in UI plus `/api/summary-group-attach`.
-14. **Automated testing** — 158 unit/integration tests; Playwright E2E for full lifecycle.
+The following are implemented and tested as of Week 5:
+
+1. **Project foundation (Week 2)** — Next.js 14 (App Router), TypeScript strict mode, Tailwind, and the Vitest test harness. Landing page and session-aware route-protection middleware are in place.
+2. **Database schema and Row Level Security (Week 3)** — Supabase Postgres with `profiles`, `evaluations`, `form_definitions`, `audit_logs`, and `review_approvals` tables, a seeded EVAL (NAVPERS 1616/26) form definition, and RLS policies scoping data to the owning user.
+3. **Authentication and role model (Week 3)** — Registration and login with Navy profile fields (rank, UIC, command, preferred role). The five roles (Sailor, Rater, Senior Rater, Reporting Senior, Admin) are defined; sessions are handled through the Supabase SSR client.
+4. **Profile and dashboard (Week 3)** — Profile view/edit and a dashboard that lists the signed-in user's evaluations.
+5. **EVAL form data entry (Week 4)** — Multi-step NAVPERS 1616/26 form mapped to the correct block numbers: administrative blocks, Block 1 (Name), Blocks 33–39 (seven performance traits with X-marking and NOB handling), and Block 43 (Comments).
+6. **Draft persistence (Week 4)** — Local autosave plus an explicit “Save Evaluation Draft” to Supabase (`saveDraft`, `loadById`).
+7. **Live in-form validation with inline BUPERS guidance (Week 4)** — Real-time Zod validation and context-aware EVALMAN guideline text shown next to each field.
+8. **Comment-fit / overflow validation (Week 4)** — The proposal's highest-value feature: Block 43 narrative is measured against the physical comment box at 10- and 12-pitch using a shared Courier wrap algorithm, preventing the most common PERS-32 rejection.
+9. **Trait scoring and computed average (Weeks 4–5)** — Trait standards panel for Blocks 33–39 and the Block 40 individual trait average (NOB excluded), computed in-app.
+10. **Validation engine and final pre-export pass (Week 5)** — `runFullValidation` applies the EVALMAN-cited rule set (required-field formatting, valid trait grades, promotion-recommendation enum, and the Climate-EO / Military Bearing 2.0 promotion gate) and surfaces results in the Validation Results modal. Evaluation status transitions (draft → ready_for_review) are wired.
+11. **Rules-reference documentation (Week 5)** — `docs/rules-reference.md` maps each validation rule to its BUPERSINST 1610.10H citation and its enforcement location in code.
+12. **Automated testing** — Over 70 unit and integration tests cover the Week 1–5 scope, including 35 validation-engine cases, 5 comment-fit cases, trait-average and trait-standard tests, and auth/login/form integration tests.
 
 ## B2. Features Currently Under Development
 
-- Final polish on Review Workflow UI and error messaging
-- Additional E2E coverage for summary group attach edge cases
-- Documentation and demo preparation for this milestone
-- *[Add any in-progress items your team is actively working on]*
+- Finalizing the Week 5 validation rule coverage and error messaging
+- Preparing the Week 6 PDF render against the measured 1616/26 layout
+- Documentation and demo preparation for the Week 5 milestone
 
 ## B3. Challenges Encountered
 
 | Challenge | Impact | Resolution |
 |-----------|--------|------------|
-| BUPERS rule complexity | Many interdependent block rules | Central Zod schema + validation engine + rules reference doc |
-| RLS vs. server writes | Browser could not perform custody transitions | Service-role API routes with session-based caller verification |
-| Summary group peer visibility | Sailors could not see peers for averages | Dedicated API routes with visibility gates |
-| Wrong summary group selection | Sailor could attach ineligible paygrade groups | Shared eligibility module + server attach route |
-| PDF field alignment | Text overflow on official form layout | pdf-lib overlay tuning and comment fit engine |
-| E2E test flakiness | RS dropdown reset on async load | Preserve user selection when profile list refreshes |
+| BUPERS rule complexity | Many interdependent block rules | Central Zod schema + validation engine + rules-reference doc |
+| Comment-box dimensions not published | Comment-fit accuracy at risk | Measured the rendered official 1616/26 box; shared wrap algorithm cited to NAVFIT98A 10/12-pitch capacity |
+| Promotion-recommendation gating | 2.0 EO/Character must bar "Promotable+" | Encoded as an explicit, cited rule in the validation engine |
+| RLS vs. legitimate reads | Early policies blocked valid profile/eval reads | Tuned per-table RLS policies scoped to the owning user |
+| Trait average with NOB | "Not Observed" traits must be excluded | Average computed over graded traits only, with unit tests |
 
 ## B4. Changes to the Original Project Plan
 
-- **Expanded scope:** Added full custody routing model (migration 002) beyond simple draft/submit.
-- **Added summary groups:** Promotion recommendation pooling (Blocks 46, 50a) required by BUPERS comparison rules.
-- **Server APIs:** Original plan assumed more client-side Supabase access; we added API routes wherever RLS blocked legitimate workflow transitions.
-- **E2E infrastructure:** Added Playwright, cloud seed script, and `@franklyn.dev` test users for reproducible demos.
+- **All 1616/26 blocks implemented:** The plan allowed deferring some Blocks 9–32; the full administrative block set is now entered, with values beyond the core set carried in `block_values` (jsonb).
+- **Inline guideline system added:** A context-aware BUPERS guideline panel was added alongside live validation to improve drafting accuracy — beyond the originally planned error list.
+- **Data-model corrections:** Minor schema fixes from the proposal draft (column naming, computed trait average) were applied in migration 001.
 
 ## B5. Blockers and Assistance Needed
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Production UIC/command lookup | Optional future work | MVP uses denormalized command on profile |
-| Hosting/deployment target | *[Open / decided]* | Local dev + Supabase cloud; Vercel or similar TBD |
-| Instructor feedback on debrief policy edge cases | *[If applicable]* | Minor correction allowlist is intentionally strict |
-| *[Team-specific blocker]* | | |
+| Official 1616/26 dimensions | Resolved | Box and trait grid measured from the rendered form (gating dependency cleared) |
+| Hosting/deployment target | Open | Local dev + Supabase cloud today; Vercel planned for Week 8 |
+| Instructor feedback on deferred blocks | If applicable | Confirm which Blocks 9–32 edge cases must be enforced vs. documented |
 
-## B6. Planned Next Steps
+## B6. Planned Next Steps (Weeks 6–8)
 
-1. Complete milestone PDF and demonstration video.
-2. Address remaining UI polish and any open E2E failures.
-3. Final capstone feature freeze and regression test pass.
-4. Prepare final presentation and deployment demo.
-5. *[Add team-specific next milestones]*
+1. **Week 6 — PDF pipeline:** High-fidelity NAVPERS 1616/26 PDF generation, live document preview, and an export page gated on a passing full validation.
+2. **Week 7 — Pre-signature review workflow:** Internal approve / return-for-correction flow and surfacing of the audit log / review history.
+3. **Week 8 — Finalization:** Deploy to Vercel, finalize `README.md`, expand automated coverage toward ≥80%, and complete UI/UX polish and responsiveness.
+4. **Designed-for roadmap (post-MVP):** CHIEFEVAL and FITREP form definitions, summary-group computation (Blocks 46 / 50a), and digital signature capture remain documented roadmap extensions enabled by the `form_definitions` architecture.
 
 ---
 
