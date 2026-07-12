@@ -308,27 +308,27 @@ export default function DashboardPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#1c2541]/40 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition cursor-pointer"
+            className="bg-[#131b2e] text-white border border-slate-700/60 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 transition cursor-pointer"
           >
-            <option value="all">All Statuses</option>
-            <option value="draft">Draft</option>
-            <option value="ready_for_review">Ready for Review</option>
-            <option value="completed">Completed</option>
-            <option value="archived">Archived</option>
+            <option value="all" className="bg-[#131b2e] text-white">All Statuses</option>
+            <option value="draft" className="bg-[#131b2e] text-white">Draft</option>
+            <option value="ready_for_review" className="bg-[#131b2e] text-white">Ready for Review</option>
+            <option value="completed" className="bg-[#131b2e] text-white">Completed</option>
+            <option value="archived" className="bg-[#131b2e] text-white">Archived</option>
           </select>
 
           {/* Sort dropdown */}
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="bg-[#1c2541]/40 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition cursor-pointer"
+            className="bg-[#131b2e] text-white border border-slate-700/60 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 transition cursor-pointer"
           >
-            <option value="updated_desc">Recently Updated</option>
-            <option value="updated_asc">Oldest Updated</option>
-            <option value="name_asc">Name (A-Z)</option>
-            <option value="name_desc">Name (Z-A)</option>
-            <option value="average_desc">Trait Avg (High-Low)</option>
-            <option value="average_asc">Trait Avg (Low-High)</option>
+            <option value="updated_desc" className="bg-[#131b2e] text-white">Recently Updated</option>
+            <option value="updated_asc" className="bg-[#131b2e] text-white">Oldest Updated</option>
+            <option value="name_asc" className="bg-[#131b2e] text-white">Name (A-Z)</option>
+            <option value="name_desc" className="bg-[#131b2e] text-white">Name (Z-A)</option>
+            <option value="average_desc" className="bg-[#131b2e] text-white">Trait Avg (High-Low)</option>
+            <option value="average_asc" className="bg-[#131b2e] text-white">Trait Avg (Low-High)</option>
           </select>
 
           {/* Reset Filters button */}
