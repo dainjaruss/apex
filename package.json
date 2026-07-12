@@ -15,8 +15,6 @@
     "db:seed-stress:reset": "tsx scripts/seed-stress.ts --reset",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "demo:record": "tsx scripts/record-demo-video.ts",
-    "demo:project": "python3 scripts/build-kdenlive-project.py",
     "format": "prettier --write ."
   },
   "dependencies": {

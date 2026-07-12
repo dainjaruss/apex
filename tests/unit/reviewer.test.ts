@@ -17,12 +17,10 @@ const mockInsert = vi.fn().mockReturnValue({
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockReturnValue({
     select: vi.fn().mockReturnValue({
-      single: vi
-        .fn()
-        .mockResolvedValue({
-          data: { id: "mock-eval-id", status: "completed" },
-          error: null,
-        }),
+      single: vi.fn().mockResolvedValue({
+        data: { id: "mock-eval-id", status: "completed" },
+        error: null,
+      }),
     }),
   }),
 });
@@ -103,12 +101,10 @@ describe("APEX Reviewer & Audit Workflow Unit Tests", () => {
     mockUpdate.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
-          single: vi
-            .fn()
-            .mockResolvedValue({
-              data: { id: "mock-eval-id", status: "ready_for_review" },
-              error: null,
-            }),
+          single: vi.fn().mockResolvedValue({
+            data: { id: "mock-eval-id", status: "ready_for_review" },
+            error: null,
+          }),
         }),
       }),
     });
@@ -127,12 +123,10 @@ describe("APEX Reviewer & Audit Workflow Unit Tests", () => {
     mockUpdate.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
-          single: vi
-            .fn()
-            .mockResolvedValue({
-              data: { id: "mock-eval-id", status: "completed" },
-              error: null,
-            }),
+          single: vi.fn().mockResolvedValue({
+            data: { id: "mock-eval-id", status: "completed" },
+            error: null,
+          }),
         }),
       }),
     });
@@ -150,12 +144,10 @@ describe("APEX Reviewer & Audit Workflow Unit Tests", () => {
     mockUpdate.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
-          single: vi
-            .fn()
-            .mockResolvedValue({
-              data: { id: "mock-eval-id", status: "draft" },
-              error: null,
-            }),
+          single: vi.fn().mockResolvedValue({
+            data: { id: "mock-eval-id", status: "draft" },
+            error: null,
+          }),
         }),
       }),
     });
