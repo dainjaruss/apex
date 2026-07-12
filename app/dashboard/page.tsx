@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { useEvaluations } from '@/hooks/useEvaluations'
@@ -165,15 +165,21 @@ function EvalGrid({ loading, evaluations, emptyMessage, showEdit }: {
 
 function partitionEvals(evaluations: any[], profileId?: string) {
   const mine = (e: any) => e.current_holder_id === profileId
-  const drafts = evaluations.filter((e) => mine(e) && (e.routing_stage === 'sailor' || !e.routing_stage))
-  const inbox = evaluations.filter((e) => mine(e) && e.routing_stage && e.routing_stage !== 'sailor' && e.routing_stage !== 'locked')
-  return { inbox, drafts }
+  const drafts = evaluations.filter((e) => mine(e) && (e.routing_stage === 'sailor' || !e.routing_stage) && e.status !== 'completed' && e.status !== 'archived')
+  const inbox = evaluations.filter((e) => mine(e) && e.routing_stage && e.routing_stage !== 'sailor' && e.routing_stage !== 'locked' && e.status !== 'completed' && e.status !== 'archived')
+  const finalized = evaluations.filter((e) => e.status === 'completed' || e.status === 'archived' || e.routing_stage === 'locked')
+  return { inbox, drafts, finalized }
 }
 
 export default function DashboardPage() {
   const router = useRouter()
   const { evaluations, loading, error } = useEvaluations()
   const [profile, setProfile] = useState<any>(null)
+  
+  // Search, filter, and sort state
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('updated_desc')
 
   useEffect(() => {
     (async () => {
@@ -184,7 +190,55 @@ export default function DashboardPage() {
     })()
   }, [router])
 
-  const { inbox, drafts } = partitionEvals(evaluations, profile?.id)
+  // Filter and sort evaluation list
+  const processedEvals = useMemo(() => {
+    let list = [...evaluations]
+
+    // 1. Search filter
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((e) => {
+        return (
+          (e.member_name || '').toLowerCase().includes(q) ||
+          (e.dod_id || '').toLowerCase().includes(q) ||
+          (e.uic || '').toLowerCase().includes(q) ||
+          (e.grade_rate || '').toLowerCase().includes(q)
+        )
+      })
+    }
+
+    // 2. Status filter
+    if (statusFilter !== 'all') {
+      list = list.filter((e) => e.status === statusFilter)
+    }
+
+    // 3. Sort
+    list.sort((a, b) => {
+      if (sortBy === 'updated_desc') {
+        return new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+      }
+      if (sortBy === 'updated_asc') {
+        return new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime()
+      }
+      if (sortBy === 'name_asc') {
+        return (a.member_name || '').localeCompare(b.member_name || '')
+      }
+      if (sortBy === 'name_desc') {
+        return (b.member_name || '').localeCompare(a.member_name || '')
+      }
+      if (sortBy === 'average_desc') {
+        return (b.trait_average || 0) - (a.trait_average || 0)
+      }
+      if (sortBy === 'average_asc') {
+        return (a.trait_average || 0) - (b.trait_average || 0)
+      }
+      return 0
+    })
+
+    return list
+  }, [evaluations, search, statusFilter, sortBy])
+
+  const { inbox, drafts, finalized } = partitionEvals(processedEvals, profile?.id)
   const displayName = profile ? `${profile.navy_rank || ''} ${profile.last_name || ''}`.trim() : ''
 
   return (
@@ -206,7 +260,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Mockup 1 — welcome + stat tiles */}
+      {/* Welcome + stat tiles */}
       <div className="mb-8 space-y-5">
         {displayName && (
           <div className="flex items-center gap-3">
@@ -227,7 +281,69 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-4">
           <DashboardStat label="Awaiting Action" value={inbox.length} highlight={inbox.length > 0} />
           <DashboardStat label="My Drafts" value={drafts.length} />
-          <DashboardStat label="Total Visible" value={inbox.length + drafts.length} />
+          <DashboardStat label="Completed & Finalized" value={finalized.length} />
+          <DashboardStat label="Total Visible" value={inbox.length + drafts.length + finalized.length} />
+        </div>
+      </div>
+
+      {/* Search, Filter, and Sort Controls */}
+      <div className="glass-panel border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between mb-8">
+        <div className="relative w-full sm:flex-1">
+          <input
+            type="text"
+            placeholder="Search by member name, DoD ID, UIC, or rate..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-[#1c2541]/40 border border-slate-700/60 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+          />
+          <div className="absolute left-3.5 top-2.5 text-slate-500">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap gap-2.5 w-full sm:w-auto">
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-[#1c2541]/40 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="ready_for_review">Ready for Review</option>
+            <option value="completed">Completed</option>
+            <option value="archived">Archived</option>
+          </select>
+
+          {/* Sort dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-[#1c2541]/40 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 transition cursor-pointer"
+          >
+            <option value="updated_desc">Recently Updated</option>
+            <option value="updated_asc">Oldest Updated</option>
+            <option value="name_asc">Name (A-Z)</option>
+            <option value="name_desc">Name (Z-A)</option>
+            <option value="average_desc">Trait Avg (High-Low)</option>
+            <option value="average_asc">Trait Avg (Low-High)</option>
+          </select>
+
+          {/* Reset Filters button */}
+          {(search || statusFilter !== 'all' || sortBy !== 'updated_desc') && (
+            <button
+              onClick={() => {
+                setSearch('')
+                setStatusFilter('all')
+                setSortBy('updated_desc')
+              }}
+              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
 
@@ -258,6 +374,19 @@ export default function DashboardPage() {
             )}
           </h2>
           <EvalGrid loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found." showEdit />
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="apex-dashboard-section-title">
+            <span className="inline-block h-2 w-2 rounded-full bg-slate-400" aria-hidden />
+            Completed & Finalized
+            {finalized.length > 0 && (
+              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30">
+                {finalized.length}
+              </span>
+            )}
+          </h2>
+          <EvalGrid loading={loading} evaluations={finalized} emptyMessage="No completed or locked evaluations found." />
         </section>
       </div>
     </AppShell>
