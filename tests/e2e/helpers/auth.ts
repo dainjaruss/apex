@@ -13,7 +13,28 @@ export async function loginAs(page: Page, email: string, password: string) {
   await page.locator('#login-email').fill(email)
   await page.locator('#login-password').fill(password)
   await page.getByRole('button', { name: 'Sign In' }).click()
-  await page.waitForURL('**/dashboard', { timeout: 30_000 })
+
+  // Race: either we navigate to /dashboard or an auth error appears on /login.
+  // This prevents 30-second blind timeouts when credentials are stale.
+  const dashboardNav = page.waitForURL('**/dashboard', {
+    timeout: 30_000,
+    waitUntil: 'domcontentloaded',
+  })
+  const authError = page
+    .locator('.bg-red-950\\/40, [class*="bg-red"]')
+    .filter({ hasText: /invalid|error|fail|denied|not confirmed/i })
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .then(async () => {
+      const msg = await page
+        .locator('.bg-red-950\\/40, [class*="bg-red"]')
+        .filter({ hasText: /invalid|error|fail|denied|not confirmed/i })
+        .first()
+        .textContent()
+      throw new Error(`Login failed for ${email}: ${msg?.trim() || 'unknown auth error'}`)
+    })
+
+  await Promise.race([dashboardNav, authError])
 }
 
 export async function loginAsRole(page: Page, role: E2ERole) {

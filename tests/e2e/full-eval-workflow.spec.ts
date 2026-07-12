@@ -13,6 +13,7 @@ test.describe('Full BUPERS eval routing workflow', () => {
   })
 
   test('routes through custody chain, debriefs, signs, locks, and finalizes', async ({ page }) => {
+    test.setTimeout(240_000) // 9+ login cycles + 4 signing ops against cloud Supabase
     // Sailor → Rater
     await loginAsRole(page, 'sailor')
     await openEvalTab(page, evalId, 'review')

@@ -17,7 +17,7 @@ test.describe('Dashboard custody views', () => {
     // Sailor holds draft initially
     await loginAsRole(page, 'sailor')
     await expectMemberOnDashboard(page, memberName, true)
-    await expect(page.getByText('My Drafts').locator('..').getByText(memberName)).toBeVisible()
+    await expect(page.getByText('My Drafts').locator('..').getByText(memberName).first()).toBeVisible()
     await logout(page)
 
     // Route to rater
