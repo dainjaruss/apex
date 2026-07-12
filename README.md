@@ -156,7 +156,7 @@ All official Navy documents are attached as PDFs (`BUPERSINST 1610.10.pdf` and `
 To accelerate development and maintain alignment with modern software engineering practices, AI assistance was utilized in the following project areas:
 - **Seed Scripts & Generated Data:** Development of the E2E database seeder (`scripts/seed-e2e.ts`) and stress test data seeder (`scripts/seed-stress.ts`), as well as the generation of realistic synthetic evaluation files (`tests/fixtures/e2e-ids.json` and `tests/fixtures/stress-evals-summary.json`).
 - **Boilerplate Test Cases & Fixtures:** Construction of initial Playwright and Vitest test scaffolding, mock test suite fixtures, and basic validation wrappers.
-- **Codebase Sanitization & Comment Cleanup:** Comprehensive file formatting, codebase cleaning, syntax structure sanitization, and the removal/re-alignment of redundant development comments.
+- **Codebase Sanitization & Comment Cleanup:** Standardizing code indentation, spacing, and semi-colon consistency across all TypeScript, TSX, and JSON files, alongside removing or re-aligning temporary academic grading checklists, scaffolding instructions, and redundant development comments to ensure a clean, production-ready repository.
 
 **Dain A. Franklyn**  
 Florida Institute of Technology  
