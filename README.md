@@ -152,6 +152,12 @@ Once an evaluation passes all validation checks and forced distribution rules:
 ## Citations and Attribution
 All official Navy documents are attached as PDFs (`BUPERSINST 1610.10.pdf` and `navpers-1616-26_2025.pdf`) and cited in the report (MLA style). Every open-source library is listed with exact versions in `package.json` and attributed with license notices and inline comments throughout the source code.
 
+**AI Attribution & Code Assistance Disclosure:**
+To accelerate development and maintain alignment with modern software engineering practices, AI assistance was utilized in the following project areas:
+- **Seed Scripts & Generated Data:** Development of the E2E database seeder (`scripts/seed-e2e.ts`) and stress test data seeder (`scripts/seed-stress.ts`), as well as the generation of realistic synthetic evaluation files (`tests/fixtures/e2e-ids.json` and `tests/fixtures/stress-evals-summary.json`).
+- **Boilerplate Test Cases & Fixtures:** Construction of initial Playwright and Vitest test scaffolding, mock test suite fixtures, and basic validation wrappers.
+- **Codebase Sanitization & Comment Cleanup:** Comprehensive file formatting, codebase cleaning, syntax structure sanitization, and the removal/re-alignment of redundant development comments.
+
 **Dain A. Franklyn**  
 Florida Institute of Technology  
 July 2026
