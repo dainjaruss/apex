@@ -72,7 +72,8 @@ If connecting to a fresh Supabase project or local Supabase instance:
 ```bash
 npm run db:seed
 ```
-*(To reset and re-seed the database at any time, run `npm run db:seed:reset`)*.
+*(To reset and re-seed the database at any time, run `npm run db:seed:reset`)*. Detailed information about the seeded test users, summary groups, and stress testing evaluations can be found in the [Test Users & Evaluation Data Guide](docs/test-users-and-evals.md).
+
 
 ### 4. Running the Application Locally
 Start the Next.js development server:
@@ -103,7 +104,7 @@ APEX includes extensive unit, integration, and end-to-end (E2E) test suites to e
 APEX enforces a structured, role-based chain of command workflow modeled directly after official Navy evaluation procedures. Below is the complete step-by-step guide for drafting, validating, reviewing, signing, and exporting a NAVPERS 1616/26 evaluation report.
 
 ### Step 1: Authentication & Role Selection
-1. **Log In:** Navigate to `/login` and sign in using your account credentials (or one of the seeded `@franklyn.dev` test accounts).
+1. **Log In:** Navigate to `/login` and sign in using your account credentials (or one of the seeded `@franklyn.dev` test accounts; see [docs/test-users-and-evals.md](docs/test-users-and-evals.md) for the complete list of test credentials, summary groups, and pre-seeded evaluations).
 2. **Profile & Role Configuration:** Every user profile has an assigned Navy rank, UIC, command name, and a **Preferred Role**:
    * `Sailor` (Evaluated member creating their initial input/draft)
    * `Rater` (Chief Petty Officer / E7–E9 drafting performance trait marks)
