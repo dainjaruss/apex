@@ -10,7 +10,7 @@ import { getSession } from '@/lib/auth'
 import { loadById } from '@/lib/evaluationService'
 import { getProfile } from '@/lib/profileService'
 import { fetchGroupAveragePool, fetchGroupDistribution } from '@/lib/summaryGroupService'
-import { canViewSummaryAverage } from '@/lib/permissions'
+import { canPerformAction, canViewSummaryAverage } from '@/lib/permissions'
 import { fetchAuditLogs, AuditLog } from '@/lib/auditService'
 import { Evaluation, Profile } from '@/types'
 import AppShell from '@/components/layout/AppShell'
@@ -83,7 +83,7 @@ export default function ViewEvaluationPage() {
   if (loading) return <CenterMessage text="Loading evaluation details..." />
   if (error || !evaluation || !profile) return <LoadError message={error} onBack={() => router.push('/dashboard')} />
 
-  const isOwner = evaluation.created_by === profile.id
+  const canEdit = canPerformAction(profile, 'edit_evaluation', evaluation)
   const canSeeSummaryAvg = canViewSummaryAverage(profile.preferred_role, evaluation)
   const onSign: OnSign = (block, label, signer) => setSigning({ block, label, signer })
 
@@ -97,7 +97,7 @@ export default function ViewEvaluationPage() {
       headerActions={
         <ReportHeaderActions
           evaluation={evaluation}
-          isOwner={isOwner}
+          canEdit={canEdit}
           onEdit={() => router.push(`/evaluations/${evaluation.id}/edit`)}
           onExport={() => router.push(`/evaluations/${evaluation.id}/export`)}
         />

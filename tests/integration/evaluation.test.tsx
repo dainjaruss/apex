@@ -25,6 +25,7 @@ vi.mock('next/navigation', () => ({
 const mockDataStore = {
   profile: {
     id: 'test-user-id',
+    preferred_role: 'Sailor',
     first_name: 'FRANKLYN',
     last_name: 'DAIN',
     middle_initial: 'A',
@@ -36,6 +37,7 @@ const mockDataStore = {
   evaluation: {
     id: 'mock-eval-id',
     created_by: 'test-user-id',
+    current_holder_id: 'test-user-id', // draft custody stays with the creator
     form_definition_id: 'EVAL',
     report_type: 'EVAL',
     member_name: 'DAIN, FRANKLYN A',

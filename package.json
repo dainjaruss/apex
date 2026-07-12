@@ -11,8 +11,12 @@
     "test:all": "TEST_SCOPE=all vitest run",
     "db:seed": "tsx scripts/seed-e2e.ts",
     "db:seed:reset": "tsx scripts/seed-e2e.ts --reset",
+    "db:seed-stress": "tsx scripts/seed-stress.ts",
+    "db:seed-stress:reset": "tsx scripts/seed-stress.ts --reset",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "demo:record": "tsx scripts/record-demo-video.ts",
+    "demo:project": "python3 scripts/build-kdenlive-project.py"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -28,6 +28,7 @@ const adminUser: Profile = {
 const mockEval: Evaluation = {
   id: 'eval-1',
   created_by: 'sailor-1',
+  current_holder_id: 'sailor-1', // draft custody stays with the creator
   form_definition_id: 'EVAL',
   report_type: 'EVAL',
   member_name: 'DOE, JOHN A',

@@ -1,0 +1,326 @@
+{
+  "count": 40,
+  "evaluations": [
+    {
+      "id": "7849da17-1542-4236-9387-9b45712b2fbe",
+      "member_name": "REYNOLDS, JOHN D",
+      "grade_rate": "IT1",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "08ae81a8-2538-43c6-9a37-84007aadbd8b"
+    },
+    {
+      "id": "076ac8c2-42ea-4208-9233-bc1555d2453c",
+      "member_name": "VANCE, ALEXANDER A",
+      "grade_rate": "IT1",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "08ae81a8-2538-43c6-9a37-84007aadbd8b"
+    },
+    {
+      "id": "e18164e5-b7b7-41ae-9791-63972462382d",
+      "member_name": "CROSS, BENJAMIN B",
+      "grade_rate": "IT1",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "08ae81a8-2538-43c6-9a37-84007aadbd8b"
+    },
+    {
+      "id": "d7394d68-6257-4b6a-887e-f9546bb3bd0f",
+      "member_name": "BENNETT, CHLOE C",
+      "grade_rate": "IT1",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "08ae81a8-2538-43c6-9a37-84007aadbd8b"
+    },
+    {
+      "id": "3757418b-3ef2-4f2e-983a-d9ff66576310",
+      "member_name": "CHANG, MICHAEL T",
+      "grade_rate": "ET2",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "b1364a04-47e0-4c8e-b21c-9bc066e528c7"
+    },
+    {
+      "id": "438a4542-1bd4-41c9-8d34-4a70f9b66b89",
+      "member_name": "SOKOLOV, ANNA A",
+      "grade_rate": "ET2",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "b1364a04-47e0-4c8e-b21c-9bc066e528c7"
+    },
+    {
+      "id": "cd87ac14-7cb9-4ecd-8ecb-5276e603d99d",
+      "member_name": "STARK, BRANDON B",
+      "grade_rate": "ET2",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "b1364a04-47e0-4c8e-b21c-9bc066e528c7"
+    },
+    {
+      "id": "2fe0c3dd-35b9-429f-9dc2-99d2069e3639",
+      "member_name": "SANTIAGO, CARMEN C",
+      "grade_rate": "ET2",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Progressing",
+      "summary_group_id": "b1364a04-47e0-4c8e-b21c-9bc066e528c7"
+    },
+    {
+      "id": "4dd47a61-cee0-4859-9502-0e8986352963",
+      "member_name": "CONNOR, SARAH A",
+      "grade_rate": "CTR1",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "09fd2dbc-6d8a-4062-b84a-420155f3fc14"
+    },
+    {
+      "id": "805155f3-ac68-4132-8ae4-15083e9b6c50",
+      "member_name": "HOTCHNER, AARON A",
+      "grade_rate": "CTR1",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "09fd2dbc-6d8a-4062-b84a-420155f3fc14"
+    },
+    {
+      "id": "d7b4388e-854f-4d1c-8f9d-d113c551b6bc",
+      "member_name": "LIVELY, BLAKE B",
+      "grade_rate": "CTR1",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "09fd2dbc-6d8a-4062-b84a-420155f3fc14"
+    },
+    {
+      "id": "26d7300e-bc46-4164-9132-0f684ec327ab",
+      "member_name": "KENT, CLARK C",
+      "grade_rate": "CTR1",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "09fd2dbc-6d8a-4062-b84a-420155f3fc14"
+    },
+    {
+      "id": "ae42007c-b044-4742-a9b0-33a1ad606a3e",
+      "member_name": "MILLER, DAVID R",
+      "grade_rate": "FC2",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "644400ff-b51c-4b08-9b26-503145bc0d73"
+    },
+    {
+      "id": "b1b7375a-1524-4c0e-a7e5-5f106916b21d",
+      "member_name": "HYDE, ALICE A",
+      "grade_rate": "FC2",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "644400ff-b51c-4b08-9b26-503145bc0d73"
+    },
+    {
+      "id": "91073397-922f-4658-b0b4-28caefc4a382",
+      "member_name": "WAYNE, BRUCE B",
+      "grade_rate": "FC2",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "644400ff-b51c-4b08-9b26-503145bc0d73"
+    },
+    {
+      "id": "eee19cbd-75db-4c70-97ce-1670f394ee72",
+      "member_name": "DUNE, CARA C",
+      "grade_rate": "FC2",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Progressing",
+      "summary_group_id": "644400ff-b51c-4b08-9b26-503145bc0d73"
+    },
+    {
+      "id": "a9548071-365d-4428-af3b-b0b82ee32f1e",
+      "member_name": "DAVIS, EMILY L",
+      "grade_rate": "HM1",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "bd4aedc5-ea79-4c59-8861-4f59b76886d4"
+    },
+    {
+      "id": "e43f4251-6cb0-4eee-93b2-1f2b02bf215f",
+      "member_name": "TRUITT, ADAM A",
+      "grade_rate": "HM1",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "bd4aedc5-ea79-4c59-8861-4f59b76886d4"
+    },
+    {
+      "id": "9ab315cc-28e2-4567-8c5b-dcbba408e821",
+      "member_name": "PRIOR, BEATRICE B",
+      "grade_rate": "HM1",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "bd4aedc5-ea79-4c59-8861-4f59b76886d4"
+    },
+    {
+      "id": "e3478abd-66f3-47da-b7ff-d322934dfb8b",
+      "member_name": "RIVERS, CALEB C",
+      "grade_rate": "HM1",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "bd4aedc5-ea79-4c59-8861-4f59b76886d4"
+    },
+    {
+      "id": "397dc4e1-05ef-468f-a5bb-768fa56310f6",
+      "member_name": "WILSON, ROBERT J",
+      "grade_rate": "BM3",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "283c0a13-abf5-42bd-8c68-33e31b05b27a"
+    },
+    {
+      "id": "9fc84092-0525-4094-a4ad-c13e447cdb6f",
+      "member_name": "BOONE, DANIEL A",
+      "grade_rate": "BM3",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "283c0a13-abf5-42bd-8c68-33e31b05b27a"
+    },
+    {
+      "id": "dd6937fa-2e1c-4ed8-8f3b-e506455b8a58",
+      "member_name": "ROSTOVA, ELENA B",
+      "grade_rate": "BM3",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "283c0a13-abf5-42bd-8c68-33e31b05b27a"
+    },
+    {
+      "id": "c3b1b8e0-881a-489e-9def-d68d2a971246",
+      "member_name": "COLLINS, FINN C",
+      "grade_rate": "BM3",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Progressing",
+      "summary_group_id": "283c0a13-abf5-42bd-8c68-33e31b05b27a"
+    },
+    {
+      "id": "2c9e05e4-ce38-4dba-b7b4-840567b03cb4",
+      "member_name": "TAYLOR, JAMES P",
+      "grade_rate": "MM2",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "a5696037-76e2-4052-8c7c-17e2a31f4dc8"
+    },
+    {
+      "id": "b5170658-7ce6-4a4c-865f-01df3b7fa818",
+      "member_name": "HOUSE, GREGORY A",
+      "grade_rate": "MM2",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "a5696037-76e2-4052-8c7c-17e2a31f4dc8"
+    },
+    {
+      "id": "2e13a2a5-f5f9-451a-bf42-e95b0528753b",
+      "member_name": "MARIN, HANNAH B",
+      "grade_rate": "MM2",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "a5696037-76e2-4052-8c7c-17e2a31f4dc8"
+    },
+    {
+      "id": "604b30b6-3825-440c-89da-367f10d2dec2",
+      "member_name": "MALCOLM, IAN C",
+      "grade_rate": "MM2",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "a5696037-76e2-4052-8c7c-17e2a31f4dc8"
+    },
+    {
+      "id": "dbb9f186-0042-406d-90de-d30ead64b233",
+      "member_name": "MARTINEZ, JESSICA M",
+      "grade_rate": "OS1",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "0f1f008a-06b3-461e-b74b-9c4505a1bc4d"
+    },
+    {
+      "id": "91c566cf-213e-4d4f-83fb-037ca8ac857c",
+      "member_name": "BAUER, JACK A",
+      "grade_rate": "OS1",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "0f1f008a-06b3-461e-b74b-9c4505a1bc4d"
+    },
+    {
+      "id": "d354f8ae-608e-4426-b57e-5056800781b3",
+      "member_name": "PIERCE, KATHERINE B",
+      "grade_rate": "OS1",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "0f1f008a-06b3-461e-b74b-9c4505a1bc4d"
+    },
+    {
+      "id": "19c87be5-b799-4161-81cb-8d45f8d539a1",
+      "member_name": "SCOTT, LUCAS C",
+      "grade_rate": "OS1",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Progressing",
+      "summary_group_id": "0f1f008a-06b3-461e-b74b-9c4505a1bc4d"
+    },
+    {
+      "id": "2b2d88a1-69fd-42f7-82bf-b0207b171b8c",
+      "member_name": "ANDERSON, WILLIAM K",
+      "grade_rate": "GM2",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "18263f76-9ebd-4d81-b8a5-05974bfafbc1"
+    },
+    {
+      "id": "81614d24-9d33-4ad8-b4f5-7793c402f262",
+      "member_name": "BRODY, MARCUS A",
+      "grade_rate": "GM2",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "18263f76-9ebd-4d81-b8a5-05974bfafbc1"
+    },
+    {
+      "id": "d1353767-0b4f-4aab-a6af-c199e0930c98",
+      "member_name": "WHEELER, NANCY B",
+      "grade_rate": "GM2",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "18263f76-9ebd-4d81-b8a5-05974bfafbc1"
+    },
+    {
+      "id": "023b6f49-b705-4ef5-8b61-de175ffd34a0",
+      "member_name": "QUEEN, OLIVER C",
+      "grade_rate": "GM2",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "18263f76-9ebd-4d81-b8a5-05974bfafbc1"
+    },
+    {
+      "id": "52747a43-6c84-4dee-b784-b0fe0296b744",
+      "member_name": "THOMAS, DANIEL S",
+      "grade_rate": "CS3",
+      "routing_stage": "reporting_senior",
+      "promotion_recommendation": "Early Promote",
+      "summary_group_id": "f2913006-e619-4653-907b-acfaac9cecca"
+    },
+    {
+      "id": "a928862b-9249-44e2-b417-77d0c5a1d3d4",
+      "member_name": "PARKER, PETER A",
+      "grade_rate": "CS3",
+      "routing_stage": "senior_rater",
+      "promotion_recommendation": "Must Promote",
+      "summary_group_id": "f2913006-e619-4653-907b-acfaac9cecca"
+    },
+    {
+      "id": "7948d3ff-cdba-4790-8616-7307ecca45d8",
+      "member_name": "FABRAY, QUINN B",
+      "grade_rate": "CS3",
+      "routing_stage": "rater",
+      "promotion_recommendation": "Promotable",
+      "summary_group_id": "f2913006-e619-4653-907b-acfaac9cecca"
+    },
+    {
+      "id": "256dc2b7-cc93-4dec-ac12-975a27f896a2",
+      "member_name": "GREEN, RACHEL C",
+      "grade_rate": "CS3",
+      "routing_stage": "sailor",
+      "promotion_recommendation": "Progressing",
+      "summary_group_id": "f2913006-e619-4653-907b-acfaac9cecca"
+    }
+  ],
+  "seededAt": "2026-07-11T00:03:15.957Z"
+}

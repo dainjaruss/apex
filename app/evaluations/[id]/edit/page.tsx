@@ -10,6 +10,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { loadById, saveDraft } from '@/lib/evaluationService'
 import { getProfile } from '@/lib/profileService'
+import { canPerformAction } from '@/lib/permissions'
 import EvaluationForm from '@/components/EvaluationForm'
 import AppShell from '@/components/layout/AppShell'
 import { Evaluation } from '@/types'
@@ -46,11 +47,11 @@ export default function EditEvaluationPage() {
         if (!id) return;
         const data = await loadById(id)
         
-        // Authorization check: Only creator can edit
-        if (data.created_by !== session.user.id) {
-          setError('You are not authorized to edit this evaluation report.')
-        } else if (data.status !== 'draft') {
-          setError('This report has already been submitted and cannot be edited.')
+        // Single source of truth for the edit gate (mirrors RLS custody policy)
+        const canEdit = viewer ? canPerformAction(viewer, 'edit_evaluation', data) : false
+
+        if (!canEdit) {
+          setError('You are not authorized to edit this evaluation report at its current routing stage.')
         } else {
           setEvaluation(data)
         }

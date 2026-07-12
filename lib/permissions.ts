@@ -133,15 +133,21 @@ export function canPerformAction(user: Profile, action: Action, evaluation?: Eva
   // Static permission check first
   if (!hasPermission(role, action)) return false
 
-  // Admin bypasses contextual checks
-  if (role === 'Admin') return true
+  // Admin bypasses contextual checks — except browser edits, where RLS
+  // (eval_update_custody) only lets the current holder write, so the custody
+  // gate below applies to everyone including Admin.
+  if (role === 'Admin' && action !== 'edit_evaluation') return true
 
   // Contextual checks for specific actions
   if (evaluation) {
     switch (action) {
       case 'edit_evaluation':
-        // Only the creator can edit, and only when in draft status
-        return evaluation.created_by === user.id && evaluation.status === 'draft'
+        // Mirrors RLS eval_update_custody: only the current holder of an
+        // unlocked, active eval may edit (in draft, the creator holds custody).
+        if (evaluation.signature_locked || evaluation.status === 'completed' || evaluation.status === 'archived') {
+          return false
+        }
+        return evaluation.current_holder_id === user.id
 
       case 'submit_for_review':
         // Only the creator can submit, and only from draft

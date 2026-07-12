@@ -133,8 +133,8 @@ const C = {
     // block 40 individual trait average (drawn inside the small box ~x44-84)
     traitAvg_x: 52, traitAvg_y: 489,
 
-    // block 41 career recommendations (up to two; on the empty lines below the option list)
-    rec1_x: 210, rec1_y: 499, rec2_x: 300, rec2_y: 499,
+    // block 41 career recommendations (up to two; side-by-side on y=499)
+    rec1_x: 112, rec1_y: 499, rec2_x: 218, rec2_y: 499,
 
     // block 43 comments (big box; 18 lines) — top baseline clears the 2-line instruction header
     b43_x: 22, b43_topBaseline: 450, b43_lines: 18,
@@ -335,10 +335,10 @@ export async function generateOverlayPdf(evaluation: Evaluation, templateBytes: 
   const indivAvg = computeTraitAverage(evaluation.trait_grades).average
   text(page2, indivAvg != null ? indivAvg.toFixed(2) : '', p2.traitAvg_x, p2.traitAvg_y)
 
-  // block 41 career recommendations
+  // block 41 career recommendations (wrap at 10 chars per line, up to 2 lines per recommendation)
   const recs = evaluation.career_recommendations || []
-  text(page2, up(recs[0]), p2.rec1_x, p2.rec1_y)
-  text(page2, up(recs[1]), p2.rec2_x, p2.rec2_y)
+  narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80)
+  narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80)
 
   // block 43 comments (pitch -> cpl)
   const pitch = (bv.comment_pitch || '10') as '10' | '12'

@@ -166,7 +166,7 @@ function SignatureRow({ e, s, onSign }: { e: Evaluation; s: SignatureBlockMeta; 
 
 function RecommendationsSection({ e, onSign }: { e: Evaluation; onSign: OnSign }) {
   const bv = e.block_values || {}
-  const recs = (e.career_recommendations || []).filter(Boolean)
+  const recs = (e.career_recommendations || []).filter(Boolean).slice(0, 2)
   return (
     <div className={PANEL}>
       <h3 className={H3}>Blocks 41, 44 - 52: Recommendations & Signatures</h3>

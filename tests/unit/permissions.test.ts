@@ -10,6 +10,7 @@ import { Profile, Evaluation } from '@/types'
 const mockEvaluation: Evaluation = {
   id: 'eval-1',
   created_by: 'sailor-1',
+  current_holder_id: 'sailor-1', // in draft, the creator holds custody
   reviewer_id: 'reviewer-1',
   form_definition_id: 'EVAL',
   report_type: 'EVAL',
@@ -121,10 +122,14 @@ describe('RBAC Permission Engine', () => {
       expect(canPerformAction(rater, 'approve_evaluation', readyEval)).toBe(false)
     })
 
-    it('should allow Admin to do anything regardless of ownership', () => {
-      expect(canPerformAction(admin, 'edit_evaluation', mockEvaluation)).toBe(true)
+    it('should allow Admin to do anything regardless of ownership — except browser edits', () => {
       expect(canPerformAction(admin, 'approve_evaluation', mockEvaluation)).toBe(true)
       expect(canPerformAction(admin, 'delete_evaluation', mockEvaluation)).toBe(true)
+      // Editing mirrors RLS eval_update_custody: only the current holder may
+      // write from the browser, so a non-holder Admin is denied.
+      expect(canPerformAction(admin, 'edit_evaluation', mockEvaluation)).toBe(false)
+      const heldByAdmin = { ...mockEvaluation, current_holder_id: 'admin-1' }
+      expect(canPerformAction(admin, 'edit_evaluation', heldByAdmin)).toBe(true)
     })
 
     it('should only allow the member (Individual Evaluated) to sign block 51', () => {
@@ -152,11 +157,12 @@ describe('RBAC Permission Engine', () => {
       expect(actions).not.toContain('manage_users')
     })
 
-    it('should return all actions for Admin', () => {
+    it('should return all actions for Admin except custody-gated editing', () => {
       const actions = getAvailableActions(admin, mockEvaluation)
-      expect(actions).toContain('edit_evaluation')
       expect(actions).toContain('approve_evaluation')
       expect(actions).toContain('delete_evaluation')
+      // edit_evaluation requires custody (RLS), which this Admin does not hold
+      expect(actions).not.toContain('edit_evaluation')
     })
   })
 

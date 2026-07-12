@@ -7,17 +7,17 @@ import { Evaluation } from '@/types'
 
 export type ReportTab = 'details' | 'preview' | 'review' | 'audit'
 
-export function ReportHeaderActions({ evaluation, isOwner, onEdit, onExport }: {
-  evaluation: Evaluation; isOwner: boolean; onEdit: () => void; onExport: () => void
+export function ReportHeaderActions({ evaluation, canEdit, onEdit, onExport }: {
+  evaluation: Evaluation; canEdit: boolean; onEdit: () => void; onExport: () => void
 }) {
   return (
     <>
-      {isOwner && evaluation?.status === 'draft' && (
-        <button type="button" onClick={onEdit} className="apex-btn-secondary">Edit Draft</button>
+      {canEdit && (
+        <button type="button" onClick={onEdit} className="apex-btn-secondary">
+          {evaluation?.status === 'draft' ? 'Edit Draft' : 'Edit Report'}
+        </button>
       )}
-      {isOwner && (
-        <button type="button" onClick={onExport} className="apex-btn-success">Verify & Export</button>
-      )}
+      <button type="button" onClick={onExport} className="apex-btn-success">Verify & Export</button>
     </>
   )
 }
@@ -91,23 +91,5 @@ export function ReportTabs({ active, onChange }: { active: ReportTab; onChange: 
         </button>
       ))}
     </div>
-  )
-}
-
-/** @deprecated Use ReportHeaderActions inside AppShell */
-export function ReportHeader({ evaluation, isOwner, onDashboard, onEdit, onExport }: {
-  evaluation: Evaluation; isOwner: boolean; onDashboard: () => void; onEdit: () => void; onExport: () => void
-}) {
-  return (
-    <header className="px-6 py-4 flex items-center justify-between border-b mb-6 apex-card rounded-none border-x-0 border-t-0">
-      <div className="flex items-center gap-3">
-        <span className="font-extrabold text-xl tracking-wider text-white">APEX</span>
-        <span className="apex-badge">{evaluation?.status === 'draft' ? 'VIEW DRAFT' : 'VIEW REPORT'}</span>
-      </div>
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onDashboard} className="apex-btn-ghost">Dashboard</button>
-        <ReportHeaderActions evaluation={evaluation} isOwner={isOwner} onEdit={onEdit} onExport={onExport} />
-      </div>
-    </header>
   )
 }
