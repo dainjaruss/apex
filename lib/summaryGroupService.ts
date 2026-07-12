@@ -54,7 +54,7 @@ export const setGroupStatus = async (groupId: string, status: 'open' | 'closed')
 export const listEvalsInGroup = async (groupId: string) => {
   const { data, error } = await supabase
     .from('evaluations')
-    .select('id, member_name, grade_rate, routing_stage')
+    .select('id, member_name, grade_rate, routing_stage, promotion_recommendation, trait_average, status')
     .eq('summary_group_id', groupId)
     .order('updated_at', { ascending: false })
   if (error) throw new Error(error.message)

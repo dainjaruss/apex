@@ -190,14 +190,26 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
           ) : evals.length === 0 ? (
             <p className="text-xs text-slate-500 italic">No evaluations in this group yet.</p>
           ) : (
-            evals.map((ev) => (
-              <button key={ev.id} onClick={() => router.push(`/evaluations/${ev.id}?tab=preview`)}
-                title="Open the document preview for this evaluation"
-                className="w-full text-left flex justify-between items-center text-xs px-2 py-1 rounded hover:bg-slate-800/40">
-                <span className="text-slate-200 truncate">{ev.member_name}</span>
-                <span className="text-[10px] text-slate-500 uppercase shrink-0 ml-2">{ev.routing_stage}</span>
-              </button>
-            ))
+            evals.map((ev) => {
+              const recommendationShort = ev.promotion_recommendation
+                ? (ev.promotion_recommendation === 'Early Promote' ? 'EP' :
+                   ev.promotion_recommendation === 'Must Promote' ? 'MP' :
+                   ev.promotion_recommendation === 'Promotable' ? 'P' :
+                   ev.promotion_recommendation === 'Progressing' ? 'PR' : 'SP')
+                : null;
+              const badgeText = [recommendationShort, ev.trait_average ? `${Number(ev.trait_average).toFixed(2)}` : null]
+                .filter(Boolean)
+                .join(' · ') || 'Draft';
+
+              return (
+                <button key={ev.id} onClick={() => router.push(`/evaluations/${ev.id}?tab=preview`)}
+                  title="Open the document preview for this evaluation"
+                  className="w-full text-left flex justify-between items-center text-xs px-2 py-1 rounded hover:bg-slate-800/40">
+                  <span className="text-slate-200 truncate">{ev.member_name}</span>
+                  <span className="text-[10px] text-slate-400 font-semibold shrink-0 ml-2">{badgeText}</span>
+                </button>
+              )
+            })
           )}
         </div>
       )}

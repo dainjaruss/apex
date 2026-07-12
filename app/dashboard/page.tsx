@@ -181,6 +181,11 @@ export default function DashboardPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortBy, setSortBy] = useState('updated_desc')
 
+  // Section collapse state
+  const [inboxOpen, setInboxOpen] = useState(true)
+  const [draftsOpen, setDraftsOpen] = useState(true)
+  const [finalizedOpen, setFinalizedOpen] = useState(true)
+
   useEffect(() => {
     (async () => {
       const session = await getSession()
@@ -349,44 +354,75 @@ export default function DashboardPage() {
 
       <div className="space-y-10">
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="apex-dashboard-section-title">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden />
-              Awaiting Your Action
-              {inbox.length > 0 && (
-                <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  {inbox.length}
-                </span>
-              )}
-            </h2>
-          </div>
-          <EvalGrid loading={loading} evaluations={inbox} emptyMessage="Nothing is awaiting your action." />
+          <h2
+            onClick={() => setInboxOpen(!inboxOpen)}
+            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
+          >
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400 mr-2" aria-hidden />
+            Awaiting Your Action
+            {inbox.length > 0 && (
+              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {inbox.length}
+              </span>
+            )}
+            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
+              {inboxOpen ? 'Collapse' : 'Expand'}
+              <svg className={`w-3.5 h-3.5 transform transition-transform ${inboxOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
+          </h2>
+          {inboxOpen && (
+            <EvalGrid loading={loading} evaluations={inbox} emptyMessage="Nothing is awaiting your action." />
+          )}
         </section>
 
         <section className="space-y-4">
-          <h2 className="apex-dashboard-section-title">
-            <span className="inline-block h-2 w-2 rounded-full bg-blue-400" aria-hidden />
+          <h2
+            onClick={() => setDraftsOpen(!draftsOpen)}
+            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
+          >
+            <span className="inline-block h-2 w-2 rounded-full bg-blue-400 mr-2" aria-hidden />
             My Drafts
             {drafts.length > 0 && (
               <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
                 {drafts.length}
               </span>
             )}
+            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
+              {draftsOpen ? 'Collapse' : 'Expand'}
+              <svg className={`w-3.5 h-3.5 transform transition-transform ${draftsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
           </h2>
-          <EvalGrid loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found." showEdit />
+          {draftsOpen && (
+            <EvalGrid loading={loading} evaluations={drafts} emptyMessage="No evaluation drafts found." showEdit />
+          )}
         </section>
 
         <section className="space-y-4">
-          <h2 className="apex-dashboard-section-title">
-            <span className="inline-block h-2 w-2 rounded-full bg-slate-400" aria-hidden />
+          <h2
+            onClick={() => setFinalizedOpen(!finalizedOpen)}
+            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
+          >
+            <span className="inline-block h-2 w-2 rounded-full bg-slate-400 mr-2" aria-hidden />
             Completed & Finalized
             {finalized.length > 0 && (
               <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30">
                 {finalized.length}
               </span>
             )}
+            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
+              {finalizedOpen ? 'Collapse' : 'Expand'}
+              <svg className={`w-3.5 h-3.5 transform transition-transform ${finalizedOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
           </h2>
-          <EvalGrid loading={loading} evaluations={finalized} emptyMessage="No completed or locked evaluations found." />
+          {finalizedOpen && (
+            <EvalGrid loading={loading} evaluations={finalized} emptyMessage="No completed or locked evaluations found." />
+          )}
         </section>
       </div>
     </AppShell>
