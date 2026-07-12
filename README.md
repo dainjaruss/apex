@@ -118,6 +118,10 @@ APEX includes extensive unit, integration, and end-to-end (E2E) test suites to e
   ```bash
   npm run test:e2e
   ```
+- **Codebase Linting & Formatting (Prettier):**
+  ```bash
+  npm run format
+  ```
 
 ---
 
