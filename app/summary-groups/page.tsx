@@ -12,7 +12,7 @@ import { getSession } from '@/lib/auth'
 import { getProfile } from '@/lib/profileService'
 import { createBrowserClient } from '@/lib/supabaseClient'
 import { canManageSummaryGroups } from '@/lib/permissions'
-import { createSummaryGroup, listSummaryGroups, setGroupStatus, listEvalsInGroup, getGroupRecommendations } from '@/lib/summaryGroupService'
+import { createSummaryGroup, listSummaryGroups, setGroupStatus, listEvalsInGroup, getGroupRecommendations, getSummaryGroupAverage } from '@/lib/summaryGroupService'
 import { checkForcedDistribution, tallyRecommendations, ForcedDistributionResult } from '@/lib/forcedDistribution'
 import { PROMOTION_STATUS_OPTIONS } from '@/types/navpers'
 import { Profile, SummaryGroup } from '@/types'
@@ -124,6 +124,7 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
   const [evals, setEvals] = useState<any[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [fd, setFd] = useState<ForcedDistributionResult | null>(null)
+  const [groupAverage, setGroupAverage] = useState<number | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   // Forced-distribution status for the whole group (the RS has oversight, so RLS exposes every
@@ -133,6 +134,9 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
     getGroupRecommendations(g.id!)
       .then((recs) => { if (active) setFd(checkForcedDistribution(tallyRecommendations(recs).distribution, g.grade_rate)) })
       .catch(() => { if (active) setFd(null) })
+    getSummaryGroupAverage(g.id!)
+      .then((res) => { if (active) setGroupAverage(res.average) })
+      .catch(() => { if (active) setGroupAverage(null) })
     return () => { active = false }
   }, [g.id, g.grade_rate])
 
@@ -159,7 +163,9 @@ function GroupCard({ g, onChanged }: { g: SummaryGroup; onChanged: () => void })
       <div className="flex justify-between items-start gap-2">
         <button onClick={toggleExpand} className="text-left min-w-0">
           <h4 className="font-bold text-white truncate">{g.name}</h4>
-          <p className="text-xs text-[#91aec9] mt-1">{g.grade_rate} · {g.promotion_status} · ends {g.period_to}</p>
+          <p className="text-xs text-[#91aec9] mt-1">
+            {g.grade_rate} · {g.promotion_status} · ends {g.period_to} · Group Avg: {groupAverage !== null ? groupAverage.toFixed(2) : 'N/A'}
+          </p>
         </button>
         <button onClick={toggleStatus} disabled={busy} title="Toggle whether new evals may join"
           className={`shrink-0 text-[10px] px-2 py-0.5 rounded uppercase font-bold border transition ${g.status === 'open' ? 'bg-emerald-950/40 text-emerald-300 border-emerald-900/50 hover:bg-emerald-900/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'}`}>
