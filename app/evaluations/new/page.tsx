@@ -25,7 +25,6 @@ export default function NewEvaluationPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // fallow-ignore-next-line complexity
     const checkAuthAndInitialize = async () => {
       const session = await getSession()
       if (!session?.user) {

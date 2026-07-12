@@ -15,7 +15,6 @@ import EvaluationForm from '@/components/EvaluationForm'
 import AppShell from '@/components/layout/AppShell'
 import { Evaluation } from '@/types'
 
-// fallow-ignore-next-line complexity
 export default function EditEvaluationPage() {
   const params = useParams()
   const router = useRouter()
@@ -30,7 +29,6 @@ export default function EditEvaluationPage() {
   const [profile, setProfile] = useState<any>(null)
 
   useEffect(() => {
-    // fallow-ignore-next-line complexity
     const checkAuthAndLoad = async () => {
       try {
         const session = await getSession()

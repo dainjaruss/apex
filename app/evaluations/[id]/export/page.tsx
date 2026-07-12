@@ -17,7 +17,6 @@ import { checkForcedDistribution, ForcedDistributionResult } from '@/lib/forcedD
 import { Evaluation, ValidationResult } from '@/types'
 import PDFPreview from '@/components/PDFPreview'
 
-// fallow-ignore-next-line complexity
 export default function EvaluationExportPage() {
   const params = useParams()
   const router = useRouter()

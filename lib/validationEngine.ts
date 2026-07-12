@@ -66,7 +66,6 @@ export function getBlockForField(field: string): number | undefined {
 /**
  * Runs complete validation checks against the evaluation record.
  */
-// fallow-ignore-next-line complexity
 export function runFullValidation(evalData: Evaluation): ValidationResult {
   const errors: ValidationIssue[] = []
   const warnings: ValidationIssue[] = []

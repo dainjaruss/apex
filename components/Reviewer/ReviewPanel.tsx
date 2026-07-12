@@ -4,7 +4,7 @@
 // available at the eval's current routing_stage to the current custodian (route
 // forward / recycle / begin debrief / minor corrections / unlock), a status banner for
 // everyone else, and the recycle-comment feedback timeline. Each piece is a small
-// sub-component so the panel stays well under fallow's unit-size band.
+// sub-component to maintain readability and separation of concerns.
 
 "use client"
 

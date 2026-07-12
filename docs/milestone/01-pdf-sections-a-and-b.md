@@ -37,7 +37,7 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 **Coding conventions.** Each major source file begins with a header comment describing its purpose. Business rules live in `lib/` rather than in React components so they can be unit-tested independently. NAVPERS field validation is centralized in `types/navpers.ts` (Zod) and `lib/validationEngine.ts`. Navy guideline text is stored in `lib/bupersGuidelines.json` and surfaced inline in the form via `GuidelinesVisibilityContext`.
 
-**Static analysis.** We run ESLint (`npm run lint`) and Fallow (`.fallowrc.json`) to flag dead code, duplication, and complexity. Rule-to-code traceability is documented in `docs/rules-reference.md`, which maps each BUPERS block rule to its enforcement location.
+**Static analysis.** We run ESLint (`npm run lint`) to enforce code quality, flag dead code, and maintain clean syntax. Rule-to-code traceability is documented in `docs/rules-reference.md`, which maps each BUPERS block rule to its enforcement location.
 
 **Why this helps.** Separating validation, permissions, and UI makes the system easier to extend when EVALMAN policies change. A developer can update a Zod rule or permission map without rewriting entire React components.
 
@@ -233,7 +233,7 @@ Unexpected exceptions are logged to the server console with `console.error`; int
 - Researching BUPERSINST 1610.10H requirements and mapping them to validation rules
 - Generating boilerplate tests, TypeScript types, and documentation drafts
 - Debugging assistance for Supabase RLS, Playwright, and Next.js API routes
-- Code review suggestions (Fallow, ESLint, Cursor Agent)
+- Code review suggestions (ESLint, Cursor Agent)
 
 **Prohibited or restricted uses.**
 

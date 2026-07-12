@@ -1,8 +1,8 @@
 // lib/signing.ts
 //
 // Small, single-purpose helpers for the /api/sign enforcement route. Extracting the
-// route's sequential guards here keeps the POST handler a thin orchestrator (and out of
-// fallow's CRITICAL-complexity band). Behavior is identical to the inline version.
+// route's sequential guards here keeps the POST handler a thin orchestrator. Behavior is
+// identical to the inline version.
 
 import { createAdminClient, createCredentialVerifierClient } from './supabaseClient'
 import { canSignBlock } from './permissions'

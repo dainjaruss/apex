@@ -17,7 +17,6 @@ interface Block1NameProps {
   activeField?: string | null;
 }
 
-// fallow-ignore-next-line complexity
 export default function Block1Name({ evalData, onChange, issues, onFocusField, activeField }: Block1NameProps) {
   // Helper to find specific field error message
   const getError = (field: string) => {
