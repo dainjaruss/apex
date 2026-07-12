@@ -1,9 +1,10 @@
 # APEX — Milestone Status Update
+
 ## Advanced Performance Evaluation eXchange
 
 **Course:** CIS Capstone  
 **Document type:** Software Standards, Progress Report (PDF Sections A & B)  
-**Team:** *[Insert team member names]*  
+**Team:** _[Insert team member names]_  
 **Date:** June 2026  
 **Version:** Milestone Status Update v1.0
 
@@ -25,15 +26,15 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 **Project structure.** Code is organized by responsibility:
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/` | Pages, layouts, and API route handlers |
-| `components/` | Reusable UI (form blocks, reviewer panel, signature pad) |
-| `lib/` | Business logic (validation, permissions, routing, PDF, Supabase services) |
-| `types/` | Shared TypeScript models and Zod schemas |
-| `supabase/migrations/` | Versioned database schema |
-| `tests/` | Unit, integration, and E2E tests |
-| `docs/` | Rule mappings and milestone documentation |
+| Directory              | Purpose                                                                   |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `app/`                 | Pages, layouts, and API route handlers                                    |
+| `components/`          | Reusable UI (form blocks, reviewer panel, signature pad)                  |
+| `lib/`                 | Business logic (validation, permissions, routing, PDF, Supabase services) |
+| `types/`               | Shared TypeScript models and Zod schemas                                  |
+| `supabase/migrations/` | Versioned database schema                                                 |
+| `tests/`               | Unit, integration, and E2E tests                                          |
+| `docs/`                | Rule mappings and milestone documentation                                 |
 
 **Coding conventions.** Each major source file begins with a header comment describing its purpose. Business rules live in `lib/` rather than in React components so they can be unit-tested independently. NAVPERS field validation is centralized in `types/navpers.ts` (Zod) and `lib/validationEngine.ts`. Navy guideline text is stored in `lib/bupersGuidelines.json` and surfaced inline in the form via `GuidelinesVisibilityContext`.
 
@@ -53,17 +54,17 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 **Server-side enforcement.** Sensitive operations bypass client-only RLS using a service-role Supabase client on the server, but only after authorization checks:
 
-| API Route | Purpose |
-|-----------|---------|
-| `/api/eval-route` | Route forward, recycle, begin debrief |
-| `/api/eval-lock` | Lock/unlock signature state |
-| `/api/eval-correct` | Debrief minor corrections (allowlisted fields) |
-| `/api/eval-finalize` | Finalize locked eval for export |
-| `/api/sign` | Apply digital signatures to blocks |
+| API Route                   | Purpose                                                    |
+| --------------------------- | ---------------------------------------------------------- |
+| `/api/eval-route`           | Route forward, recycle, begin debrief                      |
+| `/api/eval-lock`            | Lock/unlock signature state                                |
+| `/api/eval-correct`         | Debrief minor corrections (allowlisted fields)             |
+| `/api/eval-finalize`        | Finalize locked eval for export                            |
+| `/api/sign`                 | Apply digital signatures to blocks                         |
 | `/api/summary-group-attach` | Attach eval to summary group (BUPERS eligibility enforced) |
-| `/api/summary-average` | Block 50a group average (visibility-gated) |
-| `/api/summary-distribution` | Block 46 forced distribution (visibility-gated) |
-| `/api/pdf` | Generate NAVPERS PDF |
+| `/api/summary-average`      | Block 50a group average (visibility-gated)                 |
+| `/api/summary-distribution` | Block 46 forced distribution (visibility-gated)            |
+| `/api/pdf`                  | Generate NAVPERS PDF                                       |
 
 **Input validation.** All evaluation payloads are validated with Zod schemas before save. API routes validate required fields, routing stage, and custody before applying updates. Summary group attachment validates paygrade, promotion status, ending date, report type, UIC, and reporting senior per BUPERSINST 1610.10H.
 
@@ -81,15 +82,15 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 **Core tables.**
 
-| Table | Role |
-|-------|------|
-| `profiles` | User identity, Navy rank, UIC, preferred role |
-| `evaluations` | NAVPERS eval payload, custody, routing stage |
-| `summary_groups` | Promotion-recommendation groups (shared BUPERS fields) |
-| `audit_logs` | Immutable workflow event history |
-| `review_approvals` | Recycle/return comments and approval status |
-| `form_definitions` | Form metadata |
-| `commands` | UIC lookup (optional; denormalized on profiles for MVP) |
+| Table              | Role                                                    |
+| ------------------ | ------------------------------------------------------- |
+| `profiles`         | User identity, Navy rank, UIC, preferred role           |
+| `evaluations`      | NAVPERS eval payload, custody, routing stage            |
+| `summary_groups`   | Promotion-recommendation groups (shared BUPERS fields)  |
+| `audit_logs`       | Immutable workflow event history                        |
+| `review_approvals` | Recycle/return comments and approval status             |
+| `form_definitions` | Form metadata                                           |
+| `commands`         | UIC lookup (optional; denormalized on profiles for MVP) |
 
 **Design principles.**
 
@@ -106,15 +107,15 @@ APEX (Advanced Performance Evaluation eXchange) is a web application that digiti
 
 We evaluated each table against First, Second, and Third Normal Form (1NF/2NF/3NF) and Boyce-Codd Normal Form (BCNF). The **relational core is in 3NF, and most tables reach BCNF.** Where we deviate, the deviation is deliberate, documented in the migration, and justified by Postgres capabilities or a BUPERS domain rule.
 
-| Table | Primary key | Highest strict NF | Notes |
-|-------|-------------|-------------------|-------|
-| `commands` | `uic` | BCNF | Clean UIC → command-name lookup |
-| `review_approvals` | `id` | BCNF | Atomic columns; FKs to eval + reviewer |
-| `summary_groups` | `id` | BCNF | Atomic; real composite candidate key via `UNIQUE` |
-| `profiles` | `id` | 1NF/3NF deviations | `assigned_roles` array; denormalized `command` |
-| `evaluations` | `id` | 1NF/3NF deviations | JSONB + array columns; derived + inherited fields |
-| `form_definitions` | `id` | 1NF deviation | `blocks` JSONB holds the declarative form spec |
-| `audit_logs` | `id` | 1NF deviation | `details` JSONB event payload |
+| Table              | Primary key | Highest strict NF  | Notes                                             |
+| ------------------ | ----------- | ------------------ | ------------------------------------------------- |
+| `commands`         | `uic`       | BCNF               | Clean UIC → command-name lookup                   |
+| `review_approvals` | `id`        | BCNF               | Atomic columns; FKs to eval + reviewer            |
+| `summary_groups`   | `id`        | BCNF               | Atomic; real composite candidate key via `UNIQUE` |
+| `profiles`         | `id`        | 1NF/3NF deviations | `assigned_roles` array; denormalized `command`    |
+| `evaluations`      | `id`        | 1NF/3NF deviations | JSONB + array columns; derived + inherited fields |
+| `form_definitions` | `id`        | 1NF deviation      | `blocks` JSONB holds the declarative form spec    |
+| `audit_logs`       | `id`        | 1NF deviation      | `details` JSONB event payload                     |
 
 **1NF — intentional non-atomic columns.** Strict 1NF requires every attribute to be single-valued. We intentionally use Postgres array and JSONB columns where a rigid relational layout would add complexity without value:
 
@@ -143,14 +144,14 @@ These are a conscious 1NF trade-off in favor of schema flexibility and fewer joi
 
 **Server-side errors.** API routes use consistent HTTP status codes:
 
-| Code | Meaning |
-|------|---------|
-| 400 | Invalid input or BUPERS eligibility failure |
-| 401 | Not authenticated |
-| 403 | Authenticated but not authorized (wrong role or not current holder) |
-| 404 | Eval or user not found |
-| 409 | Conflict (locked eval, invalid routing stage) |
-| 500 | Unexpected server error |
+| Code | Meaning                                                             |
+| ---- | ------------------------------------------------------------------- |
+| 400  | Invalid input or BUPERS eligibility failure                         |
+| 401  | Not authenticated                                                   |
+| 403  | Authenticated but not authorized (wrong role or not current holder) |
+| 404  | Eval or user not found                                              |
+| 409  | Conflict (locked eval, invalid routing stage)                       |
+| 500  | Unexpected server error                                             |
 
 Unexpected exceptions are logged to the server console with `console.error`; internal stack traces are not returned to the client.
 
@@ -164,11 +165,11 @@ Unexpected exceptions are logged to the server console with `console.error`; int
 
 **Testing pyramid.**
 
-| Layer | Tool | Current status |
-|-------|------|----------------|
-| Unit | Vitest | 158 tests across 19 files |
-| Integration | Vitest + React Testing Library | Form, login, validation, workflow panels |
-| End-to-end | Playwright | Full routing chain, recycle, dashboard custody |
+| Layer       | Tool                           | Current status                                 |
+| ----------- | ------------------------------ | ---------------------------------------------- |
+| Unit        | Vitest                         | 158 tests across 19 files                      |
+| Integration | Vitest + React Testing Library | Form, login, validation, workflow panels       |
+| End-to-end  | Playwright                     | Full routing chain, recycle, dashboard custody |
 
 **Unit test coverage areas.**
 
@@ -218,9 +219,9 @@ Unexpected exceptions are logged to the server console with `console.error`; int
 - Descriptive commit messages tied to features (e.g., routing workflow, PDF generation, summary groups)
 - `.env.local` and secrets excluded via `.gitignore`
 - `.env.example` committed for onboarding
-- Feature work on branches; merge to main after tests pass *(adjust if your team uses a different flow)*
+- Feature work on branches; merge to main after tests pass _(adjust if your team uses a different flow)_
 
-**Collaboration.** *[Insert your team’s practice: pair programming, PR review, division of components/lib/tests, etc.]*
+**Collaboration.** _[Insert your team’s practice: pair programming, PR review, division of components/lib/tests, etc.]_
 
 **Why this helps.** Version history documents project evolution for capstone grading and future maintenance.
 
@@ -284,13 +285,13 @@ The following are implemented and tested as of Week 5:
 
 ## B3. Challenges Encountered
 
-| Challenge | Impact | Resolution |
-|-----------|--------|------------|
-| BUPERS rule complexity | Many interdependent block rules | Central Zod schema + validation engine + rules-reference doc |
-| Comment-box dimensions not published | Comment-fit accuracy at risk | Measured the rendered official 1616/26 box; shared wrap algorithm cited to NAVFIT98A 10/12-pitch capacity |
-| Promotion-recommendation gating | 2.0 EO/Character must bar "Promotable+" | Encoded as an explicit, cited rule in the validation engine |
-| RLS vs. legitimate reads | Early policies blocked valid profile/eval reads | Tuned per-table RLS policies scoped to the owning user |
-| Trait average with NOB | "Not Observed" traits must be excluded | Average computed over graded traits only, with unit tests |
+| Challenge                            | Impact                                          | Resolution                                                                                                |
+| ------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| BUPERS rule complexity               | Many interdependent block rules                 | Central Zod schema + validation engine + rules-reference doc                                              |
+| Comment-box dimensions not published | Comment-fit accuracy at risk                    | Measured the rendered official 1616/26 box; shared wrap algorithm cited to NAVFIT98A 10/12-pitch capacity |
+| Promotion-recommendation gating      | 2.0 EO/Character must bar "Promotable+"         | Encoded as an explicit, cited rule in the validation engine                                               |
+| RLS vs. legitimate reads             | Early policies blocked valid profile/eval reads | Tuned per-table RLS policies scoped to the owning user                                                    |
+| Trait average with NOB               | "Not Observed" traits must be excluded          | Average computed over graded traits only, with unit tests                                                 |
 
 ## B4. Changes to the Original Project Plan
 
@@ -300,11 +301,11 @@ The following are implemented and tested as of Week 5:
 
 ## B5. Blockers and Assistance Needed
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Official 1616/26 dimensions | Resolved | Box and trait grid measured from the rendered form (gating dependency cleared) |
-| Hosting/deployment target | Open | Local dev + Supabase cloud today; Vercel planned for Week 8 |
-| Instructor feedback on deferred blocks | If applicable | Confirm which Blocks 9–32 edge cases must be enforced vs. documented |
+| Item                                   | Status        | Notes                                                                          |
+| -------------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+| Official 1616/26 dimensions            | Resolved      | Box and trait grid measured from the rendered form (gating dependency cleared) |
+| Hosting/deployment target              | Open          | Local dev + Supabase cloud today; Vercel planned for Week 8                    |
+| Instructor feedback on deferred blocks | If applicable | Confirm which Blocks 9–32 edge cases must be enforced vs. documented           |
 
 ## B6. Planned Next Steps (Weeks 6–8)
 
@@ -315,4 +316,4 @@ The following are implemented and tested as of Week 5:
 
 ---
 
-*End of Sections A & B. Continue with Section C (screenshots) using `02-screenshot-capture-list.md` and architecture figure from `04-architecture-diagram.md`.*
+_End of Sections A & B. Continue with Section C (screenshots) using `02-screenshot-capture-list.md` and architecture figure from `04-architecture-diagram.md`._

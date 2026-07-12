@@ -5,7 +5,7 @@
 // (from the printed grid); 2.0, 4.0, and NOB show the scale legend instead. Marks of 1.0
 // and 5.0 surface the written-justification reminder (Block 43).
 
-import React from 'react'
+import React from "react";
 import {
   TRAIT_STANDARDS,
   TRAIT_GRADE_LABELS,
@@ -14,28 +14,55 @@ import {
   SUBSTANTIATION_NOTE,
   TraitKey,
   AnchorGrade,
-} from '@/lib/traitStandards'
+} from "@/lib/traitStandards";
 
-const THEME: Record<string, { border: string; heading: string; dot: string }> = {
-  '1.0': { border: 'border-amber-500/30', heading: 'text-amber-300', dot: 'text-amber-400' },
-  '3.0': { border: 'border-[#3e6e99]/40', heading: 'text-sky-300', dot: 'text-sky-400' },
-  '5.0': { border: 'border-emerald-500/30', heading: 'text-emerald-300', dot: 'text-emerald-400' },
-}
+const THEME: Record<string, { border: string; heading: string; dot: string }> =
+  {
+    "1.0": {
+      border: "border-amber-500/30",
+      heading: "text-amber-300",
+      dot: "text-amber-400",
+    },
+    "3.0": {
+      border: "border-[#3e6e99]/40",
+      heading: "text-sky-300",
+      dot: "text-sky-400",
+    },
+    "5.0": {
+      border: "border-emerald-500/30",
+      heading: "text-emerald-300",
+      dot: "text-emerald-400",
+    },
+  };
 
-const NEUTRAL = { border: 'border-slate-700/40', heading: 'text-slate-300', dot: 'text-slate-500' }
+const NEUTRAL = {
+  border: "border-slate-700/40",
+  heading: "text-slate-300",
+  dot: "text-slate-500",
+};
 
-export default function TraitStandardPanel({ traitKey, grade }: { traitKey: TraitKey; grade: string }) {
-  const std = TRAIT_STANDARDS[traitKey]
-  if (!std) return null
+export default function TraitStandardPanel({
+  traitKey,
+  grade,
+}: {
+  traitKey: TraitKey;
+  grade: string;
+}) {
+  const std = TRAIT_STANDARDS[traitKey];
+  if (!std) return null;
 
-  const isAnchor = (ANCHOR_GRADES as readonly string[]).includes(grade)
-  const theme = THEME[grade] ?? NEUTRAL
-  const needsJustification = grade === '1.0' || grade === '5.0'
+  const isAnchor = (ANCHOR_GRADES as readonly string[]).includes(grade);
+  const theme = THEME[grade] ?? NEUTRAL;
+  const needsJustification = grade === "1.0" || grade === "5.0";
 
   return (
-    <div className={`mt-3 rounded-lg border ${theme.border} bg-slate-950/40 p-3`}>
+    <div
+      className={`mt-3 rounded-lg border ${theme.border} bg-slate-950/40 p-3`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-        <span className={`text-xs font-bold uppercase tracking-wider ${theme.heading}`}>
+        <span
+          className={`text-xs font-bold uppercase tracking-wider ${theme.heading}`}
+        >
           {grade} — {TRAIT_GRADE_LABELS[grade] ?? grade}
         </span>
         {needsJustification && (
@@ -48,7 +75,10 @@ export default function TraitStandardPanel({ traitKey, grade }: { traitKey: Trai
       {isAnchor ? (
         <ul className="space-y-1">
           {std.anchors[grade as AnchorGrade].map((bullet, i) => (
-            <li key={i} className="flex gap-2 text-xs text-slate-300 leading-snug">
+            <li
+              key={i}
+              className="flex gap-2 text-xs text-slate-300 leading-snug"
+            >
               <span className={`${theme.dot} mt-px select-none`}>•</span>
               <span>{bullet}</span>
             </li>
@@ -56,7 +86,8 @@ export default function TraitStandardPanel({ traitKey, grade }: { traitKey: Trai
         </ul>
       ) : (
         <p className="text-xs italic text-slate-400 leading-snug">
-          {GRADE_SCALE_NOTE[grade] ?? 'Select a grade to view its performance standard.'}
+          {GRADE_SCALE_NOTE[grade] ??
+            "Select a grade to view its performance standard."}
         </p>
       )}
 
@@ -66,5 +97,5 @@ export default function TraitStandardPanel({ traitKey, grade }: { traitKey: Trai
         </p>
       )}
     </div>
-  )
+  );
 }

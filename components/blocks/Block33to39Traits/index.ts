@@ -1,1 +1,1 @@
-export { default } from './Block33to39Traits'
+export { default } from "./Block33to39Traits";

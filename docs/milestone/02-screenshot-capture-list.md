@@ -20,7 +20,6 @@ npm run db:seed                # refresh test users if needed
 
 ## Test Credentials (from `tests/fixtures/e2e-ids.json`)
 
-
 | Role             | Email                          | Password       | User ID                                |
 | ---------------- | ------------------------------ | -------------- | -------------------------------------- |
 | Sailor (PO2 Doe) | `sailor@franklyn.dev`          | `E2eTest!2026` | `6596c08d-9639-4a35-acbb-371aa75aa86b` |
@@ -29,16 +28,13 @@ npm run db:seed                # refresh test users if needed
 | Reporting Senior | `reportingsenior@franklyn.dev` | `E2eTest!2026` | `05a3b63b-246f-4c8b-801e-943242cd61f7` |
 | Admin            | `admin@franklyn.dev`           | `E2eTest!2026` | `1569739f-4b84-4232-b17f-73f28141570d` |
 
-
 > **Week 5 note:** Only the **Sailor** account is needed for this capture set. The other seeded roles exist for later milestones (review workflow, admin).
 
 **Seeded evaluation ID (Week 5 capture):**
 
-
 | Eval           | ID                                     | Purpose                                                     |
 | -------------- | -------------------------------------- | ----------------------------------------------------------- |
 | Draft (Sailor) | `4d1228a5-f72f-473f-bf39-e8b79b5d52e5` | DOE, JOHN A — editable draft for form / validation captures |
-
 
 **Direct URLs (draft eval):**
 
@@ -55,7 +51,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/`
 - [x] **Login:** None (logged out)
 - [x] **Show:** APEX hero, “Advanced Performance Evaluation eXchange,” feature cards, Sign In / Get Started
-- [x] **Caption:** *Figure 1. APEX landing page introducing the NAVPERS 1616/26 evaluation platform and primary entry actions.*
+- [x] **Caption:** _Figure 1. APEX landing page introducing the NAVPERS 1616/26 evaluation platform and primary entry actions._
 
 ---
 
@@ -64,7 +60,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/login`
 - [x] **Login:** None
 - [x] **Optional:** Pre-fill email `sailor@franklyn.dev` (do not show password in screenshot)
-- [x] **Caption:** *Figure 2. Login screen using Supabase Auth for secure session management.*
+- [x] **Caption:** _Figure 2. Login screen using Supabase Auth for secure session management._
 
 ---
 
@@ -73,7 +69,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/dashboard`
 - [x] **Login:** `sailor@franklyn.dev` / `E2eTest!2026`
 - [x] **Show:** Header with PO2 DOE, role badge, eval list including “DOE, JOHN A,” custody/routing indicators
-- [x] **Caption:** *Figure 3. Role-aware dashboard listing evaluations visible to the logged-in user based on custody and participation.*
+- [x] **Caption:** _Figure 3. Role-aware dashboard listing evaluations visible to the logged-in user based on custody and participation._
 
 ---
 
@@ -82,7 +78,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/register`
 - [x] **Login:** None
 - [x] **Show:** Navy profile fields (rank, UIC, command) and the preferred-role selector listing the five roles (Sailor, Rater, Senior Rater, Reporting Senior, Admin)
-- [x] **Caption:** *Figure 3. Registration capturing Navy profile fields and the role model that scopes access throughout APEX.*
+- [x] **Caption:** _Figure 3. Registration capturing Navy profile fields and the role model that scopes access throughout APEX._
 
 ---
 
@@ -91,17 +87,17 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/dashboard`
 - [x] **Login:** `sailor@franklyn.dev` / `E2eTest!2026`
 - [x] **Show:** Header with PO2 DOE and role badge, stat tiles, and the evaluation list including “DOE, JOHN A”
-- [x] **Caption:** *Figure 4. Role-aware dashboard listing the signed-in user's evaluations.*
+- [x] **Caption:** _Figure 4. Role-aware dashboard listing the signed-in user's evaluations._
 
 ---
 
 ### Figure 5 — Evaluation Wizard — Admin Step
 
 - [x] **URL:** `http://localhost:3000/evaluations/4d1228a5-f72f-473f-bf39-e8b79b5d52e5/edit`  
-  OR `http://localhost:3000/evaluations/new`
+      OR `http://localhost:3000/evaluations/new`
 - [x] **Login:** `sailor@franklyn.dev`
 - [x] **Show:** Step indicator (Admin), administrative blocks (Name, Grade/Rate, UIC, period, etc.), inline BUPERS field guidance visible
-- [x] **Caption:** *Figure 5. Multi-step evaluation wizard — Admin step mapped to NAVPERS 1616/26 block numbers with inline BUPERS field guidance.*
+- [x] **Caption:** _Figure 5. Multi-step evaluation wizard — Admin step mapped to NAVPERS 1616/26 block numbers with inline BUPERS field guidance._
 
 ---
 
@@ -110,7 +106,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** Same edit page, navigate to the **Traits** step
 - [x] **Login:** `sailor@franklyn.dev`
 - [x] **Show:** Blocks 33–39 trait grades (X-marking / NOB) and the live Block 40 individual trait average
-- [x] **Caption:** *Figure 6. Trait grading step with live Block 40 individual trait average (NOB excluded) per EVALMAN.*
+- [x] **Caption:** _Figure 6. Trait grading step with live Block 40 individual trait average (NOB excluded) per EVALMAN._
 
 ---
 
@@ -120,7 +116,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **Login:** `sailor@franklyn.dev`
 - [x] **Action:** Type narrative into Block 43; toggle 10/12-pitch to show the live line/character fit indicator (optionally overflow it to show the warning)
 - [x] **Show:** Block 43 comment box, pitch toggle, and the fit/overflow feedback
-- [x] **Caption:** *Figure 7. Block 43 comment-fit validation at 10/12-pitch — APEX's highest-value check, preventing the most common PERS-32 rejection.*
+- [x] **Caption:** _Figure 7. Block 43 comment-fit validation at 10/12-pitch — APEX's highest-value check, preventing the most common PERS-32 rejection._
 
 ---
 
@@ -130,7 +126,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **Login:** `sailor@franklyn.dev`
 - [x] **Action:** Trigger the full validation pass (or temporarily clear a required field) to open the modal with errors/warnings
 - [x] **Show:** Block-level errors and warnings with BUPERSINST citations
-- [x] **Caption:** *Figure 8. On-demand BUPERS validation engine results listing block-level errors and warnings before save.*
+- [x] **Caption:** _Figure 8. On-demand BUPERS validation engine results listing block-level errors and warnings before save._
 
 ---
 
@@ -139,7 +135,7 @@ npm run db:seed                # refresh test users if needed
 - [x] **URL:** `http://localhost:3000/profile`
 - [x] **Login:** `sailor@franklyn.dev`
 - [x] **Show:** Editable profile fields (rank, UIC, command, role)
-- [x] **Caption:** *Figure 9. Member profile management.*
+- [x] **Caption:** _Figure 9. Member profile management._
 
 ---
 

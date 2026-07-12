@@ -4,12 +4,12 @@ This folder contains all deliverables for the **Status Update** milestone (PDF +
 
 ## Files
 
-| # | File | Purpose |
-|---|------|---------|
-| 1 | `01-pdf-sections-a-and-b.md` | Copy into Word/Docs → Software Standards + Progress Report |
-| 2 | `02-screenshot-capture-list.md` | Step-by-step screenshot checklist with credentials and URLs |
-| 3 | `03-demo-video-script.md` | Word-for-word 5–7 minute narration script |
-| 4 | `04-architecture-diagram.md` | Mermaid diagrams for PDF (export as PNG) |
+| #   | File                            | Purpose                                                     |
+| --- | ------------------------------- | ----------------------------------------------------------- |
+| 1   | `01-pdf-sections-a-and-b.md`    | Copy into Word/Docs → Software Standards + Progress Report  |
+| 2   | `02-screenshot-capture-list.md` | Step-by-step screenshot checklist with credentials and URLs |
+| 3   | `03-demo-video-script.md`       | Word-for-word 5–7 minute narration script                   |
+| 4   | `04-architecture-diagram.md`    | Mermaid diagrams for PDF (export as PNG)                    |
 
 ## PDF Assembly (7–10 pages)
 

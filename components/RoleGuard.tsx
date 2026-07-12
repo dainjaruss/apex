@@ -4,25 +4,30 @@
 // based on the current user's role permissions.
 //
 
-"use client"
+"use client";
 
-import React from 'react'
-import { Profile } from '@/types'
-import { Evaluation } from '@/types'
-import { hasPermission, canPerformAction, Action, Role } from '@/lib/permissions'
+import React from "react";
+import { Profile } from "@/types";
+import { Evaluation } from "@/types";
+import {
+  hasPermission,
+  canPerformAction,
+  Action,
+  Role,
+} from "@/lib/permissions";
 
 interface RoleGuardProps {
-  user: Profile
+  user: Profile;
   /** Static role-level permission check */
-  requiredPermission?: Action
+  requiredPermission?: Action;
   /** Contextual evaluation-level permission check (requires evaluation prop) */
-  requiredAction?: Action
-  evaluation?: Evaluation
+  requiredAction?: Action;
+  evaluation?: Evaluation;
   /** Alternative: allow specific roles directly */
-  allowedRoles?: Role[]
+  allowedRoles?: Role[];
   /** What to render when access is denied */
-  fallback?: React.ReactNode
-  children: React.ReactNode
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
 }
 
 export default function RoleGuard({
@@ -36,31 +41,31 @@ export default function RoleGuard({
 }: RoleGuardProps) {
   // Check by explicit role list
   if (allowedRoles) {
-    const userRole = user.preferred_role as Role
-    if (!allowedRoles.includes(userRole) && userRole !== 'Admin') {
-      return <>{fallback}</>
+    const userRole = user.preferred_role as Role;
+    if (!allowedRoles.includes(userRole) && userRole !== "Admin") {
+      return <>{fallback}</>;
     }
-    return <>{children}</>
+    return <>{children}</>;
   }
 
   // Check by static permission
   if (requiredPermission) {
     if (!hasPermission(user.preferred_role, requiredPermission)) {
-      return <>{fallback}</>
+      return <>{fallback}</>;
     }
-    return <>{children}</>
+    return <>{children}</>;
   }
 
   // Check by contextual action on evaluation
   if (requiredAction && evaluation) {
     if (!canPerformAction(user, requiredAction, evaluation)) {
-      return <>{fallback}</>
+      return <>{fallback}</>;
     }
-    return <>{children}</>
+    return <>{children}</>;
   }
 
   // No checks specified — render children
-  return <>{children}</>
+  return <>{children}</>;
 }
 
 /**
@@ -73,7 +78,8 @@ export function AccessDeniedPanel({ message }: { message?: string }) {
         <div className="text-3xl">🔒</div>
         <h3 className="text-lg font-bold text-red-400">Access Restricted</h3>
         <p className="text-sm text-slate-400">
-          {message || 'You do not have the required permissions to access this page.'}
+          {message ||
+            "You do not have the required permissions to access this page."}
         </p>
         <a
           href="/dashboard"
@@ -83,5 +89,5 @@ export function AccessDeniedPanel({ message }: { message?: string }) {
         </a>
       </div>
     </div>
-  )
+  );
 }

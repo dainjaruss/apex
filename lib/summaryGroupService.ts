@@ -4,62 +4,76 @@
 // (has_oversight); members may read all groups to pick one. Attaching a group to an
 // eval lets the DB trigger inherit the five shared BUPERSINST fields.
 
-import { createBrowserClient } from './supabaseClient'
-import { SummaryGroup } from '@/types'
-import { computeSummaryGroupAverage, SummaryGroupAverageResult } from './traitAverage'
-import { RecDistribution } from './forcedDistribution'
-import { SummaryGroupWithRs } from './summaryGroupEligibility'
+import { createBrowserClient } from "./supabaseClient";
+import { SummaryGroup } from "@/types";
+import {
+  computeSummaryGroupAverage,
+  SummaryGroupAverageResult,
+} from "./traitAverage";
+import { RecDistribution } from "./forcedDistribution";
+import { SummaryGroupWithRs } from "./summaryGroupEligibility";
 
-const supabase = createBrowserClient()
+const supabase = createBrowserClient();
 
-export const createSummaryGroup = async (group: SummaryGroup, createdBy: string): Promise<SummaryGroup> => {
+export const createSummaryGroup = async (
+  group: SummaryGroup,
+  createdBy: string,
+): Promise<SummaryGroup> => {
   const { data, error } = await supabase
-    .from('summary_groups')
+    .from("summary_groups")
     .insert([{ ...group, created_by: createdBy }])
     .select()
-    .single()
-  if (error) throw new Error(error.message)
-  return data as SummaryGroup
-}
+    .single();
+  if (error) throw new Error(error.message);
+  return data as SummaryGroup;
+};
 
 export const listSummaryGroups = async (): Promise<SummaryGroup[]> => {
   const { data, error } = await supabase
-    .from('summary_groups')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
-  return (data || []) as SummaryGroup[]
-}
+    .from("summary_groups")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as SummaryGroup[];
+};
 
 export const listOpenGroups = async (): Promise<SummaryGroupWithRs[]> => {
   const { data, error } = await supabase
-    .from('summary_groups')
-    .select('*, reporting_senior:profiles!reporting_senior_id(dod_id)')
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
+    .from("summary_groups")
+    .select("*, reporting_senior:profiles!reporting_senior_id(dod_id)")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
   return (data || []).map((row: any) => ({
     ...row,
     reporting_senior_dod_id: row.reporting_senior?.dod_id ?? null,
-  })) as SummaryGroupWithRs[]
-}
+  })) as SummaryGroupWithRs[];
+};
 
 /** Open/close a group (closed = no new members may join). */
-export const setGroupStatus = async (groupId: string, status: 'open' | 'closed') => {
-  const { error } = await supabase.from('summary_groups').update({ status }).eq('id', groupId)
-  if (error) throw new Error(error.message)
-}
+export const setGroupStatus = async (
+  groupId: string,
+  status: "open" | "closed",
+) => {
+  const { error } = await supabase
+    .from("summary_groups")
+    .update({ status })
+    .eq("id", groupId);
+  if (error) throw new Error(error.message);
+};
 
 /** The evaluations that belong to a group (visible per RLS — oversight sees all). */
 export const listEvalsInGroup = async (groupId: string) => {
   const { data, error } = await supabase
-    .from('evaluations')
-    .select('id, member_name, grade_rate, routing_stage, promotion_recommendation, trait_average, status')
-    .eq('summary_group_id', groupId)
-    .order('updated_at', { ascending: false })
-  if (error) throw new Error(error.message)
-  return data || []
-}
+    .from("evaluations")
+    .select(
+      "id, member_name, grade_rate, routing_stage, promotion_recommendation, trait_average, status",
+    )
+    .eq("summary_group_id", groupId)
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data || [];
+};
 
 /**
  * Block 50 Summary Group Average: the pooled average of every graded trait grade across
@@ -67,15 +81,17 @@ export const listEvalsInGroup = async (groupId: string) => {
  * graded traits). Recomputed from each member's trait grades (authoritative, never
  * stale); NOB traits — and wholly-NOB reports — do not contribute.
  */
-export const getSummaryGroupAverage = async (groupId: string): Promise<SummaryGroupAverageResult> => {
+export const getSummaryGroupAverage = async (
+  groupId: string,
+): Promise<SummaryGroupAverageResult> => {
   const { data, error } = await supabase
-    .from('evaluations')
-    .select('id, trait_grades')
-    .eq('summary_group_id', groupId)
-  if (error) throw new Error(error.message)
-  const memberGrades = (data || []).map((e: any) => e.trait_grades)
-  return computeSummaryGroupAverage(memberGrades)
-}
+    .from("evaluations")
+    .select("id, trait_grades")
+    .eq("summary_group_id", groupId);
+  if (error) throw new Error(error.message);
+  const memberGrades = (data || []).map((e: any) => e.trait_grades);
+  return computeSummaryGroupAverage(memberGrades);
+};
 
 /**
  * Block 50a pooled average for an evaluation via the service-role route, which both bypasses RLS
@@ -88,15 +104,16 @@ export const fetchGroupAveragePool = async (
   evaluationId: string,
   excludeSelf?: boolean,
 ): Promise<SummaryGroupAverageResult> => {
-  const res = await fetch('/api/summary-average', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/summary-average", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ evaluationId, excludeSelf }),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || 'Failed to fetch summary group average')
-  return json as SummaryGroupAverageResult
-}
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(json.error || "Failed to fetch summary group average");
+  return json as SummaryGroupAverageResult;
+};
 
 /**
  * Block 46 distribution (counts per observed promotion-recommendation category) for an eval's
@@ -107,36 +124,42 @@ export const fetchGroupDistribution = async (
   evaluationId: string,
   excludeSelf?: boolean,
 ): Promise<{ distribution: RecDistribution; observedCount: number }> => {
-  const res = await fetch('/api/summary-distribution', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch("/api/summary-distribution", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ evaluationId, excludeSelf }),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || 'Failed to fetch summary group distribution')
-  return json as { distribution: RecDistribution; observedCount: number }
-}
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(json.error || "Failed to fetch summary group distribution");
+  return json as { distribution: RecDistribution; observedCount: number };
+};
 
 /**
  * Every member's promotion_recommendation in a group, read with the browser client. Used by the
  * Reporting Senior's summary-groups page, where RLS oversight already exposes all group members.
  */
-export const getGroupRecommendations = async (groupId: string): Promise<string[]> => {
+export const getGroupRecommendations = async (
+  groupId: string,
+): Promise<string[]> => {
   const { data, error } = await supabase
-    .from('evaluations')
-    .select('promotion_recommendation')
-    .eq('summary_group_id', groupId)
-  if (error) throw new Error(error.message)
-  return (data || []).map((e: any) => e.promotion_recommendation)
-}
+    .from("evaluations")
+    .select("promotion_recommendation")
+    .eq("summary_group_id", groupId);
+  if (error) throw new Error(error.message);
+  return (data || []).map((e: any) => e.promotion_recommendation);
+};
 
 /** Attach (or detach with null) a summary group; enforced server-side for BUPERS eligibility. */
-export const attachSummaryGroup = async (evaluationId: string, groupId: string | null) => {
-  const res = await fetch('/api/summary-group-attach', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+export const attachSummaryGroup = async (
+  evaluationId: string,
+  groupId: string | null,
+) => {
+  const res = await fetch("/api/summary-group-attach", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ evaluationId, groupId }),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || 'Failed to attach summary group')
-}
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Failed to attach summary group");
+};

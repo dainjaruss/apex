@@ -1,17 +1,17 @@
-import Image from 'next/image'
+import Image from "next/image";
 
-const BUPERS_SEAL = '/brand/bupers-seal.png'
+const BUPERS_SEAL = "/brand/bupers-seal.png";
 
 type NavyEmblemProps = {
-  className?: string
-  size?: number
+  className?: string;
+  size?: number;
   /** @deprecated Kept for call-site compat; image is always the official seal. */
-  bold?: boolean
-  priority?: boolean
-}
+  bold?: boolean;
+  priority?: boolean;
+};
 
 export default function NavyEmblem({
-  className = '',
+  className = "",
   size = 48,
   priority = false,
 }: NavyEmblemProps) {
@@ -24,5 +24,5 @@ export default function NavyEmblem({
       priority={priority}
       className={`object-contain ${className}`}
     />
-  )
+  );
 }

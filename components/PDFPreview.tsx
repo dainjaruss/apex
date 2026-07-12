@@ -4,82 +4,85 @@
 // Implements secure memory management on unmount.
 //
 
-"use client"
+"use client";
 
-import React, { useEffect, useState } from 'react'
-import { Evaluation } from '@/types'
+import React, { useEffect, useState } from "react";
+import { Evaluation } from "@/types";
 
 interface PDFPreviewProps {
-  evaluation: Evaluation
+  evaluation: Evaluation;
   // Whether the official PDF may be downloaded. Off for an unvalidated draft preview, where the
   // document can be viewed (to track progress) but not yet exported as a finished artifact.
-  allowDownload?: boolean
+  allowDownload?: boolean;
 }
 
-export default function PDFPreview({ evaluation, allowDownload = true }: PDFPreviewProps) {
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
+export default function PDFPreview({
+  evaluation,
+  allowDownload = true,
+}: PDFPreviewProps) {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true
-    let currentUrl: string | null = null
+    let active = true;
+    let currentUrl: string | null = null;
 
     const fetchPdf = async () => {
       try {
-        setLoading(true)
-        setError(null)
+        setLoading(true);
+        setError(null);
 
-        const response = await fetch('/api/pdf', {
-          method: 'POST',
+        const response = await fetch("/api/pdf", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(evaluation),
-        })
+        });
 
         if (!response.ok) {
-          const errData = await response.json().catch(() => ({}))
-          throw new Error(errData.error || 'Failed to generate preview PDF.')
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to generate preview PDF.");
         }
 
-        const blob = await response.blob()
+        const blob = await response.blob();
         if (active) {
-          currentUrl = URL.createObjectURL(blob)
-          setPdfUrl(currentUrl)
+          currentUrl = URL.createObjectURL(blob);
+          setPdfUrl(currentUrl);
         }
       } catch (err: any) {
-        console.error('Error fetching PDF preview:', err)
+        console.error("Error fetching PDF preview:", err);
         if (active) {
-          setError(err.message || 'Failed to fetch PDF preview.')
+          setError(err.message || "Failed to fetch PDF preview.");
         }
       } finally {
         if (active) {
-          setLoading(false)
+          setLoading(false);
         }
       }
-    }
+    };
 
-    fetchPdf()
+    fetchPdf();
 
     // Clean up memory URL on unmount
     return () => {
-      active = false
+      active = false;
       if (currentUrl) {
-        URL.revokeObjectURL(currentUrl)
+        URL.revokeObjectURL(currentUrl);
       }
-    }
-  }, [evaluation])
+    };
+  }, [evaluation]);
 
   const handleDownload = () => {
-    if (!pdfUrl) return
-    const link = document.createElement('a')
-    link.href = pdfUrl
-    link.download = `EVAL_${(evaluation.member_name || 'REPORT').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    if (!pdfUrl) return;
+    const link = document.createElement("a");
+    link.href = pdfUrl;
+    link.download = `EVAL_${(evaluation.member_name || "REPORT").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (loading) {
     return (
@@ -89,16 +92,20 @@ export default function PDFPreview({ evaluation, allowDownload = true }: PDFPrev
           Generating high-fidelity PDF canvas overlay...
         </p>
       </div>
-    )
+    );
   }
 
   if (error || !pdfUrl) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] bg-red-950/10 border border-red-900/30 rounded-xl p-6 text-center">
-        <span className="text-red-400 font-bold mb-2">Failed to Generate Preview</span>
-        <p className="text-xs text-slate-400 max-w-sm mb-4">{error || 'Unknown error occurred.'}</p>
+        <span className="text-red-400 font-bold mb-2">
+          Failed to Generate Preview
+        </span>
+        <p className="text-xs text-slate-400 max-w-sm mb-4">
+          {error || "Unknown error occurred."}
+        </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -113,13 +120,25 @@ export default function PDFPreview({ evaluation, allowDownload = true }: PDFPrev
             onClick={handleDownload}
             className="px-3.5 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition flex items-center gap-1.5 shadow"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <svg
+              className="w-3.5 h-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
             </svg>
             Download PDF Document
           </button>
         ) : (
-          <span className="text-[11px] text-slate-500 italic">Download unlocks once validation passes</span>
+          <span className="text-[11px] text-slate-500 italic">
+            Download unlocks once validation passes
+          </span>
         )}
       </div>
 
@@ -132,5 +151,5 @@ export default function PDFPreview({ evaluation, allowDownload = true }: PDFPrev
         />
       </div>
     </div>
-  )
+  );
 }

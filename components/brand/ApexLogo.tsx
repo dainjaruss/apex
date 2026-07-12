@@ -1,16 +1,19 @@
 type ApexLogoProps = {
-  className?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
-}
+  className?: string;
+  size?: "sm" | "md" | "lg" | "xl";
+};
 
-const SIZE = { sm: 32, md: 40, lg: 56, xl: 72 } as const
+const SIZE = { sm: 32, md: 40, lg: 56, xl: 72 } as const;
 
 /**
  * APEX mark — military rank chevrons beneath a line-officer star,
  * colored in Navy red / gold / blue. Flat vector, scales cleanly.
  */
-export default function ApexLogo({ className = '', size = 'md' }: ApexLogoProps) {
-  const px = SIZE[size]
+export default function ApexLogo({
+  className = "",
+  size = "md",
+}: ApexLogoProps) {
+  const px = SIZE[size];
 
   return (
     <svg
@@ -24,19 +27,47 @@ export default function ApexLogo({ className = '', size = 'md' }: ApexLogoProps)
       aria-label="APEX logo"
     >
       <defs>
-        <linearGradient id="apex-star" x1="24" y1="2.5" x2="24" y2="12.5" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="apex-star"
+          x1="24"
+          y1="2.5"
+          x2="24"
+          y2="12.5"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#fde68a" />
           <stop offset="100%" stopColor="#f59e0b" />
         </linearGradient>
-        <linearGradient id="apex-chev-red" x1="24" y1="15" x2="24" y2="29.5" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="apex-chev-red"
+          x1="24"
+          y1="15"
+          x2="24"
+          y2="29.5"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#ef4444" />
           <stop offset="100%" stopColor="#b91c1c" />
         </linearGradient>
-        <linearGradient id="apex-chev-gold" x1="24" y1="24" x2="24" y2="38.5" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="apex-chev-gold"
+          x1="24"
+          y1="24"
+          x2="24"
+          y2="38.5"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#fcd34d" />
           <stop offset="100%" stopColor="#d97706" />
         </linearGradient>
-        <linearGradient id="apex-chev-blue" x1="24" y1="33" x2="24" y2="47.5" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="apex-chev-blue"
+          x1="24"
+          y1="33"
+          x2="24"
+          y2="47.5"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="100%" stopColor="#1d4ed8" />
         </linearGradient>
@@ -65,5 +96,5 @@ export default function ApexLogo({ className = '', size = 'md' }: ApexLogoProps)
         fill="url(#apex-chev-blue)"
       />
     </svg>
-  )
+  );
 }

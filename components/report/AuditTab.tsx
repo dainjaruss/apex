@@ -2,23 +2,27 @@
 //
 // Read-only audit-log table for the report screen.
 
-import React from 'react'
-import { AuditLog } from '@/lib/auditService'
+import React from "react";
+import { AuditLog } from "@/lib/auditService";
 
 export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
   return (
     <div className="glass-panel border border-slate-800 rounded-xl p-6 space-y-6">
       <div>
         <h3 className="text-base font-bold text-white flex items-center gap-2">
-          <span className="text-[#3e6e99]">✦</span> Record Change History & Audit Logs
+          <span className="text-[#3e6e99]">✦</span> Record Change History &
+          Audit Logs
         </h3>
         <p className="text-xs text-slate-400 mt-1">
-          Every action taken on this report is logged for structural integrity and administrative audit.
+          Every action taken on this report is logged for structural integrity
+          and administrative audit.
         </p>
       </div>
 
       {auditLogs.length === 0 ? (
-        <p className="text-xs font-mono text-slate-500">No audit logs found for this evaluation.</p>
+        <p className="text-xs font-mono text-slate-500">
+          No audit logs found for this evaluation.
+        </p>
       ) : (
         <div className="border border-slate-900 rounded-lg overflow-hidden">
           <table className="w-full text-left border-collapse text-xs">
@@ -32,7 +36,10 @@ export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {auditLogs.map((log: any) => (
-                <tr key={log.id} className="hover:bg-slate-900/20 text-slate-300">
+                <tr
+                  key={log.id}
+                  className="hover:bg-slate-900/20 text-slate-300"
+                >
                   <td className="p-3 whitespace-nowrap font-mono text-slate-500">
                     {new Date(log.timestamp).toLocaleString()}
                   </td>
@@ -40,7 +47,9 @@ export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
                     {log.profiles ? (
                       <span className="font-medium text-slate-200">
                         {log.profiles.last_name}, {log.profiles.first_name}
-                        <span className="text-[10px] text-slate-500 block">{log.profiles.preferred_role}</span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {log.profiles.preferred_role}
+                        </span>
                       </span>
                     ) : (
                       <span className="text-slate-500">System</span>
@@ -61,5 +70,5 @@ export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -3,115 +3,134 @@
 // Page route for editing an existing evaluation report draft.
 //
 
-"use client"
+"use client";
 
-import React, { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { getSession } from '@/lib/auth'
-import { loadById, saveDraft } from '@/lib/evaluationService'
-import { getProfile } from '@/lib/profileService'
-import { canPerformAction } from '@/lib/permissions'
-import EvaluationForm from '@/components/EvaluationForm'
-import AppShell from '@/components/layout/AppShell'
-import { Evaluation } from '@/types'
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { loadById, saveDraft } from "@/lib/evaluationService";
+import { getProfile } from "@/lib/profileService";
+import { canPerformAction } from "@/lib/permissions";
+import EvaluationForm from "@/components/EvaluationForm";
+import AppShell from "@/components/layout/AppShell";
+import { Evaluation } from "@/types";
 
 export default function EditEvaluationPage() {
-  const params = useParams()
-  const router = useRouter()
-  const id = params?.id as string
+  const params = useParams();
+  const router = useRouter();
+  const id = params?.id as string;
 
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [viewerRole, setViewerRole] = useState<string | undefined>(undefined)
-  const [profile, setProfile] = useState<any>(null)
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [viewerRole, setViewerRole] = useState<string | undefined>(undefined);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     const checkAuthAndLoad = async () => {
       try {
-        const session = await getSession()
+        const session = await getSession();
         if (!session?.user) {
-          router.push('/login')
-          return
+          router.push("/login");
+          return;
         }
-        setUserId(session.user.id)
+        setUserId(session.user.id);
         // Role gates Block 50a on the form (sailors don't see it while drafting; reviewers do).
-        const viewer = await getProfile(session.user.id).catch(() => null)
-        setViewerRole(viewer?.preferred_role)
-        setProfile(viewer)
+        const viewer = await getProfile(session.user.id).catch(() => null);
+        setViewerRole(viewer?.preferred_role);
+        setProfile(viewer);
 
         if (!id) return;
-        const data = await loadById(id)
-        
+        const data = await loadById(id);
+
         // Single source of truth for the edit gate (mirrors RLS custody policy)
-        const canEdit = viewer ? canPerformAction(viewer, 'edit_evaluation', data) : false
+        const canEdit = viewer
+          ? canPerformAction(viewer, "edit_evaluation", data)
+          : false;
 
         if (!canEdit) {
-          setError('You are not authorized to edit this evaluation report at its current routing stage.')
+          setError(
+            "You are not authorized to edit this evaluation report at its current routing stage.",
+          );
         } else {
-          setEvaluation(data)
+          setEvaluation(data);
         }
       } catch (err: any) {
-        console.error('Failed to load evaluation for edit:', err)
-        setError(err.message || 'Failed to load evaluation')
+        console.error("Failed to load evaluation for edit:", err);
+        setError(err.message || "Failed to load evaluation");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    checkAuthAndLoad()
-  }, [id, router])
+    checkAuthAndLoad();
+  }, [id, router]);
 
   const handleSave = async (updatedData: Evaluation) => {
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      if (!userId) throw new Error('Unauthenticated session')
-      await saveDraft(userId, updatedData)
-      router.push('/dashboard')
+      if (!userId) throw new Error("Unauthenticated session");
+      await saveDraft(userId, updatedData);
+      router.push("/dashboard");
     } catch (err: any) {
-      console.error('Failed to save edit:', err)
-      throw err
+      console.error("Failed to save edit:", err);
+      throw err;
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   // Persist to the DB but STAY on the edit page (recovered-draft "Save") — no navigation.
   const handleSaveInPlace = async (updatedData: Evaluation) => {
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      if (!userId) throw new Error('Unauthenticated session')
-      return await saveDraft(userId, updatedData)
+      if (!userId) throw new Error("Unauthenticated session");
+      return await saveDraft(userId, updatedData);
     } catch (err: any) {
-      console.error('Failed to save edit in place:', err)
-      throw err
+      console.error("Failed to save edit in place:", err);
+      throw err;
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-sm font-mono" style={{ background: 'var(--background)', color: 'var(--muted-foreground)' }}>
+      <div
+        className="flex items-center justify-center min-h-screen text-sm font-mono"
+        style={{
+          background: "var(--background)",
+          color: "var(--muted-foreground)",
+        }}
+      >
         Loading draft for edit...
       </div>
-    )
+    );
   }
 
   if (error || !evaluation) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: 'var(--background)' }}>
+      <div
+        className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+        style={{ background: "var(--background)" }}
+      >
         <div className="apex-card p-6 max-w-md space-y-4 border-red-500/30">
           <h3 className="text-lg font-bold text-red-400">Cannot Edit Report</h3>
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{error || 'Access denied.'}</p>
-          <button type="button" onClick={() => router.push('/dashboard')} className="apex-btn-secondary">
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            {error || "Access denied."}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard")}
+            className="apex-btn-secondary"
+          >
             Return to Dashboard
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -126,10 +145,10 @@ export default function EditEvaluationPage() {
         initialData={evaluation}
         onSave={handleSave}
         onSaveInPlace={handleSaveInPlace}
-        onCancel={() => router.push('/dashboard')}
+        onCancel={() => router.push("/dashboard")}
         isSaving={isSaving}
         viewerRole={viewerRole}
       />
     </AppShell>
-  )
+  );
 }

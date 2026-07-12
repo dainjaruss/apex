@@ -32,13 +32,13 @@ The following capabilities have been implemented and tested since the Week 5 sub
 
 ### B3. Challenges Encountered
 
-| Challenge | Impact | Resolution |
-| :--- | :--- | :--- |
-| **PDF coordinate calibration** | The official 05-2025 blank shifts all form graphics right and down vs. the prior version, misaligning every overlay field. | Measured per-page rigid-shift offsets (+13/−11 on page 1, +12/−14 on page 2) and applied them via `pushGraphicsState()` / `translate()` in pdf-lib, wrapping the entire overlay layer so no individual coordinate needed re-editing. |
-| **Signature credential verification** | Allowing a user to sign using only their session token would not provide the non-repudiation the Navy requires. | Created a dedicated Supabase verifier client (`createCredentialVerifierClient`) so the `/api/sign` route re-authenticates the signer with email + password before persisting any signature, then writes an audit log. |
-| **RLS vs. custody routing** | The original creator-only RLS policies blocked legitimate reads by reviewers further up the chain. | Rewrote evaluation RLS in migration 002 to use a `participants[]` array (everyone who has held the eval) plus an `has_oversight()` helper function, and restricted browser-side UPDATE to the current holder of an unlocked eval. All custody transitions are delegated to service-role API routes. |
-| **Forced distribution edge cases** | E-5/E-6 grades have a combined EP + MP cap that E-1–E-4 grades do not, and `paygradeOf()` must normalize free-text rate codes. | Built a standalone `paygrade.ts` (62 lines) normalizer with 69 unit tests, and separated the combined-cap branch with an `isE5E6` flag so the rule only fires when applicable. |
-| **Test suite isolation** | Running all 158 tests simultaneously caused Supabase client initialization errors and vitest worker timeouts. | Scoped the default vitest include to milestone-specific test suites via `vitest.config.ts`, and added a shared `tests/setup.ts` that stubs the Supabase client before any test file loads. |
+| Challenge                             | Impact                                                                                                                         | Resolution                                                                                                                                                                                                                                                                                          |
+| :------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PDF coordinate calibration**        | The official 05-2025 blank shifts all form graphics right and down vs. the prior version, misaligning every overlay field.     | Measured per-page rigid-shift offsets (+13/−11 on page 1, +12/−14 on page 2) and applied them via `pushGraphicsState()` / `translate()` in pdf-lib, wrapping the entire overlay layer so no individual coordinate needed re-editing.                                                                |
+| **Signature credential verification** | Allowing a user to sign using only their session token would not provide the non-repudiation the Navy requires.                | Created a dedicated Supabase verifier client (`createCredentialVerifierClient`) so the `/api/sign` route re-authenticates the signer with email + password before persisting any signature, then writes an audit log.                                                                               |
+| **RLS vs. custody routing**           | The original creator-only RLS policies blocked legitimate reads by reviewers further up the chain.                             | Rewrote evaluation RLS in migration 002 to use a `participants[]` array (everyone who has held the eval) plus an `has_oversight()` helper function, and restricted browser-side UPDATE to the current holder of an unlocked eval. All custody transitions are delegated to service-role API routes. |
+| **Forced distribution edge cases**    | E-5/E-6 grades have a combined EP + MP cap that E-1–E-4 grades do not, and `paygradeOf()` must normalize free-text rate codes. | Built a standalone `paygrade.ts` (62 lines) normalizer with 69 unit tests, and separated the combined-cap branch with an `isE5E6` flag so the rule only fires when applicable.                                                                                                                      |
+| **Test suite isolation**              | Running all 158 tests simultaneously caused Supabase client initialization errors and vitest worker timeouts.                  | Scoped the default vitest include to milestone-specific test suites via `vitest.config.ts`, and added a shared `tests/setup.ts` that stubs the Supabase client before any test file loads.                                                                                                          |
 
 ### B4. Changes to the Original Project Plan
 
@@ -46,10 +46,10 @@ The original plan deferred signature capture and RBAC to optional "post-MVP" ext
 
 ### B5. Blockers and Assistance Needed
 
-| Item | Status | Notes |
-| :--- | :--- | :--- |
+| Item                      | Status      | Notes                                                                                                                              |
+| :------------------------ | :---------- | :--------------------------------------------------------------------------------------------------------------------------------- |
 | Final Deployment (Vercel) | In Progress | Build succeeds locally; configuring Vercel environment variables and edge-function compatibility. No instructor assistance needed. |
-| Playwright E2E on CI | Open | E2E tests run locally against a seeded Supabase project; wiring them into a CI pipeline (GitHub Actions) is planned for Week 8. |
+| Playwright E2E on CI      | Open        | E2E tests run locally against a seeded Supabase project; wiring them into a CI pipeline (GitHub Actions) is planned for Week 8.    |
 
 ### B6. Planned Next Steps (Week 8 — Finalization)
 
@@ -66,17 +66,16 @@ The original plan deferred signature capture and RBAC to optional "post-MVP" ext
 The updated interface now provides clear visual feedback at every stage of the evaluation lifecycle.
 
 **Figure 1** shows the Review Workflow panel. The stage indicator, action buttons, and historical timeline together give users immediate situational awareness while enforcing custody rules—an intentional design that reduces training time and errors.
-*(Insert Figure 1 screenshot here: Review Workflow panel showing stage indicator, action buttons, and historical timeline)*
+_(Insert Figure 1 screenshot here: Review Workflow panel showing stage indicator, action buttons, and historical timeline)_
 
 **Figure 2** illustrates the SignaturePad component in use, with its canvas, typed-name field, consent checkbox, and re-authentication prompt. This screen was deliberately kept simple yet legally explicit to match the weight of the official signing process.
-*(Insert Figure 2 screenshot here: SignaturePad component showing canvas, typed-name field, consent checkbox, and re-authentication modal)*
+_(Insert Figure 2 screenshot here: SignaturePad component showing canvas, typed-name field, consent checkbox, and re-authentication modal)_
 
 **Figure 3** presents the embedded PDF preview. Evaluation data appears overlaid on the exact NAVPERS 1616/26 (Rev. 05-2025) layout, allowing instant visual validation before export.
-*(Insert Figure 3 screenshot here: Embedded PDF preview showing evaluation data overlaid on official NAVPERS 1616/26 form)*
+_(Insert Figure 3 screenshot here: Embedded PDF preview showing evaluation data overlaid on official NAVPERS 1616/26 form)_
 
 **Figure 4** displays the Admin user-management table with searchable rows and role-assignment controls, giving administrators efficient oversight of the entire chain of command.
-*(Insert Figure 4 screenshot here: Admin user-management table showing searchable rows and role-assignment controls)*
+_(Insert Figure 4 screenshot here: Admin user-management table showing searchable rows and role-assignment controls)_
 
 **Figure 5** captures the Summary Groups interface, where reporting seniors can create groups, apply eligibility filters, and view forced-distribution compliance indicators drawn directly from official tables.
-*(Insert Figure 5 screenshot here: Summary Groups interface showing group creation, eligibility filters, and Table 1-2 forced-distribution indicators)*
-
+_(Insert Figure 5 screenshot here: Summary Groups interface showing group creation, eligibility filters, and Table 1-2 forced-distribution indicators)_

@@ -9,7 +9,6 @@
 
 ### Rubric coverage map (all five required elements)
 
-
 | Required element                             | Segment(s)                                              |
 | -------------------------------------------- | ------------------------------------------------------- |
 | 1. Current state of the project              | Intro (0:00–0:50) + closing roadmap                     |
@@ -17,7 +16,6 @@
 | 3. User interface walkthrough                | 2:00–5:15 (dashboard → form → comment-fit → validation) |
 | 4. Standards & practices applied             | 0:50–2:00 (dedicated segment)                           |
 | 5. Challenges & planned next steps           | 5:15–6:10                                               |
-
 
 ---
 
@@ -47,7 +45,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [0:00 – 0:50] INTRODUCTION & CURRENT STATE  *(rubric: current state)*
+### [0:00 – 0:50] INTRODUCTION & CURRENT STATE _(rubric: current state)_
 
 **SCREEN:** APEX landing page at `http://localhost:3000/` — hero text, “Sign In” / “Get Started” buttons, and the Bureau of Naval Personnel seal in the footer.
 
@@ -67,7 +65,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [0:50 – 2:00] STANDARDS AND PRACTICES  *(rubric: standards & practices)*
+### [0:50 – 2:00] STANDARDS AND PRACTICES _(rubric: standards & practices)_
 
 **SCREEN:** A quick cut to VS Code showing the project tree, then a terminal showing the green test summary.
 
@@ -93,7 +91,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [2:00 – 2:40] AUTHENTICATION & DASHBOARD  *(rubric: features + UI)*
+### [2:00 – 2:40] AUTHENTICATION & DASHBOARD _(rubric: features + UI)_
 
 **SCREEN:** The `/login` form, then the Sailor dashboard with the sidebar, stat tiles, and evaluation cards.
 
@@ -113,7 +111,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [2:40 – 3:40] EVAL FORM — ADMIN & TRAITS  *(rubric: features + UI)*
+### [2:40 – 3:40] EVAL FORM — ADMIN & TRAITS _(rubric: features + UI)_
 
 **SCREEN:** The evaluation wizard. Top shows the step pills: **Admin & Command Info · Performance Traits · Narrative & Comments**. Admin step fields are visible with inline guidance panels.
 
@@ -136,7 +134,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [3:40 – 4:30] COMMENT-FIT (Block 43) — HIGHLIGHT  *(rubric: features + UI)*
+### [3:40 – 4:30] COMMENT-FIT (Block 43) — HIGHLIGHT _(rubric: features + UI)_
 
 **SCREEN:** The **Narrative & Comments** step — the Block 43 text area, the **10-Pitch (90 CPL) / 12-Pitch (84 CPL)** toggle, and the live line/character fit indicator.
 
@@ -158,7 +156,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [4:30 – 5:15] VALIDATION ENGINE  *(rubric: features + UI)*
+### [4:30 – 5:15] VALIDATION ENGINE _(rubric: features + UI)_
 
 **SCREEN:** The **Verify Rules** button, then the Validation Results modal listing block-level errors and warnings with citations.
 
@@ -179,7 +177,7 @@ npm run test         # optional: capture the green summary for B-roll
 
 ---
 
-### [5:15 – 6:10] CHALLENGES & NEXT STEPS  *(rubric: challenges & next steps)*
+### [5:15 – 6:10] CHALLENGES & NEXT STEPS _(rubric: challenges & next steps)_
 
 **SCREEN:** Return to the dashboard (or keep the green `npm run test` summary visible); end on the landing page or a simple title slide.
 
@@ -203,7 +201,6 @@ npm run test         # optional: capture the green summary for B-roll
 
 ## Timing Guide
 
-
 | Segment                 | Target | Cumulative     |
 | ----------------------- | ------ | -------------- |
 | Intro & current state   | 0:50   | 0:50           |
@@ -214,7 +211,6 @@ npm run test         # optional: capture the green summary for B-roll
 | Validation engine       | 0:45   | 5:15           |
 | Challenges / next steps | 0:55   | 6:10           |
 | **Total**               |        | **~5:30–6:45** |
-
 
 **If running short of 5:00:** add a second validation example, or show inline guidance on another block, or display the `npm run test` run live.  
 **If running long past 7:00:** trim the standards segment to ~50 seconds and tighten the form walkthrough.
@@ -253,4 +249,4 @@ Mention these only as the **roadmap** in the closing segment.
 
 ---
 
-*End of video script.*
+_End of video script._

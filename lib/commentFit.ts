@@ -18,22 +18,22 @@ export interface CommentFitResult {
  * Preserves explicit newlines and force-splits words longer than the line width.
  */
 export function wrapTextToWidth(text: string, charsPerLine: number): string[] {
-  const paragraphs = text.split('\n');
+  const paragraphs = text.split("\n");
   const lines: string[] = [];
 
   for (const paragraph of paragraphs) {
-    if (paragraph === '') {
-      lines.push('');
+    if (paragraph === "") {
+      lines.push("");
       continue;
     }
 
-    const words = paragraph.split(' ');
-    let currentLine = '';
+    const words = paragraph.split(" ");
+    let currentLine = "";
 
     for (const word of words) {
-      if (word === '') {
+      if (word === "") {
         // Handle multiple sequential spaces
-        currentLine += ' ';
+        currentLine += " ";
         continue;
       }
 
@@ -45,8 +45,9 @@ export function wrapTextToWidth(text: string, charsPerLine: number): string[] {
         }
         currentLine = remaining;
       } else {
-        const spacing = currentLine.endsWith(' ') ? '' : ' ';
-        const potentialLength = currentLine.length + spacing.length + word.length;
+        const spacing = currentLine.endsWith(" ") ? "" : " ";
+        const potentialLength =
+          currentLine.length + spacing.length + word.length;
 
         if (potentialLength <= charsPerLine) {
           currentLine += spacing + word;
@@ -86,10 +87,19 @@ export function measureTextFit(
   firstLineLead = 0,
 ): CommentFitResult {
   if (!text) {
-    return { fit: true, linesUsed: 0, maxLines, charsPerLine, wrappedLines: [] };
+    return {
+      fit: true,
+      linesUsed: 0,
+      maxLines,
+      charsPerLine,
+      wrappedLines: [],
+    };
   }
   const lead = Math.max(0, firstLineLead);
-  const wrappedLines = wrapTextToWidth(lead > 0 ? ' '.repeat(lead) + text : text, charsPerLine);
+  const wrappedLines = wrapTextToWidth(
+    lead > 0 ? " ".repeat(lead) + text : text,
+    charsPerLine,
+  );
   // Drop the reserved-lead spaces from the returned first line; the line count (which
   // includes the lead's effect) is what matters for the fit check.
   if (lead > 0 && wrappedLines.length > 0) {
@@ -108,7 +118,10 @@ export function measureTextFit(
  * Checks whether the given text fits in Block 43 comments space (18 lines maximum)
  * under the selected Courier pitch (10-pitch = 90 CPL, 12-pitch = 84 CPL).
  */
-export function checkCommentFit(text: string, pitch: '10' | '12' | 10 | 12): CommentFitResult {
+export function checkCommentFit(
+  text: string,
+  pitch: "10" | "12" | 10 | 12,
+): CommentFitResult {
   const charsPerLine = Number(pitch) === 10 ? 90 : 84;
   return measureTextFit(text, charsPerLine, 18);
 }
@@ -132,10 +145,31 @@ export interface FieldFitSpec {
 }
 
 export const FIELD_FIT: Record<string, FieldFitSpec> = {
-  command_achievements: { block: 28, charsPerLine: 91, maxLines: 3, label: 'Command Employment and Achievements' },
-  primary_duties: { block: 29, charsPerLine: 91, maxLines: 3, label: 'Primary/Collateral/Watchstanding Duties', firstLineLead: 20 },
-  qualifications: { block: 44, charsPerLine: 91, maxLines: 2, label: 'Qualifications / Achievements' },
-  reporting_senior_address: { block: 48, charsPerLine: 30, maxLines: 3, label: 'Reporting Senior Address' },
+  command_achievements: {
+    block: 28,
+    charsPerLine: 91,
+    maxLines: 3,
+    label: "Command Employment and Achievements",
+  },
+  primary_duties: {
+    block: 29,
+    charsPerLine: 91,
+    maxLines: 3,
+    label: "Primary/Collateral/Watchstanding Duties",
+    firstLineLead: 20,
+  },
+  qualifications: {
+    block: 44,
+    charsPerLine: 91,
+    maxLines: 2,
+    label: "Qualifications / Achievements",
+  },
+  reporting_senior_address: {
+    block: 48,
+    charsPerLine: 30,
+    maxLines: 3,
+    label: "Reporting Senior Address",
+  },
 };
 
 // Block 29 primary-duty abbreviation (section A) — fixed-width box.

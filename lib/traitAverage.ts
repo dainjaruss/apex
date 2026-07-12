@@ -6,24 +6,24 @@
 // renderer, and any server-side aggregation — never re-derived inline.
 
 export const TRAIT_KEYS = [
-  'knowledge',
-  'work',
-  'eo',
-  'bearing',
-  'accomplishment',
-  'teamwork',
-  'leadership',
-] as const
+  "knowledge",
+  "work",
+  "eo",
+  "bearing",
+  "accomplishment",
+  "teamwork",
+  "leadership",
+] as const;
 
 export interface TraitAverageResult {
-  average: number | null // null when no traits are graded (e.g. a fully NOB report)
-  gradedCount: number // traits that counted toward the average
-  gradedSum: number // sum of the graded trait scores (feeds the pooled group average)
+  average: number | null; // null when no traits are graded (e.g. a fully NOB report)
+  gradedCount: number; // traits that counted toward the average
+  gradedSum: number; // sum of the graded trait scores (feeds the pooled group average)
 }
 
 // Round half-up to 2 decimals, matching the printed form's X.XX precision.
 export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 // Block 40: total of the graded trait scores divided by the number of graded traits. A
@@ -32,28 +32,28 @@ export function round2(n: number): number {
 export function computeTraitAverage(
   traitGrades: Record<string, string | undefined> | null | undefined,
 ): TraitAverageResult {
-  const grades = traitGrades || {}
-  let sum = 0
-  let count = 0
+  const grades = traitGrades || {};
+  let sum = 0;
+  let count = 0;
   for (const key of TRAIT_KEYS) {
-    const g = grades[key]
-    if (!g || g.toUpperCase() === 'NOB') continue
-    const v = parseFloat(g)
+    const g = grades[key];
+    if (!g || g.toUpperCase() === "NOB") continue;
+    const v = parseFloat(g);
     if (!Number.isNaN(v)) {
-      sum += v
-      count++
+      sum += v;
+      count++;
     }
   }
   return count === 0
     ? { average: null, gradedCount: 0, gradedSum: 0 }
-    : { average: round2(sum / count), gradedCount: count, gradedSum: sum }
+    : { average: round2(sum / count), gradedCount: count, gradedSum: sum };
 }
 
 export interface SummaryGroupAverageResult {
-  average: number | null
-  memberCount: number // members contributing at least one graded trait
-  gradedTraitCount: number // total graded traits pooled across the group
-  gradedSum: number // pooled sum of the graded trait scores (lets a live UI combine peers + own)
+  average: number | null;
+  memberCount: number; // members contributing at least one graded trait
+  gradedTraitCount: number; // total graded traits pooled across the group
+  gradedSum: number; // pooled sum of the graded trait scores (lets a live UI combine peers + own)
 }
 
 // Summary group average (BUPERSINST 1610.10H, Exhibit 1-2 / 1-6): "sum all graded
@@ -65,18 +65,23 @@ export interface SummaryGroupAverageResult {
 export function computeSummaryGroupAverage(
   memberGrades: Array<Record<string, string | undefined> | null | undefined>,
 ): SummaryGroupAverageResult {
-  let totalSum = 0
-  let totalCount = 0
-  let memberCount = 0
+  let totalSum = 0;
+  let totalCount = 0;
+  let memberCount = 0;
   for (const grades of memberGrades) {
-    const { gradedSum, gradedCount } = computeTraitAverage(grades)
+    const { gradedSum, gradedCount } = computeTraitAverage(grades);
     if (gradedCount > 0) {
-      totalSum += gradedSum
-      totalCount += gradedCount
-      memberCount++
+      totalSum += gradedSum;
+      totalCount += gradedCount;
+      memberCount++;
     }
   }
   return totalCount === 0
     ? { average: null, memberCount: 0, gradedTraitCount: 0, gradedSum: 0 }
-    : { average: round2(totalSum / totalCount), memberCount, gradedTraitCount: totalCount, gradedSum: totalSum }
+    : {
+        average: round2(totalSum / totalCount),
+        memberCount,
+        gradedTraitCount: totalCount,
+        gradedSum: totalSum,
+      };
 }

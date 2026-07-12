@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 
 function ConsentHeader() {
   return (
@@ -9,10 +9,11 @@ function ConsentHeader() {
         <span>🔒</span> Welcome to APEX – Terms & Consent
       </h2>
       <p className="text-sm text-[#91aec9]">
-        Before entering this application, please review our system access terms. By continuing, you agree to our Terms of Service and Cookie Policy:
+        Before entering this application, please review our system access terms.
+        By continuing, you agree to our Terms of Service and Cookie Policy:
       </p>
     </div>
-  )
+  );
 }
 
 function ConsentTerms() {
@@ -20,42 +21,46 @@ function ConsentTerms() {
     <div className="space-y-4 text-sm text-[#c0d6e4]">
       <div>
         <strong className="text-white block mb-1">User Tracking:</strong>
-        To analyze system performance and fulfill project requirements, user activity and interaction logs are recorded during your session.
+        To analyze system performance and fulfill project requirements, user
+        activity and interaction logs are recorded during your session.
       </div>
       <div>
         <strong className="text-white block mb-1">Cookie Consent:</strong>
-        This application utilizes technical cookies and local storage tokens necessary to keep you securely logged in.
+        This application utilizes technical cookies and local storage tokens
+        necessary to keep you securely logged in.
       </div>
       <div>
         <strong className="text-white block mb-1">Intended Use:</strong>
-        This application is provided solely for academic assessment by the Florida Institute of Technology. Malicious usage or attempts to disrupt service will result in session termination.
+        This application is provided solely for academic assessment by the
+        Florida Institute of Technology. Malicious usage or attempts to disrupt
+        service will result in session termination.
       </div>
     </div>
-  )
+  );
 }
 
 export default function ConsentModal() {
-  const [show, setShow] = useState(false)
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     // Check if consent has already been given
-    const consent = localStorage.getItem('apex_consent_accepted')
+    const consent = localStorage.getItem("apex_consent_accepted");
     if (!consent) {
-      setShow(true)
+      setShow(true);
     }
-  }, [])
+  }, []);
 
   const handleAccept = () => {
-    localStorage.setItem('apex_consent_accepted', 'true')
-    setShow(false)
-  }
+    localStorage.setItem("apex_consent_accepted", "true");
+    setShow(false);
+  };
 
   const handleDecline = () => {
     // If they decline, send them away from the app
-    window.location.href = "https://www.google.com"
-  }
+    window.location.href = "https://www.google.com";
+  };
 
-  if (!show) return null
+  if (!show) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b132b]/80 backdrop-blur-sm">
@@ -64,13 +69,13 @@ export default function ConsentModal() {
         <ConsentTerms />
 
         <div className="pt-6 flex flex-col-reverse sm:flex-row justify-end gap-3 border-t border-[#3e6e99]/20">
-          <button 
+          <button
             onClick={handleDecline}
             className="px-6 py-2.5 rounded text-[#91aec9] hover:bg-[#1c2541] hover:text-white transition-colors font-medium text-sm"
           >
             Decline
           </button>
-          <button 
+          <button
             onClick={handleAccept}
             className="px-6 py-2.5 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all shadow-lg text-sm"
           >
@@ -79,5 +84,5 @@ export default function ConsentModal() {
         </div>
       </div>
     </div>
-  )
+  );
 }
