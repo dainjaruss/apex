@@ -1,6 +1,10 @@
 // types/index.ts
 //
 // Core TypeScript models for evaluation reports, profiles, and validation states.
+// Supports all three active NAVPERS report forms:
+//   EVAL         — NAVPERS 1616/26 (E1–E6)
+//   CHIEFEVAL    — NAVPERS 1616/27 (E7–E9)
+//   FITREP       — NAVPERS 1610/2  (W2–O6) / 1610/5 (O7–O8)
 //
 
 export type RoutingStage =
@@ -27,11 +31,15 @@ export interface SummaryGroup {
   created_at?: string;
 }
 
+// Canonical form-code union — mirrors the form_definitions.form_code CHECK constraint.
+export type FormCode = "EVAL" | "CHIEFEVAL" | "FITREP_W2_O6" | "FITREP_O7_O8";
+
 export interface Evaluation {
   id?: string;
   created_by?: string;
   form_definition_id: string;
-  report_type: "EVAL";
+  form_code?: FormCode; // populated by JOIN with form_definitions on reads
+  report_type: "EVAL" | "CHIEFEVAL" | "FITREP";
   member_name: string;
   dod_id: string;
   grade_rate: string;

@@ -44,7 +44,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "dotenv": "^17.4.2",
-    "fallow": "^2.89.0",
+    "fallow": "3.4.2",
     "jsdom": "^24.0.0",
     "postcss": "^8.4.38",
     "prettier": "^3.9.5",

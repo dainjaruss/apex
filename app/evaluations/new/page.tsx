@@ -1,6 +1,9 @@
 // app/evaluations/new/page.tsx
 //
-// Page route for creating a new NAVPERS 1616/26 evaluation draft.
+// Page route for drafting a new performance evaluation.
+// Post-MVP: presents a paygrade-gated form picker so users can choose between
+// EVAL (1616/26, E1-E6), CHIEFEVAL (1616/27, E7-E9), and FITREP (1610/2, W2-O6).
+// The picker is pre-selected based on the user's navy_rank and can be overridden.
 //
 
 "use client";
@@ -9,17 +12,48 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabaseClient";
-import { getEvalSeed } from "@/lib/formDefinitions";
+import { getEvalSeed, getChiefEvalSeed, getFitrepSeed } from "@/lib/formDefinitions";
 import { saveDraft } from "@/lib/evaluationService";
 import EvaluationForm from "@/components/EvaluationForm";
 import AppShell from "@/components/layout/AppShell";
-import { Evaluation } from "@/types";
+import { Evaluation, FormCode } from "@/types";
+import { paygradeOf } from "@/lib/paygrade";
 
 const supabase = createBrowserClient();
+
+// Determine the suggested form code for a given Navy rank string.
+function suggestFormCode(rank?: string): FormCode {
+  if (!rank) return "EVAL";
+  const pg = paygradeOf(rank);
+  if (!pg) return "EVAL";
+  // E-7 through E-9 → CHIEFEVAL
+  if (pg === "E-7" || pg === "E-8" || pg === "E-9") return "CHIEFEVAL";
+  // W-2 through O-6 → FITREP
+  const officerOrWarrant = /^(W-[2-5]|O-[1-6])$/.test(pg);
+  if (officerOrWarrant) return "FITREP_W2_O6";
+  // O-7+ → FITREP_O7_O8 (placeholder — same form picker entry for now)
+  if (/^O-[78]$/.test(pg)) return "FITREP_O7_O8";
+  return "EVAL";
+}
+
+// Returns a blank seed record for the selected form code.
+function getSeedForForm(formCode: FormCode): any {
+  if (formCode === "CHIEFEVAL") return getChiefEvalSeed();
+  if (formCode === "FITREP_W2_O6" || formCode === "FITREP_O7_O8") return getFitrepSeed(formCode);
+  return getEvalSeed();
+}
+
+// Form picker option metadata
+const FORM_OPTIONS: { code: FormCode; navpers: string; label: string; range: string; badge: string }[] = [
+  { code: "EVAL",        navpers: "1616/26", label: "Evaluation Report and Counseling Record",       range: "E1–E6", badge: "EVAL" },
+  { code: "CHIEFEVAL",   navpers: "1616/27", label: "Chief Evaluation Report and Counseling Record", range: "E7–E9", badge: "CHIEFEVAL" },
+  { code: "FITREP_W2_O6", navpers: "1610/2", label: "Fitness Report and Counseling Record",          range: "W2–O6", badge: "FITREP" },
+];
 
 export default function NewEvaluationPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
+  const [selectedForm, setSelectedForm] = useState<FormCode | null>(null);
   const [initialData, setInitialData] = useState<Evaluation | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -32,7 +66,6 @@ export default function NewEvaluationPage() {
         return;
       }
 
-      // Fetch user profile to pre-fill admin blocks
       const { data: profData } = await supabase
         .from("profiles")
         .select("*")
@@ -41,40 +74,37 @@ export default function NewEvaluationPage() {
 
       if (profData) {
         setProfile(profData);
-
-        // Seed new evaluation
-        const seed = getEvalSeed() as any;
-
-        // Format name as LAST, FIRST MI
-        const mi = profData.middle_initial ? ` ${profData.middle_initial}` : "";
-        seed.member_name = `${profData.last_name}, ${profData.first_name}${mi}`
-          .toUpperCase()
-          .trim();
-        seed.dod_id = profData.dod_id || "";
-        seed.grade_rate = profData.navy_rank || "";
-        seed.ship_station = profData.command || "";
-        seed.uic = profData.uic || "";
-        seed.created_by = session.user.id;
-
-        setInitialData(seed);
-      } else {
-        // Fallback seed
-        setInitialData(getEvalSeed() as any);
+        // Pre-select the form based on the user's paygrade; they can change it.
+        const suggested = suggestFormCode(profData.navy_rank);
+        setSelectedForm(suggested);
       }
       setLoading(false);
     };
-
     checkAuthAndInitialize();
   }, [router]);
+
+  // Called when the user confirms their form-code choice.
+  const handleFormSelect = (code: FormCode) => {
+    const seed = getSeedForForm(code) as any;
+    if (profile) {
+      const mi = profile.middle_initial ? ` ${profile.middle_initial}` : "";
+      seed.member_name = `${profile.last_name}, ${profile.first_name}${mi}`.toUpperCase().trim();
+      seed.dod_id = profile.dod_id || "";
+      seed.grade_rate = profile.navy_rank || "";
+      seed.ship_station = profile.command || "";
+      seed.uic = profile.uic || "";
+      seed.created_by = profile.id;
+    }
+    setSelectedForm(code);
+    setInitialData(seed);
+  };
 
   const handleSave = async (data: Evaluation) => {
     setIsSaving(true);
     try {
       const session = await getSession();
       if (!session?.user) throw new Error("Unauthenticated session");
-
       const saved = await saveDraft(session.user.id, data);
-      // Land on the report screen (the workflow hub) rather than the dashboard.
       router.push(saved?.id ? `/evaluations/${saved.id}` : "/dashboard");
     } catch (err: any) {
       console.error("Failed to create new draft:", err);
@@ -84,8 +114,6 @@ export default function NewEvaluationPage() {
     }
   };
 
-  // Persist to the DB but STAY on this page (recovered-draft "Save"). Returns the saved record
-  // so the form can adopt its new id and later saves update the same row instead of inserting.
   const handleSaveInPlace = async (data: Evaluation) => {
     setIsSaving(true);
     try {
@@ -100,26 +128,79 @@ export default function NewEvaluationPage() {
     }
   };
 
-  if (loading || !initialData) {
+  if (loading) {
     return (
       <div
         className="flex items-center justify-center min-h-screen text-sm font-mono"
-        style={{
-          background: "var(--background)",
-          color: "var(--muted-foreground)",
-        }}
+        style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
       >
-        Initializing NAVPERS 1616/26 form template...
+        Initializing form template...
       </div>
     );
   }
 
+  // ── Form picker — shown before the form loads ──────────────────────────────
+  if (!initialData) {
+    const suggested = suggestFormCode(profile?.navy_rank);
+    return (
+      <AppShell
+        profile={profile}
+        title="Draft New Report"
+        subtitle="Select the NAVPERS form that matches the member's paygrade"
+        badge="New Report"
+        maxWidth="5xl"
+      >
+        <div className="space-y-4">
+          {FORM_OPTIONS.map((opt) => {
+            const isSuggested = opt.code === suggested;
+            return (
+              <button
+                key={opt.code}
+                onClick={() => handleFormSelect(opt.code)}
+                className={`w-full text-left rounded-xl border p-5 transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isSuggested
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                    : "border-border bg-card"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-widest">
+                        NAVPERS {opt.navpers}
+                      </span>
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 uppercase tracking-widest">
+                        {opt.badge}
+                      </span>
+                      {isSuggested && (
+                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                          ✓ Recommended for your paygrade
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 font-semibold text-sm">{opt.label}</p>
+                    <p className="text-xs text-muted-foreground">Paygrade range: {opt.range}</p>
+                  </div>
+                  <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </AppShell>
+    );
+  }
+
+  // ── Form ──────────────────────────────────────────────────────────────────
+  const formOption = FORM_OPTIONS.find((o) => o.code === selectedForm);
   return (
     <AppShell
       profile={profile}
-      title="Draft New Evaluation"
+      title={`Draft New ${formOption?.badge || "Report"}`}
       subtitle="Complete the blocks below — Navy policy rules verified in real time"
-      badge="New EVAL"
+      badge={`New ${formOption?.badge || "Report"}`}
       maxWidth="6xl"
     >
       <EvaluationForm

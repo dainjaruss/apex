@@ -1,11 +1,17 @@
 // lib/validationEngine.ts
 //
-// Core validation engine for executing complete, structured rules check
-// on NAVPERS 1616/26 (EVAL) forms according to BUPERSINST 1610.10H.
+// Core validation engine for APEX. Dispatches to the correct Zod schema and
+// trait map based on report_type (EVAL, CHIEFEVAL, or FITREP), then runs
+// block-level cross-field checks against BUPERSINST 1610.10H.
 //
 
 import { Evaluation, ValidationIssue, ValidationResult } from "../types";
-import { EvalSchema, STARRED_BILLET_SUBCATEGORIES } from "../types/navpers";
+import {
+  EvalSchema,
+  ChiefEvalSchema,
+  FitrepSchema,
+  STARRED_BILLET_SUBCATEGORIES,
+} from "../types/navpers";
 import { checkCommentFit, measureTextFit, FIELD_FIT } from "./commentFit";
 
 // Static lookup table mapping field names to NAVPERS block numbers
@@ -51,6 +57,29 @@ const traitBlockMap: Record<string, number> = {
   leadership: 39, // Leadership
 };
 
+// CPO trait block map — NAVPERS 1616/27 (CHIEFEVAL)
+const chiefEvalTraitBlockMap: Record<string, number> = {
+  deckplate_leadership: 33,
+  professionalism: 34,
+  mission_accomplishment: 35,
+  human_development: 36,
+  eo_climate: 37, // EO/Character gate for CHIEFEVAL
+  teamwork: 38,
+  leadership: 39,
+};
+
+// Officer trait block map — NAVPERS 1610/2 (FITREP)
+const fitrepTraitBlockMap: Record<string, number> = {
+  knowledge: 33,
+  work: 34,
+  eo: 35,
+  bearing: 36,
+  accomplishment: 37,
+  teamwork: 38,
+  leadership: 39,
+  tactical_performance: 39, // Officer-specific 8th trait (shares Block 39 area)
+};
+
 /**
  * Maps a Zod schema path string to the corresponding official NAVPERS 1616/26 block number.
  */
@@ -64,13 +93,34 @@ export function getBlockForField(field: string): number | undefined {
 }
 
 /**
+ * Returns the active trait block map for the given report_type.
+ */
+function getTraitMap(reportType?: string): Record<string, number> {
+  if (reportType === "CHIEFEVAL") return chiefEvalTraitBlockMap;
+  if (reportType === "FITREP") return fitrepTraitBlockMap;
+  return traitBlockMap;
+}
+
+/**
  * Runs complete validation checks against the evaluation record.
+ * Dispatches to the appropriate Zod schema based on report_type.
  */
 export function runFullValidation(evalData: Evaluation): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-  // 1. Map current evaluation object to the shape required by Zod schema
+  // 1. Map current evaluation object to the shape required by the schema
+  const isFitrep = evalData.report_type === "FITREP";
+  const isChiefEval = evalData.report_type === "CHIEFEVAL";
+
+  const activeTraitMap = getTraitMap(evalData.report_type);
+
+  // Build trait_grades payload from the active trait map keys.
+  const traitGradesPayload: Record<string, string> = {};
+  Object.keys(activeTraitMap).forEach((k) => {
+    traitGradesPayload[k] = (evalData.trait_grades as Record<string, string>)?.[k] || "3.0";
+  });
+
   const validationPayload = {
     member_name: evalData.member_name || "",
     grade_rate: evalData.grade_rate || "",
@@ -87,36 +137,32 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     billet_subcategory: evalData.block_values?.billet_subcategory || "",
     reporting_senior_name: evalData.block_values?.reporting_senior_name || "",
     reporting_senior_grade: evalData.block_values?.reporting_senior_grade || "",
-    reporting_senior_designator:
-      evalData.block_values?.reporting_senior_designator || "",
+    reporting_senior_designator: evalData.block_values?.reporting_senior_designator || "",
     reporting_senior_title: evalData.block_values?.reporting_senior_title || "",
     reporting_senior_uic: evalData.block_values?.reporting_senior_uic || "",
-    reporting_senior_dod_id:
-      evalData.block_values?.reporting_senior_dod_id || "",
+    reporting_senior_dod_id: evalData.block_values?.reporting_senior_dod_id || "",
     command_achievements: evalData.block_values?.command_achievements || "",
     primary_duty_abbrev: evalData.block_values?.primary_duty_abbrev || "",
     primary_duties: evalData.block_values?.primary_duties || "",
     date_counseled: evalData.block_values?.date_counseled || "",
     counselor: evalData.block_values?.counselor || "",
-    trait_grades: {
-      knowledge: evalData.trait_grades?.knowledge || "3.0",
-      work: evalData.trait_grades?.work || "3.0",
-      eo: evalData.trait_grades?.eo || "3.0",
-      bearing: evalData.trait_grades?.bearing || "3.0",
-      accomplishment: evalData.trait_grades?.accomplishment || "3.0",
-      teamwork: evalData.trait_grades?.teamwork || "3.0",
-      leadership: evalData.trait_grades?.leadership || "3.0",
-    },
+    trait_grades: traitGradesPayload,
     comments: evalData.comments || "",
     career_recommendations: (evalData.career_recommendations || []).filter(
       (r) => (r || "").trim() !== "",
     ),
     promotion_recommendation: evalData.promotion_recommendation || "Promotable",
-    retention: evalData.retention || "Recommended",
+    // Only EVAL includes retention; CHIEFEVAL and FITREP omit it.
+    ...(!isChiefEval && !isFitrep ? { retention: evalData.retention || "Recommended" } : {}),
   };
 
-  // 2. Parse payload using the Zod schema
-  const parsed = EvalSchema.safeParse(validationPayload);
+  // 2. Parse payload using the schema appropriate for this report_type
+  const schema = isChiefEval
+    ? ChiefEvalSchema
+    : isFitrep
+      ? FitrepSchema
+      : EvalSchema;
+  const parsed = schema.safeParse(validationPayload);
   if (!parsed.success) {
     const fieldErrors = parsed.error.flatten().fieldErrors;
     Object.entries(fieldErrors).forEach(([field, messages]) => {
@@ -143,9 +189,8 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     });
   }
 
-  // 4. Policy warnings / Soft Checks (e.g. blank optional fields or future reminders)
-  // Let's check for optional but highly recommended fields to yield warnings
-  if (!evalData.designator && evalData.report_type === "EVAL") {
+  // 4. Designator warning — EVAL and CHIEFEVAL only (officers always have a designator)
+  if (!evalData.designator && !isFitrep) {
     warnings.push({
       field: "designator",
       block: 3,
@@ -305,19 +350,16 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     }
   }
 
-  // 11. Each trait must be graded (1.0-5.0 or NOB) on an observed report. EVALMAN leaves
-  //     the traits blank only on a wholly Not Observed (Block 16) report.
+  // 11. Each trait must be graded (1.0-5.0 or NOB) on an observed report.
+  //     Uses the active trait map for the current form type.
   if (!bv.not_observed) {
-    const tg = (evalData.trait_grades || {}) as Record<
-      string,
-      string | undefined
-    >;
-    Object.keys(traitBlockMap).forEach((key) => {
+    const tg = (evalData.trait_grades || {}) as Record<string, string | undefined>;
+    Object.keys(activeTraitMap).forEach((key) => {
       if (!tg[key]) {
         errors.push({
           field: `trait_grades.${key}`,
-          block: traitBlockMap[key],
-          message: `Trait must be graded 1.0–5.0 or NOB (Block ${traitBlockMap[key]}).`,
+          block: activeTraitMap[key],
+          message: `Trait must be graded 1.0–5.0 or NOB (Block ${activeTraitMap[key]}).`,
           severity: "error",
         });
       }
