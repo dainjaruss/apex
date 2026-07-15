@@ -87,7 +87,13 @@ export function getBlockForField(field: string): number | undefined {
   if (field.startsWith("trait_grades")) {
     // Path may be "trait_grades" or "trait_grades.<key>" depending on Zod flatten depth.
     const key = field.split(".")[1];
-    return (key && traitBlockMap[key]) || 33;
+    return (
+      (key &&
+        (traitBlockMap[key] ||
+          chiefEvalTraitBlockMap[key] ||
+          fitrepTraitBlockMap[key])) ||
+      33
+    );
   }
   return fieldBlockMap[field];
 }
@@ -312,10 +318,10 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //     comments yield a warning naming the marks the rater must address. NOB reports
   //     leave traits blank, so the rule does not apply.
   const grades = (evalData.trait_grades || {}) as Record<string, string>;
-  const onesBlocks = (Object.keys(traitBlockMap) as string[])
+  const onesBlocks = (Object.keys(activeTraitMap) as string[])
     .filter((k) => grades[k] === "1.0")
-    .map((k) => `Block ${traitBlockMap[k]}`);
-  const twoCount = (Object.keys(traitBlockMap) as string[]).filter(
+    .map((k) => `Block ${activeTraitMap[k]}`);
+  const twoCount = (Object.keys(activeTraitMap) as string[]).filter(
     (k) => grades[k] === "2.0",
   ).length;
 
@@ -324,8 +330,10 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     substReasons.push(`a 1.0 mark in ${onesBlocks.join(", ")}`);
   if (twoCount >= 3)
     substReasons.push(`three or more 2.0 marks (${twoCount} present)`);
-  if (grades.eo === "2.0")
-    substReasons.push("a 2.0 in Block 35 (Command/Organizational Climate/EO)");
+  const eoKey = isChiefEval ? "eo_climate" : "eo";
+  const eoBlock = isChiefEval ? 37 : 35;
+  if (grades[eoKey] === "2.0")
+    substReasons.push(`a 2.0 in Block ${eoBlock} (Command/Organizational Climate/EO)`);
 
   const substApplies =
     substReasons.length > 0 &&
