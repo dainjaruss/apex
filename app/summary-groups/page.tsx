@@ -214,7 +214,7 @@ function GroupForm({
       <button
         onClick={submit}
         disabled={saving}
-        className="px-5 py-2 rounded bg-[#3e6e99] hover:bg-[#4e82b0] disabled:opacity-50 text-white font-bold text-sm transition"
+        className="apex-btn-primary disabled:opacity-50 text-sm"
       >
         {saving ? "Creating…" : "Create Group"}
       </button>
@@ -237,9 +237,7 @@ function GroupList({
     );
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">
-        Existing Groups
-      </h3>
+      <h3 className="apex-section-title">Existing Groups</h3>
       <div className="grid gap-3 md:grid-cols-2">
         {groups.map((g) => (
           <GroupCard key={g.id} g={g} onChanged={onChanged} />
@@ -324,8 +322,11 @@ function GroupCard({
     >
       <div className="flex justify-between items-start gap-2">
         <button onClick={toggleExpand} className="text-left min-w-0">
-          <h4 className="font-bold text-white truncate">{g.name}</h4>
-          <p className="text-xs text-[#91aec9] mt-1">
+          <h4 className="font-bold apex-heading truncate">{g.name}</h4>
+          <p
+            className="text-xs mt-1"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {g.grade_rate} · {g.promotion_status} · ends {g.period_to} · Group
             Avg: {groupAverage !== null ? groupAverage.toFixed(2) : "N/A"}
           </p>
@@ -425,13 +426,13 @@ function GroupCard({
 
 function Center({ text, onBack }: { text: string; onBack?: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#0b132b] text-[#608bb3] font-mono text-sm gap-4 px-6 text-center">
+    <div
+      className="flex flex-col items-center justify-center min-h-screen text-sm gap-4 px-6 text-center"
+      style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
+    >
       <span>{text}</span>
       {onBack && (
-        <button
-          onClick={onBack}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-white transition"
-        >
+        <button type="button" onClick={onBack} className="apex-btn-secondary">
           Return to Dashboard
         </button>
       )}

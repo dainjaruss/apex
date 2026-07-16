@@ -47,7 +47,7 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 ## Untouched scope (explicitly not done)
 
 - **P1 review fixes** — addressed in follow-up commit after handoff (see git log after `1cdd8b1`)
-- **Register**, **landing `/`**, **admin** — enterprise theme pass (post-P1 polish); profile/export/summary-groups still mixed
+- **Route theme pass** — landing, register, admin, profile, export, summary-groups, modals, admin analytics; eval form/report chrome still has legacy hex in places
 - **Merge / land** — PR open; no merge to `main`
 - **`/srv/apex` (main clone)** — may still be **1 commit ahead** (`d27e7a2` theme work) **not** on `epic/enterprise-ui`; do not assume parity between clones
 - **Documentation** — README/ARCHITECTURE not updated for mockup paths or theme behavior
@@ -98,7 +98,7 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 ## What the next actor must not assume
 
 - That this handoff implies permission to merge PR #6 without owner say-so.
-- That register/landing/admin styling is complete (enterprise pass not done).
+- That every component is theme-complete (EvaluationForm, report tabs, block widgets still mix legacy hex).
 
 ---
 

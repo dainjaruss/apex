@@ -177,6 +177,11 @@ body {
     background: var(--primary-hover);
   }
 
+  .apex-modal-overlay {
+    @apply fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm;
+    background: color-mix(in srgb, var(--background) 82%, transparent);
+  }
+
   .apex-btn-secondary {
     @apply apex-btn;
     background: var(--card-elevated);

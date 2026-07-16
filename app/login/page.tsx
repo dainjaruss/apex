@@ -62,7 +62,7 @@ function AuthNotifications({
       <button
         onClick={onResend}
         disabled={loading}
-        className="w-full py-2.5 rounded-lg bg-[#1c2541] hover:bg-[#2c4f70] text-[#91aec9] hover:text-white font-semibold transition-all border border-[#3e6e99] disabled:opacity-50 text-xs tracking-wide"
+        className="apex-btn-secondary w-full py-2.5 text-xs tracking-wide"
       >
         {loading
           ? "Sending..."
