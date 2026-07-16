@@ -10,6 +10,9 @@ All theme tuning should start in **`app/globals.css`** under `:root` (light) and
 | `--card`, `--card-elevated`, `--border*` | Panels, tables |
 | `--form-panel`, `--form-input-bg`, `--input-border` | Eval form |
 | `--primary`, `--primary-hover`, `--accent-cyan`, `--accent-gold` | Actions, emphasis |
+| `--text-secondary` | Body/hero copy on `--background` (AA contrast) |
+| `--hero-title-gradient`, `--hero-gold-gradient` | Landing H1 gradient text (theme-aware) |
+| `--sidebar-brand-title`, `--sidebar-brand-tagline`, `--sidebar-section-label` | Navy sidebar & BUPERS panel |
 
 ## Semantic tokens (badges, reference tips, danger)
 

@@ -146,16 +146,17 @@ export default function AppShell({
               <div className="font-extrabold text-base tracking-[0.12em] text-white">
                 APEX
               </div>
-              <div className="text-[10px] uppercase tracking-[0.22em] gold-accent font-semibold">
-                Eval workflow
-              </div>
+              <div className="apex-sidebar-gold-label">Eval workflow</div>
             </div>
           </div>
         </div>
 
         <div className="flex-1 p-3 space-y-4">
           <div>
-            <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+            <div
+              className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: "var(--sidebar-section-label)" }}
+            >
               Operations
             </div>
             <nav className="space-y-0.5">

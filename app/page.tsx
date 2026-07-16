@@ -44,8 +44,8 @@ function LandingHero() {
         </span>
       </h1>
       <p
-        className="text-base md:text-lg font-light leading-relaxed"
-        style={{ color: "var(--muted-foreground)" }}
+        className="text-base md:text-lg font-normal leading-relaxed"
+        style={{ color: "var(--text-secondary)" }}
       >
         Eliminate administrative rejections for NAVPERS 1616/26 EVALs. Real-time
         validation engine, 10/12-pitch comment-box overflow checking, and
@@ -100,7 +100,7 @@ function LandingFeatures() {
           <h3 className="text-lg font-bold apex-heading">{f.title}</h3>
           <p
             className="text-sm leading-relaxed"
-            style={{ color: "var(--muted-foreground)" }}
+            style={{ color: "var(--text-secondary)" }}
           >
             {f.body}
           </p>
@@ -117,10 +117,10 @@ function LandingFooter() {
       style={{ borderColor: "var(--border)" }}
     >
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-        <NavyBranding sidebar className="max-w-xs" />
+        <NavyBranding sidebar onLightSurface className="max-w-xs" />
         <p
           className="text-center md:text-right text-xs max-w-md"
-          style={{ color: "var(--subtle)" }}
+          style={{ color: "var(--text-secondary)" }}
         >
           © 2026 APEX Project · CIS5898 Capstone
           <br />

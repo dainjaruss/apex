@@ -3,6 +3,8 @@ import NavyEmblem from "@/components/brand/NavyEmblem";
 type NavyBrandingProps = {
   /** Mockup 3 — bordered panel at bottom of sidebar */
   sidebar?: boolean;
+  /** Use on landing/footer over light background (fixes contrast audits) */
+  onLightSurface?: boolean;
   /** Small inline mark */
   compact?: boolean;
   className?: string;
@@ -11,24 +13,23 @@ type NavyBrandingProps = {
 function BupersCaption({ centered = true }: { centered?: boolean }) {
   return (
     <div className={`mt-3 space-y-1 ${centered ? "text-center" : "text-left"}`}>
-      <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white leading-snug">
-        Bureau of Naval Personnel
-      </p>
-      <p className="text-[10px] font-medium italic tracking-wide gold-accent">
-        People Are Our Mission
-      </p>
+      <p className="apex-sidebar-brand-title">Bureau of Naval Personnel</p>
+      <p className="apex-sidebar-brand-tagline">People Are Our Mission</p>
     </div>
   );
 }
 
 export default function NavyBranding({
   sidebar = false,
+  onLightSurface = false,
   compact = false,
   className = "",
 }: NavyBrandingProps) {
   if (sidebar) {
     return (
-      <div className={`apex-sidebar-brand ${className}`}>
+      <div
+        className={`apex-sidebar-brand ${onLightSurface ? "apex-sidebar-brand--on-light" : ""} ${className}`}
+      >
         <NavyEmblem size={96} priority className="mx-auto" />
         <BupersCaption />
       </div>

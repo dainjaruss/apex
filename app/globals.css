@@ -32,7 +32,8 @@
   --label: #475569;
   --muted: #e2e8f0;
   --muted-foreground: #64748b;
-  --subtle: #94a3b8;
+  --subtle: #64748b;
+  --text-secondary: #475569;
   --border: rgba(15, 23, 42, 0.1);
   --border-strong: rgba(15, 23, 42, 0.16);
   --input: #ffffff;
@@ -51,6 +52,11 @@
   --sidebar: #0b1220;
   --sidebar-text: #cbd5e1;
   --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-section-label: #94a3b8;
+  --sidebar-brand-title: #f8fafc;
+  --sidebar-brand-tagline: #fcd34d;
+  --hero-title-gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8f 55%, #1d4ed8 100%);
+  --hero-gold-gradient: linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%);
   --radius: 0.625rem;
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
   --nav-active-glow: rgba(30, 64, 175, 0.1);
@@ -187,6 +193,7 @@
   --muted: #151f35;
   --muted-foreground: #94a8c4;
   --subtle: #6b849f;
+  --text-secondary: #c8d6ea;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
   --input: #1a2438;
@@ -205,6 +212,11 @@
   --sidebar: #04070e;
   --sidebar-text: #94a3b8;
   --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-section-label: #94a8c4;
+  --sidebar-brand-title: #ffffff;
+  --sidebar-brand-tagline: #fde68a;
+  --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #c5d4e8 100%);
+  --hero-gold-gradient: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
   --nav-active-glow: rgba(59, 130, 246, 0.12);
   --dashboard-card-bg: linear-gradient(165deg, #172038 0%, #0f1628 100%);
@@ -351,15 +363,33 @@ body {
 }
 
 .gold-gradient-text {
-  background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+  background: var(--hero-gold-gradient);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .navy-gradient-text {
-  background: linear-gradient(135deg, #ffffff 0%, #c5d4e8 100%);
+  background: var(--hero-title-gradient);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Sidebar / BUPERS brand captions — never hardcode text-white on light surfaces */
+.apex-sidebar-brand-title {
+  @apply text-[10px] font-extrabold uppercase tracking-[0.16em] leading-snug;
+  color: var(--sidebar-brand-title);
+}
+
+.apex-sidebar-brand-tagline {
+  @apply text-[10px] font-medium italic tracking-wide;
+  color: var(--sidebar-brand-tagline);
+}
+
+.apex-sidebar-gold-label {
+  @apply text-[10px] uppercase font-semibold tracking-[0.22em];
+  color: var(--sidebar-brand-tagline);
 }
 
 @layer components {
@@ -756,6 +786,19 @@ body {
     @apply rounded-lg px-3 py-4 flex flex-col items-center justify-center border;
     border-color: rgba(255, 255, 255, 0.08);
     background: rgba(0, 0, 0, 0.22);
+  }
+
+  /* Landing footer & other light-surface brand panels */
+  .apex-sidebar-brand--on-light {
+    border-color: var(--border-strong);
+    background: var(--card);
+    box-shadow: var(--shadow-card);
+  }
+  .apex-sidebar-brand--on-light .apex-sidebar-brand-title {
+    color: var(--heading);
+  }
+  .apex-sidebar-brand--on-light .apex-sidebar-brand-tagline {
+    color: #b45309;
   }
 
   .apex-badge-draft {
