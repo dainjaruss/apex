@@ -1,5 +1,10 @@
 /** Mockup 2 form styling — shared across eval wizard blocks. */
 
+/** Stable id for label/htmlFor association (EVAL / CHIEFEVAL / FITREP wizard). */
+export function evalFieldId(key: string): string {
+  return `eval-field-${key.replace(/[^a-zA-Z0-9_]+/g, "-")}`;
+}
+
 export const FORM_PANEL = "apex-form-panel space-y-6";
 export const FORM_LABEL = "apex-label mb-1.5";
 export const FORM_SUBLABEL = "apex-label mb-1.5 text-[10px]";

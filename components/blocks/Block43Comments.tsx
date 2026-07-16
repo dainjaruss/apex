@@ -12,7 +12,7 @@ import { Evaluation, ValidationIssue } from "@/types";
 import { FIELD_FIT } from "@/lib/commentFit";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
-import { FORM_PANEL, FORM_SECTION_TITLE } from "@/lib/formStyles";
+import { FORM_PANEL, evalFieldId } from "@/lib/formStyles";
 
 interface Block43CommentsProps {
   evalData: Evaluation;
@@ -44,15 +44,15 @@ export default function Block43Comments({
     <div className={`${FORM_PANEL} mb-6 space-y-8`}>
       {/* ── Block 43: Comments on Performance ── */}
       <div>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-700/40 pb-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b apex-report-divider pb-2">
           <div>
-            <h3 className={FORM_SECTION_TITLE}>
+            <h2 className="apex-form-wizard-section-title">
               <span
                 className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
                 aria-hidden
               />
               43: Comments on Performance
-            </h3>
+            </h2>
             <p
               className="text-xs mt-1"
               style={{ color: "var(--muted-foreground)" }}
@@ -62,7 +62,7 @@ export default function Block43Comments({
             </p>
           </div>
           <div className="mt-3 sm:mt-0 flex items-center gap-2">
-            <span className="text-xs text-slate-400 font-semibold uppercase">
+            <span className="text-xs apex-report-field-label font-semibold uppercase">
               Printing Pitch:
             </span>
             <div
@@ -99,17 +99,17 @@ export default function Block43Comments({
           placeholder="TYPE PERFORMANCE NARRATIVE HERE…"
           onFocus={() => onFocusField?.("comments")}
           error={issues.find((i) => i.field === "comments")?.message}
-          ariaLabel="Block 43 Comments on Performance"
+          fieldId={evalFieldId("comments")}
         />
       </div>
 
       {/* ── Block 44: Qualifications / Achievements ── */}
       <div>
-        <div className="mb-3 border-b border-slate-700/40 pb-2">
-          <h3 className="text-lg font-bold gold-accent">
+        <div className="mb-3 border-b apex-report-divider pb-2">
+          <h2 className="apex-form-section-heading">
             44: Qualifications / Achievements
-          </h3>
-          <p className="text-xs text-slate-400">
+          </h2>
+          <p className="text-xs apex-text-muted">
             Education, awards, community involvement, etc., during this period (
             {qualSpec.charsPerLine} chars/line × {qualSpec.maxLines} lines).
           </p>
@@ -128,7 +128,7 @@ export default function Block43Comments({
           placeholder="EDUCATION, AWARDS, COMMUNITY INVOLVEMENT…"
           onFocus={() => onFocusField?.("qualifications")}
           error={issues.find((i) => i.field === "qualifications")?.message}
-          ariaLabel="Block 44 Qualifications and Achievements"
+          fieldId={evalFieldId("bv-qualifications")}
         />
       </div>
     </div>

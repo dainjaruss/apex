@@ -13,6 +13,22 @@ All theme tuning should start in **`app/globals.css`** under `:root` (light) and
 | `--text-secondary` | Body/hero copy on `--background` (AA contrast) |
 | `--hero-title-gradient`, `--hero-gold-gradient` | Landing H1 gradient text (theme-aware) |
 | `--sidebar-brand-title`, `--sidebar-brand-tagline`, `--sidebar-section-label` | Navy sidebar & BUPERS panel |
+| `--sidebar-brand-title-on-light`, `--sidebar-brand-tagline-on-light` | BUPERS panel on light cards (register/login/footer) |
+| `--sidebar-profile-primary`, `--sidebar-profile-secondary` | Sidebar user rank/name + role (e.g. Reporting Senior) |
+| `--page-subtitle-text`, `--table-header-text`, `--queue-tab-idle-text` | Dashboard subtitle, table `<th>`, queue tab buttons |
+| `--badge-kicker-*`, `--navpers-pill-*`, `--form-kind-badge-*`, `--form-picker-*` | Page kicker badge, `/evaluations/new` form picker cards |
+| `--report-*`, `.apex-report-*`, `.apex-narrative-viewer` | View draft/report (`/evaluations/[id]`) Form Details & audit |
+
+## Auth & forms
+
+| Token / class | Use |
+|---------------|-----|
+| `--link`, `--link-hover` | `.apex-link` |
+| `--field-error-text`, `--field-invalid-*` | `.apex-text-field-error`, `.apex-input--invalid`, `.apex-select--invalid` |
+| `--banner-error-*`, `--banner-success-*` | `.apex-banner-error`, `.apex-banner-success` |
+| `--status-success-text` | `.apex-text-success` |
+| `.apex-text-muted`, `.apex-text-subtle`, `.apex-text-secondary`, `.apex-text-accent` | Body copy — prefer over `style={{ color: ... }}` or `text-slate-*` |
+| `.apex-auth-shell` | Full-page auth background (`var(--background)`) |
 
 ## Semantic tokens (badges, reference tips, danger)
 

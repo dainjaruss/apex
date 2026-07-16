@@ -1,10 +1,10 @@
 import React from "react";
 import {
-  TRAIT_STANDARDS,
+  TRAIT_STANDARDS_LOOKUP,
   TRAIT_GRADE_LABELS,
   GRADE_SCALE_NOTE,
   ANCHOR_GRADES,
-  SUBSTANTIATION_NOTE,
+  getSubstantiationNote,
   TraitKey,
   AnchorGrade,
 } from "@/lib/traitStandards";
@@ -18,11 +18,13 @@ const ANCHOR_HEADING: Record<string, string> = {
 export default function TraitStandardPanel({
   traitKey,
   grade,
+  reportType,
 }: {
   traitKey: TraitKey;
   grade: string;
+  reportType?: string;
 }) {
-  const std = TRAIT_STANDARDS[traitKey];
+  const std = TRAIT_STANDARDS_LOOKUP[traitKey];
   if (!std) return null;
 
   const isAnchor = (ANCHOR_GRADES as readonly string[]).includes(grade);
@@ -91,7 +93,7 @@ export default function TraitStandardPanel({
             color: "var(--subtle)",
           }}
         >
-          {SUBSTANTIATION_NOTE}
+          {getSubstantiationNote(reportType)}
         </p>
       )}
     </div>

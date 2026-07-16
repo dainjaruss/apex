@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:fresh": "rm -rf .next && next dev",
+    "preview": "npm run build && next start",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,6 +17,8 @@
     "db:seed-stress:reset": "tsx scripts/seed-stress.ts --reset",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "a11y": "playwright test -c playwright.a11y.config.ts",
+    "a11y:ci": "CI=1 playwright test -c playwright.a11y.config.ts",
     "verify": "npm run test:all && npm run build",
     "verify:e2e": "npm run test:all && npm run build && npm run test:e2e",
     "format": "prettier --write ."
@@ -38,6 +42,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

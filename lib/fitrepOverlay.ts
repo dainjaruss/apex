@@ -21,7 +21,7 @@ import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT } from "./commentFit";
+import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 
 const BLACK = rgb(0, 0, 0);
@@ -125,8 +125,8 @@ const C = {
 
     b29b_x: FORM_LEFT,
     b29_firstBaseline: 486.0,
-    b29b_lines: 4,
-    b29b_cpl: 91,
+    b29b_lines: getPrimaryDutiesFieldFit("FITREP").maxLines,
+    b29b_cpl: getPrimaryDutiesFieldFit("FITREP").charsPerLine,
     b29_abbrevSize: 9.5,
     b29b_contX: FORM_LEFT,
 

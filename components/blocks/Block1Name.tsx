@@ -11,6 +11,7 @@ import {
   FORM_LABEL,
   formFieldClass,
   formFieldsetClass,
+  evalFieldId,
 } from "@/lib/formStyles";
 
 interface Block1NameProps {
@@ -76,8 +77,11 @@ export default function Block1Name({
       {/* Grid for Blocks 1 - 4 */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
         <div className="md:col-span-5">
-          <label className={labelClass}>1: Name (Last, First MI Suffix)</label>
+          <label className={labelClass} htmlFor={evalFieldId("member_name")}>
+            1: Name (Last, First MI Suffix)
+          </label>
           <input
+            id={evalFieldId("member_name")}
             type="text"
             placeholder="DAIN, FRANKLYN A"
             value={evalData.member_name}
@@ -88,15 +92,18 @@ export default function Block1Name({
             className={fieldClass(!!getError("member_name"))}
           />
           {getError("member_name") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("member_name")}
             </p>
           )}
         </div>
 
         <div className="md:col-span-2">
-          <label className={labelClass}>2: Grade/Rate</label>
+          <label className={labelClass} htmlFor={evalFieldId("grade_rate")}>
+            2: Grade/Rate
+          </label>
           <input
+            id={evalFieldId("grade_rate")}
             type="text"
             placeholder="PO2"
             maxLength={5}
@@ -108,15 +115,18 @@ export default function Block1Name({
             className={fieldClass(!!getError("grade_rate"))}
           />
           {getError("grade_rate") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("grade_rate")}
             </p>
           )}
         </div>
 
         <div className="md:col-span-2">
-          <label className={labelClass}>3: Designator</label>
+          <label className={labelClass} htmlFor={evalFieldId("designator")}>
+            3: Designator
+          </label>
           <input
+            id={evalFieldId("designator")}
             type="text"
             placeholder="1110"
             maxLength={10}
@@ -130,8 +140,11 @@ export default function Block1Name({
         </div>
 
         <div className="md:col-span-3">
-          <label className={labelClass}>4: DoD ID</label>
+          <label className={labelClass} htmlFor={evalFieldId("dod_id")}>
+            4: DoD ID
+          </label>
           <input
+            id={evalFieldId("dod_id")}
             type="text"
             placeholder="10-digit number"
             maxLength={10}
@@ -143,7 +156,9 @@ export default function Block1Name({
             className={fieldClass(!!getError("dod_id"))}
           />
           {getError("dod_id") && (
-            <p className="text-red-400 text-xs mt-1">{getError("dod_id")}</p>
+            <p className="apex-text-field-error text-xs mt-1">
+              {getError("dod_id")}
+            </p>
           )}
         </div>
       </div>
@@ -151,8 +166,11 @@ export default function Block1Name({
       {/* Grid for Blocks 5 - 8 */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
         <div className="md:col-span-3">
-          <label className={labelClass}>5: Duty Status</label>
+          <label className={labelClass} htmlFor={evalFieldId("duty_status")}>
+            5: Duty Status
+          </label>
           <select
+            id={evalFieldId("duty_status")}
             value={evalData.duty_status}
             onChange={(e) => onChange({ duty_status: e.target.value })}
             onFocus={() => onFocusField?.("duty_status")}
@@ -166,15 +184,18 @@ export default function Block1Name({
             ))}
           </select>
           {getError("duty_status") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("duty_status")}
             </p>
           )}
         </div>
 
         <div className="md:col-span-2">
-          <label className={labelClass}>6: UIC</label>
+          <label className={labelClass} htmlFor={evalFieldId("uic")}>
+            6: UIC
+          </label>
           <input
+            id={evalFieldId("uic")}
             type="text"
             placeholder="e.g. 00241"
             maxLength={5}
@@ -186,13 +207,18 @@ export default function Block1Name({
             className={fieldClass(!!getError("uic"))}
           />
           {getError("uic") && (
-            <p className="text-red-400 text-xs mt-1">{getError("uic")}</p>
+            <p className="apex-text-field-error text-xs mt-1">
+              {getError("uic")}
+            </p>
           )}
         </div>
 
         <div className="md:col-span-4">
-          <label className={labelClass}>7: Ship/Station</label>
+          <label className={labelClass} htmlFor={evalFieldId("ship_station")}>
+            7: Ship/Station
+          </label>
           <input
+            id={evalFieldId("ship_station")}
             type="text"
             placeholder="USS NEVERSAIL"
             value={evalData.ship_station}
@@ -203,15 +229,18 @@ export default function Block1Name({
             className={fieldClass(!!getError("ship_station"))}
           />
           {getError("ship_station") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("ship_station")}
             </p>
           )}
         </div>
 
         <div className="md:col-span-3">
-          <label className={labelClass}>8: Promotion Status</label>
+          <label className={labelClass} htmlFor={evalFieldId("promotion_status")}>
+            8: Promotion Status
+          </label>
           <select
+            id={evalFieldId("promotion_status")}
             value={evalData.promotion_status}
             onChange={(e) => onChange({ promotion_status: e.target.value })}
             onFocus={() => onFocusField?.("promotion_status")}
@@ -225,7 +254,7 @@ export default function Block1Name({
             ))}
           </select>
           {getError("promotion_status") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("promotion_status")}
             </p>
           )}
@@ -235,8 +264,11 @@ export default function Block1Name({
       {/* Block 9 (Date Reported) + Blocks 14-15 (Report Period) */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         <div className="md:col-span-4">
-          <label className={labelClass}>9: Date Reported</label>
+          <label className={labelClass} htmlFor={evalFieldId("date_reported")}>
+            9: Date Reported
+          </label>
           <input
+            id={evalFieldId("date_reported")}
             type="date"
             value={bv.date_reported || ""}
             onChange={(e) =>
@@ -253,49 +285,61 @@ export default function Block1Name({
             )}
           />
           {(getError("date_reported") || getBlockError(9)) && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("date_reported") || getBlockError(9)}
             </p>
           )}
         </div>
 
-        <div className="md:col-span-8">
-          <label className={labelClass}>14-15: Report Period</label>
-          <div className="grid grid-cols-2 gap-2">
+        <fieldset className="md:col-span-8 border-0 p-0 m-0 min-w-0">
+          <legend className={`${labelClass} float-left w-full mb-1.5`}>
+            14-15: Report Period
+          </legend>
+          <div className="grid grid-cols-2 gap-2 clear-both">
             <div>
+              <label
+                className="text-[10px] apex-text-muted block mb-0.5"
+                htmlFor={evalFieldId("period_from")}
+              >
+                From
+              </label>
               <input
+                id={evalFieldId("period_from")}
                 type="date"
                 value={evalData.period_from}
                 onChange={(e) => onChange({ period_from: e.target.value })}
                 onFocus={() => onFocusField?.("period_from")}
                 className={fieldClass(!!getError("period_from"))}
               />
-              <span className="text-[10px] text-slate-500 block mt-0.5 text-center">
-                From
-              </span>
             </div>
             <div>
+              <label
+                className="text-[10px] apex-text-muted block mb-0.5"
+                htmlFor={evalFieldId("period_to")}
+              >
+                To
+              </label>
               <input
+                id={evalFieldId("period_to")}
                 type="date"
                 value={evalData.period_to}
                 onChange={(e) => onChange({ period_to: e.target.value })}
                 onFocus={() => onFocusField?.("period_to")}
                 className={fieldClass(!!getError("period_to"))}
               />
-              <span className="text-[10px] text-slate-500 block mt-0.5 text-center">
-                To
-              </span>
             </div>
           </div>
           {getError("period_from") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {getError("period_from")}
             </p>
           )}
           {getError("period_to") && (
-            <p className="text-red-400 text-xs mt-1">{getError("period_to")}</p>
+            <p className="apex-text-field-error text-xs mt-1">
+              {getError("period_to")}
+            </p>
           )}
-        </div>
+        </fieldset>
       </div>
 
       {/* Blocks 10-13 (Occasion) + Blocks 16-18 (Type) — multi-select per BUPERSINST 1610.10H */}
@@ -306,31 +350,35 @@ export default function Block1Name({
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
             <CheckOption
+              id={evalFieldId("flag-periodic")}
               label="10: Periodic"
               checked={!!bv.periodic}
               onToggle={() => toggleBlockFlag("periodic")}
               onFocus={() => onFocusField?.("occasion")}
             />
             <CheckOption
+              id={evalFieldId("flag-detachment_individual")}
               label="11: Detachment of Individual"
               checked={!!bv.detachment_individual}
               onToggle={() => toggleBlockFlag("detachment_individual")}
               onFocus={() => onFocusField?.("occasion")}
             />
             <CheckOption
+              id={evalFieldId("flag-promotion_frocking")}
               label="12: Promotion/Frocking"
               checked={!!bv.promotion_frocking}
               onToggle={() => toggleBlockFlag("promotion_frocking")}
               onFocus={() => onFocusField?.("occasion")}
             />
             <CheckOption
+              id={evalFieldId("flag-special")}
               label="13: Special"
               checked={!!bv.special}
               onToggle={() => toggleBlockFlag("special")}
               onFocus={() => onFocusField?.("occasion")}
             />
           </div>
-          <p className="text-[10px] text-slate-500 mt-2">
+          <p className="text-[10px] apex-text-muted mt-2">
             Special (13) cannot be combined with another occasion.
           </p>
         </CheckGroup>
@@ -341,25 +389,28 @@ export default function Block1Name({
         >
           <div className="space-y-1.5">
             <CheckOption
+              id={evalFieldId("flag-not_observed")}
               label="16: Not Observed (NOB)"
               checked={!!bv.not_observed}
               onToggle={() => toggleBlockFlag("not_observed")}
               onFocus={() => onFocusField?.("type")}
             />
             <CheckOption
+              id={evalFieldId("flag-regular_report")}
               label="17: Regular"
               checked={!!bv.regular_report}
               onToggle={() => toggleBlockFlag("regular_report")}
               onFocus={() => onFocusField?.("type")}
             />
             <CheckOption
+              id={evalFieldId("flag-concurrent_report")}
               label="18: Concurrent"
               checked={!!bv.concurrent_report}
               onToggle={() => toggleBlockFlag("concurrent_report")}
               onFocus={() => onFocusField?.("type")}
             />
           </div>
-          <p className="text-[10px] text-slate-500 mt-2">
+          <p className="text-[10px] apex-text-muted mt-2">
             A Concurrent/Regular report marks both 17 and 18.
           </p>
         </CheckGroup>
@@ -381,29 +432,37 @@ function CheckGroup({
 }) {
   return (
     <fieldset className={formFieldsetClass(!!error)}>
-      <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <legend className="px-1 text-xs font-semibold uppercase tracking-wider apex-report-field-label">
         {label}
       </legend>
       {children}
-      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+      {error && (
+        <p className="apex-text-field-error text-xs mt-2">{error}</p>
+      )}
     </fieldset>
   );
 }
 
 function CheckOption({
+  id,
   label,
   checked,
   onToggle,
   onFocus,
 }: {
+  id: string;
   label: string;
   checked: boolean;
   onToggle: () => void;
   onFocus?: () => void;
 }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-200 select-none">
+    <label
+      htmlFor={id}
+      className="flex items-center gap-2 cursor-pointer text-sm apex-report-body select-none"
+    >
       <input
+        id={id}
         type="checkbox"
         checked={checked}
         onChange={onToggle}

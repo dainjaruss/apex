@@ -41,13 +41,16 @@ function FormInput({
   error,
   fieldClass,
   containerClassName = "space-y-1.5",
+  id,
   ...props
 }: FormInputProps) {
   return (
     <div className={containerClassName}>
-      <label className="apex-label">{label}</label>
-      <input className={fieldClass} {...props} />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      <label className="apex-label" htmlFor={id}>
+        {label}
+      </label>
+      <input id={id} className={fieldClass} {...props} />
+      {error && <p className="text-xs apex-text-field-error">{error}</p>}
     </div>
   );
 }
@@ -66,33 +69,43 @@ function FormSelect({
   fieldClass,
   containerClassName = "space-y-1.5",
   children,
+  id,
   ...props
 }: FormSelectProps) {
+  const invalid = /\bapex-input--invalid\b/.test(fieldClass);
+  const selectClass = `apex-select${invalid ? " apex-select--invalid" : ""}`;
   return (
     <div className={containerClassName}>
-      <label className="apex-label">{label}</label>
-      <select className={fieldClass} {...props}>
+      <label className="apex-label" htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        className={selectClass}
+        aria-label={typeof label === "string" ? label : undefined}
+        {...props}
+      >
         {children}
       </select>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs apex-text-field-error">{error}</p>}
     </div>
   );
 }
 
 function RegistrationSuccess({ email }: { email: string }) {
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center p-4"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="apex-auth-shell relative flex min-h-screen items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6 text-center">
-        <h2 className="text-2xl font-bold text-green-500 dark:text-green-400 tracking-wide">
+      <main
+        id="main-content"
+        className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6 text-center"
+      >
+        <h2 className="text-2xl font-bold apex-text-success tracking-wide">
           Registration Submitted
         </h2>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm apex-text-muted">
           We have sent a secure verification link to <strong>{email}</strong>.
           Please check your inbox and click the link to confirm your identity
           before logging in.
@@ -102,7 +115,7 @@ function RegistrationSuccess({ email }: { email: string }) {
             Return to Login
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
@@ -229,10 +242,7 @@ function ProfessionalFields({
         label={
           <>
             UIC{" "}
-            <span
-              className="normal-case font-normal"
-              style={{ color: "var(--subtle)" }}
-            >
+            <span className="normal-case font-normal apex-text-subtle">
               (optional)
             </span>
           </>
@@ -429,7 +439,7 @@ function useRegisterForm() {
   };
 
   const fieldClass = (field: keyof RegisterFormData) =>
-    `apex-input ${fieldErrors[field] ? "!border-red-500/70 focus:!border-red-400" : ""}`;
+    `apex-input ${fieldErrors[field] ? "apex-input--invalid" : ""}`;
 
   return {
     formData,
@@ -460,14 +470,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center p-4"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="apex-auth-shell relative flex min-h-screen items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6">
+      <main
+        id="main-content"
+        className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6"
+      >
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
@@ -476,15 +486,15 @@ export default function RegisterPage() {
             <h2 className="text-2xl font-bold apex-heading tracking-wide">
               APEX Registry
             </h2>
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-sm apex-text-muted">
               Create a new profile to access the evaluation platform
             </p>
           </div>
-          <NavyBranding sidebar className="mt-2" />
+          <NavyBranding sidebar onLightSurface className="mt-2" />
         </div>
 
         {serverError && (
-          <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
+          <div className="apex-banner-error">
             {serverError}
           </div>
         )}
@@ -498,16 +508,13 @@ export default function RegisterPage() {
           fieldClass={fieldClass}
         />
 
-        <div
-          className="text-center text-xs pt-2"
-          style={{ color: "var(--subtle)" }}
-        >
+        <div className="text-center text-xs pt-2 apex-text-subtle">
           Already registered?{" "}
-          <Link href="/login" className="text-blue-500 hover:underline font-medium">
+          <Link href="/login" className="apex-link">
             Sign In here
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -96,7 +96,12 @@ export async function middleware(req: NextRequest) {
   if (redirectPath) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = redirectPath;
-    return NextResponse.redirect(redirectUrl);
+    const redirect = NextResponse.redirect(redirectUrl);
+    // Keep session cookies from getUser() refresh (plain redirect dropped them).
+    responseRef.value.cookies.getAll().forEach((cookie) => {
+      redirect.cookies.set(cookie);
+    });
+    return redirect;
   }
 
   return responseRef.value;

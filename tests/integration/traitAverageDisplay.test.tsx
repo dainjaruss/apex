@@ -37,8 +37,8 @@ describe("Trait section average (Block 40)", () => {
     render(<Harness />);
 
     // knowledge (row 0) -> 5.0, work (row 1) -> 1.0; the other five stay 3.0.
-    fireEvent.click(screen.getAllByRole("button", { name: "5.0" })[0]);
-    fireEvent.click(screen.getAllByRole("button", { name: "1.0" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: /grade 5\.0/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /grade 1\.0/i })[1]);
 
     // (5.0 + 1.0 + 3.0*5) / 7 = 3.00 — the grade-wipe bug produced 1.00 (the last click).
     expect(screen.getByText("3.00")).toBeDefined();
@@ -80,7 +80,9 @@ describe("Trait section average (Block 40)", () => {
     expect(screen.getByText("3.00")).toBeDefined(); // (4.0 + 2.0) / 2
 
     // Click knowledge's active 4.0 to clear it -> only work (2.0) remains graded -> 2.00.
-    fireEvent.click(screen.getAllByRole("button", { name: "4.0" })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Professional Knowledge.*grade 4\.0/i })[0],
+    );
     expect(screen.getByText("2.00")).toBeDefined();
   });
 });

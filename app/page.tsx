@@ -21,8 +21,7 @@ function LandingHeader() {
         <ThemeToggle compact />
         <Link
           href="/login"
-          className="text-sm font-medium transition-colors hover:opacity-90"
-          style={{ color: "var(--muted-foreground)" }}
+          className="text-sm font-medium apex-text-muted transition-colors hover:opacity-90"
         >
           Sign In
         </Link>
@@ -43,10 +42,7 @@ function LandingHero() {
           Evaluation eXchange
         </span>
       </h1>
-      <p
-        className="text-base md:text-lg font-normal leading-relaxed"
-        style={{ color: "var(--text-secondary)" }}
-      >
+      <p className="text-base md:text-lg font-normal leading-relaxed apex-text-secondary">
         Eliminate administrative rejections for NAVPERS 1616/26 EVALs. Real-time
         validation engine, 10/12-pitch comment-box overflow checking, and
         BUPERSINST 1610.10H policy conformance.
@@ -99,20 +95,13 @@ function LandingFeatures() {
       {features.map((f) => (
         <div
           key={f.n}
-          className="p-6 apex-card space-y-3 hover:border-blue-500/25 transition-colors"
+          className="p-6 apex-card space-y-3 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)]"
         >
-          <div
-            className="text-2xl font-bold"
-            style={{ color: "var(--accent-cyan)" }}
-            aria-hidden
-          >
+          <div className="text-2xl font-bold apex-text-accent" aria-hidden>
             {f.n}
           </div>
           <h3 className="text-lg font-bold apex-heading">{f.title}</h3>
-          <p
-            className="text-sm leading-relaxed"
-            style={{ color: "var(--text-secondary)" }}
-          >
+          <p className="text-sm leading-relaxed apex-text-secondary">
             {f.body}
           </p>
         </div>
@@ -124,16 +113,10 @@ function LandingFeatures() {
 
 function LandingFooter() {
   return (
-    <footer
-      className="border-t py-8 px-4"
-      style={{ borderColor: "var(--border)" }}
-    >
+    <footer className="border-t border-border py-8 px-4">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
         <NavyBranding sidebar onLightSurface className="max-w-xs" />
-        <p
-          className="text-center md:text-right text-xs max-w-md"
-          style={{ color: "var(--text-secondary)" }}
-        >
+        <p className="text-center md:text-right text-xs max-w-md apex-text-secondary">
           © 2026 APEX Project · CIS5898 Capstone
           <br />
           Governing directive BUPERSINST 1610.10H · NAVPERS 1616/26
@@ -145,7 +128,7 @@ function LandingFooter() {
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
+    <div className="apex-landing-page flex flex-col min-h-screen text-foreground">
       <LandingHeader />
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-6xl mx-auto w-full">
         <LandingHero />

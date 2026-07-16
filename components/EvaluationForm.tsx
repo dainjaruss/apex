@@ -202,7 +202,7 @@ export default function EvaluationForm({
       period_to: group.period_to,
       grade_rate: group.grade_rate,
       promotion_status: group.promotion_status,
-      report_type: "EVAL",
+      report_type: prev.report_type,
       block_values: {
         ...prev.block_values,
         command_achievements: group.command_employment,
@@ -347,19 +347,16 @@ export default function EvaluationForm({
   const formBadgeInfo = isChiefEvalForm
     ? {
         label: "CHIEFEVAL (NAVPERS 1616/27)",
-        className:
-          "bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+        className: "apex-form-badge-chief",
       }
     : isFitrepForm
       ? {
           label: "FITREP (NAVPERS 1610/2)",
-          className:
-            "bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+          className: "apex-form-badge-fitrep",
         }
       : {
           label: "EVAL (NAVPERS 1616/26)",
-          className:
-            "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+          className: "apex-form-badge-eval",
         };
 
   const errorIssues = issues
@@ -403,9 +400,7 @@ export default function EvaluationForm({
 
         <div className="grid gap-4 lg:grid-cols-[200px_1fr_260px] items-start">
           <nav className="apex-card p-3 hidden lg:block sticky top-20">
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-2 px-2" style={{ color: "var(--muted-foreground)" }}>
-              Sections
-            </p>
+            <p className="apex-form-nav-kicker">Sections</p>
             {STEPS.map((step, idx) => {
               const isActive = currentStep === idx;
               const isCompleted = currentStep > idx;
@@ -414,18 +409,13 @@ export default function EvaluationForm({
                   key={step.id}
                   type="button"
                   onClick={() => setCurrentStep(idx)}
-                  className={`w-full text-left rounded-lg px-2.5 py-2 text-xs font-semibold mb-0.5 transition ${
+                  className={`apex-wizard-nav-btn ${
                     isActive
-                      ? "bg-[var(--nav-active-glow)]"
-                      : "hover:bg-[var(--muted)]"
-                  }`}
-                  style={{
-                    color: isActive
-                      ? "var(--primary)"
+                      ? "apex-wizard-nav-btn--active"
                       : isCompleted
-                        ? "var(--success)"
-                        : "var(--muted-foreground)",
-                  }}
+                        ? "apex-wizard-nav-btn--done"
+                        : ""
+                  }`}
                 >
                   {isCompleted ? "✓ " : `${idx + 1}. `}
                   {step.title.replace(/^\d+\.\s*/, "")}
@@ -537,10 +527,7 @@ export default function EvaluationForm({
               ← Previous Section
             </button>
 
-            <span
-              className="text-xs font-semibold uppercase tracking-wider hidden sm:inline"
-              style={{ color: "var(--subtle)" }}
-            >
+            <span className="text-xs font-semibold uppercase tracking-wider hidden sm:inline apex-text-secondary">
               Section {currentStep + 1} of 4
             </span>
 
@@ -556,7 +543,7 @@ export default function EvaluationForm({
                 Next Section →
               </button>
             ) : (
-              <span className="text-xs font-semibold text-emerald-400">
+              <span className="text-xs font-semibold apex-text-success">
                 All Sections Filled
               </span>
             )}
@@ -579,9 +566,7 @@ export default function EvaluationForm({
           </div>
 
           <aside className="apex-workspace-rail hidden lg:block">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted-foreground)" }}>
-              Validation
-            </h3>
+            <p className="apex-wizard-rail-title">Validation</p>
             {errorIssues.length === 0 && warnIssues.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--success)" }}>
                 ✓ No policy issues on this section
@@ -698,10 +683,10 @@ function SummaryGroupSelector({
   if (!loaded || visible.length === 0) return null;
 
   return (
-    <div className="apex-card p-5 space-y-3 border-blue-500/20">
+    <div className="apex-summary-group-panel">
       <div className="flex items-start gap-2.5">
         <svg
-          className="w-4 h-4 mt-0.5 text-sky-300 flex-shrink-0"
+          className="w-4 h-4 mt-0.5 apex-text-accent flex-shrink-0"
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
@@ -715,16 +700,16 @@ function SummaryGroupSelector({
           />
         </svg>
         <div>
-          <h3 className="text-sm font-bold text-white">
+          <h2 className="text-sm font-bold apex-heading">
             Summary Group{" "}
-            <span className="text-slate-400 font-normal">(optional)</span>
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+            <span className="apex-text-muted font-normal">(optional)</span>
+          </h2>
+          <p className="text-xs apex-text-muted mt-0.5">
             Attach this evaluation to a Reporting Senior&apos;s
             promotion-recommendation group. Only groups for your paygrade,
             promotion status, reporting senior, and ending date are shown.
             {(evalContext.grade_rate || evalContext.uic) && (
-              <span className="block mt-1 text-slate-500">
+              <span className="block mt-1 apex-text-subtle">
                 You: {evalContext.grade_rate || "—"}
                 {memberPaygrade ? ` (${memberPaygrade})` : ""}
                 {evalContext.uic ? ` · UIC ${evalContext.uic}` : ""}
@@ -734,7 +719,11 @@ function SummaryGroupSelector({
         </div>
       </div>
 
+      <label className="apex-label" htmlFor="eval-field-summary-group">
+        Attach to summary group
+      </label>
       <select
+        id="eval-field-summary-group"
         value={value || ""}
         onChange={(e) =>
           onSelect(visible.find((g) => g.id === e.target.value) || null)
@@ -750,7 +739,7 @@ function SummaryGroupSelector({
       </select>
 
       {selected && (
-        <div className="text-[11px] text-sky-200/90 bg-sky-950/30 border border-sky-900/40 rounded-lg p-3 leading-relaxed">
+        <div className="text-[11px] apex-text-secondary apex-form-panel border rounded-lg p-3 leading-relaxed">
           On save, these fields are standardized from{" "}
           <span className="font-semibold">{selected.name}</span> and shared
           across the group: <span className="font-semibold">ending date</span> (
@@ -860,9 +849,7 @@ function GuidelinesToggle({
           : "Show the inline BUPERS field guidelines"
       }
       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-extrabold uppercase tracking-wider transition ${
-        on
-          ? "bg-sky-950/50 border-sky-900/40 text-sky-300 hover:bg-sky-900/40"
-          : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-slate-200"
+        on ? "apex-guidelines-toggle--on" : "apex-guidelines-toggle--off"
       }`}
     >
       {on ? (
@@ -921,7 +908,7 @@ function AutosaveStatus({
 }) {
   if (committed) {
     return (
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+      <span className="text-[10px] font-semibold uppercase tracking-wider apex-text-success">
         ✓ Saved to database
       </span>
     );
@@ -930,7 +917,7 @@ function AutosaveStatus({
     return (
       <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
         ✓ Saved to database · {formatTime(dbSavedAt)}
-        <span className="text-slate-500 normal-case font-normal">
+        <span className="apex-text-muted normal-case font-normal">
           (autosave still on — keep editing)
         </span>
       </span>
@@ -938,14 +925,14 @@ function AutosaveStatus({
   }
   if (!savedAt) {
     return (
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      <span className="apex-autosave-caption">
         Changes autosave locally
       </span>
     );
   }
   return (
-    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-      <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+    <span className="apex-autosave-caption flex items-center gap-1.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-cyan)]" />
       Autosaved locally · {formatTime(savedAt)}
     </span>
   );
@@ -998,24 +985,26 @@ function StatusBar({
     >
       <div>
         {issues.length > 0 ? (
-          <div className="text-amber-400 text-xs font-semibold flex items-center gap-1.5">
+          <div className="apex-text-accent text-xs font-semibold flex items-center gap-1.5">
             <span>
               ⚠️ Form contains {issues.length} active policy warning(s).
             </span>
           </div>
         ) : (
-          <div className="text-green-400 text-xs font-semibold flex items-center gap-1.5">
+          <div className="apex-text-success text-xs font-semibold flex items-center gap-1.5">
             <span>✓ All Navy EVAL rules are satisfied.</span>
           </div>
         )}
         {!committed && savedAt && (
-          <p className="text-slate-500 text-[11px] mt-1">
+          <p className="apex-text-muted text-[11px] mt-1">
             Work autosaved locally · {formatTime(savedAt)} — not yet written to
             the database.
           </p>
         )}
         {saveError && (
-          <p className="text-red-400 text-xs mt-1 font-semibold">{saveError}</p>
+          <p className="apex-text-field-error text-xs mt-1 font-semibold">
+            {saveError}
+          </p>
         )}
       </div>
 

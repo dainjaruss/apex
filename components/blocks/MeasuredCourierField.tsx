@@ -20,8 +20,8 @@ interface Props {
   onFocus?: () => void;
   /** External validation message to show under the canvas. */
   error?: string | null;
-  /** Accessible label / aria for the textarea. */
-  ariaLabel?: string;
+  /** Associates visible label with the textarea (preferred over ariaLabel alone). */
+  fieldId?: string;
   /** Optional caption rendered inline with the line counter (keeps the box tight to the label). */
   label?: string;
   /** Characters reserved on line 1 for an inline lead box (e.g. Block 29A). */
@@ -36,7 +36,7 @@ export default function MeasuredCourierField({
   placeholder,
   onFocus,
   error,
-  ariaLabel,
+  fieldId,
   label,
   firstLineLead = 0,
 }: Props) {
@@ -58,39 +58,44 @@ export default function MeasuredCourierField({
     ta.style.height = `${Math.max(ta.scrollHeight, maxLines * LINE_PX)}px`;
   }, [value, charsPerLine, maxLines]);
 
-  const counterColor = over
-    ? "text-red-500 font-extrabold"
+  const counterClass = over
+    ? "apex-text-field-error font-extrabold"
     : fit.linesUsed >= maxLines
-      ? "text-amber-500 font-bold"
-      : "text-slate-400";
+      ? "apex-text-accent font-bold"
+      : "apex-text-subtle";
+
+  const textareaId =
+    fieldId || (label ? `eval-courier-${label.replace(/[^a-z0-9]+/gi, "-").slice(0, 40)}` : undefined);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        {label ? (
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        {label && textareaId ? (
+          <label htmlFor={textareaId} className="apex-measured-courier-caption">
             {label}
-          </span>
+          </label>
+        ) : label ? (
+          <span className="apex-measured-courier-caption">{label}</span>
         ) : (
           <span />
         )}
-        <span className={`text-xs ${counterColor}`}>
+        <span className={`text-xs ${counterClass}`}>
           Lines: {fit.linesUsed} / {maxLines}
         </span>
       </div>
 
       <div
-        className={`flex w-fit max-w-full bg-slate-950/60 border rounded-xl overflow-x-auto py-3 ${
+        className={`apex-measured-courier-shell ${
           over
-            ? "border-red-500/80"
-            : "border-border focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
+            ? "!border-[var(--field-invalid-border)]"
+            : "focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-[var(--focus-ring)]"
         }`}
       >
-        <div className="select-none bg-slate-950/80 border-r border-slate-900 pl-2 pr-2 text-right">
+        <div className="apex-measured-courier-gutter">
           {Array.from({ length: rows }, (_, i) => (
             <div
               key={i}
-              className={`text-[10px] ${i + 1 > maxLines ? "text-red-500 font-bold" : "text-slate-600"}`}
+              className={`text-[10px] apex-narrative-gutter ${i + 1 > maxLines ? "apex-text-field-error font-bold" : ""}`}
               style={{ height: LINE_PX, lineHeight: `${LINE_PX}px` }}
             >
               {i + 1}
@@ -98,14 +103,14 @@ export default function MeasuredCourierField({
           ))}
         </div>
         <textarea
+          id={textareaId}
           ref={taRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={onFocus}
           spellCheck={false}
           placeholder={placeholder}
-          aria-label={ariaLabel}
-          className="block bg-transparent text-slate-100 p-0 ml-3 mr-3 resize-none focus:outline-none overflow-hidden"
+          className="apex-measured-courier-input"
           style={{
             fontFamily: "'Courier Prime', 'Courier New', Courier, monospace",
             fontSize: "13px",
@@ -120,7 +125,7 @@ export default function MeasuredCourierField({
       </div>
 
       {(error || over) && (
-        <p className="text-red-400 text-xs mt-2">
+        <p className="apex-text-field-error text-xs mt-2">
           {error ||
             `Text exceeds ${maxLines} printed line(s) at ${charsPerLine} chars/line — trim it to fit.`}
         </p>

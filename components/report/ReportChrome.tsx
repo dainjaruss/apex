@@ -4,6 +4,10 @@
 
 import React from "react";
 import { Evaluation } from "@/types";
+import {
+  evaluationStatusBadgeClass,
+  formatEvaluationStatus,
+} from "@/lib/reportBadges";
 
 export type ReportTab = "details" | "preview" | "review" | "audit";
 
@@ -39,20 +43,26 @@ export function ReportBanner({
   evaluation: Evaluation;
   showSummaryAverage?: boolean;
 }) {
-  const stage = evaluation.routing_stage?.replace(/_/g, " ") || "sailor";
   return (
     <div className="apex-card-elevated p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
-          <span className="apex-badge">{evaluation.status}</span>
-          {evaluation.routing_stage && (
-            <span className="apex-badge-amber">{stage}</span>
-          )}
+          <span
+            className={evaluationStatusBadgeClass(
+              evaluation.status,
+              evaluation.routing_stage,
+            )}
+          >
+            {formatEvaluationStatus(
+              evaluation.status,
+              evaluation.routing_stage,
+            )}
+          </span>
         </div>
         <h2 className="text-2xl font-bold apex-heading">
           {evaluation.member_name}
         </h2>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm apex-text-secondary">
           DoD ID {evaluation.dod_id} · {evaluation.grade_rate} · UIC{" "}
           {evaluation.uic}
         </p>
@@ -71,7 +81,7 @@ export function ReportBanner({
               ? evaluation.trait_average.toFixed(2)
               : "0.00"
           }
-          accent="text-emerald-400"
+          accent="apex-report-stat-success"
         />
         {showSummaryAverage && (
           <>
@@ -112,10 +122,7 @@ function Stat({
 }) {
   return (
     <div className="text-center flex-1 lg:flex-none">
-      <div
-        className="text-[10px] uppercase font-bold tracking-wider"
-        style={{ color: "var(--subtle)" }}
-      >
+      <div className="text-[10px] uppercase font-bold tracking-wider apex-report-field-label">
         {label}
       </div>
       <div className={`text-2xl font-black mt-0.5 ${accent}`} style={style}>
@@ -153,7 +160,7 @@ export function ReportTabs({
           role="tab"
           aria-selected={active === t.id}
           onClick={() => onChange(t.id)}
-          className={`apex-tab ${active === t.id ? "apex-tab-active" : ""} ${t.workflow && active !== t.id ? "text-[var(--accent-gold)]/80" : ""}`}
+          className={`apex-tab ${active === t.id ? "apex-tab-active" : ""} ${t.workflow && active !== t.id ? "apex-tab-workflow-hint" : ""}`}
         >
           {t.label}
         </button>

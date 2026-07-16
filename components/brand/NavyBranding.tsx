@@ -49,10 +49,7 @@ export default function NavyBranding({
     <div className={`flex flex-col items-center text-center ${className}`}>
       <NavyEmblem size={80} priority />
       <BupersCaption />
-      <p
-        className="mt-2 text-[8px] font-medium"
-        style={{ color: "var(--muted-foreground)" }}
-      >
+      <p className="mt-2 text-[8px] font-medium apex-text-muted">
         NAVPERS · BUPERSINST 1610.10H
       </p>
     </div>

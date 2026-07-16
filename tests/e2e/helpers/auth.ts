@@ -21,7 +21,7 @@ export async function loginAs(page: Page, email: string, password: string) {
     waitUntil: "domcontentloaded",
   });
   const authError = page
-    .locator('.bg-red-950\\/40, [class*="bg-red"]')
+    .locator(".apex-banner-error, .bg-red-950\\/40, [class*=\"bg-red\"]")
     .filter({ hasText: /invalid|error|fail|denied|not confirmed/i })
     .first()
     .waitFor({ state: "visible", timeout: 30_000 })

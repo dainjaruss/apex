@@ -32,6 +32,15 @@ import { FORM_LABEL, formFieldClass } from "@/lib/formStyles";
 
 const FIELD = formFieldClass();
 
+const SG_FIELD_IDS = {
+  name: "sg-create-name",
+  reportingSenior: "sg-create-reporting-senior",
+  periodTo: "sg-create-period-to",
+  gradeRate: "sg-create-grade-rate",
+  promotionStatus: "sg-create-promotion-status",
+  commandEmployment: "sg-create-command-employment",
+} as const;
+
 export default function SummaryGroupsPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -138,16 +147,14 @@ function GroupForm({
 
   return (
     <div className="apex-form-panel space-y-4">
-      <h3
-        className="text-lg font-bold gold-accent border-b pb-2"
-        style={{ borderColor: "var(--border)" }}
-      >
-        Create Summary Group
-      </h3>
+      <h2 className="apex-form-section-heading">Create Summary Group</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={FORM_LABEL}>Group Name</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.name}>
+            Group Name
+          </label>
           <input
+            id={SG_FIELD_IDS.name}
             className={FIELD}
             value={g.name}
             onChange={(e) => set("name", e.target.value)}
@@ -155,8 +162,11 @@ function GroupForm({
           />
         </div>
         <div>
-          <label className={FORM_LABEL}>Reporting Senior</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.reportingSenior}>
+            Reporting Senior
+          </label>
           <select
+            id={SG_FIELD_IDS.reportingSenior}
             className={FIELD}
             value={g.reporting_senior_id}
             onChange={(e) => set("reporting_senior_id", e.target.value)}
@@ -170,8 +180,11 @@ function GroupForm({
           </select>
         </div>
         <div>
-          <label className={FORM_LABEL}>Ending Date</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.periodTo}>
+            Ending Date
+          </label>
           <input
+            id={SG_FIELD_IDS.periodTo}
             type="date"
             className={FIELD}
             value={g.period_to}
@@ -179,8 +192,11 @@ function GroupForm({
           />
         </div>
         <div>
-          <label className={FORM_LABEL}>Paygrade (Grade/Rate)</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.gradeRate}>
+            Paygrade (Grade/Rate)
+          </label>
           <input
+            id={SG_FIELD_IDS.gradeRate}
             className={FIELD}
             value={g.grade_rate}
             onChange={(e) => set("grade_rate", e.target.value.toUpperCase())}
@@ -188,8 +204,11 @@ function GroupForm({
           />
         </div>
         <div>
-          <label className={FORM_LABEL}>Promotion Status</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.promotionStatus}>
+            Promotion Status
+          </label>
           <select
+            id={SG_FIELD_IDS.promotionStatus}
             className={FIELD}
             value={g.promotion_status}
             onChange={(e) => set("promotion_status", e.target.value)}
@@ -202,16 +221,22 @@ function GroupForm({
           </select>
         </div>
         <div className="md:col-span-2">
-          <label className={FORM_LABEL}>Command Employment</label>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.commandEmployment}>
+            Command Employment
+          </label>
           <textarea
+            id={SG_FIELD_IDS.commandEmployment}
             className={`${FIELD} h-16`}
             value={g.command_employment}
             onChange={(e) => set("command_employment", e.target.value)}
           />
         </div>
       </div>
-      {error && <p className="text-red-400 text-xs font-semibold">{error}</p>}
+      {error && (
+        <p className="apex-text-field-error text-xs font-semibold">{error}</p>
+      )}
       <button
+        type="button"
         onClick={submit}
         disabled={saving}
         className="apex-btn-primary disabled:opacity-50 text-sm"
@@ -231,13 +256,13 @@ function GroupList({
 }) {
   if (!groups.length)
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm apex-text-muted">
         No summary groups yet. Create one above.
       </p>
     );
   return (
     <div className="space-y-3">
-      <h3 className="apex-section-title">Existing Groups</h3>
+      <h2 className="apex-form-section-heading">Existing Groups</h2>
       <div className="grid gap-3 md:grid-cols-2">
         {groups.map((g) => (
           <GroupCard key={g.id} g={g} onChanged={onChanged} />
@@ -318,29 +343,32 @@ function GroupCard({
 
   return (
     <div
-      className={`apex-card p-4 text-sm ${fd && !fd.compliant ? "border-red-500/40" : ""}`}
+      className={`apex-card p-4 text-sm ${fd && !fd.compliant ? "apex-card--border-danger" : ""}`}
     >
       <div className="flex justify-between items-start gap-2">
-        <button onClick={toggleExpand} className="text-left min-w-0">
-          <h4 className="font-bold apex-heading truncate">{g.name}</h4>
-          <p
-            className="text-xs mt-1"
-            style={{ color: "var(--muted-foreground)" }}
-          >
+        <button
+          type="button"
+          onClick={toggleExpand}
+          className="text-left min-w-0"
+          aria-expanded={open}
+        >
+          <h3 className="font-bold apex-heading truncate">{g.name}</h3>
+          <p className="text-xs mt-1 apex-text-muted">
             {g.grade_rate} · {g.promotion_status} · ends {g.period_to} · Group
             Avg: {groupAverage !== null ? groupAverage.toFixed(2) : "N/A"}
           </p>
         </button>
         <button
+          type="button"
           onClick={toggleStatus}
           disabled={busy}
           title="Toggle whether new evals may join"
-          className={`shrink-0 text-[10px] px-2 py-0.5 rounded uppercase font-bold border transition ${g.status === "open" ? "bg-emerald-950/40 text-emerald-300 border-emerald-900/50 hover:bg-emerald-900/40" : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"}`}
+          className={`apex-group-status-pill ${g.status === "open" ? "apex-group-status-pill--open" : "apex-group-status-pill--closed"}`}
         >
           {g.status} · {g.status === "open" ? "Close" : "Reopen"}
         </button>
       </div>
-      <p className="text-xs text-slate-500 mt-1 truncate">
+      <p className="text-xs apex-text-muted mt-1 truncate">
         {g.command_employment}
       </p>
 
@@ -348,11 +376,13 @@ function GroupCard({
       {fd && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
           <span
-            className={`px-1.5 py-0.5 rounded uppercase font-bold border ${fd.compliant ? "bg-emerald-950/40 text-emerald-300 border-emerald-900/50" : "bg-red-950/40 text-red-300 border-red-900/50"}`}
+            className={
+              fd.compliant ? "apex-badge-emerald" : "apex-badge-danger"
+            }
           >
             {fd.compliant ? "Within limits" : "Over limit"}
           </span>
-          <span className="text-slate-400">
+          <span className="apex-text-subtle">
             EP {fd.distribution["Early Promote"]}/{fd.earlyPromoteMax} · MP{" "}
             {fd.distribution["Must Promote"]} · P{" "}
             {fd.distribution["Promotable"]} · obs {fd.observedCount}
@@ -360,20 +390,23 @@ function GroupCard({
         </div>
       )}
       {err && (
-        <p className="text-red-400 text-[11px] font-semibold mt-2">{err}</p>
+        <p className="apex-text-field-error text-[11px] font-semibold mt-2">
+          {err}
+        </p>
       )}
       <button
+        type="button"
         onClick={toggleExpand}
-        className="text-[11px] text-blue-400 hover:underline mt-2"
+        className="text-[11px] apex-link mt-2"
       >
         {open ? "Hide evaluations" : "View evaluations in this group"}
       </button>
       {open && (
-        <div className="mt-2 border-t border-slate-800/60 pt-2 space-y-1">
+        <div className="mt-2 border-t apex-report-divider pt-2 space-y-1">
           {evals === null ? (
-            <p className="text-xs text-slate-500">Loading…</p>
+            <p className="text-xs apex-text-muted">Loading…</p>
           ) : evals.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">
+            <p className="text-xs apex-text-muted italic">
               No evaluations in this group yet.
             </p>
           ) : (
@@ -401,17 +434,18 @@ function GroupCard({
 
               return (
                 <button
+                  type="button"
                   key={ev.id}
                   onClick={() =>
                     router.push(`/evaluations/${ev.id}?tab=preview`)
                   }
                   title="Open the document preview for this evaluation"
-                  className="w-full text-left flex justify-between items-center text-xs px-2 py-1 rounded hover:bg-slate-800/40"
+                  className="w-full text-left flex justify-between items-center text-xs px-2 py-1 rounded apex-summary-eval-row"
                 >
-                  <span className="text-slate-200 truncate">
+                  <span className="apex-report-body truncate">
                     {ev.member_name}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-semibold shrink-0 ml-2">
+                  <span className="text-[10px] apex-text-subtle font-semibold shrink-0 ml-2">
                     {badgeText}
                   </span>
                 </button>
@@ -426,10 +460,7 @@ function GroupCard({
 
 function Center({ text, onBack }: { text: string; onBack?: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen text-sm gap-4 px-6 text-center"
-      style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
-    >
+    <div className="apex-app-shell flex flex-col items-center justify-center min-h-screen text-sm gap-4 px-6 text-center apex-text-secondary">
       <span>{text}</span>
       {onBack && (
         <button type="button" onClick={onBack} className="apex-btn-secondary">

@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signInWithPassword, resendVerificationEmail } from "@/lib/auth";
+import {
+  getSession,
+  signInWithPassword,
+  resendVerificationEmail,
+} from "@/lib/auth";
 import {
   loginSchema,
   type LoginFormData,
@@ -44,14 +48,12 @@ function AuthNotifications({
 }: AuthNotificationsProps) {
   if (serverError) {
     return (
-      <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
-        {serverError}
-      </div>
+      <div className="apex-banner-error">{serverError}</div>
     );
   }
   if (resendSuccess) {
     return (
-      <div className="p-3.5 rounded bg-green-900/40 border border-green-800/40 text-xs text-green-300">
+      <div className="apex-banner-success">
         A new verification link has been sent to your email. Please check your
         inbox.
       </div>
@@ -93,7 +95,9 @@ function LoginForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="space-y-1.5">
-        <label className="apex-label">Email Address</label>
+        <label className="apex-label" htmlFor="login-email">
+          Email Address
+        </label>
         <input
           id="login-email"
           type="email"
@@ -104,14 +108,16 @@ function LoginForm({
           aria-describedby={fieldErrors.email ? "email-error" : undefined}
         />
         {fieldErrors.email && (
-          <p id="email-error" className="text-xs text-red-400 mt-1">
+          <p id="email-error" className="text-xs apex-text-field-error mt-1">
             {fieldErrors.email}
           </p>
         )}
       </div>
 
       <div className="space-y-1.5">
-        <label className="apex-label">Password</label>
+        <label className="apex-label" htmlFor="login-password">
+          Password
+        </label>
         <input
           id="login-password"
           type="password"
@@ -122,7 +128,7 @@ function LoginForm({
           aria-describedby={fieldErrors.password ? "password-error" : undefined}
         />
         {fieldErrors.password && (
-          <p id="password-error" className="text-xs text-red-400 mt-1">
+          <p id="password-error" className="text-xs apex-text-field-error mt-1">
             {fieldErrors.password}
           </p>
         )}
@@ -166,10 +172,23 @@ function useLoginForm() {
     setLoading(true);
     try {
       await signInWithPassword(res.data.email, res.data.password);
-      router.push("/dashboard");
-      router.refresh();
+      const session = await getSession();
+      if (!session) {
+        setServerError(
+          "Sign-in succeeded but the session was not saved. Clear site cookies for localhost and try again, or run `npm run dev:fresh`.",
+        );
+        setLoading(false);
+        return;
+      }
+      // Full navigation so middleware receives auth cookies reliably.
+      window.location.assign("/dashboard");
+      return;
     } catch (error: any) {
-      const msg = error?.message || "Authentication failed.";
+      const raw = error?.message || "Authentication failed.";
+      const msg =
+        raw === "Invalid login credentials"
+          ? "Invalid email or password. Stress-test users (e.g. co.enterprise@franklyn.dev) require `npm run db:seed-stress` against this Supabase project. Password: NavyEval!2026 — see docs/test-users-and-evals.md."
+          : raw;
       setServerError(msg);
       if (msg.toLowerCase().includes("email not confirmed"))
         setNeedsVerification(true);
@@ -191,7 +210,7 @@ function useLoginForm() {
   };
 
   const fieldClass = (field: keyof LoginFormData) =>
-    `apex-input ${fieldErrors[field] ? "!border-red-500/70 focus:!border-red-400" : ""}`;
+    `apex-input ${fieldErrors[field] ? "apex-input--invalid" : ""}`;
 
   return {
     credentials,
@@ -222,14 +241,14 @@ export default function LoginPage() {
   } = useLoginForm();
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center p-4"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="apex-auth-shell relative flex min-h-screen items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6">
+      <main
+        id="main-content"
+        className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6"
+      >
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
@@ -238,11 +257,11 @@ export default function LoginPage() {
             <h2 className="text-2xl font-bold apex-heading tracking-wide">
               Sign in
             </h2>
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-sm apex-text-muted">
               Enter credentials to access evaluation portal
             </p>
           </div>
-          <NavyBranding sidebar className="mt-2" />
+          <NavyBranding sidebar onLightSurface className="mt-2" />
         </div>
 
         <AuthNotifications
@@ -262,19 +281,13 @@ export default function LoginPage() {
           fieldClass={fieldClass}
         />
 
-        <div
-          className="text-center text-xs pt-2"
-          style={{ color: "var(--subtle)" }}
-        >
+        <div className="text-center text-xs pt-2 apex-text-subtle">
           New to APEX?{" "}
-          <Link
-            href="/register"
-            className="text-blue-400 hover:underline font-medium"
-          >
+          <Link href="/register" className="apex-link">
             Register for a profile
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -51,8 +51,25 @@ export const GRADE_SCALE_NOTE: Record<string, string> = {
 
 // Block 43 footnote + Rater/Senior-Rater certifications: 1.0 and 5.0 marks require a
 // written explanation, and 1.0 marks (plus any 2.0 in Block 35) must be substantiated.
-export const SUBSTANTIATION_NOTE =
-  "Marks of 1.0 and 5.0 require a written explanation in Block 43 (Comments). All 1.0 marks — and any 2.0 in Block 35 — must be specifically substantiated and verifiable.";
+export const SUBSTANTIATION_NOTE_EVAL =
+  "Marks of 1.0 and 5.0 require a written explanation in Block 43 (Comments). All 1.0 marks, three or more 2.0 marks, and any 2.0 in Block 35 (Command Climate/EO) must be specifically substantiated and verifiable (BUPERSINST 1610.10H).";
+
+export const SUBSTANTIATION_NOTE_CHIEFEVAL =
+  "NAVPERS 1616/27: All 1.0 marks and all 2.0 marks in Blocks 33–39 must be specifically substantiated in Block 40 (Reporting Senior comments). Comments must be verifiable.";
+
+export const SUBSTANTIATION_NOTE_FITREP =
+  "NAVPERS 1610/2: All 1.0 marks, three or more 2.0 marks, and any 2.0 in Block 34 (Command/Organizational Climate) must be specifically substantiated in Block 41 comments. Comments must be verifiable.";
+
+/** @deprecated Use getSubstantiationNote(reportType) */
+export const SUBSTANTIATION_NOTE = SUBSTANTIATION_NOTE_EVAL;
+
+export function getSubstantiationNote(
+  reportType?: string,
+): string {
+  if (reportType === "CHIEFEVAL") return SUBSTANTIATION_NOTE_CHIEFEVAL;
+  if (reportType === "FITREP") return SUBSTANTIATION_NOTE_FITREP;
+  return SUBSTANTIATION_NOTE_EVAL;
+}
 
 export const ANCHOR_GRADES: readonly AnchorGrade[] = ["1.0", "3.0", "5.0"];
 
@@ -232,4 +249,77 @@ export const TRAIT_STANDARDS: Record<TraitKey, TraitStandard> = {
       ],
     },
   },
+};
+
+const CHIEFEVAL_TRAIT_STANDARDS: Record<string, TraitStandard> = {
+  deckplate_leadership: {
+    block: 33,
+    title: "Deckplate Leadership",
+    definition: "Visible leadership, mentorship, and deckplate impact on Sailors",
+    anchors: {
+      "1.0": ["Limited deckplate presence; minimal impact on Sailor development"],
+      "3.0": ["Visible leader; builds credible teams; honors and develops Sailors"],
+      "5.0": ["Exceptional deckplate leader; drives culture and measurable team success"],
+    },
+  },
+  professionalism: {
+    block: 34,
+    title: "Professionalism (incl. PFA)",
+    definition: "Conduct, bearing, standards, and physical readiness",
+    anchors: {
+      "1.0": ["Conduct or readiness below standards"],
+      "3.0": ["Meets Navy standards for conduct, appearance, and PFA"],
+      "5.0": ["Role model for professionalism and physical readiness"],
+    },
+  },
+  mission_accomplishment: {
+    block: 35,
+    title: "Mission Accomplishment",
+    definition: "Initiative, accountability, and mission-focused outcomes",
+    anchors: {
+      "1.0": ["Fails to meet mission expectations"],
+      "3.0": ["Reliable mission accomplishment and initiative"],
+      "5.0": ["Consistently exceeds mission goals with innovation"],
+    },
+  },
+  human_development: {
+    block: 36,
+    title: "Human Development",
+    definition: "Developing subordinates' professional and personal growth",
+    anchors: {
+      "1.0": ["Neglects development of others"],
+      "3.0": ["Actively supports Sailor growth and career development"],
+      "5.0": ["Inspires exceptional growth across the command"],
+    },
+  },
+  eo_climate: {
+    block: 37,
+    title: "Equal Opportunity / Command Climate",
+    definition: "EO, climate, and inclusion — promotion gate trait on CHIEFEVAL",
+    anchors: {
+      "1.0": ["Actions harm command climate or EO goals"],
+      "3.0": ["Fosters positive climate; meets EO expectations"],
+      "5.0": ["Exemplary climate and EO leadership"],
+    },
+  },
+};
+
+const FITREP_EXTRA_STANDARDS: Record<string, TraitStandard> = {
+  tactical_performance: {
+    block: 39,
+    title: "Tactical Performance",
+    definition: "Tactical/operational proficiency and warfare employment (officers)",
+    anchors: {
+      "1.0": ["Below expected tactical proficiency for grade"],
+      "3.0": ["Capably employs platforms/systems; meets warfare expectations"],
+      "5.0": ["Innovative tactical employment; exceeds peers in warfare skills"],
+    },
+  },
+};
+
+/** Unified lookup for EVAL, CHIEFEVAL, and FITREP trait rows. */
+export const TRAIT_STANDARDS_LOOKUP: Record<string, TraitStandard> = {
+  ...TRAIT_STANDARDS,
+  ...CHIEFEVAL_TRAIT_STANDARDS,
+  ...FITREP_EXTRA_STANDARDS,
 };

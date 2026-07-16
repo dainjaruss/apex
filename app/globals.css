@@ -1,5 +1,4 @@
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/* Shadcn/tw-animate imports removed — unused in app; they split CSS and destabilize `next dev` when .next is rebuilt */
 
 @font-face {
   font-family: "Courier Prime";
@@ -55,6 +54,47 @@
   --sidebar-section-label: #94a3b8;
   --sidebar-brand-title: #f8fafc;
   --sidebar-brand-tagline: #fcd34d;
+  --sidebar-wordmark: #f8fafc;
+  --sidebar-profile-primary: #e2e8f0;
+  --sidebar-profile-secondary: #94a3b8;
+  --page-subtitle-text: var(--text-secondary);
+  --table-header-text: var(--label);
+  --queue-tab-idle-text: var(--label);
+  --queue-tab-active-text: var(--heading);
+  --queue-tab-active-bg: var(--card);
+  --badge-kicker-bg: rgba(14, 116, 144, 0.14);
+  --badge-kicker-border: rgba(14, 116, 144, 0.38);
+  --badge-kicker-text: #0c4a6e;
+  --navpers-pill-bg: var(--muted);
+  --navpers-pill-text: var(--label);
+  --form-kind-badge-bg: rgba(37, 99, 235, 0.14);
+  --form-kind-badge-text: #1e40af;
+  --form-picker-hint-text: var(--text-secondary);
+  --form-picker-title-text: var(--heading);
+  --form-picker-recommended-text: #1d4ed8;
+  --form-picker-recommended-bg: color-mix(in srgb, var(--primary) 8%, var(--card));
+  --form-picker-recommended-border: color-mix(in srgb, var(--primary) 42%, var(--border));
+  --form-picker-card-bg: var(--card);
+  --form-picker-card-border: var(--border-strong);
+  --report-section-border: var(--border-strong);
+  --report-field-label: var(--label);
+  --report-body-text: var(--foreground);
+  --report-muted-text: var(--text-secondary);
+  --report-faint-text: var(--subtle);
+  --report-trait-cell-bg: color-mix(in srgb, var(--form-panel) 80%, var(--card));
+  --report-trait-cell-border: var(--border-strong);
+  --report-narrative-bg: var(--form-panel);
+  --report-narrative-text: var(--foreground);
+  --report-narrative-faint: var(--subtle);
+  --report-narrative-gutter: var(--border);
+  --report-signed-text: #047857;
+  --report-chip-bg: var(--muted);
+  --report-chip-text: var(--heading);
+  --report-stat-success: var(--success);
+  --tab-workflow-hint: #92400e;
+  --audit-action-bg: rgba(37, 99, 235, 0.12);
+  --audit-action-text: #1d4ed8;
+  --audit-action-border: rgba(37, 99, 235, 0.32);
   --hero-title-gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8f 55%, #1d4ed8 100%);
   --hero-gold-gradient: linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%);
   --radius: 0.625rem;
@@ -97,8 +137,25 @@
   --danger-border: rgba(220, 38, 38, 0.32);
   --danger-text: #b91c1c;
 
-  --success-solid: #059669;
-  --success-solid-hover: #047857;
+  --sidebar-brand-title-on-light: var(--heading);
+  --sidebar-brand-tagline-on-light: var(--badge-amber-text);
+  --link: var(--primary);
+  --link-hover: var(--primary-hover);
+  --status-success-text: var(--success);
+  --field-error-text: var(--danger-text);
+  --field-invalid-border: color-mix(in srgb, var(--destructive) 55%, var(--input-border));
+  --field-invalid-border-focus: var(--destructive);
+  --field-invalid-ring: color-mix(in srgb, var(--destructive) 22%, transparent);
+  --banner-error-bg: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  --banner-error-border: color-mix(in srgb, var(--destructive) 32%, transparent);
+  --banner-error-text: color-mix(in srgb, var(--destructive) 72%, var(--foreground));
+  --banner-success-bg: color-mix(in srgb, var(--success) 10%, var(--card));
+  --banner-success-border: color-mix(in srgb, var(--success) 30%, transparent);
+  --banner-success-text: color-mix(in srgb, var(--success) 65%, var(--foreground));
+
+  /* WCAG AA 4.5:1 with white label text at 12px bold (buttons) */
+  --success-solid: #047857;
+  --success-solid-hover: #065f46;
 
   --reference-bg: linear-gradient(
     165deg,
@@ -158,9 +215,10 @@
   --trait-pill-active-bg: var(--primary);
   --trait-pill-active-text: var(--primary-foreground);
   --trait-pill-idle-bg: var(--muted);
-  --trait-pill-idle-text: var(--muted-foreground);
+  --trait-pill-idle-text: var(--text-secondary);
   --trait-pill-idle-border: var(--border-strong);
   --trait-panel-bg: var(--form-panel);
+  --trait-panel-border: var(--border-strong);
   --trait-anchor-amber-border: rgba(217, 119, 6, 0.45);
   --trait-anchor-amber-heading: #b45309;
   --trait-anchor-sky-border: color-mix(in srgb, var(--primary) 40%, transparent);
@@ -192,7 +250,7 @@
   --label: #c8d6ea;
   --muted: #151f35;
   --muted-foreground: #94a8c4;
-  --subtle: #6b849f;
+  --subtle: #94a8c4;
   --text-secondary: #c8d6ea;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
@@ -215,6 +273,47 @@
   --sidebar-section-label: #94a8c4;
   --sidebar-brand-title: #ffffff;
   --sidebar-brand-tagline: #fde68a;
+  --sidebar-wordmark: #ffffff;
+  --sidebar-profile-primary: #cbd5e1;
+  --sidebar-profile-secondary: #94a8c4;
+  --page-subtitle-text: var(--text-secondary);
+  --table-header-text: var(--label);
+  --queue-tab-idle-text: var(--label);
+  --queue-tab-active-text: var(--heading);
+  --queue-tab-active-bg: var(--card-elevated);
+  --badge-kicker-bg: rgba(34, 211, 238, 0.14);
+  --badge-kicker-border: rgba(34, 211, 238, 0.38);
+  --badge-kicker-text: #a5f3fc;
+  --navpers-pill-bg: color-mix(in srgb, var(--muted) 85%, transparent);
+  --navpers-pill-text: var(--label);
+  --form-kind-badge-bg: rgba(59, 130, 246, 0.18);
+  --form-kind-badge-text: #93c5fd;
+  --form-picker-hint-text: var(--text-secondary);
+  --form-picker-title-text: var(--heading);
+  --form-picker-recommended-text: #93c5fd;
+  --form-picker-recommended-bg: color-mix(in srgb, var(--primary) 18%, var(--card));
+  --form-picker-recommended-border: color-mix(in srgb, var(--primary) 45%, var(--border));
+  --form-picker-card-bg: var(--card);
+  --form-picker-card-border: var(--border-strong);
+  --report-section-border: var(--border-strong);
+  --report-field-label: var(--label);
+  --report-body-text: var(--foreground);
+  --report-muted-text: var(--text-secondary);
+  --report-faint-text: var(--label);
+  --report-trait-cell-bg: color-mix(in srgb, var(--form-panel) 70%, #000);
+  --report-trait-cell-border: var(--border-strong);
+  --report-narrative-bg: color-mix(in srgb, var(--form-panel) 85%, #000);
+  --report-narrative-text: var(--foreground);
+  --report-narrative-faint: var(--muted-foreground);
+  --report-narrative-gutter: var(--border-strong);
+  --report-signed-text: #6ee7b7;
+  --report-chip-bg: color-mix(in srgb, var(--muted) 80%, transparent);
+  --report-chip-text: var(--heading);
+  --report-stat-success: var(--success);
+  --tab-workflow-hint: #fcd34d;
+  --audit-action-bg: rgba(59, 130, 246, 0.18);
+  --audit-action-text: #93c5fd;
+  --audit-action-border: rgba(59, 130, 246, 0.35);
   --hero-title-gradient: linear-gradient(135deg, #ffffff 0%, #c5d4e8 100%);
   --hero-gold-gradient: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
@@ -255,8 +354,24 @@
   --danger-border: rgba(239, 68, 68, 0.35);
   --danger-text: #fca5a5;
 
-  --success-solid: #059669;
-  --success-solid-hover: #047857;
+  --sidebar-brand-title-on-light: var(--heading);
+  --sidebar-brand-tagline-on-light: var(--accent-gold);
+  --link: #60a5fa;
+  --link-hover: #93c5fd;
+  --status-success-text: var(--success);
+  --field-error-text: #fca5a5;
+  --field-invalid-border: color-mix(in srgb, var(--destructive) 50%, var(--input-border));
+  --field-invalid-border-focus: var(--destructive);
+  --field-invalid-ring: color-mix(in srgb, var(--destructive) 28%, transparent);
+  --banner-error-bg: color-mix(in srgb, var(--destructive) 18%, var(--card));
+  --banner-error-border: color-mix(in srgb, var(--destructive) 38%, transparent);
+  --banner-error-text: #fecaca;
+  --banner-success-bg: color-mix(in srgb, var(--success) 16%, var(--card));
+  --banner-success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --banner-success-text: #a7f3d0;
+
+  --success-solid: #047857;
+  --success-solid-hover: #065f46;
 
   --reference-bg: linear-gradient(
     165deg,
@@ -319,6 +434,7 @@
   --trait-pill-idle-text: var(--muted-foreground);
   --trait-pill-idle-border: var(--border-strong);
   --trait-panel-bg: rgba(0, 0, 0, 0.25);
+  --trait-panel-border: var(--border-strong);
   --trait-anchor-amber-border: rgba(251, 191, 36, 0.35);
   --trait-anchor-amber-heading: #fcd34d;
   --trait-anchor-sky-border: rgba(59, 130, 246, 0.4);
@@ -356,6 +472,35 @@ body {
 
 .navy-gradient {
   background: linear-gradient(135deg, #9fb3cc 0%, #3b82f6 50%, #1e3a5f 100%);
+}
+
+/* Landing — subtle depth without hurting contrast audits */
+.apex-landing-page {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      ellipse 85% 55% at 50% -15%,
+      color-mix(in srgb, var(--primary) 14%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 50% 45% at 100% 0%,
+      color-mix(in srgb, var(--accent-cyan) 10%, transparent),
+      transparent 65%
+    );
+}
+.dark .apex-landing-page {
+  background-image:
+    radial-gradient(
+      ellipse 85% 55% at 50% -15%,
+      color-mix(in srgb, var(--primary) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 50% 45% at 100% 0%,
+      color-mix(in srgb, var(--accent-cyan) 14%, transparent),
+      transparent 65%
+    );
 }
 
 .gold-accent {
@@ -425,6 +570,16 @@ body {
   }
   .apex-input::placeholder {
     color: var(--subtle);
+  }
+
+  .apex-input--invalid,
+  .apex-select--invalid {
+    border-color: var(--field-invalid-border);
+  }
+  .apex-input--invalid:focus,
+  .apex-select--invalid:focus {
+    border-color: var(--field-invalid-border-focus);
+    box-shadow: 0 0 0 3px var(--field-invalid-ring);
   }
 
   /* Native <select> — explicit contrast + option colors for a11y audits */
@@ -508,9 +663,134 @@ body {
 
   .apex-badge {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
-    background: var(--accent-cyan-dim);
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
-    color: var(--accent-cyan);
+    background: var(--badge-kicker-bg);
+    border: 1px solid var(--badge-kicker-border);
+    color: var(--badge-kicker-text);
+  }
+
+  .apex-navpers-pill {
+    @apply font-mono text-xs font-bold px-2 py-0.5 rounded uppercase tracking-widest;
+    background: var(--navpers-pill-bg);
+    color: var(--navpers-pill-text);
+  }
+
+  .apex-form-kind-badge {
+    @apply font-mono text-xs font-bold px-2 py-0.5 rounded uppercase tracking-widest;
+    background: var(--form-kind-badge-bg);
+    color: var(--form-kind-badge-text);
+  }
+
+  .apex-form-picker-card {
+    @apply w-full text-left rounded-xl border p-5 transition-all hover:shadow-md focus:outline-none focus:ring-2;
+    background: var(--form-picker-card-bg);
+    border-color: var(--form-picker-card-border);
+    color: var(--foreground);
+    --tw-ring-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  }
+  .apex-form-picker-card--recommended {
+    background: var(--form-picker-recommended-bg);
+    border-color: var(--form-picker-recommended-border);
+  }
+
+  .apex-form-picker-title {
+    @apply mt-1.5 font-semibold text-sm;
+    color: var(--form-picker-title-text);
+  }
+
+  .apex-form-picker-hint {
+    @apply text-xs;
+    color: var(--form-picker-hint-text);
+  }
+
+  .apex-form-picker-recommended {
+    @apply text-xs font-semibold;
+    color: var(--form-picker-recommended-text);
+  }
+
+  .apex-form-picker-chevron {
+    @apply h-5 w-5 shrink-0;
+    color: var(--subtle);
+  }
+
+  .apex-report-panel {
+    @apply apex-card p-6;
+  }
+
+  .apex-report-section-title {
+    @apply text-sm font-bold uppercase tracking-wider mb-4 border-b pb-2;
+    color: var(--accent-gold);
+    border-color: var(--report-section-border);
+  }
+
+  .apex-report-field-label {
+    @apply text-xs;
+    color: var(--report-field-label);
+  }
+
+  .apex-report-body {
+    color: var(--report-body-text);
+  }
+
+  .apex-report-muted {
+    color: var(--report-muted-text);
+  }
+
+  .apex-report-faint {
+    color: var(--report-faint-text);
+  }
+
+  .apex-report-divider {
+    border-color: var(--report-section-border);
+  }
+
+  .apex-report-trait-cell {
+    @apply p-3 rounded-lg border text-center;
+    background: var(--report-trait-cell-bg);
+    border-color: var(--report-trait-cell-border);
+  }
+
+  .apex-report-trait-label {
+    @apply text-[10px] font-semibold uppercase truncate;
+    color: var(--report-field-label);
+  }
+
+  .apex-narrative-viewer {
+    @apply w-full rounded-xl p-5 border font-mono text-xs overflow-x-auto min-h-[160px];
+    background: var(--report-narrative-bg);
+    border-color: var(--report-trait-cell-border);
+    color: var(--report-narrative-text);
+  }
+
+  .apex-narrative-gutter {
+    @apply w-6 text-[10px] pr-1.5 mr-2 text-right border-r select-none;
+    color: var(--report-narrative-faint);
+    border-color: var(--report-narrative-gutter);
+  }
+
+  .apex-report-signed {
+    @apply font-semibold truncate;
+    color: var(--report-signed-text);
+  }
+
+  .apex-report-chip {
+    @apply px-2 py-1 rounded text-xs;
+    background: var(--report-chip-bg);
+    color: var(--report-chip-text);
+  }
+
+  .apex-report-stat-success {
+    color: var(--report-stat-success);
+  }
+
+  .apex-tab-workflow-hint {
+    color: var(--tab-workflow-hint);
+  }
+
+  .apex-audit-action-badge {
+    @apply px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold tracking-wide border;
+    background: var(--audit-action-bg);
+    color: var(--audit-action-text);
+    border-color: var(--audit-action-border);
   }
 
   .apex-badge-amber {
@@ -525,6 +805,152 @@ body {
     background: var(--badge-emerald-bg);
     border-color: var(--badge-emerald-border);
     color: var(--badge-emerald-text);
+  }
+
+  .apex-badge-danger {
+    @apply apex-badge;
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: var(--field-error-text);
+  }
+
+  .apex-group-status-pill {
+    @apply shrink-0 text-[10px] px-2 py-0.5 rounded uppercase font-bold border transition;
+  }
+  .apex-group-status-pill--open {
+    background: var(--badge-emerald-bg);
+    border-color: var(--badge-emerald-border);
+    color: var(--badge-emerald-text);
+  }
+  .apex-group-status-pill--open:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--badge-emerald-bg) 65%, var(--badge-emerald-border));
+  }
+  .apex-group-status-pill--closed {
+    background: var(--muted);
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+  }
+  .apex-group-status-pill--closed:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--muted) 80%, var(--border-strong));
+  }
+
+  .apex-form-section-heading {
+    @apply text-lg font-bold gold-accent border-b pb-2;
+    border-color: var(--border);
+  }
+
+  .apex-form-wizard-section-title {
+    @apply text-base font-bold gold-accent mb-4 pb-2 border-b flex items-center gap-2;
+    border-color: var(--border);
+  }
+
+  .apex-form-badge-eval {
+    @apply px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider border;
+    background: var(--form-kind-badge-bg);
+    color: var(--form-kind-badge-text);
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+  .apex-form-badge-chief {
+    @apply px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider border;
+    background: var(--badge-amber-bg);
+    color: var(--badge-amber-text);
+    border-color: var(--badge-amber-border);
+  }
+  .apex-form-badge-fitrep {
+    @apply px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider border;
+    background: color-mix(in srgb, #6d28d9 14%, var(--card));
+    color: #5b21b6;
+    border-color: color-mix(in srgb, #6d28d9 35%, var(--border));
+  }
+  .dark .apex-form-badge-fitrep {
+    background: color-mix(in srgb, #7c3aed 18%, var(--card));
+    color: #c4b5fd;
+    border-color: color-mix(in srgb, #7c3aed 38%, var(--border));
+  }
+
+  .apex-guidelines-toggle--on {
+    background: color-mix(in srgb, var(--primary) 14%, var(--card));
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    color: var(--form-kind-badge-text);
+  }
+  .apex-guidelines-toggle--off {
+    background: var(--muted);
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+  }
+
+  .apex-summary-group-panel {
+    @apply apex-card p-5 space-y-3;
+    border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+  }
+
+  .apex-form-nav-kicker {
+    @apply text-[10px] font-bold uppercase tracking-widest mb-2 px-2;
+    color: var(--report-field-label);
+  }
+
+  .apex-wizard-rail-title {
+    @apply text-[10px] font-bold uppercase tracking-widest mb-3;
+    color: var(--report-field-label);
+  }
+
+  .apex-autosave-caption {
+    @apply text-[10px] font-semibold uppercase tracking-wider;
+    color: var(--heading);
+  }
+
+  .apex-wizard-nav-btn {
+    @apply w-full text-left rounded-lg px-2.5 py-2 text-xs font-semibold mb-0.5 transition;
+    color: var(--report-muted-text);
+  }
+  .apex-wizard-nav-btn:hover {
+    background: var(--muted);
+  }
+  .apex-wizard-nav-btn--active {
+    background: var(--nav-active-glow);
+    color: var(--heading);
+  }
+  .apex-wizard-nav-btn--done {
+    color: var(--status-success-text);
+  }
+
+  .apex-trait-stat-label {
+    @apply text-xs uppercase;
+    color: var(--report-muted-text);
+  }
+  .apex-trait-stat-value {
+    @apply font-bold font-mono text-base;
+    color: var(--status-success-text);
+  }
+  .apex-trait-stat-value--group {
+    color: var(--accent-cyan);
+  }
+
+  .apex-measured-courier-shell {
+    @apply flex w-fit max-w-full border rounded-xl overflow-x-auto py-3;
+    background: var(--report-narrative-bg);
+    border-color: var(--report-trait-cell-border);
+  }
+  .apex-measured-courier-gutter {
+    @apply select-none border-r pl-2 pr-2 text-right;
+    background: color-mix(in srgb, var(--report-narrative-bg) 70%, #000);
+    border-color: var(--report-narrative-gutter);
+  }
+  .apex-measured-courier-input {
+    @apply block bg-transparent p-0 ml-3 mr-3 resize-none focus:outline-none overflow-hidden;
+    color: var(--report-narrative-text);
+  }
+  .apex-measured-courier-caption {
+    @apply text-xs font-semibold uppercase tracking-wider;
+    color: var(--report-field-label);
+  }
+
+  .apex-card--border-danger {
+    border-color: color-mix(in srgb, var(--destructive) 45%, var(--border));
+  }
+
+  .apex-summary-eval-row:hover {
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
   }
 
   .apex-section-title {
@@ -543,7 +969,46 @@ body {
 
   .apex-page-subtitle {
     @apply text-sm mt-1;
-    color: var(--muted-foreground);
+    color: var(--page-subtitle-text);
+  }
+
+  .apex-app-shell {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .apex-sidebar-wordmark {
+    @apply font-extrabold text-base tracking-[0.12em];
+    color: var(--sidebar-wordmark);
+  }
+
+  .apex-sidebar-profile {
+    @apply px-2 py-2 mb-1 text-[11px] truncate;
+    color: var(--sidebar-profile-primary);
+  }
+
+  .apex-sidebar-profile-role {
+    @apply block capitalize;
+    color: var(--sidebar-profile-secondary);
+  }
+
+  .apex-queue-tab-track {
+    @apply flex flex-wrap gap-1 p-1 rounded-lg;
+    background: var(--muted);
+  }
+
+  .apex-queue-tab {
+    @apply px-3 py-1.5 rounded-md text-xs font-semibold transition;
+    color: var(--queue-tab-idle-text);
+  }
+  .apex-queue-tab:hover {
+    color: var(--foreground);
+  }
+
+  .apex-queue-tab--active {
+    background: var(--queue-tab-active-bg);
+    color: var(--queue-tab-active-text);
+    box-shadow: var(--shadow-card);
   }
 
   /* Mockup 2 — soft form panels */
@@ -613,7 +1078,7 @@ body {
 
   .apex-tab {
     @apply rounded-lg px-4 py-2 text-sm font-semibold transition-all border border-transparent;
-    color: var(--subtle);
+    color: var(--report-muted-text);
   }
   .apex-tab:hover {
     color: var(--foreground);
@@ -696,7 +1161,7 @@ body {
   }
   .apex-data-table th {
     @apply text-left text-[0.7rem] font-semibold uppercase tracking-wider px-4 py-3;
-    color: var(--muted-foreground);
+    color: var(--table-header-text);
     background: var(--muted);
     border-bottom: 1px solid var(--border);
   }
@@ -795,10 +1260,52 @@ body {
     box-shadow: var(--shadow-card);
   }
   .apex-sidebar-brand--on-light .apex-sidebar-brand-title {
-    color: var(--heading);
+    color: var(--sidebar-brand-title-on-light);
   }
   .apex-sidebar-brand--on-light .apex-sidebar-brand-tagline {
-    color: #b45309;
+    color: var(--sidebar-brand-tagline-on-light);
+  }
+
+  .apex-text-muted {
+    color: var(--muted-foreground);
+  }
+  .apex-text-subtle {
+    color: var(--subtle);
+  }
+  .apex-text-secondary {
+    color: var(--text-secondary);
+  }
+  .apex-text-accent {
+    color: var(--accent-cyan);
+  }
+  .apex-text-success {
+    color: var(--status-success-text);
+  }
+  .apex-text-field-error {
+    color: var(--field-error-text);
+  }
+  .apex-link {
+    color: var(--link);
+    font-weight: 500;
+  }
+  .apex-link:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+  }
+  .apex-auth-shell {
+    background: var(--background);
+  }
+  .apex-banner-error {
+    @apply p-3.5 rounded text-xs;
+    background: var(--banner-error-bg);
+    border: 1px solid var(--banner-error-border);
+    color: var(--banner-error-text);
+  }
+  .apex-banner-success {
+    @apply p-3.5 rounded text-xs;
+    background: var(--banner-success-bg);
+    border: 1px solid var(--banner-success-border);
+    color: var(--banner-success-text);
   }
 
   .apex-badge-draft {
@@ -1021,11 +1528,9 @@ body {
 }
 
 @layer base {
-  .theme {
-    --font-heading: var(--font-sans);
-    --font-sans: var(--font-sans);
-  }
   :root {
+    --font-sans: "IBM Plex Sans", "Outfit", system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --popover: var(--card);
     --popover-foreground: var(--foreground);
     --secondary: var(--muted);

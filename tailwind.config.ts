@@ -9,6 +9,18 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '"IBM Plex Sans"',
+          '"Outfit"',
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          "sans-serif",
+        ],
+      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
@@ -26,6 +38,10 @@ const config: Config = {
         card: {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
+        },
+        link: {
+          DEFAULT: "var(--link)",
+          hover: "var(--link-hover)",
         },
         navy: {
           50: "#f0f4f8",

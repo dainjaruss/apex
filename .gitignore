@@ -8,6 +8,7 @@
 /test-results/
 /playwright-report/
 /blob-report/
+/reports/a11y/
 /tests/e2e/.auth/
 /tests/fixtures/e2e-ids.json
 

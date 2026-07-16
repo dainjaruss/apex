@@ -1,10 +1,12 @@
 import { createBrowserClient } from "./supabaseClient";
 
-const supabase = createBrowserClient();
+function getSupabase() {
+  return createBrowserClient();
+}
 
 // user authentication with password
 export const signInWithPassword = async (email: string, pass: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await getSupabase().auth.signInWithPassword({
     email,
     password: pass,
   });
@@ -31,7 +33,7 @@ export const signUpWithEmail = async (
       "Sailor" | "Rater" | "Senior Rater" | "Reporting Senior" | "Admin";
   },
 ) => {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await getSupabase().auth.signUp({
     email,
     password: pass,
     options: {
@@ -56,7 +58,7 @@ export const signUpWithEmail = async (
 
 // end user session
 export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await getSupabase().auth.signOut();
   if (error) {
     console.error("Logout error:", error.message);
     throw error;
@@ -65,7 +67,7 @@ export const signOut = async () => {
 
 // resend verification email
 export const resendVerificationEmail = async (email: string) => {
-  const { error } = await supabase.auth.resend({
+  const { error } = await getSupabase().auth.resend({
     type: "signup",
     email,
     options: {
@@ -80,7 +82,7 @@ export const resendVerificationEmail = async (email: string) => {
 
 // get active user session
 export const getSession = async () => {
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await getSupabase().auth.getSession();
   if (error) {
     console.error("Session retrieval error:", error.message);
     return null;
@@ -101,7 +103,7 @@ export const getCurrentUserRoles = async () => {
   if (!userId) return { preferred: null, assigned: [] };
 
   // Fetch the role from the public profiles table we created
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from("profiles")
     .select("preferred_role, assigned_roles")
     .eq("id", userId)

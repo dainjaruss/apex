@@ -130,10 +130,7 @@ export default function NewEvaluationPage() {
 
   if (loading) {
     return (
-      <div
-        className="flex items-center justify-center min-h-screen text-sm font-mono"
-        style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
-      >
+      <div className="apex-app-shell flex items-center justify-center min-h-screen text-sm font-mono apex-text-secondary">
         Initializing form template...
       </div>
     );
@@ -156,32 +153,37 @@ export default function NewEvaluationPage() {
             return (
               <button
                 key={opt.code}
+                type="button"
                 onClick={() => handleFormSelect(opt.code)}
-                className={`w-full text-left rounded-xl border p-5 transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  isSuggested
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                    : "border-border bg-card"
+                className={`apex-form-picker-card ${
+                  isSuggested ? "apex-form-picker-card--recommended" : ""
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-widest">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="apex-navpers-pill">
                         NAVPERS {opt.navpers}
                       </span>
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 uppercase tracking-widest">
-                        {opt.badge}
-                      </span>
+                      <span className="apex-form-kind-badge">{opt.badge}</span>
                       {isSuggested && (
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        <span className="apex-form-picker-recommended">
                           ✓ Recommended for your paygrade
                         </span>
                       )}
                     </div>
-                    <p className="mt-1.5 font-semibold text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">Paygrade range: {opt.range}</p>
+                    <p className="apex-form-picker-title">{opt.label}</p>
+                    <p className="apex-form-picker-hint">
+                      Paygrade range: {opt.range}
+                    </p>
                   </div>
-                  <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg
+                    className="apex-form-picker-chevron"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>

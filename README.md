@@ -67,6 +67,8 @@ npm run verify          # full vitest suite (160 tests) + production build
 npm run verify:e2e      # above + Playwright (needs .env.local + tests/fixtures/e2e-ids.json)
 ```
 
+**Accessibility (axe, all key routes — not page-by-page Lighthouse):** with dev running on `:3000`, run `A11Y_BASE_URL=http://127.0.0.1:3000 A11Y_NO_SERVER=1 npm run a11y`. See **`docs/A11Y-SCAN.md`**.
+
 Production checklist and env vars: **`docs/PRODUCTION.md`**.
 
 Health check after deploy: `GET /api/health`.

@@ -49,10 +49,16 @@ export const createBrowserClient = () => {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    console.warn("Supabase credentials missing in browser client init");
+    const inBrowser = typeof window !== "undefined";
+    if (inBrowser) {
+      throw new Error(
+        "Supabase is not configured in the browser. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local, then restart `npm run dev`.",
+      );
+    }
+    // Build / non-browser stub only (never used for real sign-in).
     return createSupabaseBrowser(
-      url || "https://127.0.0.1:54321",
-      key || BUILD_PLACEHOLDER_ANON_KEY,
+      "https://127.0.0.1:54321",
+      BUILD_PLACEHOLDER_ANON_KEY,
     );
   }
 

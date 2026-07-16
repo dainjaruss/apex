@@ -226,12 +226,14 @@
   },
   "primary_duties": {
     "title": "Primary / Collateral / Watchstanding Duties / PFA",
-    "block": "Block 29",
-    "excerpt": "Enter an abbreviation of 14 or fewer characters for the most significant primary duty in the small box, then list duty titles and the number of months each was assigned, in order: most significant primary duty, other primary duties, collateral duties, then watch-standing duties (e.g., COMMUNICATIONS OFFICER-7; ASST COMM-3; MESS TREASURER-8; OOD UNDERWAY-3). Optionally add a job-scope statement, periods not available for duty, and PFA/CFA cycle results from PRIMS (e.g., '26-1: P/WS/95/OH').",
+    "block": "Block 29B",
+    "excerpt": "Enter an abbreviation of 14 or fewer characters for the most significant primary duty in the small box (Block 29A), then list duty titles and the number of months each was assigned, in order: most significant primary duty, other primary duties, collateral duties, then watch-standing duties (e.g., COMMUNICATIONS OFFICER-7; ASST COMM-3; MESS TREASURER-8; OOD UNDERWAY-3). Optionally add a job-scope statement, periods not available for duty, and PFA/CFA cycle results from PRIMS (e.g., '26-1: P/WS/95/OH'). On NAVPERS 1610/2 (FITREP) and 1616/27 (CHIEFEVAL), Block 29B fits four Courier lines at 91 characters per line (line 1 shares space with 29A); enlisted 1616/26 allows three lines.",
     "rules": [
-      "Lead with a 14-character-or-fewer abbreviation for the most significant primary duty.",
+      "Block 29A: max 14 characters for the primary duty abbreviation.",
+      "Block 29B: 91 characters per line; 3 lines on EVAL (1616/26), 4 lines on FITREP (1610/2) and CHIEFEVAL (1616/27).",
+      "Line 1 of 29B reserves space for the 29A box (first-line lead applied in validation and PDF).",
       "List duties in order: primary, other primary, collateral, then watch-standing, with months assigned.",
-      "Record the PFA/CFA cycle results referenced in Block 20 (e.g., 26-1: P/WS/95/OH)."
+      "Record PFA/CFA cycle results referenced in Block 20 where applicable."
     ]
   },
   "date_counseled": {
@@ -380,6 +382,78 @@
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
+    ]
+  },
+  "trait_grades.deckplate_leadership": {
+    "title": "Deckplate Leadership",
+    "block": "Block 33 (CHIEFEVAL)",
+    "excerpt": "NAVPERS 1616/27 (E7–E9): Evaluate the CPO's visible deckplate presence, mentorship, and direct impact on Sailor performance and team culture (BUPERSINST 1610.10H, Ch. 10).",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
+    ]
+  },
+  "trait_grades.professionalism": {
+    "title": "Professionalism (incl. PFA)",
+    "block": "Block 34 (CHIEFEVAL)",
+    "excerpt": "Evaluate military bearing, conduct, uniform standards, and Physical Fitness Assessment performance incorporated into this trait (BUPERSINST 1610.10H, Ch. 10).",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "PFA results in Block 20 should be reflected in Block 29 and this trait where applicable."
+    ]
+  },
+  "trait_grades.mission_accomplishment": {
+    "title": "Mission Accomplishment and Initiative",
+    "block": "Block 35 (CHIEFEVAL)",
+    "excerpt": "Evaluate the CPO's contribution to departmental and command mission readiness, initiative, and accountability for outcomes.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Marks of 1.0 or 5.0 require explanation in comments."
+    ]
+  },
+  "trait_grades.human_development": {
+    "title": "Human Development",
+    "block": "Block 36 (CHIEFEVAL)",
+    "excerpt": "Evaluate commitment to developing subordinates' professional and personal growth (BUPERSINST 1610.10H, Ch. 10).",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed)."
+    ]
+  },
+  "trait_grades.eo_climate": {
+    "title": "Equal Opportunity / Command Climate",
+    "block": "Block 37 (CHIEFEVAL)",
+    "excerpt": "On CHIEFEVAL the EO/Command Climate gate applies to Block 37 (not Blocks 35/36 as on enlisted EVAL). 3.0 or higher is required for Promotable, Must Promote, or Early Promote.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "A 2.0 or lower limits promotion recommendation to Progressing or Significant Problems.",
+      "EO/Climate must be 3.0+ for any Promotable-or-higher recommendation."
+    ]
+  },
+  "trait_grades.tactical_performance": {
+    "title": "Tactical Performance",
+    "block": "Block 39 (FITREP)",
+    "excerpt": "Officer-specific trait on NAVPERS 1610/2: rate demonstrated tactical/operational proficiency and warfare employment (BUPERSINST 1610.10H, Ch. 9). Warfare-qualified officers only.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "Required on observed officer FITREPs when this trait applies to the member's community."
+    ]
+  },
+  "comments_chiefeval": {
+    "title": "Reporting Senior Comments (CHIEFEVAL)",
+    "block": "Block 40 (1616/27)",
+    "excerpt": "NAVPERS 1616/27 footnote: All 1.0 marks and all 2.0 marks in Blocks 33–39 must be specifically substantiated in comments. Comments must be verifiable.",
+    "rules": [
+      "Every 1.0 and every 2.0 trait mark requires substantiation (stricter than enlisted EVAL).",
+      "Use 10- or 12-pitch Courier within the physical comment box limits."
+    ]
+  },
+  "comments_fitrep": {
+    "title": "Comments on Performance (FITREP)",
+    "block": "Block 41 (1610/2)",
+    "excerpt": "NAVPERS 1610/2 footnote: All 1.0 marks, three or more 2.0 marks, and any 2.0 in Block 34 (Command/Organizational Climate) must be specifically substantiated. Comments must be verifiable.",
+    "rules": [
+      "Substantiate 1.0 marks, three+ 2.0 marks, and 2.0 in Block 34 (climate/EO).",
+      "10- or 12-pitch only; upper and lower case allowed on officer FITREP."
     ]
   }
 }

@@ -105,24 +105,45 @@ The Navy enforces strict policy restrictions on promotion recommendations based 
 
 ## 5. NAVPERS 1616/27 (CHIEFEVAL) & NAVPERS 1610/2 (FITREP) Policy Mapping
 
+Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` in `lib/validationEngine.ts` dispatches to `ChiefEvalSchema` or `FitrepSchema` in `types/navpers.ts`, then applies shared cross-field rules (occasion/type, narrative fit, summary billet warnings, trait completeness, and form-specific Block 43 substantiation).
+
+### Shared administrative rules (Blocks 1–32)
+
+| Rule | CHIEFEVAL / FITREP enforcement |
+|------|--------------------------------|
+| Blocks 1–8 identity | Same Zod field rules and block-tagged messages as `EvalSchema` |
+| Block 9 Date Reported | ISO date, valid calendar, not in the future (`refineDateReported`) |
+| Blocks 14–15 period order | Period To ≥ Period From |
+| Block 20 PFA codes | `PBFMWN` only, oldest-to-most-recent |
+| Block 21 billet subcategory | Table 1-1 codes; starred ↔ Block 29 warning |
+| Blocks 22–27 reporting senior | RS name/grade/title/UIC/DoD ID; Block 24 designator pattern |
+| Blocks 28–29 narratives | `FIELD_FIT` line wrap (same canvas/PDF algorithm as EVAL) |
+| Blocks 30–31 counseling | ISO / YYMMMDD / `NOT REQ` / `NOT PERF`; counselor max 22 chars |
+| Blocks 10–13 / 16–18 | Occasion and type multi-select (same engine rules as EVAL) |
+
 ### CHIEFEVAL (NAVPERS 1616/27, Paygrade E7–E9)
 
-- **Block Structure:** Mirrors the 1616/26 block layout with CPO-specific trait definitions per BUPERSINST 1610.10H Chapter 10:
-  - Block 33: Deckplate Leadership
-  - Block 34: Professionalism
-  - Block 35: Mission Accomplishment
-  - Block 36: Human Development
-  - Block 37: Command Climate / Equal Opportunity (EO/Character gate)
-  - Block 38: Teamwork
-  - Block 39: Leadership
-- **Retention Recommendation (Block 47):** Omitted/Hidden. Career Chief Petty Officers do not receive a Block 47 retention recommendation.
-- **Promotion Recommendation (Block 45):** Uses the standard 5 promotion options plus NOB (`Early Promote`, `Must Promote`, `Promotable`, `Progressing`, `Significant Problems`, `NOB`).
-- **EO/Character Gating Rule:** Block 37 (Command Climate/EO) gates promotion recommendations in identical fashion to Block 35/36 on enlisted EVALs (`types/navpers.ts` via `ChiefEvalSchema.superRefine`).
+- **Trait keys (Blocks 33–39):** `deckplate_leadership`, `professionalism`, `mission_accomplishment`, `human_development`, `eo_climate`, `teamwork`, `leadership` — see `CHIEFEVAL_TRAIT_KEYS` and `chiefEvalTraitBlockMap`.
+- **Promotion gates:** Same 1.0 / 2.0 / Must-Early caps as EVAL, but EO gate applies only to **`eo_climate` (Block 37)** — there is no separate Bearing trait on CHIEFEVAL (`ChiefEvalSchema` + `refinePromotionRecommendation`).
+- **Retention (Block 47):** Omitted from schema, UI (`Block42Signatures`), and validation payload.
+- **Block 43 / 40 substantiation (1616/27 REV 05-2025 footnote):** **Every** 1.0 **and every** 2.0 in Blocks 33–39 must be substantiated in comments (stricter than enlisted EVAL). Implemented in `validationEngine.ts` rule 10.
+- **Inline BUPERS:** `lib/bupersGuidelines.json` includes `trait_grades.*` keys for all CPO traits; trait anchor panels use `TRAIT_STANDARDS_LOOKUP` in `lib/traitStandards.ts`.
+- **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
 
 ### Officer FITREP (NAVPERS 1610/2, Paygrade W2–O6)
 
-- **8th Performance Trait:** Officers are evaluated across **8 traits** (adding `tactical_performance`) rather than 7 (`types/navpers.ts` via `FitrepSchema.trait_grades`). Trait averages (`lib/traitAverage.ts`) dynamically compute over all 8 graded traits.
-- **Retention Recommendation (Block 47):** Omitted/Hidden. Commissioned and Warrant Officers do not have a retention recommendation block.
-- **Promotion Recommendation (Block 45):** Uses officer ladder (`Early Promote`, `Must Promote`, `Promotable`, `Progressing`, `Significant Problems`, `NOB`).
-- **Narrative Limits (Block 43):** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) rules apply identically to all report types.
+- **Trait keys:** Seven enlisted-style traits plus **`tactical_performance`** (8 total). Block map follows 1610/2 REV 05-2025: EO/climate substantiation references **Block 34** (`fitrepTraitBlockMap.eo = 34`).
+- **Block 3 designator:** Required **four-digit** officer designator (`FitrepSchema` / `refineOfficerDesignator`). Empty designator does not produce an enlisted-style warning.
+- **Promotion gates:** EO (**Block 34** label in messages) and Bearing/Character (**Block 35**) both gate Promotable-or-higher, matching Chapter 9 policy (`refinePromotionRecommendation` with `bearingKey: "bearing"`).
+- **Retention (Block 47):** Omitted (same as CHIEFEVAL).
+- **Block 43 substantiation (1610/2 footnote):** 1.0 marks, **three or more** 2.0 marks, and any **2.0 in Block 34** (climate/EO) — same pattern as EVAL but with officer block numbers in messages.
+- **Narrative limits:** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit` (all report types).
+- **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
+
+### UI behavior (parity with EVAL)
+
+- `useLiveValidation` / `useFinalValidation` call `runFullValidation` on every change / Verify Rules.
+- `EvaluationForm` shows errors only on touched+blurred fields until Save/Verify (`revealAllErrors`).
+- Summary group attach preserves `report_type` (no longer forced to `EVAL`).
+- `ValidationResultsModal` groups issues by block category with BUPERSINST 1610.10H subtitle.
 

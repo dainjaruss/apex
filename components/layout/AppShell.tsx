@@ -125,10 +125,7 @@ export default function AppShell({
   const opsNav = nav.filter((n) => n.group === "ops");
 
   return (
-    <div
-      className="flex min-h-screen pb-16 lg:pb-0"
-      style={{ background: "var(--background)", color: "var(--foreground)" }}
-    >
+    <div className="apex-app-shell flex min-h-screen pb-16 lg:pb-0">
       <aside
         className="apex-sidebar hidden lg:flex w-60 shrink-0 flex-col border-r"
         style={{
@@ -143,9 +140,7 @@ export default function AppShell({
           <div className="flex items-center gap-3">
             <ApexLogo size="md" className="shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold text-base tracking-[0.12em] text-white">
-                APEX
-              </div>
+              <div className="apex-sidebar-wordmark">APEX</div>
               <div className="apex-sidebar-gold-label">Eval workflow</div>
             </div>
           </div>
@@ -187,10 +182,10 @@ export default function AppShell({
           style={{ borderColor: "var(--sidebar-border)" }}
         >
           {profile && (
-            <div className="px-2 py-2 mb-1 text-[11px] text-white/50 truncate">
+            <div className="apex-sidebar-profile">
               {profile.navy_rank} {profile.last_name}
               {profile.preferred_role && (
-                <span className="block capitalize text-white/35">
+                <span className="apex-sidebar-profile-role">
                   {profile.preferred_role.replace(/_/g, " ")}
                 </span>
               )}

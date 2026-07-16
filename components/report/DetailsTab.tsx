@@ -1,8 +1,6 @@
 // components/report/DetailsTab.tsx
 //
 // Read-only "Form Details" tab for the report screen, decomposed into small sections.
-// A shared <Field> kills the repeated label/value markup; <SignatureRow>/<SignField>
-// own the sign-or-display logic. Signing is delegated up via onSign.
 
 import React from "react";
 import { Evaluation } from "@/types";
@@ -11,10 +9,9 @@ import { SIGNATURE_BLOCKS, SignatureBlockMeta } from "@/lib/signatures";
 
 export type OnSign = (block: number, label: string, signer: string) => void;
 
-const PANEL = "glass-panel rounded-xl p-6";
-const H3 =
-  "text-sm font-bold gold-accent uppercase tracking-wider mb-4 border-b border-slate-800 pb-2";
-const LBL = "text-xs text-slate-500";
+const PANEL = "apex-report-panel";
+const H3 = "apex-report-section-title";
+const LBL = "apex-report-field-label";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -90,7 +87,7 @@ function SignField({
   const date = bv[`${keyName}_date`];
   if (signed)
     return (
-      <div className="font-semibold text-emerald-300 mt-0.5 truncate">
+      <div className="apex-report-signed mt-0.5">
         ✓ {signed}
         {date ? ` · ${date}` : ""}
       </div>
@@ -99,6 +96,7 @@ function SignField({
     return <div className="font-semibold apex-heading mt-0.5">— (blank)</div>;
   return (
     <button
+      type="button"
       onClick={() => onSign(block, label, signer)}
       className="apex-btn-primary mt-1 text-[11px]"
     >
@@ -158,16 +156,16 @@ function CommandContextSection({
           />
         </div>
       </div>
-      <div className="space-y-4 text-sm border-t border-slate-800/60 pt-4">
+      <div className="space-y-4 text-sm border-t apex-report-divider pt-4">
         <div>
           <div className={LBL}>28: Command Employment and Achievements</div>
-          <p className="mt-1 text-slate-300 whitespace-pre-wrap">
+          <p className="mt-1 apex-report-body whitespace-pre-wrap">
             {bv.command_achievements || "None listed."}
           </p>
         </div>
         <div>
           <div className={LBL}>29: Primary/Collateral/Watchstanding Duties</div>
-          <p className="mt-1 text-slate-300 whitespace-pre-wrap">
+          <p className="mt-1 apex-report-body whitespace-pre-wrap">
             {bv.primary_duties || "None listed."}
           </p>
         </div>
@@ -182,11 +180,8 @@ function TraitRatingsSection({ e }: { e: Evaluation }) {
       <h3 className={H3}>Blocks 33 - 40: Trait Ratings Breakdown</h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4 text-center">
         {Object.entries(e.trait_grades || {}).map(([key, val]) => (
-          <div
-            key={key}
-            className="bg-slate-950/45 p-3 rounded-lg border border-slate-800/80"
-          >
-            <div className="text-[10px] text-slate-500 font-semibold uppercase truncate">
+          <div key={key} className="apex-report-trait-cell">
+            <div className="apex-report-trait-label">
               {key === "eo" ? "Climate/EO" : key}
             </div>
             <div className="text-base font-bold apex-heading mt-1">
@@ -204,24 +199,22 @@ function NarrativeSection({ e }: { e: Evaluation }) {
   const fit = checkCommentFit(e.comments || "", pitch);
   return (
     <div className={PANEL}>
-      <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
+      <div className="flex items-center justify-between mb-4 border-b apex-report-divider pb-2">
         <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
           Block 43: Narrative Comments
         </h3>
-        <span className="text-[10px] text-slate-500 font-mono">
+        <span className="text-[10px] apex-report-faint font-mono">
           Pitch Selected: {pitch}-Pitch | Lines: {fit.linesUsed} / 18
         </span>
       </div>
-      <div className="w-full bg-slate-950/60 rounded-xl p-5 border border-slate-900 font-mono text-xs overflow-x-auto text-slate-200 min-h-[160px]">
+      <div className="apex-narrative-viewer">
         {fit.wrappedLines.length === 0 ? (
-          <p className="italic text-slate-600">No narrative entered.</p>
+          <p className="italic apex-report-faint">No narrative entered.</p>
         ) : (
           <div className="space-y-0.5">
             {fit.wrappedLines.map((line, idx) => (
               <div key={idx} className="flex">
-                <span className="w-6 text-[10px] text-slate-700 pr-1.5 mr-2 text-right border-r border-slate-900 select-none">
-                  {idx + 1}
-                </span>
+                <span className="apex-narrative-gutter">{idx + 1}</span>
                 <span className="whitespace-pre">{line}</span>
               </div>
             ))}
@@ -247,20 +240,21 @@ function SignatureRow({
   return (
     <div className="flex items-center justify-between gap-3 apex-form-panel border rounded-lg px-3 py-2">
       <div className="min-w-0">
-        <div className="text-slate-500">
+        <div className="apex-report-faint">
           {s.block}: {s.label}
         </div>
         {signedName ? (
-          <div className="font-semibold text-emerald-300 mt-0.5 truncate">
+          <div className="apex-report-signed mt-0.5">
             ✓ {signedName}
             {signedDate ? ` · ${signedDate}` : ""}
           </div>
         ) : (
-          <div className="text-slate-500 mt-0.5 italic">Unsigned</div>
+          <div className="apex-report-faint mt-0.5 italic">Unsigned</div>
         )}
       </div>
       {!signedName && e.status !== "archived" && !e.signature_locked && (
         <button
+          type="button"
           onClick={() => onSign(s.block, s.label, s.signer)}
           className="apex-btn-primary shrink-0"
         >
@@ -290,7 +284,7 @@ function RecommendationsSection({
             {recs.length ? (
               recs.map((r, i) => <li key={i}>{r}</li>)
             ) : (
-              <li className="italic text-slate-600">None</li>
+              <li className="italic apex-report-faint">None</li>
             )}
           </ul>
         </div>
@@ -304,11 +298,11 @@ function RecommendationsSection({
         />
       </div>
       <div className="mb-6">
-        <div className="text-xs text-slate-500 mb-1">
+        <div className={`${LBL} mb-1`}>
           46: Promotion Recommendation Summary (Summary Group)
         </div>
         {e.promotion_recommendation === "NOB" ? (
-          <p className="text-slate-600 text-sm italic">
+          <p className="apex-report-faint text-sm italic">
             Left blank — Not Observed report.
           </p>
         ) : e.summary_group_distribution ? (
@@ -320,10 +314,7 @@ function RecommendationsSection({
               "Must Promote",
               "Early Promote",
             ].map((c) => (
-              <span
-                key={c}
-                className="px-2 py-1 rounded bg-slate-800/60 text-slate-200"
-              >
+              <span key={c} className="apex-report-chip">
                 {c}:{" "}
                 <span className="font-bold apex-heading">
                   {e.summary_group_distribution?.[c] ?? 0}
@@ -332,30 +323,26 @@ function RecommendationsSection({
             ))}
           </div>
         ) : (
-          <p className="text-slate-600 text-sm italic">Not available.</p>
+          <p className="apex-report-faint text-sm italic">Not available.</p>
         )}
       </div>
       <div className="mb-6">
-        <div className="text-xs text-slate-500 mb-1">
-          44: Qualifications/Achievements
-        </div>
-        <p className="text-slate-300 text-sm whitespace-pre-wrap">
+        <div className={`${LBL} mb-1`}>44: Qualifications/Achievements</div>
+        <p className="apex-report-body text-sm whitespace-pre-wrap">
           {bv.qualifications || "None listed."}
         </p>
       </div>
       <div className="mb-4">
-        <div className="text-xs text-slate-500 mb-1">
-          48: Reporting Senior Address
-        </div>
-        <p className="text-slate-300 text-sm whitespace-pre-wrap">
+        <div className={`${LBL} mb-1`}>48: Reporting Senior Address</div>
+        <p className="apex-report-body text-sm whitespace-pre-wrap">
           {bv.reporting_senior_address || "None listed."}
         </p>
       </div>
-      <p className="text-[11px] text-slate-500 mb-3">
+      <p className="text-[11px] apex-report-faint mb-3">
         Each block is signed here on the report. Signing requires the authorized
         signer to enter their own credentials.
       </p>
-      <div className="border-t border-slate-800/80 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+      <div className="border-t apex-report-divider pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         {SIGNATURE_BLOCKS.filter((s) => s.block !== 32).map((s) => (
           <SignatureRow key={s.key} e={e} s={s} onSign={onSign} />
         ))}

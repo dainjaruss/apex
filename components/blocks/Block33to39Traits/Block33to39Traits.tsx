@@ -137,14 +137,14 @@ export default function Block33to39Traits({
 
   return (
     <div className={`${FORM_PANEL} mb-6`}>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-700/40 pb-2">
-        <h3 className={FORM_SECTION_TITLE}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b apex-report-divider pb-2">
+        <h2 className="apex-form-wizard-section-title">
           <span
             className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
             aria-hidden
           />
           Trait Performance Ratings (Blocks 33 - 39{isFitrep ? " + Officer 8th Trait" : ""})
-        </h3>
+        </h2>
         <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
           <div
             className="px-4 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2"
@@ -153,10 +153,10 @@ export default function Block33to39Traits({
               border: "1px solid var(--border)",
             }}
           >
-            <span className="text-slate-400 text-xs uppercase">
+            <span className="apex-trait-stat-label">
               Trait Average (40):
             </span>
-            <span className="text-emerald-400 font-bold font-mono text-base">
+            <span className="apex-trait-stat-value">
               {liveAverage != null ? liveAverage.toFixed(2) : "—"}
             </span>
           </div>
@@ -169,10 +169,10 @@ export default function Block33to39Traits({
               }}
               title="Block 50a — pooled summary group average. Equals the Block 40 average when this report isn't in a summary group."
             >
-              <span className="text-slate-400 text-xs uppercase">
+              <span className="apex-trait-stat-label">
                 Summary Group Avg (50a):
               </span>
-              <span className="text-sky-300 font-bold font-mono text-base">
+              <span className="apex-trait-stat-value apex-trait-stat-value--group">
                 {summaryGroupAverage != null
                   ? summaryGroupAverage.toFixed(2)
                   : "—"}
@@ -182,7 +182,7 @@ export default function Block33to39Traits({
         </div>
       </div>
 
-      <p className="text-xs text-slate-500 mb-4 -mt-2">
+      <p className="text-xs apex-text-muted mb-4 -mt-2">
         Click a grade to set it; click the selected grade again to clear it.
         Untouched traits stay ungraded and are excluded from the Block 40
         average (per BUPERSINST 1610.10H).
@@ -204,6 +204,7 @@ export default function Block33to39Traits({
             onChange={handleTraitChange}
             gradeValues={GRADE_VALUES}
             onFocus={() => onFocusField?.(`trait_grades.${key}`)}
+            reportType={evalData.report_type}
           />
         ))}
       </div>

@@ -192,13 +192,7 @@ export default function ViewEvaluationPage() {
 
 function CenterMessage({ text }: { text: string }) {
   return (
-    <div
-      className="flex items-center justify-center min-h-screen text-sm font-mono"
-      style={{
-        background: "var(--background)",
-        color: "var(--muted-foreground)",
-      }}
-    >
+    <div className="apex-app-shell flex items-center justify-center min-h-screen text-sm font-mono apex-text-muted">
       {text}
     </div>
   );
@@ -212,15 +206,12 @@ function LoadError({
   onBack: () => void;
 }) {
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
-      style={{ background: "var(--background)" }}
-    >
-      <div className="apex-card p-6 max-w-md space-y-4 border-red-500/30">
-        <h3 className="text-lg font-bold text-red-400">
+    <div className="apex-app-shell min-h-screen flex flex-col items-center justify-center p-6 text-center">
+      <div className="apex-card p-6 max-w-md space-y-4 apex-banner-error border">
+        <h3 className="text-lg font-bold apex-text-field-error">
           Failed to Load Report
         </h3>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm apex-text-muted">
           {message || "Record not found or access denied."}
         </p>
         <button type="button" onClick={onBack} className="apex-btn-secondary">

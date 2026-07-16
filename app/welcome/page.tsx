@@ -3,18 +3,18 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default function WelcomePage() {
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center p-4"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="apex-auth-shell relative flex min-h-screen items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6 text-center">
+      <main
+        id="main-content"
+        className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6 text-center"
+      >
         <h2 className="text-2xl font-bold apex-heading tracking-wide">
           Identity Confirmed
         </h2>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm apex-text-muted">
           Your email has been successfully verified. Your APEX account is now
           active and ready to use.
         </p>
@@ -26,7 +26,7 @@ export default function WelcomePage() {
             Proceed to Dashboard
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

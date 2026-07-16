@@ -40,6 +40,7 @@ import {
   FORM_SECTION_TITLE,
   FORM_LABEL,
   formFieldClass,
+  evalFieldId,
 } from "@/lib/formStyles";
 
 export default function Block42Signatures({
@@ -73,7 +74,7 @@ export default function Block42Signatures({
 
   return (
     <div className={FORM_PANEL}>
-      <h3 className={FORM_SECTION_TITLE}>
+      <h2 className="apex-form-wizard-section-title">
         <span
           className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
           aria-hidden
@@ -81,7 +82,7 @@ export default function Block42Signatures({
         {isChiefevalOrFitrep
           ? "Recommendations & Reporting Senior (Blocks 41, 45, 48)"
           : "Recommendations & Reporting Senior (Blocks 41, 45 - 48)"}
-      </h3>
+      </h2>
 
       {/* Contextual BUPERS field guide for whichever section-4 field is focused. */}
       <BupersGuidelinesInline
@@ -102,8 +103,9 @@ export default function Block42Signatures({
           Courier canvas so it wraps on screen exactly as the printed form's narrow cell
           ({addrSpec.charsPerLine} chars/line × {addrSpec.maxLines} lines). */}
       <div className="mb-2">
-        <label className={FORM_LABEL}>48: Reporting Senior Address</label>
         <MeasuredCourierField
+          label="48: Reporting Senior Address"
+          fieldId={evalFieldId("bv-reporting_senior_address")}
           value={evalData.block_values?.reporting_senior_address || ""}
           onChange={(v) =>
             handleBlockValueChange({ reporting_senior_address: v })
@@ -113,12 +115,10 @@ export default function Block42Signatures({
           placeholder="COMMAND MAILING ADDRESS OF THE REPORTING SENIOR"
           onFocus={() => onFocusField?.("reporting_senior_address")}
           error={issueFor("reporting_senior_address")?.message}
-          ariaLabel="Block 48 Reporting Senior Address"
         />
       </div>
 
-      {/* Signatures (Blocks 42, 49, 50, 51, 52) are applied on the report screen */}
-      <p className="text-[11px] text-slate-500 border-t border-slate-800/60 pt-3 mt-4">
+      <p className="text-[11px] apex-text-muted border-t apex-report-divider pt-3 mt-4">
         Signatures (Blocks 42, 49, 50, 51, 52) are applied on the report screen
         after saving — each signer certifies their block with their own
         credentials.
@@ -150,14 +150,21 @@ function RecommendationsRow({
     >
       {/* Block 41 — exactly two slots (slot 1 required, slot 2 optional), max 20 chars each
           per BUPERSINST 1610.10H. "Do not leave blank" — enter NA/NONE if none applies. */}
-      <div>
-        <label className={FORM_LABEL}>41: Career Recommendations</label>
+      <fieldset className="border-0 p-0 m-0 min-w-0">
+        <legend className={`${FORM_LABEL} float-left w-full mb-1.5`}>
+          41: Career Recommendations
+        </legend>
         {[0, 1].map((i) => {
           const recs = evalData.career_recommendations || [];
           const val = recs[i] || "";
+          const inputId = evalFieldId(`career_rec_${i}`);
           return (
-            <div key={i} className="mb-2 last:mb-0">
+            <div key={i} className="mb-2 last:mb-0 clear-both">
+              <label className="text-[10px] apex-text-muted" htmlFor={inputId}>
+                {i === 0 ? "Slot 1 (required)" : "Slot 2 (optional)"}
+              </label>
               <input
+                id={inputId}
                 type="text"
                 maxLength={CAREER_REC_MAX}
                 placeholder={
@@ -175,10 +182,7 @@ function RecommendationsRow({
                 className={formFieldClass(!!issueFor("career_recommendations"))}
               />
               <div className="flex justify-between mt-0.5">
-                <span className="text-[10px] text-slate-500">
-                  {i === 0 ? "Required" : "Optional"}
-                </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] apex-text-muted">
                   {val.length}/{CAREER_REC_MAX}
                 </span>
               </div>
@@ -186,16 +190,21 @@ function RecommendationsRow({
           );
         })}
         {issueFor("career_recommendations") && (
-          <p className="text-red-400 text-xs mt-1">
+          <p className="apex-text-field-error text-xs mt-1">
             {issueFor("career_recommendations")?.message}
           </p>
         )}
-      </div>
+      </fieldset>
 
-      {/* Block 45 */}
       <div>
-        <label className={FORM_LABEL}>45: Promotion Recommendation</label>
+        <label
+          className={FORM_LABEL}
+          htmlFor={evalFieldId("promotion_recommendation")}
+        >
+          45: Promotion Recommendation
+        </label>
         <select
+          id={evalFieldId("promotion_recommendation")}
           value={evalData.promotion_recommendation}
           onFocus={() => onFocusField?.("promotion_recommendation")}
           onChange={(e) =>
@@ -210,17 +219,19 @@ function RecommendationsRow({
           ))}
         </select>
         {issueFor("promotion_recommendation") && (
-          <p className="text-red-400 text-xs mt-1 font-semibold">
+          <p className="apex-text-field-error text-xs mt-1 font-semibold">
             ⚠️ {issueFor("promotion_recommendation")?.message}
           </p>
         )}
       </div>
 
-      {/* Block 47 (EVAL only) */}
       {!isChiefevalOrFitrep && (
         <div>
-          <label className={FORM_LABEL}>47: Retention Recommendation</label>
+          <label className={FORM_LABEL} htmlFor={evalFieldId("retention")}>
+            47: Retention Recommendation
+          </label>
           <select
+            id={evalFieldId("retention")}
             value={evalData.retention}
             onFocus={() => onFocusField?.("retention")}
             onChange={(e) => onChange({ retention: e.target.value as any })}
@@ -233,7 +244,7 @@ function RecommendationsRow({
             ))}
           </select>
           {issueFor("retention") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {issueFor("retention")?.message}
             </p>
           )}

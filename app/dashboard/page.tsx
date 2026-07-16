@@ -363,7 +363,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="apex-card p-3 mb-4 flex flex-wrap gap-2 items-center">
-        <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-[var(--muted)]">
+        <div className="apex-queue-tab-track">
           {(
             [
               ["all", "All"],
@@ -377,14 +377,9 @@ export default function DashboardPage() {
               type="button"
               onClick={() => setQueueTab(key)}
               aria-pressed={queueTab === key}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                queueTab === key
-                  ? "bg-[var(--card)] shadow-sm"
-                  : "text-[var(--muted-foreground)]"
+              className={`apex-queue-tab ${
+                queueTab === key ? "apex-queue-tab--active" : ""
               }`}
-              style={
-                queueTab === key ? { color: "var(--heading)" } : undefined
-              }
             >
               {label}
             </button>

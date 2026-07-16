@@ -12,7 +12,11 @@ import {
   STARRED_BILLET_SUBCATEGORIES,
   COUNSELOR_MAX,
 } from "@/types/navpers";
-import { FIELD_FIT, PRIMARY_DUTY_ABBREV_MAX } from "@/lib/commentFit";
+import {
+  FIELD_FIT,
+  PRIMARY_DUTY_ABBREV_MAX,
+  getPrimaryDutiesFieldFit,
+} from "@/lib/commentFit";
 
 type Props = {
   evalData: Evaluation;
@@ -45,6 +49,7 @@ import {
   FORM_SUBLABEL,
   FORM_SECTION_TITLE,
   formFieldClass,
+  evalFieldId,
 } from "@/lib/formStyles";
 
 export default function Block1Admin({
@@ -57,13 +62,13 @@ export default function Block1Admin({
 }: Props) {
   return (
     <div className={FORM_PANEL}>
-      <h3 className={FORM_SECTION_TITLE}>
+      <h2 className="apex-form-wizard-section-title">
         <span
           className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
           aria-hidden
         />
         Administrative Info
-      </h3>
+      </h2>
       <Block1Name
         evalData={evalData}
         onChange={onChange}
@@ -118,10 +123,14 @@ function BlockInput({
     (i) => i.field === fieldKey && i.severity === "error",
   );
 
+  const inputId = evalFieldId(`bv-${fieldKey}`);
   return (
     <div>
-      <label className={FORM_LABEL}>{label}</label>
+      <label className={FORM_LABEL} htmlFor={inputId}>
+        {label}
+      </label>
       <input
+        id={inputId}
         type="text"
         placeholder={placeholder}
         maxLength={maxLength}
@@ -133,7 +142,7 @@ function BlockInput({
         className={formFieldClass(hasError)}
       />
       {hasError && (
-        <p className="text-red-400 text-xs mt-1">
+        <p className="apex-text-field-error text-xs mt-1">
           {
             issues.find((i) => i.field === fieldKey && i.severity === "error")
               ?.message
@@ -171,10 +180,14 @@ function BlockSelect({
   const hasError = issues.some(
     (i) => i.field === fieldKey && i.severity === "error",
   );
+  const selectId = evalFieldId(`bv-${fieldKey}`);
   return (
     <div>
-      <label className={FORM_LABEL}>{label}</label>
+      <label className={FORM_LABEL} htmlFor={selectId}>
+        {label}
+      </label>
       <select
+        id={selectId}
         value={evalData.block_values?.[fieldKey] || ""}
         onChange={(e) =>
           handleBlockValueChange({
@@ -193,7 +206,7 @@ function BlockSelect({
         ))}
       </select>
       {hasError && (
-        <p className="text-red-400 text-xs mt-1">
+        <p className="apex-text-field-error text-xs mt-1">
           {
             issues.find((i) => i.field === fieldKey && i.severity === "error")
               ?.message
@@ -218,6 +231,7 @@ function CommandDetailsSection({
   onFocusField?: (field: string | null) => void;
   activeField?: string | null;
 }) {
+  const primaryDutiesFit = getPrimaryDutiesFieldFit(evalData.report_type);
   return (
     <>
       <BupersGuidelinesInline
@@ -366,32 +380,38 @@ function CommandDetailsSection({
           error={
             issues.find((i) => i.field === "command_achievements")?.message
           }
-          ariaLabel="Block 28 Command Employment and Achievements"
+          fieldId={evalFieldId("bv-command_achievements")}
         />
       </div>
 
-      {/* Block 29 — (A) 14-char primary-duty abbreviation + (B) narrative (95 CPL x 3 lines) */}
       <div className="mb-6">
-        <label className={FORM_LABEL}>
+        <p className={FORM_LABEL}>
           29: Primary/Collateral/Watchstanding Duties
-        </label>
+          <span className="font-normal text-xs apex-text-muted ml-2">
+            (29B: {primaryDutiesFit.maxLines} lines × {primaryDutiesFit.charsPerLine} CPL
+            {primaryDutiesFit.firstLineLead
+              ? `, line 1 −${primaryDutiesFit.firstLineLead} for 29A`
+              : ""}
+            )
+          </span>
+        </p>
         <div className="mb-4">
-          <span className={FORM_SUBLABEL}>
+          <label className={FORM_SUBLABEL} htmlFor={evalFieldId("bv-primary_duty_abbrev")}>
             29A · Most-significant primary duty abbreviation (max{" "}
             {PRIMARY_DUTY_ABBREV_MAX})
-          </span>
-          {/* Matches the 28 / 29B Courier box styling, minus the line-number gutter. */}
+          </label>
           <div
-            className={`flex w-fit max-w-full bg-slate-950/60 border rounded-xl py-3 ${
+            className={`apex-measured-courier-shell ${
               issues.some(
                 (i) =>
                   i.field === "primary_duty_abbrev" && i.severity === "error",
               )
-                ? "border-red-500/80"
-                : "border-[var(--border-strong)] focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-[var(--focus-ring)]"
+                ? "!border-[var(--field-invalid-border)]"
+                : "focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-[var(--focus-ring)]"
             }`}
           >
             <input
+              id={evalFieldId("bv-primary_duty_abbrev")}
               type="text"
               maxLength={PRIMARY_DUTY_ABBREV_MAX}
               placeholder="IT COMM TECH"
@@ -401,10 +421,9 @@ function CommandDetailsSection({
                   primary_duty_abbrev: e.target.value.toUpperCase(),
                 })
               }
-              onFocus={() => onFocusField?.("primary_duties")}
+              onFocus={() => onFocusField?.("primary_duty_abbrev")}
               spellCheck={false}
-              aria-label="Block 29A most-significant primary duty abbreviation"
-              className="block bg-transparent text-slate-100 p-0 mx-3 focus:outline-none placeholder:text-slate-600"
+              className="apex-measured-courier-input mx-3 placeholder:opacity-50"
               style={{
                 fontFamily:
                   "'Courier Prime', 'Courier New', Courier, monospace",
@@ -415,33 +434,33 @@ function CommandDetailsSection({
             />
           </div>
           {issues.find((i) => i.field === "primary_duty_abbrev") && (
-            <p className="text-red-400 text-xs mt-2">
+            <p className="apex-text-field-error text-xs mt-2">
               {issues.find((i) => i.field === "primary_duty_abbrev")?.message}
             </p>
           )}
         </div>
         <MeasuredCourierField
           label="29B · Duties narrative"
+          fieldId={evalFieldId("bv-primary_duties")}
           value={evalData.block_values?.primary_duties || ""}
           onChange={(v) => handleBlockValueChange({ primary_duties: v })}
-          charsPerLine={FIELD_FIT.primary_duties.charsPerLine}
-          maxLines={FIELD_FIT.primary_duties.maxLines}
-          firstLineLead={FIELD_FIT.primary_duties.firstLineLead}
+          charsPerLine={primaryDutiesFit.charsPerLine}
+          maxLines={primaryDutiesFit.maxLines}
+          firstLineLead={primaryDutiesFit.firstLineLead}
           placeholder="PRI: …; COLL: …; JOB SCOPE: …; PFA …"
           onFocus={() => onFocusField?.("primary_duties")}
           error={issues.find((i) => i.field === "primary_duties")?.message}
-          ariaLabel="Block 29 Primary Duties narrative"
         />
       </div>
 
-      {/* Mid‑Term Counseling — Blocks 30‑31 (Block 32 signature is applied on the report screen) */}
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+      <p className="text-xs font-semibold uppercase tracking-wider apex-text-muted mb-2">
         Mid‑Term Counseling (Blocks 30 - 31)
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {/* Block 30: Date Counseled — calendar picker (ISO), or NOT REQ / NOT PERF */}
         <div>
-          <label className={FORM_LABEL}>30: Date Counseled</label>
+          <label className={FORM_LABEL} htmlFor={evalFieldId("bv-date_counseled")}>
+            30: Date Counseled
+          </label>
           {(() => {
             const dc = evalData.block_values?.date_counseled || "";
             const isDate = /^\d{4}-\d{2}-\d{2}$/.test(dc);
@@ -451,6 +470,7 @@ function CommandDetailsSection({
             return (
               <>
                 <input
+                  id={evalFieldId("bv-date_counseled")}
                   type="date"
                   value={isDate ? dc : ""}
                   onChange={(e) =>
@@ -460,7 +480,7 @@ function CommandDetailsSection({
                   className={formFieldClass(hasError)}
                 />
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                  <span className="text-[10px] uppercase tracking-wider apex-text-muted">
                     If not counseled:
                   </span>
                   {(["NOT REQ", "NOT PERF"] as const).map((code) => {
@@ -490,16 +510,18 @@ function CommandDetailsSection({
             );
           })()}
           {issues.find((i) => i.field === "date_counseled") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {issues.find((i) => i.field === "date_counseled")?.message}
             </p>
           )}
         </div>
 
-        {/* Block 31: Counselor (required — has validation message) */}
         <div>
-          <label className={FORM_LABEL}>31: Counselor</label>
+          <label className={FORM_LABEL} htmlFor={evalFieldId("bv-counselor")}>
+            31: Counselor
+          </label>
           <input
+            id={evalFieldId("bv-counselor")}
             type="text"
             placeholder="COUNSELOR, FI"
             maxLength={COUNSELOR_MAX}
@@ -517,15 +539,14 @@ function CommandDetailsSection({
             )}
           />
           {issues.find((i) => i.field === "counselor") && (
-            <p className="text-red-400 text-xs mt-1">
+            <p className="apex-text-field-error text-xs mt-1">
               {issues.find((i) => i.field === "counselor")?.message}
             </p>
           )}
         </div>
       </div>
 
-      {/* Block 32: Signature of Individual Counseled — signed on the report screen (optional per EVALMAN) */}
-      <p className="text-slate-500 text-[10px] mb-2">
+      <p className="apex-text-muted text-[10px] mb-2">
         Block 32 (Signature of Individual Counseled) is signed by the member on
         the report screen after saving. Per BUPERSINST 1610.10H it is optional
         and may be left blank.

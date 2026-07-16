@@ -12,7 +12,12 @@ import {
   FitrepSchema,
   STARRED_BILLET_SUBCATEGORIES,
 } from "../types/navpers";
-import { checkCommentFit, measureTextFit, FIELD_FIT } from "./commentFit";
+import {
+  checkCommentFit,
+  measureTextFit,
+  FIELD_FIT,
+  getPrimaryDutiesFieldFit,
+} from "./commentFit";
 
 // Static lookup table mapping field names to NAVPERS block numbers
 const fieldBlockMap: Record<string, number> = {
@@ -68,16 +73,17 @@ const chiefEvalTraitBlockMap: Record<string, number> = {
   leadership: 39,
 };
 
-// Officer trait block map — NAVPERS 1610/2 (FITREP)
+// Officer trait block map — NAVPERS 1610/2 (FITREP, REV 05-2025 layout)
 const fitrepTraitBlockMap: Record<string, number> = {
   knowledge: 33,
-  work: 34,
-  eo: 35,
-  bearing: 36,
+  eo: 34, // Command or Organizational Climate / EO (substantiation footnote Block 34)
+  bearing: 35,
+  teamwork: 36,
   accomplishment: 37,
-  teamwork: 38,
-  leadership: 39,
-  tactical_performance: 39, // Officer-specific 8th trait (shares Block 39 area)
+  leadership: 38,
+  tactical_performance: 39,
+  // Legacy key used by overlay slot between knowledge and eo on page 1
+  work: 34,
 };
 
 /**
@@ -121,10 +127,11 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
 
   const activeTraitMap = getTraitMap(evalData.report_type);
 
-  // Build trait_grades payload from the active trait map keys.
+  // Only include trait grades the rater has set — blank traits stay ungraded (rule 11).
   const traitGradesPayload: Record<string, string> = {};
   Object.keys(activeTraitMap).forEach((k) => {
-    traitGradesPayload[k] = (evalData.trait_grades as Record<string, string>)?.[k] || "3.0";
+    const v = (evalData.trait_grades as Record<string, string | undefined>)?.[k];
+    if (v) traitGradesPayload[k] = v;
   });
 
   const validationPayload = {
@@ -170,17 +177,19 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
       : EvalSchema;
   const parsed = schema.safeParse(validationPayload);
   if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors;
-    Object.entries(fieldErrors).forEach(([field, messages]) => {
-      if (messages && messages.length > 0) {
-        errors.push({
-          field,
-          block: getBlockForField(field),
-          message: messages[0],
-          severity: "error",
-        });
-      }
-    });
+    for (const issue of parsed.error.issues) {
+      const field = issue.path.join(".");
+      const uiField = field.replace(
+        /^career_recommendations\.\d+$/,
+        "career_recommendations",
+      );
+      errors.push({
+        field: uiField,
+        block: getBlockForField(uiField),
+        message: issue.message,
+        severity: "error",
+      });
+    }
   }
 
   // 3. Courier narrative comment fit/overflow check (Block 43)
@@ -195,8 +204,8 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     });
   }
 
-  // 4. Designator warning — EVAL and CHIEFEVAL only (officers always have a designator)
-  if (!evalData.designator && !isFitrep) {
+  // 4. Designator — enlisted/CPO: optional warfare qual (warn if blank). Officers: required in Zod.
+  if (!isFitrep && !evalData.designator) {
     warnings.push({
       field: "designator",
       block: 3,
@@ -266,15 +275,19 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
 
   // 8. Fixed-width narrative fit (Blocks 28, 29B, 44, 48) — uses the same wrap as the
   //    on-screen measuring canvas and the PDF renderer so all three agree.
+  const primaryDutiesSpec = getPrimaryDutiesFieldFit(evalData.report_type);
   (
     [
-      ["command_achievements", bv.command_achievements],
-      ["primary_duties", bv.primary_duties],
-      ["qualifications", bv.qualifications],
-      ["reporting_senior_address", bv.reporting_senior_address],
-    ] as [string, string | undefined][]
-  ).forEach(([field, value]) => {
-    const spec = FIELD_FIT[field];
+      ["command_achievements", bv.command_achievements, FIELD_FIT.command_achievements],
+      ["primary_duties", bv.primary_duties, primaryDutiesSpec],
+      ["qualifications", bv.qualifications, FIELD_FIT.qualifications],
+      [
+        "reporting_senior_address",
+        bv.reporting_senior_address,
+        FIELD_FIT.reporting_senior_address,
+      ],
+    ] as [string, string | undefined, (typeof FIELD_FIT)[string]][]
+  ).forEach(([field, value, spec]) => {
     const fit = measureTextFit(
       value || "",
       spec.charsPerLine,
@@ -285,7 +298,7 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
       errors.push({
         field,
         block: spec.block,
-        message: `${spec.label} (Block ${spec.block}) exceeds ${spec.maxLines} line(s) at ${spec.charsPerLine} chars/line (currently ${fit.linesUsed} lines).`,
+        message: `${spec.label} (Block ${field === "primary_duties" ? "29B" : spec.block}) exceeds ${spec.maxLines} line(s) at ${spec.charsPerLine} chars/line (currently ${fit.linesUsed} lines).`,
         severity: "error",
       });
     }
@@ -318,22 +331,47 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //     comments yield a warning naming the marks the rater must address. NOB reports
   //     leave traits blank, so the rule does not apply.
   const grades = (evalData.trait_grades || {}) as Record<string, string>;
-  const onesBlocks = (Object.keys(activeTraitMap) as string[])
+  const traitKeys = Object.keys(activeTraitMap) as string[];
+  const onesBlocks = traitKeys
     .filter((k) => grades[k] === "1.0")
     .map((k) => `Block ${activeTraitMap[k]}`);
-  const twoCount = (Object.keys(activeTraitMap) as string[]).filter(
-    (k) => grades[k] === "2.0",
-  ).length;
+  const twoBlocks = traitKeys
+    .filter((k) => grades[k] === "2.0")
+    .map((k) => `Block ${activeTraitMap[k]}`);
+  const twoCount = twoBlocks.length;
 
   const substReasons: string[] = [];
-  if (onesBlocks.length)
-    substReasons.push(`a 1.0 mark in ${onesBlocks.join(", ")}`);
-  if (twoCount >= 3)
-    substReasons.push(`three or more 2.0 marks (${twoCount} present)`);
   const eoKey = isChiefEval ? "eo_climate" : "eo";
-  const eoBlock = isChiefEval ? 37 : 35;
-  if (grades[eoKey] === "2.0")
-    substReasons.push(`a 2.0 in Block ${eoBlock} (Command/Organizational Climate/EO)`);
+  const eoBlock = isChiefEval ? 37 : isFitrep ? 34 : 35;
+
+  if (isChiefEval) {
+    // NAVPERS 1616/27 (REV 05-2025) footnote: all 1.0 and all 2.0 marks in Blocks 33–39.
+    if (onesBlocks.length)
+      substReasons.push(`a 1.0 mark in ${onesBlocks.join(", ")}`);
+    if (twoBlocks.length)
+      substReasons.push(
+        `2.0 mark(s) in ${twoBlocks.join(", ")} (CHIEFEVAL requires substantiation for every 2.0)`,
+      );
+  } else if (isFitrep) {
+    // NAVPERS 1610/2 footnote: 1.0 marks, three+ 2.0 marks, and 2.0 in Block 34 (climate/EO).
+    if (onesBlocks.length)
+      substReasons.push(`a 1.0 mark in ${onesBlocks.join(", ")}`);
+    if (twoCount >= 3)
+      substReasons.push(`three or more 2.0 marks (${twoCount} present)`);
+    if (grades[eoKey] === "2.0")
+      substReasons.push(
+        `a 2.0 in Block ${eoBlock} (Command or Organizational Climate/EO)`,
+      );
+  } else {
+    if (onesBlocks.length)
+      substReasons.push(`a 1.0 mark in ${onesBlocks.join(", ")}`);
+    if (twoCount >= 3)
+      substReasons.push(`three or more 2.0 marks (${twoCount} present)`);
+    if (grades[eoKey] === "2.0")
+      substReasons.push(
+        `a 2.0 in Block ${eoBlock} (Command/Organizational Climate/EO)`,
+      );
+  }
 
   const substApplies =
     substReasons.length > 0 &&

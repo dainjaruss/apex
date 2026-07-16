@@ -158,6 +158,14 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
     label: "Primary/Collateral/Watchstanding Duties",
     firstLineLead: 20,
   },
+  /** Block 29B on NAVPERS 1610/2 & 1616/27 (REV 05-2025) — taller duties box than 1616/26. */
+  primary_duties_extended: {
+    block: 29,
+    charsPerLine: 91,
+    maxLines: 4,
+    label: "Primary/Collateral/Watchstanding Duties",
+    firstLineLead: 20,
+  },
   qualifications: {
     block: 44,
     charsPerLine: 91,
@@ -174,3 +182,17 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
 
 // Block 29 primary-duty abbreviation (section A) — fixed-width box.
 export const PRIMARY_DUTY_ABBREV_MAX = 14;
+
+/**
+ * Block 29B narrative fit spec by report type. EVAL (1616/26) = 3 lines;
+ * FITREP (1610/2) and CHIEFEVAL (1616/27) templates measure 4 lines at 91 CPL
+ * (same 29A first-line lead as enlisted).
+ */
+export function getPrimaryDutiesFieldFit(
+  reportType?: string,
+): FieldFitSpec {
+  if (reportType === "FITREP" || reportType === "CHIEFEVAL") {
+    return FIELD_FIT.primary_duties_extended;
+  }
+  return FIELD_FIT.primary_duties;
+}
