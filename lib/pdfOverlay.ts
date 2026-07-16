@@ -266,14 +266,19 @@ export async function generateOverlayPdf(
   evaluation: Evaluation,
   templateBytes: ArrayBuffer | Uint8Array,
 ): Promise<Uint8Array> {
+  const template =
+    templateBytes instanceof Uint8Array
+      ? templateBytes
+      : new Uint8Array(templateBytes);
+
   if (evaluation.report_type === "CHIEFEVAL") {
-    return generateChiefEvalOverlayPdf(evaluation, templateBytes);
+    return generateChiefEvalOverlayPdf(evaluation, template);
   }
   if (evaluation.report_type === "FITREP") {
-    return generateFitrepOverlayPdf(evaluation, templateBytes);
+    return generateFitrepOverlayPdf(evaluation, template);
   }
 
-  const pdf = await PDFDocument.load(templateBytes);
+  const pdf = await PDFDocument.load(template);
   pdf.registerFontkit(fontkit);
 
   let courier: PDFFont;
