@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workspace — APEX Mockup</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="mock-banner">Mockup only — epic/enterprise-ui — toggle theme and compare before implementation</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">APX</div>
+      <div>
+        <div class="brand-title">APEX</div>
+        <div class="brand-sub">Fitrep &amp; eval workflow</div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-group-label">Operations</div>
+      <nav class="nav">
+        <a href="01-dashboard.html" class="">Dashboard</a>
+        <a href="02-evaluation-workspace.html" class="active">Evaluation workspace</a>
+        <a href="#">New evaluation</a>
+        <a href="#">Summary groups</a>
+      </nav>
+    </div>
+    <div>
+      <div class="nav-group-label">Account</div>
+      <nav class="nav">
+        <a href="#">Profile</a>
+        <a href="#">Admin</a>
+        <a href="03-sign-in.html">Sign out</a>
+      </nav>
+    </div>
+    <div style="margin-top:auto;font-size:.75rem;opacity:.6">CDR J. Russell · Rater</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs"><a href="01-dashboard.html">Dashboard</a> / <strong>Edit evaluation</strong></div>
+      <div class="search">⌕ Search sailors, UIC, eval ID…</div>
+      <div class="topbar-actions">
+        
+        <button type="button" class="btn btn-ghost icon-btn" data-theme-toggle title="Toggle theme">☀</button>
+        <span data-theme-label style="font-size:.7rem;color:var(--text-muted)">Light</span>
+        <button type="button" class="btn">Notifications</button>
+        <button type="button" class="btn btn-primary">+ New eval</button>
+      </div>
+    </header>
+    <div class="content">
+<div class="page-header">
+  <div>
+    <h1>LCDR Nguyen, Minh T.</h1>
+    <p>FITREP · UIC 12345 · Period 01 Oct 2025 – 30 Sep 2026</p>
+  </div>
+  <div><span class="chip chip-review">Ready for review</span> <span class="chip chip-draft" style="margin-left:.35rem">Autosaved 3m ago</span></div>
+</div>
+<div class="workspace">
+  <nav class="panel section-nav">
+    <div class="panel-head"><strong>Sections</strong></div>
+    <a href="#" class="done">Member data</a>
+    <a href="#" class="done">Reporting senior</a>
+    <a href="#" class="active">Traits (33–39)</a>
+    <a href="#">Comments</a>
+    <a href="#">Sign &amp; route</a>
+    <a href="#">Summary group</a>
+  </nav>
+  <div class="panel form-block">
+    <h2>Block 33–39 — Performance traits</h2>
+    <p class="hint">Trait grades drive summary group averages. Validation runs on save.</p>
+    <div class="field-grid">
+      <div><label>Mission accomplishment</label><select><option>4.0 — Exceptional</option></select></div>
+      <div><label>Innovation</label><select><option>3.8 — Above average</option></select></div>
+      <div><label>Leadership</label><select><option>4.0 — Exceptional</option></select></div>
+      <div><label>Tactical performance</label><select><option>3.6 — Promotable</option></select></div>
+    </div>
+    <p style="margin-top:1rem;font-size:.8rem;color:var(--text-muted)">Trait average: <strong style="color:var(--text)">3.85</strong> · Within command norms</p>
+  </div>
+  <aside class="panel rail">
+    <h3>Validation</h3>
+    <div class="rail-item warn">⚠ Comment block 40 exceeds line budget by 12 chars</div>
+    <div class="rail-item">✓ All required traits graded</div>
+    <div class="rail-item">✓ Reporting senior signature on file</div>
+    <h3 style="margin-top:1.25rem">Routing</h3>
+    <div class="rail-item">Current: <strong style="color:var(--text)">Senior rater</strong></div>
+    <div class="rail-item">Next: Reporting senior review</div>
+    <button type="button" class="btn" style="width:100%;margin-top:.75rem">View routing history</button>
+  </aside>
+</div>
+<div class="sticky-bar" style="margin-top:1rem;border-radius:var(--radius);border:1px solid var(--border)">
+  <span style="font-size:.8rem;color:var(--text-muted)">3 items need attention before route</span>
+  <div style="display:flex;gap:.5rem">
+    <button type="button" class="btn">Save draft</button>
+    <button type="button" class="btn btn-primary">Validate &amp; continue</button>
+  </div>
+</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const key='apex-mockup-theme';
+  const root=document.documentElement;
+  function apply(t){ root.setAttribute('data-theme',t); localStorage.setItem(key,t);
+    document.querySelectorAll('[data-theme-label]').forEach(el=>el.textContent=t==='dark'?'Dark':'Light'); }
+  apply(localStorage.getItem(key)||'light');
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn=>btn.addEventListener('click',()=>{
+    apply(root.getAttribute('data-theme')==='dark'?'light':'dark'); }));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — APEX Mockup</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="mock-banner">Mockup only — epic/enterprise-ui — toggle theme and compare before implementation</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">APX</div>
+      <div>
+        <div class="brand-title">APEX</div>
+        <div class="brand-sub">Fitrep &amp; eval workflow</div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-group-label">Operations</div>
+      <nav class="nav">
+        <a href="01-dashboard.html" class="active">Dashboard</a>
+        <a href="02-evaluation-workspace.html" class="">Evaluation workspace</a>
+        <a href="#">New evaluation</a>
+        <a href="#">Summary groups</a>
+      </nav>
+    </div>
+    <div>
+      <div class="nav-group-label">Account</div>
+      <nav class="nav">
+        <a href="#">Profile</a>
+        <a href="#">Admin</a>
+        <a href="03-sign-in.html">Sign out</a>
+      </nav>
+    </div>
+    <div style="margin-top:auto;font-size:.75rem;opacity:.6">CDR J. Russell · Rater</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="breadcrumbs"><a href="index.html">Mockups</a> / <strong>Dashboard</strong></div>
+      <div class="search">⌕ Search sailors, UIC, eval ID…</div>
+      <div class="topbar-actions">
+        
+        <button type="button" class="btn btn-ghost icon-btn" data-theme-toggle title="Toggle theme">☀</button>
+        <span data-theme-label style="font-size:.7rem;color:var(--text-muted)">Light</span>
+        <button type="button" class="btn">Notifications</button>
+        <button type="button" class="btn btn-primary">+ New eval</button>
+      </div>
+    </header>
+    <div class="content">
+<div class="page-header">
+  <div>
+    <h1>Evaluation queue</h1>
+    <p>12 open reports · UIC 12345 · Period ending 30 Sep 2026</p>
+  </div>
+  <div class="filters">
+    <select class="select"><option>All statuses</option></select>
+    <select class="select"><option>All routing stages</option></select>
+    <select class="select"><option>This period</option></select>
+    <button type="button" class="btn">Export CSV</button>
+  </div>
+</div>
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-value">4</div><div class="kpi-label">Awaiting your action</div></div>
+  <div class="kpi"><div class="kpi-value">3</div><div class="kpi-label">With senior rater</div></div>
+  <div class="kpi"><div class="kpi-value">2</div><div class="kpi-label">Ready for review</div></div>
+  <div class="kpi"><div class="kpi-value">18</div><div class="kpi-label">Completed (FY26)</div></div>
+</div>
+<div class="panel">
+  <div class="panel-head">
+    <strong>Reports</strong>
+    <span style="color:var(--text-muted);font-size:.8rem">Sorted by routing priority</span>
+    <span style="margin-left:auto;font-size:.75rem;color:var(--text-muted)">Bulk: 0 selected</span>
+  </div>
+  <table class="data">
+    <thead><tr>
+      <th><input type="checkbox" aria-label="Select all"/></th>
+      <th>Sailor</th><th>Rate</th><th>Form</th><th>Period</th><th>Stage</th><th>Updated</th><th></th>
+    </tr></thead>
+    <tbody>
+      <tr>
+        <td><input type="checkbox"/></td>
+        <td><strong>ITCS Smith, Avery J.</strong><br/><span class="mono">EV-2026-0142</span></td>
+        <td>ITC</td><td>CHIEFEVAL</td><td>01 Oct 25 – 30 Sep 26</td>
+        <td><span class="chip chip-routing">Senior rater</span></td><td>2h ago</td>
+        <td><button class="btn btn-primary">Open</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"/></td>
+        <td><strong>LCDR Nguyen, Minh T.</strong><br/><span class="mono">EV-2026-0098</span></td>
+        <td>LCDR</td><td>FITREP</td><td>01 Oct 25 – 30 Sep 26</td>
+        <td><span class="chip chip-review">Ready for review</span></td><td>Yesterday</td>
+        <td><button class="btn">View</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"/></td>
+        <td><strong>PO2 Davis, Jordan K.</strong><br/><span class="mono">EV-2026-0201</span></td>
+        <td>PO2</td><td>EVAL</td><td>01 Apr 26 – 30 Sep 26</td>
+        <td><span class="chip chip-draft">Draft</span></td><td>Today</td>
+        <td><button class="btn btn-primary">Edit</button></td>
+      </tr>
+      <tr>
+        <td><input type="checkbox"/></td>
+        <td><strong>CAPT Reeves, Lena M.</strong><br/><span class="mono">EV-2025-0881</span></td>
+        <td>CAPT</td><td>FITREP</td><td>01 Oct 24 – 30 Sep 25</td>
+        <td><span class="chip chip-locked">Locked</span></td><td>12 Jan 26</td>
+        <td><button class="btn">PDF</button></td>
+      </tr>
+    </tbody>
+  </table>
+</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const key='apex-mockup-theme';
+  const root=document.documentElement;
+  function apply(t){ root.setAttribute('data-theme',t); localStorage.setItem(key,t);
+    document.querySelectorAll('[data-theme-label]').forEach(el=>el.textContent=t==='dark'?'Dark':'Light'); }
+  apply(localStorage.getItem(key)||'light');
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn=>btn.addEventListener('click',()=>{
+    apply(root.getAttribute('data-theme')==='dark'?'light':'dark'); }));
+})();
+</script>
+</body>
+</html>

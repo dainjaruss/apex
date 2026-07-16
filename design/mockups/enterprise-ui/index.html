@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>APEX Enterprise UI Mockups</title><link rel="stylesheet" href="styles.css"/></head>
+<body>
+<div class="auth-top"><button type="button" class="btn" data-theme-toggle>Theme</button> <span data-theme-label></span></div>
+<div class="hub">
+  <p style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em">Epic · Enterprise UI</p>
+  <h1>APEX production UI directions</h1>
+  <p>Capstone is done — these mockups show a denser, operations-first shell with <strong>light and dark</strong> themes. Review in the browser before any Next.js implementation.</p>
+  <h2>Screens</h2>
+  <ul>
+    <li><a href="01-dashboard.html">01 — Dashboard / evaluation queue</a></li>
+    <li><a href="02-evaluation-workspace.html">02 — Evaluation workspace (section nav + validation)</a></li>
+    <li><a href="03-sign-in.html">03 — Sign in</a></li>
+  </ul>
+  <h2>Design intent</h2>
+  <ul>
+    <li>Table-first queue with filters (status, routing stage, reporting period)</li>
+    <li>Persistent global search and clear routing-stage chips</li>
+    <li>Three-column edit: sections · form · validation &amp; routing summary</li>
+    <li>Sticky save bar — always visible primary actions</li>
+    <li>Sidebar stays navy in both themes for brand continuity</li>
+  </ul>
+  <p><a href="README.md">README</a> · Branch <code>epic/enterprise-ui</code> · Worktree <code>/srv/apex-enterprise-ui</code></p>
+</div>
+
+<script>
+(function(){
+  const key='apex-mockup-theme';
+  const root=document.documentElement;
+  function apply(t){ root.setAttribute('data-theme',t); localStorage.setItem(key,t);
+    document.querySelectorAll('[data-theme-label]').forEach(el=>el.textContent=t==='dark'?'Dark':'Light'); }
+  apply(localStorage.getItem(key)||'light');
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn=>btn.addEventListener('click',()=>{
+    apply(root.getAttribute('data-theme')==='dark'?'light':'dark'); }));
+})();
+</script>
+</body></html>
