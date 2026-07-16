@@ -148,7 +148,7 @@ function PitchButton({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1 text-xs font-bold rounded-md transition duration-150 ${active ? "bg-[#3e6e99] text-white" : "text-slate-400 hover:text-slate-200"}`}
+      className={`px-3 py-1 text-xs font-bold rounded-md transition duration-150 ${active ? "apex-btn-primary py-1" : "apex-btn-ghost py-1"}`}
     >
       {label}
     </button>

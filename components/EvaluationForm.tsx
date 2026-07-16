@@ -524,7 +524,7 @@ export default function EvaluationForm({
           )}
 
           {/* Step-by-Step Navigation Buttons */}
-          <div className="flex justify-between items-center bg-[#111c38]/20 border border-slate-800/80 p-4 rounded-xl">
+          <div className="flex justify-between items-center apex-form-panel border p-4 rounded-xl">
             <button
               type="button"
               disabled={currentStep === 0}
@@ -532,12 +532,15 @@ export default function EvaluationForm({
                 setCurrentStep((prev) => prev - 1);
                 setActiveField(null);
               }}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-xs font-semibold text-slate-300 rounded-lg transition duration-150 disabled:cursor-not-allowed"
+              className="apex-btn-secondary py-2 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ← Previous Section
             </button>
 
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider hidden sm:inline">
+            <span
+              className="text-xs font-semibold uppercase tracking-wider hidden sm:inline"
+              style={{ color: "var(--subtle)" }}
+            >
               Section {currentStep + 1} of 4
             </span>
 
@@ -548,7 +551,7 @@ export default function EvaluationForm({
                   setCurrentStep((prev) => prev + 1);
                   setActiveField(null);
                 }}
-                className="px-5 py-2 bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-semibold text-white rounded-lg transition duration-150"
+                className="apex-btn-primary py-2"
               >
                 Next Section →
               </button>
@@ -736,7 +739,7 @@ function SummaryGroupSelector({
         onChange={(e) =>
           onSelect(visible.find((g) => g.id === e.target.value) || null)
         }
-        className="w-full px-4 py-2.5 rounded bg-[#1c2541] border border-slate-700/50 text-[#f0f4f8] focus:outline-none focus:border-[#3e6e99] transition text-sm"
+        className="apex-input"
       >
         <option value="">— None (not part of a summary group) —</option>
         {visible.map((g) => (
@@ -780,7 +783,10 @@ function RecoveredBanner({
   isSaving: boolean;
 }) {
   return (
-    <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-sky-900/40 border-l-2 border-l-[#3e6e99] bg-gradient-to-r from-[#0d1b30]/90 to-[#16243a]/60 p-3.5">
+    <div
+      className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border p-3.5 apex-form-panel"
+      style={{ borderLeftWidth: 2, borderLeftColor: "var(--primary)" }}
+    >
       <div className="flex items-start gap-2.5">
         <svg
           className="w-4 h-4 mt-0.5 text-sky-300 flex-shrink-0"
@@ -796,8 +802,8 @@ function RecoveredBanner({
             d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
           />
         </svg>
-        <p className="text-xs text-slate-300 leading-relaxed">
-          <span className="font-bold text-sky-200">
+        <p className="text-xs leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
+          <span className="font-bold" style={{ color: "var(--accent-cyan)" }}>
             Unsaved changes recovered
           </span>{" "}
           — restored from your local draft saved {formatTime(savedAt)}. These
@@ -808,14 +814,14 @@ function RecoveredBanner({
         <button
           type="button"
           onClick={onDiscard}
-          className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 hover:text-white transition"
+          className="apex-btn-ghost py-1.5 px-3 text-[11px]"
         >
           Discard
         </button>
         <button
           type="button"
           onClick={onKeep}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-white rounded-lg transition"
+          className="apex-btn-secondary py-1.5 px-3 text-[11px]"
         >
           Keep editing
         </button>
@@ -823,7 +829,7 @@ function RecoveredBanner({
           type="button"
           onClick={onSave}
           disabled={isSaving}
-          className="px-3 py-1.5 bg-[#3e6e99] hover:bg-[#4e82b0] disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-semibold text-white rounded-lg transition"
+          className="apex-btn-primary py-1.5 px-3 text-[11px]"
         >
           {isSaving ? "Saving…" : "Save to database"}
         </button>
@@ -1014,29 +1020,21 @@ function StatusBar({
       </div>
 
       <div className="flex items-center gap-3 self-end sm:self-auto">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition duration-150"
-        >
+        <button type="button" onClick={onCancel} className="apex-btn-ghost py-2">
           Cancel
         </button>
         <button
           type="button"
           onClick={onVerify}
           disabled={isValidating}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-slate-300 rounded-lg transition"
+          className="apex-btn-secondary py-2"
         >
           {isValidating ? "Checking..." : "Verify Rules"}
         </button>
         <button
           type="submit"
           disabled={isSaving}
-          className={`px-5 py-2.5 rounded-lg text-white font-bold transition-all text-xs tracking-wide shadow-lg ${
-            isSaving
-              ? "bg-[#3e6e99]/50 cursor-not-allowed"
-              : "bg-[#3e6e99] hover:bg-[#4e82b0] active:scale-95"
-          }`}
+          className="apex-btn-primary py-2.5 active:scale-95"
         >
           {isSaving ? "Saving Draft..." : "Save Evaluation Draft"}
         </button>

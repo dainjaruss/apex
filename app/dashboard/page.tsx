@@ -234,7 +234,8 @@ function EvalQueueTable({
 export default function DashboardPage() {
   const router = useRouter();
   const { evaluations, loading, error } = useEvaluations();
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -243,17 +244,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
-      const session = await getSession();
-      if (!session?.user) {
-        router.push("/login");
-        return;
+      setProfileLoading(true);
+      try {
+        const session = await getSession();
+        if (!session?.user) {
+          router.push("/login");
+          return;
+        }
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+        if (data) setProfile(data as Profile);
+      } finally {
+        setProfileLoading(false);
       }
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single();
-      if (data) setProfile(data);
     })();
   }, [router]);
 
@@ -341,11 +347,17 @@ export default function DashboardPage() {
       <div className="flex flex-wrap gap-3 mb-6">
         <DashboardStat
           label="Awaiting your action"
-          value={inbox.length}
-          highlight={inbox.length > 0}
+          value={profileLoading ? "—" : inbox.length}
+          highlight={!profileLoading && inbox.length > 0}
         />
-        <DashboardStat label="My drafts" value={drafts.length} />
-        <DashboardStat label="Completed / locked" value={finalized.length} />
+        <DashboardStat
+          label="My drafts"
+          value={profileLoading ? "—" : drafts.length}
+        />
+        <DashboardStat
+          label="Completed / locked"
+          value={profileLoading ? "—" : finalized.length}
+        />
         <DashboardStat label="Loaded reports" value={evaluations.length} />
       </div>
 

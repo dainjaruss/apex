@@ -83,7 +83,7 @@ export default function MeasuredCourierField({
         className={`flex w-fit max-w-full bg-slate-950/60 border rounded-xl overflow-x-auto py-3 ${
           over
             ? "border-red-500/80"
-            : "border-slate-800 focus-within:border-[#3e6e99] focus-within:ring-1 focus-within:ring-[#3e6e99]"
+            : "border-border focus-within:border-primary focus-within:ring-1 focus-within:ring-primary"
         }`}
       >
         <div className="select-none bg-slate-950/80 border-r border-slate-900 pl-2 pr-2 text-right">

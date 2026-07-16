@@ -62,14 +62,14 @@ npm install
 
 ### Quality gate (before merge / deploy)
 
-From the **enterprise UI** worktree (`epic/enterprise-ui` branch), or after that branch is merged:
-
 ```bash
-npm run verify          # vitest (72 tests) + production build
+npm run verify          # full vitest suite (160 tests) + production build
 npm run verify:e2e      # above + Playwright (needs .env.local + tests/fixtures/e2e-ids.json)
 ```
 
-`verify` only exists on branches that include the enterprise UI tooling; use `/srv/apex-enterprise-ui` if your local `main` clone is behind.
+Production checklist and env vars: **`docs/PRODUCTION.md`**.
+
+Health check after deploy: `GET /api/health`.
 
 ### 2. Environment Configuration (`.env.local`)
 
