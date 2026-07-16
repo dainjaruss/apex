@@ -6,7 +6,12 @@ export type E2ERole =
 
 export interface E2EIds {
   users: Record<E2ERole, string>;
-  evals: { routing: string; recycle: string };
+  evals: {
+    routing: string;
+    recycle: string;
+    chiefEval?: string;
+    fitrep?: string;
+  };
   password: string;
   seededAt: string;
 }

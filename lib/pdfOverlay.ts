@@ -30,6 +30,8 @@ import path from "path";
 import { Evaluation } from "@/types";
 import { wrapTextToWidth, FIELD_FIT } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
+import { generateChiefEvalOverlayPdf } from "./chiefEvalOverlay";
+import { generateFitrepOverlayPdf } from "./fitrepOverlay";
 
 const BLACK = rgb(0, 0, 0);
 
@@ -264,6 +266,13 @@ export async function generateOverlayPdf(
   evaluation: Evaluation,
   templateBytes: ArrayBuffer | Uint8Array,
 ): Promise<Uint8Array> {
+  if (evaluation.report_type === "CHIEFEVAL") {
+    return generateChiefEvalOverlayPdf(evaluation, templateBytes);
+  }
+  if (evaluation.report_type === "FITREP") {
+    return generateFitrepOverlayPdf(evaluation, templateBytes);
+  }
+
   const pdf = await PDFDocument.load(templateBytes);
   pdf.registerFontkit(fontkit);
 
