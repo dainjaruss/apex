@@ -210,6 +210,7 @@ export default function NewEvaluationPage() {
         onCancel={() => router.push("/dashboard")}
         isSaving={isSaving}
         viewerRole={profile?.preferred_role}
+        formCode={selectedForm || undefined}
       />
     </AppShell>
   );

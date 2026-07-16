@@ -14,6 +14,11 @@ export const TRAIT_KEYS = [
   "teamwork",
   "leadership",
   "tactical_performance",
+  "deckplate_leadership",
+  "professionalism",
+  "mission_accomplishment",
+  "human_development",
+  "eo_climate",
 ] as const;
 
 export interface TraitAverageResult {

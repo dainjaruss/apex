@@ -100,3 +100,29 @@ The Navy enforces strict policy restrictions on promotion recommendations based 
   - Continuation sheets are not accepted.
 - **Citation:** BUPERSINST 1610.10H, Chapter 13.
 - **Code Enforcement:** `lib/commentFit.ts` (Monospace text wrapper and limit check).
+
+---
+
+## 5. NAVPERS 1616/27 (CHIEFEVAL) & NAVPERS 1610/2 (FITREP) Policy Mapping
+
+### CHIEFEVAL (NAVPERS 1616/27, Paygrade E7–E9)
+
+- **Block Structure:** Mirrors the 1616/26 block layout with CPO-specific trait definitions per BUPERSINST 1610.10H Chapter 10:
+  - Block 33: Deckplate Leadership
+  - Block 34: Professionalism
+  - Block 35: Mission Accomplishment
+  - Block 36: Human Development
+  - Block 37: Command Climate / Equal Opportunity (EO/Character gate)
+  - Block 38: Teamwork
+  - Block 39: Leadership
+- **Retention Recommendation (Block 47):** Omitted/Hidden. Career Chief Petty Officers do not receive a Block 47 retention recommendation.
+- **Promotion Recommendation (Block 45):** Uses the standard 5 promotion options plus NOB (`Early Promote`, `Must Promote`, `Promotable`, `Progressing`, `Significant Problems`, `NOB`).
+- **EO/Character Gating Rule:** Block 37 (Command Climate/EO) gates promotion recommendations in identical fashion to Block 35/36 on enlisted EVALs (`types/navpers.ts` via `ChiefEvalSchema.superRefine`).
+
+### Officer FITREP (NAVPERS 1610/2, Paygrade W2–O6)
+
+- **8th Performance Trait:** Officers are evaluated across **8 traits** (adding `tactical_performance`) rather than 7 (`types/navpers.ts` via `FitrepSchema.trait_grades`). Trait averages (`lib/traitAverage.ts`) dynamically compute over all 8 graded traits.
+- **Retention Recommendation (Block 47):** Omitted/Hidden. Commissioned and Warrant Officers do not have a retention recommendation block.
+- **Promotion Recommendation (Block 45):** Uses officer ladder (`Early Promote`, `Must Promote`, `Promotable`, `Progressing`, `Significant Problems`, `NOB`).
+- **Narrative Limits (Block 43):** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) rules apply identically to all report types.
+
