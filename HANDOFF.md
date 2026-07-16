@@ -8,6 +8,14 @@
 
 ---
 
+## Pick up later — NAVFIT 98 / MS Access export
+
+**Plan (committed on `main`):** [`docs/plan/NAVFIT98-ACCESS-EXPORT.md`](docs/plan/NAVFIT98-ACCESS-EXPORT.md)
+
+Export APEX evaluations to an MS Access–compatible file so **NAVFIT 98** can import them (backward-compatible fleet workflow). **Blocked on:** sanitized Access `.mdb`/`.accdb` schema + NAVFIT import SOP from stakeholder. Next step after schema: fill `docs/specs/navfit98-field-mapping.md` and implement Phase 2 (EVAL MVP) per the plan.
+
+---
+
 ## Current goal
 
 **Production-ready** APEX on `main`: enterprise UI + prod pass merged (PR #7, CI verify). Vercel deploys from `main`; no env bootstrap work remaining unless keys rotate.
