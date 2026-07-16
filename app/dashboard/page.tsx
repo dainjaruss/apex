@@ -101,7 +101,7 @@ function EvalCard({
             className="mt-0.5"
           />
           <div className="min-w-0 space-y-1">
-            <h4 className="text-lg font-bold text-white truncate leading-tight">
+            <h4 className="text-lg font-bold apex-heading truncate leading-tight">
               {ev.member_name || "UNNAMED SAILOR"}
             </h4>
             <p

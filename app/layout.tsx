@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import ConsentModal from "@/components/ConsentModal";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "APEX - Navy Performance Evaluation eXchange",
@@ -14,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -28,8 +29,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased min-h-screen bg-background text-foreground">
-        <ConsentModal />
-        {children}
+        <ThemeProvider>
+          <ConsentModal />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

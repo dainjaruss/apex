@@ -21,10 +21,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── APEX design system — Mockup 3 (workflow) + Mockup 2 (forms) ── */
+/* ── APEX design system — light (default) + dark (.dark) ── */
 :root {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --heading: #0b1220;
+  --card: #ffffff;
+  --card-elevated: #ffffff;
+  --card-foreground: #0f172a;
+  --label: #475569;
+  --muted: #e2e8f0;
+  --muted-foreground: #64748b;
+  --subtle: #94a3b8;
+  --border: rgba(15, 23, 42, 0.1);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --input: #ffffff;
+  --input-border: #cbd5e1;
+  --form-panel: #f8fafc;
+  --form-input-bg: #ffffff;
+  --ring: #2563eb;
+  --primary: #1e40af;
+  --primary-hover: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --accent-cyan: #0e7490;
+  --accent-cyan-dim: rgba(14, 116, 144, 0.12);
+  --accent-gold: #b45309;
+  --success: #059669;
+  --destructive: #dc2626;
+  --sidebar: #ffffff;
+  --sidebar-border: rgba(15, 23, 42, 0.08);
+  --radius: 0.625rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --nav-active-glow: rgba(37, 99, 235, 0.12);
+  --dashboard-card-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.dark {
   --background: #070c18;
   --foreground: #eef2f7;
+  --heading: #ffffff;
   --card: #0f1628;
   --card-elevated: #141e34;
   --card-foreground: #eef2f7;
@@ -49,7 +85,10 @@
   --destructive: #f87171;
   --sidebar: #050910;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --radius: 0.75rem;
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --nav-active-glow: rgba(34, 211, 238, 0.12);
+  --dashboard-card-bg: linear-gradient(165deg, #172038 0%, #0f1628 100%);
 }
 
 body {
@@ -74,12 +113,24 @@ body {
 }
 
 .gold-gradient-text {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .gold-gradient-text {
   background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .navy-gradient-text {
+  background: linear-gradient(135deg, #1e3a8a 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .navy-gradient-text {
   background: linear-gradient(135deg, #ffffff 0%, #c5d4e8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -92,7 +143,7 @@ body {
     @apply rounded-xl;
     background: var(--card);
     border: 1px solid var(--border);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+    box-shadow: var(--shadow-card);
   }
 
   .apex-card-elevated {
@@ -125,12 +176,21 @@ body {
   }
 
   .apex-btn-primary {
-    @apply apex-btn font-bold shadow-lg;
+    @apply apex-btn font-bold;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 0 2px 8px var(--nav-active-glow);
+  }
+  .apex-btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+  }
+
+  .dark .apex-btn-primary {
     background: var(--accent-cyan);
     color: var(--primary-foreground);
     box-shadow: 0 4px 14px rgba(34, 211, 238, 0.25);
   }
-  .apex-btn-primary:hover:not(:disabled) {
+  .dark .apex-btn-primary:hover:not(:disabled) {
     background: var(--primary-hover);
   }
 
@@ -150,7 +210,7 @@ body {
   }
   .apex-btn-ghost:hover:not(:disabled) {
     color: var(--foreground);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--muted);
   }
 
   .apex-btn-danger {
@@ -198,7 +258,8 @@ body {
   }
 
   .apex-page-title {
-    @apply text-2xl font-bold tracking-tight text-white;
+    @apply text-2xl font-bold tracking-tight;
+    color: var(--heading);
   }
 
   .apex-page-subtitle {
@@ -215,8 +276,12 @@ body {
   }
 
   .apex-form-fieldset {
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--muted);
     border-color: var(--border);
+  }
+
+  .dark .apex-form-fieldset {
+    background: rgba(0, 0, 0, 0.15);
   }
 
   .apex-info-box {
@@ -248,7 +313,7 @@ body {
     @apply flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all;
   }
   .apex-step-pill:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--muted);
   }
 
   .apex-step-num {
@@ -277,7 +342,7 @@ body {
   }
   .apex-tab:hover {
     color: var(--foreground);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--muted);
   }
 
   .apex-tab-active {
@@ -294,9 +359,16 @@ body {
   }
   .apex-nav-item:hover {
     color: var(--foreground);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--muted);
   }
   .apex-nav-item-active {
+    color: var(--primary);
+    background: var(--nav-active-glow);
+    border-color: var(--border-strong);
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .dark .apex-nav-item-active {
     color: var(--accent-cyan);
     background: var(--accent-cyan-dim);
     border-color: rgba(34, 211, 238, 0.2);
@@ -312,7 +384,8 @@ body {
   }
 
   .apex-dashboard-stat-value {
-    @apply text-3xl font-black text-white tabular-nums;
+    @apply text-3xl font-black tabular-nums;
+    color: var(--heading);
   }
 
   .apex-dashboard-stat-label {
@@ -322,29 +395,38 @@ body {
 
   .apex-dashboard-card {
     @apply rounded-xl p-5 flex flex-col gap-4 transition-all duration-200;
-    background: linear-gradient(165deg, #172038 0%, #0f1628 100%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    background: var(--dashboard-card-bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-card);
   }
 
   .apex-dashboard-card:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.45),
-      0 0 0 1px rgba(59, 130, 246, 0.15);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border-strong));
+    box-shadow: var(--shadow-elevated);
+    transform: translateY(-1px);
   }
 
   .apex-dashboard-section-title {
-    @apply text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2;
+    @apply text-sm font-bold uppercase tracking-wider flex items-center gap-2;
+    color: var(--heading);
   }
 
   .apex-btn-dashboard {
-    @apply apex-btn font-bold text-white;
-    background: #3b82f6;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    @apply apex-btn font-bold;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 0 2px 8px var(--nav-active-glow);
   }
   .apex-btn-dashboard:hover:not(:disabled) {
+    background: var(--primary-hover);
+  }
+
+  .dark .apex-btn-dashboard {
+    background: #3b82f6;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+  }
+  .dark .apex-btn-dashboard:hover:not(:disabled) {
     background: #2563eb;
   }
 
@@ -418,15 +500,39 @@ body {
 
   /* Admin Analytics Dashboard */
   .admin-stat-card {
-    @apply rounded-xl p-5 transition-all duration-200;
-    background: linear-gradient(165deg, #172038 0%, #0f1628 100%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    @apply rounded-xl p-5 transition-all duration-200 apex-card;
   }
   .admin-stat-card:hover {
-    border-color: rgba(255, 255, 255, 0.14);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-elevated);
     transform: translateY(-1px);
+  }
+
+  .apex-heading {
+    color: var(--heading);
+  }
+
+  .apex-alert-error {
+    @apply rounded-lg border p-3.5 text-xs;
+    background: color-mix(in srgb, var(--destructive) 8%, var(--card));
+    border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+    color: var(--destructive);
+  }
+
+  .apex-alert-success {
+    @apply rounded-lg border p-3.5 text-xs;
+    background: color-mix(in srgb, var(--success) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--success) 35%, transparent);
+    color: var(--success);
+  }
+
+  .apex-auth-shell {
+    @apply flex min-h-screen items-center justify-center p-4 sm:p-6;
+    background: var(--background);
+  }
+
+  .apex-auth-card {
+    @apply w-full max-w-md p-8 rounded-2xl apex-card space-y-6;
   }
 
   .admin-analytics-panel {

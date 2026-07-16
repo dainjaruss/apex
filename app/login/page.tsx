@@ -11,6 +11,7 @@ import {
 } from "@/lib/schemas";
 import ApexLogo from "@/components/brand/ApexLogo";
 import NavyBranding from "@/components/brand/NavyBranding";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 type FieldErrors = LoginFieldErrors;
 
@@ -43,14 +44,14 @@ function AuthNotifications({
 }: AuthNotificationsProps) {
   if (serverError) {
     return (
-      <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
+      <div className="apex-alert-error">
         {serverError}
       </div>
     );
   }
   if (resendSuccess) {
     return (
-      <div className="p-3.5 rounded bg-green-900/40 border border-green-800/40 text-xs text-green-300">
+      <div className="apex-alert-success">
         A new verification link has been sent to your email. Please check your
         inbox.
       </div>
@@ -61,7 +62,7 @@ function AuthNotifications({
       <button
         onClick={onResend}
         disabled={loading}
-        className="w-full py-2.5 rounded-lg bg-[#1c2541] hover:bg-[#2c4f70] text-[#91aec9] hover:text-white font-semibold transition-all border border-[#3e6e99] disabled:opacity-50 text-xs tracking-wide"
+        className="apex-btn-secondary w-full py-2.5 text-xs tracking-wide"
       >
         {loading
           ? "Sending..."
@@ -221,17 +222,17 @@ export default function LoginPage() {
   } = useLoginForm();
 
   return (
-    <div
-      className="flex min-h-screen items-center justify-center p-4"
-      style={{ background: "var(--background)" }}
-    >
-      <div className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6">
+    <div className="apex-auth-shell relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle compact />
+      </div>
+      <div className="apex-auth-card">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold text-white tracking-wide">
+            <h2 className="text-2xl font-bold apex-heading tracking-wide">
               APEX Portal
             </h2>
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -265,7 +266,7 @@ export default function LoginPage() {
           New to APEX?{" "}
           <Link
             href="/register"
-            className="text-blue-400 hover:underline font-medium"
+            className="text-primary hover:underline font-medium"
           >
             Register for a profile
           </Link>

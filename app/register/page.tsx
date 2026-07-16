@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import ApexLogo from "@/components/brand/ApexLogo";
 import NavyBranding from "@/components/brand/NavyBranding";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 function formatZodErrors(
   error: z.ZodError<RegisterFormData>,
@@ -44,7 +45,7 @@ function FormInput({
 }: FormInputProps) {
   return (
     <div className={containerClassName}>
-      <label className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">
+      <label className="apex-label">
         {label}
       </label>
       <input className={fieldClass} {...props} />
@@ -71,7 +72,7 @@ function FormSelect({
 }: FormSelectProps) {
   return (
     <div className={containerClassName}>
-      <label className="text-xs font-semibold text-[#91aec9] uppercase tracking-wider">
+      <label className="apex-label">
         {label}
       </label>
       <select className={fieldClass} {...props}>
@@ -84,12 +85,15 @@ function FormSelect({
 
 function RegistrationSuccess({ email }: { email: string }) {
   return (
-    <div className="flex min-h-screen bg-[#0b132b] items-center justify-center p-4">
-      <div className="w-full max-w-lg p-8 rounded-2xl glass-panel space-y-6 text-center">
-        <h2 className="text-2xl font-bold text-green-400 tracking-wide">
+    <div className="apex-auth-shell relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle compact />
+      </div>
+      <div className="apex-auth-card max-w-lg text-center">
+        <h2 className="text-2xl font-bold text-success tracking-wide">
           Registration Submitted
         </h2>
-        <p className="text-[#91aec9] text-sm">
+        <p className="text-muted-foreground text-sm">
           We have sent a secure verification link to <strong>{email}</strong>.
           Please check your inbox and click the link to confirm your identity
           before logging in.
@@ -97,7 +101,7 @@ function RegistrationSuccess({ email }: { email: string }) {
         <div className="pt-6">
           <Link
             href="/login"
-            className="text-sm font-semibold text-[#3e6e99] hover:text-[#91aec9] transition-colors"
+            className="text-sm font-semibold text-primary hover:underline"
           >
             Return to Login
           </Link>
@@ -426,10 +430,8 @@ function useRegisterForm() {
   };
 
   const fieldClass = (field: keyof RegisterFormData) =>
-    `w-full px-4 py-2.5 rounded bg-[#1c2541] border text-[#f0f4f8] focus:outline-none transition-all text-sm ${
-      fieldErrors[field]
-        ? "border-red-500/70 focus:border-red-400"
-        : "border-slate-700/50 focus:border-[#3e6e99]"
+    `apex-input ${
+      fieldErrors[field] ? "!border-red-500/70 focus:!border-red-400" : ""
     }`;
 
   return {
@@ -461,28 +463,27 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#0b132b] items-center justify-center p-4">
-      <div className="w-full max-w-lg p-8 rounded-2xl glass-panel space-y-6">
+    <div className="apex-auth-shell relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle compact />
+      </div>
+      <div className="apex-auth-card max-w-lg">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold text-white tracking-wide">
+            <h2 className="text-2xl font-bold apex-heading tracking-wide">
               APEX Registry
             </h2>
-            <p className="text-sm text-[#91aec9]">
+            <p className="text-sm text-muted-foreground">
               Create a new profile to access the evaluation platform
             </p>
           </div>
           <NavyBranding sidebar className="mt-2" />
         </div>
 
-        {serverError && (
-          <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
-            {serverError}
-          </div>
-        )}
+        {serverError && <div className="apex-alert-error">{serverError}</div>}
 
         <RegisterForm
           formData={formData}
@@ -493,9 +494,9 @@ export default function RegisterPage() {
           fieldClass={fieldClass}
         />
 
-        <div className="text-center text-xs text-[#608bb3] pt-2">
+        <div className="text-center text-xs text-subtle pt-2" style={{ color: "var(--subtle)" }}>
           Already registered?{" "}
-          <Link href="/login" className="text-blue-400 hover:underline">
+          <Link href="/login" className="text-primary hover:underline font-medium">
             Sign In here
           </Link>
         </div>

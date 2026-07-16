@@ -17,6 +17,10 @@ import NavyBranding from "@/components/brand/NavyBranding";
 import UserAvatar from "@/components/brand/UserAvatar";
 import { signOut } from "@/lib/auth";
 import { hasPermission, canManageSummaryGroups } from "@/lib/permissions";
+import ThemeToggle from "@/components/theme/ThemeToggle";
+import MobileTabBar, {
+  defaultMobileTabs,
+} from "@/components/layout/MobileTabBar";
 
 export type ShellProfile = {
   id?: string;
@@ -117,7 +121,7 @@ export default function AppShell({
           <div className="flex items-center gap-3">
             <ApexLogo size="md" className="shrink-0" />
             <div className="min-w-0">
-              <div className="font-extrabold text-base tracking-[0.12em] text-white">
+              <div className="font-extrabold text-base tracking-[0.12em] apex-heading">
                 APEX
               </div>
               <div className="text-[10px] uppercase tracking-[0.22em] gold-accent font-semibold">
@@ -125,6 +129,10 @@ export default function AppShell({
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-3 pt-3">
+          <ThemeToggle className="w-full justify-center" />
         </div>
 
         <nav className="flex-1 p-3 space-y-0.5">
@@ -156,7 +164,7 @@ export default function AppShell({
           {profile && (
             <Link
               href="/profile"
-              className={`flex items-center gap-3 px-2 py-2 mb-1 rounded-lg transition-colors hover:bg-white/[0.04] ${pathname === "/profile" ? "ring-1 ring-cyan-500/30" : ""}`}
+              className={`flex items-center gap-3 px-2 py-2 mb-1 rounded-lg transition-colors hover:bg-muted ${pathname === "/profile" ? "ring-1 ring-primary/30" : ""}`}
             >
               <UserAvatar
                 firstName={profile.first_name}
@@ -165,7 +173,7 @@ export default function AppShell({
                 plain
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-white truncate">
+                <div className="text-sm font-semibold apex-heading truncate">
                   {profile.navy_rank} {profile.last_name}
                 </div>
                 <div
@@ -202,9 +210,10 @@ export default function AppShell({
         >
           <div className="flex items-center gap-2">
             <ApexLogo size="sm" />
-            <span className="font-extrabold text-white">APEX</span>
+            <span className="font-extrabold apex-heading">APEX</span>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle compact />
             {profile && (
               <UserAvatar
                 firstName={profile.first_name}
@@ -245,11 +254,13 @@ export default function AppShell({
         )}
 
         <main
-          className={`flex-1 w-full mx-auto px-4 sm:px-6 py-6 ${WIDTH[maxWidth]}`}
+          className={`flex-1 w-full mx-auto px-4 sm:px-6 py-6 pb-24 lg:pb-6 ${WIDTH[maxWidth]}`}
         >
           {children}
         </main>
       </div>
+
+      <MobileTabBar tabs={defaultMobileTabs({ canGroups: !!canGroups })} />
     </div>
   );
 }
