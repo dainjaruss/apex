@@ -42,6 +42,37 @@ export default function Block33to39Traits({
   summaryGroupAverage,
   showSummaryGroupAverage,
 }: Block33to39TraitsProps) {
+  const isFitrep = useMemo(
+    () =>
+      evalData.report_type === "FITREP" ||
+      evalData.form_definition_id?.startsWith("FITREP") ||
+      evalData.form_definition_id?.includes("f1610020") ||
+      evalData.form_definition_id?.includes("f1610050"),
+    [evalData.report_type, evalData.form_definition_id],
+  );
+
+  const traitList = useMemo(() => {
+    const base: Array<{ key: string; label: string }> = [
+      { key: "knowledge", label: "Professional Knowledge (33)" },
+      { key: "work", label: "Quality of Work (34)" },
+      { key: "eo", label: "Command Climate / Equal Opportunity (35)" },
+      { key: "bearing", label: "Military Bearing / Character (36)" },
+      {
+        key: "accomplishment",
+        label: "Personal Job Accomplishment / Initiative (37)",
+      },
+      { key: "teamwork", label: "Teamwork (38)" },
+      { key: "leadership", label: "Leadership (39)" },
+    ];
+    if (isFitrep) {
+      base.push({
+        key: "tactical_performance",
+        label: "Tactical Performance (Officer 8th Trait)",
+      });
+    }
+    return base;
+  }, [isFitrep]);
+
   // Only the grades the rater has actually set. Per EVALMAN an untouched trait is blank
   // and ungraded (excluded from the average) — never a silent 3.0 default.
   const currentGrades = useMemo(
@@ -89,7 +120,7 @@ export default function Block33to39Traits({
             className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
             aria-hidden
           />
-          Trait Performance Ratings (Blocks 33 - 39)
+          Trait Performance Ratings (Blocks 33 - 39{isFitrep ? " + Officer 8th Trait" : ""})
         </h3>
         <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
           <div
@@ -144,11 +175,12 @@ export default function Block33to39Traits({
           "trait_grades.accomplishment",
           "trait_grades.teamwork",
           "trait_grades.leadership",
+          ...(isFitrep ? ["trait_grades.tactical_performance"] : []),
         ]}
       />
 
       <div className="space-y-4">
-        {TRAIT_KEYS.map(({ key, label }) => (
+        {traitList.map(({ key, label }) => (
           <TraitRow
             key={key}
             traitKey={key}

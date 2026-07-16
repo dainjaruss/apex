@@ -12,16 +12,23 @@ export async function POST(req: NextRequest) {
   try {
     const evaluation = await req.json();
 
-    // Overlay our data onto the official NAVPERS 1616/26 (REV 05-2025) blank — a flat,
-    // vector, fillable-free template (no XFA "please wait", no radio bubbles).
+    // Select the appropriate official blank template based on report_type.
+    const reportType = evaluation.report_type || "EVAL";
+    const templateName =
+      reportType === "CHIEFEVAL"
+        ? "chiefEvalBlank.pdf"
+        : reportType === "FITREP"
+          ? "fitrepBlank.pdf"
+          : "navpers-1616-26_2025.pdf";
+
     const templatePath = path.join(
       process.cwd(),
       "public",
-      "navpers-1616-26_2025.pdf",
+      templateName,
     );
     if (!fs.existsSync(templatePath)) {
       return NextResponse.json(
-        { error: "Evaluation template PDF not found." },
+        { error: `Evaluation template PDF (${templateName}) not found.` },
         { status: 500 },
       );
     }
@@ -29,11 +36,12 @@ export async function POST(req: NextRequest) {
     const templateBuffer = new Uint8Array(fs.readFileSync(templatePath));
     const pdfBytes = await generateOverlayPdf(evaluation, templateBuffer);
 
+    const prefix = reportType === "FITREP" ? "FITREP" : reportType === "CHIEFEVAL" ? "CHIEFEVAL" : "EVAL";
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="EVAL_${(evaluation.member_name || "REPORT").replace(/[^a-zA-Z0-9]/g, "_")}.pdf"`,
+        "Content-Disposition": `attachment; filename="${prefix}_${(evaluation.member_name || "REPORT").replace(/[^a-zA-Z0-9]/g, "_")}.pdf"`,
       },
     });
   } catch (error: any) {

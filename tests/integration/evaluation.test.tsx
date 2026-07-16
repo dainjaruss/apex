@@ -12,6 +12,8 @@ import {
   fireEvent,
   waitFor,
   renderHook,
+  cleanup,
+  act,
 } from "@testing-library/react";
 
 // Set mock environment variables
@@ -19,12 +21,17 @@ process.env.NEXT_PUBLIC_SUPABASE_URL = "https://mock-supabase.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "mock-supabase-anon-key";
 
 const mockPush = vi.fn();
+const mockRouter = {
+  push: mockPush,
+  refresh: vi.fn(),
+  replace: vi.fn(),
+  back: vi.fn(),
+};
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
+  useRouter: () => mockRouter,
   usePathname: () => "/evaluations/mock-eval-id/edit",
   useParams: () => ({ id: "mock-eval-id" }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Mock Supabase client
@@ -89,10 +96,10 @@ vi.mock("@/lib/supabaseClient", () => {
           eq: () => ({
             single: async () => {
               if (table === "profiles") {
-                return { data: mockDataStore.profile, error: null };
+                return { data: JSON.parse(JSON.stringify(mockDataStore.profile)), error: null };
               }
               if (table === "evaluations") {
-                return { data: mockDataStore.evaluation, error: null };
+                return { data: JSON.parse(JSON.stringify(mockDataStore.evaluation)), error: null };
               }
               return { data: null, error: new Error("Not found") };
             },
@@ -105,13 +112,18 @@ vi.mock("@/lib/supabaseClient", () => {
 });
 
 vi.mock("@/lib/auth", () => ({
-  getSession: vi.fn().mockResolvedValue({ user: { id: "test-user-id" } }),
-  getSessionUserId: vi.fn().mockResolvedValue("test-user-id"),
+  getSession: vi.fn().mockImplementation(async () => ({ user: { id: "test-user-id" } })),
+  getSessionUserId: vi.fn().mockImplementation(async () => "test-user-id"),
 }));
 
 vi.mock("@/lib/evaluationService", () => ({
-  loadById: vi.fn().mockImplementation(async () => mockDataStore.evaluation),
-  saveDraft: vi.fn().mockImplementation(async () => mockDataStore.evaluation),
+  loadById: vi.fn().mockImplementation(async () => JSON.parse(JSON.stringify(mockDataStore.evaluation))),
+  saveDraft: vi.fn().mockImplementation(async () => JSON.parse(JSON.stringify(mockDataStore.evaluation))),
+}));
+
+vi.mock("@/lib/summaryGroupService", () => ({
+  listOpenGroups: vi.fn().mockImplementation(async () => []),
+  fetchGroupAveragePool: vi.fn().mockImplementation(async () => ({ gradedSum: 0, gradedTraitCount: 0 })),
 }));
 
 // Imports under test
@@ -124,6 +136,8 @@ import { checkCommentFit } from "@/lib/commentFit";
 describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cleanup();
+    window.localStorage.clear();
   });
 
   it("should validate name formatting and cycle periods correctly in useLiveValidation hook", () => {
@@ -187,15 +201,27 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
   });
 
   it("should render NewEvaluationPage with prefilled user profile values", async () => {
-    render(<NewEvaluationPage />);
+    await act(async () => {
+      render(<NewEvaluationPage />);
+    });
     await waitFor(() => {
-      expect(screen.getByText(/Draft New Evaluation/i)).toBeDefined();
+      expect(screen.getByText(/Draft New Report/i)).toBeDefined();
+    });
+    // Click the recommended or EVAL form picker option
+    const evalOption = screen.getByText(/^Evaluation Report and Counseling Record$/i);
+    await act(async () => {
+      fireEvent.click(evalOption.closest("button")!);
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Draft New EVAL/i)).toBeDefined();
     });
     expect(screen.getAllByText(/APEX/i).length).toBeGreaterThan(0);
   });
 
   it("should render ViewEvaluationPage showing evaluation status, trait ratings, and comments", async () => {
-    render(<ViewEvaluationPage />);
+    await act(async () => {
+      render(<ViewEvaluationPage />);
+    });
     await waitFor(() => {
       expect(
         screen.getByText(/EXCELLENT PO2. HIGHLY RECOMMENDED FOR PROMOTION./i),
@@ -205,7 +231,9 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
   });
 
   it("should render EditEvaluationPage and enable saving changes", async () => {
-    render(<EditEvaluationPage />);
+    await act(async () => {
+      render(<EditEvaluationPage />);
+    });
     await waitFor(() => {
       expect(screen.getByText(/Edit Evaluation Draft/i)).toBeDefined();
     });
@@ -214,6 +242,8 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
       name: /Save Evaluation Draft/i,
     });
     expect(saveButton).toBeDefined();
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
   });
 });

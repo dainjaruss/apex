@@ -88,7 +88,12 @@ const E2E_USERS = [
   },
 ] as const;
 
-const E2E_MEMBER_NAMES = ["DOE, JOHN A", "DOE, JOHN A (RECYCLE)"];
+const E2E_MEMBER_NAMES = [
+  "DOE, JOHN A",
+  "DOE, JOHN A (RECYCLE)",
+  "SMITH, BETTY L (CHIEF)",
+  "JONES, CARL R (OFFICER)",
+];
 
 async function findUserByEmail(email: string) {
   const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
@@ -170,6 +175,8 @@ async function deleteE2eEvals() {
 async function seedEvals(users: Record<string, string>) {
   const sailorId = users.sailor;
   const raterId = users.rater;
+  const seniorRaterId = users.seniorRater;
+  const reportingSeniorId = users.reportingSenior;
 
   const routingDraft = buildValidEval({
     created_by: sailorId,
@@ -191,9 +198,45 @@ async function seedEvals(users: Record<string, string>) {
     form_definition_id: FORM_DEFINITION_ID,
   });
 
+  const chiefEvalDraft = buildValidEval({
+    created_by: seniorRaterId,
+    current_holder_id: seniorRaterId,
+    previous_holder_id: null,
+    routing_stage: "sailor",
+    participants: [seniorRaterId],
+    member_name: "SMITH, BETTY L (CHIEF)",
+    form_definition_id: "c1616270-cafe-4b08-9df2-5d8f28d8b4cd",
+    report_type: "CHIEFEVAL",
+    grade_rate: "CPO",
+  });
+
+  const fitrepDraft = buildValidEval({
+    created_by: reportingSeniorId,
+    current_holder_id: reportingSeniorId,
+    previous_holder_id: null,
+    routing_stage: "sailor",
+    participants: [reportingSeniorId],
+    member_name: "JONES, CARL R (OFFICER)",
+    form_definition_id: "f1610020-cafe-4b08-9df2-5d8f28d8b4cd",
+    report_type: "FITREP",
+    grade_rate: "CDR",
+    trait_grades: {
+      knowledge: "4.0",
+      work: "4.0",
+      eo: "4.0",
+      bearing: "4.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+      tactical_performance: "4.0",
+    },
+    trait_average: 4.0,
+    retention: undefined,
+  });
+
   const { data: inserted, error } = await admin
     .from("evaluations")
-    .insert([routingDraft, recycleDraft])
+    .insert([routingDraft, recycleDraft, chiefEvalDraft, fitrepDraft])
     .select("id, member_name");
   if (error) throw new Error(`evaluations insert: ${error.message}`);
 
@@ -201,7 +244,15 @@ async function seedEvals(users: Record<string, string>) {
   const recycle = inserted!.find(
     (e) => e.member_name === "DOE, JOHN A (RECYCLE)",
   );
-  if (!routing || !recycle) throw new Error("Failed to locate seeded eval IDs");
+  const chiefEval = inserted!.find(
+    (e) => e.member_name === "SMITH, BETTY L (CHIEF)",
+  );
+  const fitrep = inserted!.find(
+    (e) => e.member_name === "JONES, CARL R (OFFICER)",
+  );
+  if (!routing || !recycle || !chiefEval || !fitrep) {
+    throw new Error("Failed to locate seeded eval IDs");
+  }
 
   const idsPath = resolve(process.cwd(), "tests/fixtures/e2e-ids.json");
   writeFileSync(
@@ -209,7 +260,12 @@ async function seedEvals(users: Record<string, string>) {
     JSON.stringify(
       {
         users,
-        evals: { routing: routing.id, recycle: recycle.id },
+        evals: {
+          routing: routing.id,
+          recycle: recycle.id,
+          chiefEval: chiefEval.id,
+          fitrep: fitrep.id,
+        },
         password: process.env.E2E_TEST_PASSWORD || password,
         seededAt: new Date().toISOString(),
       },
@@ -219,6 +275,8 @@ async function seedEvals(users: Record<string, string>) {
   );
   console.log(`  routing eval: ${routing.id}`);
   console.log(`  recycle eval: ${recycle.id}`);
+  console.log(`  chiefEval eval: ${chiefEval.id}`);
+  console.log(`  fitrep eval: ${fitrep.id}`);
   console.log(`  wrote ${idsPath}`);
 }
 
