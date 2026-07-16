@@ -3,13 +3,14 @@
 **Recorded:** 2026-07-16 (updated post-merge)  
 **PR #6:** **Merged** to `main` (`41ccb21`)  
 **Canonical checkout:** `/srv/apex` on `main`  
-**Prod guide:** `docs/PRODUCTION.md`
+**Prod guide:** `docs/PRODUCTION.md`  
+**Live:** https://apex-navy-eval.vercel.app (Vercel + Supabase env already set)
 
 ---
 
 ## Current goal
 
-**Production-ready** APEX on `main`: enterprise UI shipped; ongoing `chore/prod-ready` pass (health, errors, headers, theme tokens, verify gate).
+**Production-ready** APEX on `main`: enterprise UI + prod pass merged (PR #7, CI verify). Vercel deploys from `main`; no env bootstrap work remaining unless keys rotate.
 
 ---
 
