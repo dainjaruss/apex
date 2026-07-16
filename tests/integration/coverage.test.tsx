@@ -247,12 +247,14 @@ describe("APEX Comprehensive Test Coverage Suite", () => {
 
   it("should render ProfilePage correctly", () => {
     render(<ProfilePage />);
-    expect(screen.getByText(/Military Identity/i)).toBeDefined();
+    expect(screen.getByText(/Military identity/i)).toBeDefined();
   });
 
   it("should render DashboardPage correctly", () => {
     render(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /My Drafts/i })).toBeDefined();
+    expect(
+      screen.getByRole("heading", { name: /Evaluation queue/i }),
+    ).toBeDefined();
   });
 
   it("should execute middleware successfully", async () => {

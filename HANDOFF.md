@@ -36,8 +36,9 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 | Check | Result | When / where |
 |-------|--------|----------------|
 | `npm test` | **72/72** passed | `/srv/apex-enterprise-ui` |
-| `npm run build` | TypeScript **compiles** | Same worktree |
-| Prerender / export | Fails without Supabase env on client routes | Pre-existing; not a compile failure |
+| `npm run build` | **Passes** (with or without public Supabase env — placeholder client at build) | `/srv/apex-enterprise-ui` |
+| `npm run test:e2e` | **3/3** Playwright (needs `.env.local` + `tests/fixtures/e2e-ids.json`; seed via `npm run db:seed` or copy fixture) | Port 3099 dev server |
+| `npm run verify` | `npm test` + `npm run build` | CI/local gate before UI passes |
 | Manual mockups | User confirmed **8877** worked | Not re-verified this session end |
 
 **Not run:** E2E Playwright, manual light/dark on all pages, mobile device QA.

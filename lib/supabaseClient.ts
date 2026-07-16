@@ -39,20 +39,24 @@ export const createCredentialVerifierClient = () => {
   );
 };
 
+/** Supabase local default anon key — used only when public env vars are absent (e.g. `next build` without .env). */
+const BUILD_PLACEHOLDER_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+
 // Custom browser client for APEX dashboard and profile pages
 export const createBrowserClient = () => {
-  // Guard checking just in case environment variables are missing on client build
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
     console.warn("Supabase credentials missing in browser client init");
+    return createSupabaseBrowser(
+      url || "https://127.0.0.1:54321",
+      key || BUILD_PLACEHOLDER_ANON_KEY,
+    );
   }
 
-  return createSupabaseBrowser(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-  );
+  return createSupabaseBrowser(url, key);
 };
 
 // Server-side client helper for next.js server actions and API route validation.

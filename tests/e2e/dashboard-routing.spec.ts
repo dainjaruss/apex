@@ -25,8 +25,9 @@ test.describe("Dashboard custody views", () => {
     // Sailor holds draft initially
     await loginAsRole(page, "sailor");
     await expectMemberOnDashboard(page, memberName, true);
+    await page.getByRole("button", { name: "Drafts" }).click();
     await expect(
-      page.getByText("My Drafts").locator("..").getByText(memberName).first(),
+      page.locator(".apex-data-table").getByText(memberName).first(),
     ).toBeVisible();
     await logout(page);
 
@@ -45,8 +46,9 @@ test.describe("Dashboard custody views", () => {
     // Rater sees eval in inbox
     await loginAsRole(page, "rater");
     await page.goto("/dashboard");
+    await page.getByRole("button", { name: "Awaiting action" }).click();
     await expect(
-      page.getByRole("heading", { name: memberName, exact: true }),
+      page.locator(".apex-data-table").getByText(memberName).first(),
     ).toBeVisible();
     await logout(page);
 

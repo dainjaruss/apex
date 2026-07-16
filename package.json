@@ -15,6 +15,8 @@
     "db:seed-stress:reset": "tsx scripts/seed-stress.ts --reset",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "verify": "npm test && npm run build",
+    "verify:e2e": "npm test && npm run build && npm run test:e2e",
     "format": "prettier --write ."
   },
   "dependencies": {
