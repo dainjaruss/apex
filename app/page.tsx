@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ApexLogo from "@/components/brand/ApexLogo";
 import NavyBranding from "@/components/brand/NavyBranding";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 function LandingHeader() {
   return (
@@ -8,7 +9,7 @@ function LandingHeader() {
       <div className="flex items-center gap-3">
         <ApexLogo size="md" className="shrink-0" />
         <div>
-          <span className="font-extrabold text-xl tracking-[0.1em] text-white">
+          <span className="font-extrabold text-xl tracking-[0.1em] apex-heading">
             APEX
           </span>
           <span className="apex-badge hidden sm:inline ml-2">
@@ -16,10 +17,11 @@ function LandingHeader() {
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <ThemeToggle compact />
         <Link
           href="/login"
-          className="text-sm font-medium hover:text-white transition-colors"
+          className="text-sm font-medium transition-colors hover:opacity-90"
           style={{ color: "var(--muted-foreground)" }}
         >
           Sign In
@@ -95,7 +97,7 @@ function LandingFeatures() {
           >
             {f.n}
           </div>
-          <h3 className="text-lg font-bold text-white">{f.title}</h3>
+          <h3 className="text-lg font-bold apex-heading">{f.title}</h3>
           <p
             className="text-sm leading-relaxed"
             style={{ color: "var(--muted-foreground)" }}

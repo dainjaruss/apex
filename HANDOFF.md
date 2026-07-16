@@ -47,7 +47,7 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 ## Untouched scope (explicitly not done)
 
 - **P1 review fixes** — addressed in follow-up commit after handoff (see git log after `1cdd8b1`)
-- **Register**, **landing `/`**, **admin** analytics — not restyled to match enterprise mockups
+- **Register**, **landing `/`**, **admin** — enterprise theme pass (post-P1 polish); profile/export/summary-groups still mixed
 - **Merge / land** — PR open; no merge to `main`
 - **`/srv/apex` (main clone)** — may still be **1 commit ahead** (`d27e7a2` theme work) **not** on `epic/enterprise-ui`; do not assume parity between clones
 - **Documentation** — README/ARCHITECTURE not updated for mockup paths or theme behavior
@@ -93,12 +93,12 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 
 ## Safe next action (exactly one)
 
-**Implement P1 #1:** In `app/dashboard/page.tsx`, drive the Edit button from `canPerformAction(profile, "edit_evaluation", ev)` (with profile loaded), not `evalCategory` alone — then re-run `npm test` and add/adjust a test if feasible.
+**Owner merge decision:** Review PR #6 after P1 fix commit; run manual smoke (light/dark, dashboard Edit on locked eval, mobile table scroll, admin tab). Merge or request more polish.
 
 ## What the next actor must not assume
 
-- That the queue UI is merge-ready without addressing at least the Edit/custody mismatch (review P1 #1).
 - That this handoff implies permission to merge PR #6 without owner say-so.
+- That register/landing/admin styling is complete (enterprise pass not done).
 
 ---
 
