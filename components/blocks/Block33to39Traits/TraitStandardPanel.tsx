@@ -1,10 +1,3 @@
-// components/blocks/Block33to39Traits/TraitStandardPanel.tsx
-//
-// Shows the official NAVPERS 1616/26 performance-standard verbiage for the grade a rater
-// has selected on a trait row. The 1.0, 3.0, and 5.0 marks carry per-trait bullet text
-// (from the printed grid); 2.0, 4.0, and NOB show the scale legend instead. Marks of 1.0
-// and 5.0 surface the written-justification reminder (Block 43).
-
 import React from "react";
 import {
   TRAIT_STANDARDS,
@@ -16,29 +9,10 @@ import {
   AnchorGrade,
 } from "@/lib/traitStandards";
 
-const THEME: Record<string, { border: string; heading: string; dot: string }> =
-  {
-    "1.0": {
-      border: "border-amber-500/30",
-      heading: "text-amber-300",
-      dot: "text-amber-400",
-    },
-    "3.0": {
-      border: "border-[#3e6e99]/40",
-      heading: "text-sky-300",
-      dot: "text-sky-400",
-    },
-    "5.0": {
-      border: "border-emerald-500/30",
-      heading: "text-emerald-300",
-      dot: "text-emerald-400",
-    },
-  };
-
-const NEUTRAL = {
-  border: "border-slate-700/40",
-  heading: "text-slate-300",
-  dot: "text-slate-500",
+const ANCHOR_HEADING: Record<string, string> = {
+  "1.0": "var(--trait-anchor-amber-heading)",
+  "3.0": "var(--trait-anchor-sky-heading)",
+  "5.0": "var(--trait-anchor-emerald-heading)",
 };
 
 export default function TraitStandardPanel({
@@ -52,21 +26,30 @@ export default function TraitStandardPanel({
   if (!std) return null;
 
   const isAnchor = (ANCHOR_GRADES as readonly string[]).includes(grade);
-  const theme = THEME[grade] ?? NEUTRAL;
   const needsJustification = grade === "1.0" || grade === "5.0";
+  const headingColor = ANCHOR_HEADING[grade] ?? "var(--muted-foreground)";
 
   return (
     <div
-      className={`mt-3 rounded-lg border ${theme.border} bg-slate-950/40 p-3`}
+      className="apex-trait-standard-panel"
+      data-anchor={isAnchor ? grade : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
         <span
-          className={`text-xs font-bold uppercase tracking-wider ${theme.heading}`}
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{ color: headingColor }}
         >
           {grade} — {TRAIT_GRADE_LABELS[grade] ?? grade}
         </span>
         {needsJustification && (
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0.5">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border"
+            style={{
+              color: "var(--trait-anchor-amber-heading)",
+              background: "color-mix(in srgb, var(--accent-gold) 12%, transparent)",
+              borderColor: "var(--trait-anchor-amber-border)",
+            }}
+          >
             Requires written justification (Block 43)
           </span>
         )}
@@ -77,22 +60,37 @@ export default function TraitStandardPanel({
           {std.anchors[grade as AnchorGrade].map((bullet, i) => (
             <li
               key={i}
-              className="flex gap-2 text-xs text-slate-300 leading-snug"
+              className="flex gap-2 text-xs leading-snug"
+              style={{ color: "var(--foreground)" }}
             >
-              <span className={`${theme.dot} mt-px select-none`}>•</span>
+              <span
+                className="mt-px select-none"
+                style={{ color: headingColor }}
+              >
+                •
+              </span>
               <span>{bullet}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-xs italic text-slate-400 leading-snug">
+        <p
+          className="text-xs italic leading-snug"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           {GRADE_SCALE_NOTE[grade] ??
             "Select a grade to view its performance standard."}
         </p>
       )}
 
       {needsJustification && (
-        <p className="mt-2 pt-2 border-t border-slate-800/60 text-[11px] text-slate-500 leading-snug">
+        <p
+          className="mt-2 pt-2 border-t text-[11px] leading-snug"
+          style={{
+            borderColor: "var(--border)",
+            color: "var(--subtle)",
+          }}
+        >
           {SUBSTANTIATION_NOTE}
         </p>
       )}

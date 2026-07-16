@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { createBrowserClient } from "@/lib/supabaseClient";
+import { chartRoleColor, chartStageColor } from "@/lib/chartColors";
 import { Profile, Evaluation } from "@/types";
 
 const supabase = createBrowserClient();
@@ -42,7 +43,10 @@ function StatCard({
         </div>
         <div
           className="shrink-0 p-2.5 rounded-xl"
-          style={{ background: `${accent}18`, border: `1px solid ${accent}35` }}
+          style={{
+            background: `color-mix(in srgb, ${accent} 12%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${accent} 35%, transparent)`,
+          }}
         >
           {icon}
         </div>
@@ -50,8 +54,7 @@ function StatCard({
       <div
         className="h-0.5 rounded-full mt-3"
         style={{
-          background: `linear-gradient(90deg, ${accent} 0%, transparent 100%)`,
-          opacity: 0.5,
+          background: `linear-gradient(90deg, color-mix(in srgb, ${accent} 55%, transparent) 0%, transparent 100%)`,
         }}
       />
     </div>
@@ -81,10 +84,7 @@ function HBar({
           {value} <span className="text-[10px]">({pct})</span>
         </span>
       </div>
-      <div
-        className="h-2 rounded-full"
-        style={{ background: "rgba(255,255,255,0.05)" }}
-      >
+      <div className="apex-chart-bar-track">
         <div
           className="h-2 rounded-full transition-all duration-700 ease-out"
           style={{
@@ -154,7 +154,7 @@ function DonutChart({
           x={cx}
           y={cy - 4}
           textAnchor="middle"
-          fill="white"
+          fill="var(--heading)"
           fontSize="18"
           fontWeight="800"
         >
@@ -164,7 +164,7 @@ function DonutChart({
           x={cx}
           y={cy + 12}
           textAnchor="middle"
-          fill="#94a8c4"
+          fill="var(--chart-axis)"
           fontSize="8"
           fontWeight="600"
         >
@@ -200,16 +200,7 @@ function DonutChart({
 // ── Activity Item ──────────────────────────────────────────────────────────
 function ActivityItem({ ev }: { ev: Evaluation }) {
   const stage = ev.routing_stage || "draft";
-  const stageColor: Record<string, string> = {
-    sailor: "#3b82f6",
-    rater: "#f59e0b",
-    senior_rater: "#a855f7",
-    reporting_senior: "#10b981",
-    debrief: "#ec4899",
-    locked: "#64748b",
-    draft: "#3b82f6",
-  };
-  const color = stageColor[stage] || "#3b82f6";
+  const color = chartStageColor(stage === "draft" ? "draft" : stage);
   const timeAgo = formatTimeAgo(ev.updated_at || ev.created_at || "");
 
   return (
@@ -322,16 +313,6 @@ export default function AnalyticsDashboard() {
     );
   }
 
-  const stageColors: Record<string, string> = {
-    sailor: "#3b82f6",
-    rater: "#f59e0b",
-    senior_rater: "#a855f7",
-    reporting_senior: "#10b981",
-    debrief: "#ec4899",
-    locked: "#64748b",
-    unrouted: "#475569",
-  };
-
   const stageLabels: Record<string, string> = {
     sailor: "Sailor",
     rater: "Rater",
@@ -345,16 +326,9 @@ export default function AnalyticsDashboard() {
   const donutSegments = Object.entries(stats.stageCounts).map(([key, val]) => ({
     label: stageLabels[key] || key.replace(/_/g, " "),
     value: val,
-    color: stageColors[key] || "#6b849f",
+    color: chartStageColor(key),
   }));
 
-  const roleColors: Record<string, string> = {
-    Sailor: "#3b82f6",
-    Rater: "#f59e0b",
-    "Senior Rater": "#a855f7",
-    "Reporting Senior": "#10b981",
-    Admin: "#ef4444",
-  };
   const maxRoleCount = Math.max(...Object.values(stats.roleCounts), 1);
 
   // Completion rate
@@ -406,12 +380,12 @@ export default function AnalyticsDashboard() {
         <StatCard
           label="Total Evaluations"
           value={stats.totalEvals}
-          accent="#22d3ee"
+          accent="var(--chart-kpi-cyan)"
           sub={`${activeInPipeline} active in pipeline`}
           icon={
             <svg
               className="w-5 h-5"
-              stroke="#22d3ee"
+              stroke="var(--chart-kpi-cyan)"
               fill="none"
               strokeWidth={2}
               viewBox="0 0 24 24"
@@ -427,12 +401,12 @@ export default function AnalyticsDashboard() {
         <StatCard
           label="Completion Rate"
           value={`${completionRate}%`}
-          accent="#34d399"
+          accent="var(--chart-kpi-emerald)"
           sub={`${stats.statusCounts.completed} completed`}
           icon={
             <svg
               className="w-5 h-5"
-              stroke="#34d399"
+              stroke="var(--chart-kpi-emerald)"
               fill="none"
               strokeWidth={2}
               viewBox="0 0 24 24"
@@ -448,12 +422,12 @@ export default function AnalyticsDashboard() {
         <StatCard
           label="Active Users"
           value={stats.totalUsers}
-          accent="#a855f7"
+          accent="var(--chart-kpi-purple)"
           sub={`${Object.keys(stats.roleCounts).length} roles assigned`}
           icon={
             <svg
               className="w-5 h-5"
-              stroke="#a855f7"
+              stroke="var(--chart-kpi-purple)"
               fill="none"
               strokeWidth={2}
               viewBox="0 0 24 24"
@@ -469,12 +443,12 @@ export default function AnalyticsDashboard() {
         <StatCard
           label="Signature Locked"
           value={stats.locked}
-          accent="#fbbf24"
+          accent="var(--chart-kpi-gold)"
           sub="Awaiting finalization"
           icon={
             <svg
               className="w-5 h-5"
-              stroke="#fbbf24"
+              stroke="var(--chart-kpi-gold)"
               fill="none"
               strokeWidth={2}
               viewBox="0 0 24 24"
@@ -501,28 +475,28 @@ export default function AnalyticsDashboard() {
               label="Draft"
               value={stats.statusCounts.draft}
               max={stats.totalEvals}
-              color="#3b82f6"
+              color="var(--chart-pipeline-draft)"
               pct={`${stats.totalEvals ? Math.round((stats.statusCounts.draft / stats.totalEvals) * 100) : 0}%`}
             />
             <HBar
               label="Ready for Review"
               value={stats.statusCounts.ready_for_review}
               max={stats.totalEvals}
-              color="#f59e0b"
+              color="var(--chart-pipeline-review)"
               pct={`${stats.totalEvals ? Math.round((stats.statusCounts.ready_for_review / stats.totalEvals) * 100) : 0}%`}
             />
             <HBar
               label="Completed"
               value={stats.statusCounts.completed}
               max={stats.totalEvals}
-              color="#34d399"
+              color="var(--chart-pipeline-completed)"
               pct={`${stats.totalEvals ? Math.round((stats.statusCounts.completed / stats.totalEvals) * 100) : 0}%`}
             />
             <HBar
               label="Archived"
               value={stats.statusCounts.archived}
               max={stats.totalEvals}
-              color="#64748b"
+              color="var(--chart-pipeline-archived)"
               pct={`${stats.totalEvals ? Math.round((stats.statusCounts.archived / stats.totalEvals) * 100) : 0}%`}
             />
           </div>
@@ -554,7 +528,7 @@ export default function AnalyticsDashboard() {
                   label={role}
                   value={count}
                   max={maxRoleCount}
-                  color={roleColors[role] || "#6b849f"}
+                  color={chartRoleColor(role)}
                   pct={`${stats.totalUsers ? Math.round((count / stats.totalUsers) * 100) : 0}%`}
                 />
               ))}

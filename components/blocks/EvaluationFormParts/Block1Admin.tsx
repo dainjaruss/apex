@@ -388,7 +388,7 @@ function CommandDetailsSection({
                   i.field === "primary_duty_abbrev" && i.severity === "error",
               )
                 ? "border-red-500/80"
-                : "border-slate-800 focus-within:border-[#3e6e99] focus-within:ring-1 focus-within:ring-[#3e6e99]"
+                : "border-[var(--border-strong)] focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-[var(--focus-ring)]"
             }`}
           >
             <input
@@ -475,10 +475,10 @@ function CommandDetailsSection({
                             date_counseled: active ? "" : code,
                           });
                         }}
-                        className={`px-2 py-1 text-[11px] font-semibold rounded border transition ${
+                        className={`apex-grade-pill text-[11px] px-2 py-1 ${
                           active
-                            ? "bg-[#3e6e99] border-[#3e6e99] text-white"
-                            : "bg-[var(--form-input-bg)] border-[var(--input-border)] text-slate-300 hover:border-[var(--accent-cyan)]"
+                            ? "apex-grade-pill--active"
+                            : "apex-grade-pill--idle"
                         }`}
                       >
                         {code}

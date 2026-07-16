@@ -91,13 +91,13 @@ export default function ValidationResultsModal({
         <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
           {/* Summary Banner */}
           {totalErrors > 0 ? (
-            <div className="p-4 rounded-xl border border-red-500/20 bg-red-950/20 flex gap-3 items-start">
-              <span className="text-red-400 text-lg">⚠️</span>
+            <div className="apex-alert-banner apex-alert-banner--error">
+              <span className="text-lg">⚠️</span>
               <div>
-                <h4 className="text-sm font-semibold text-red-200">
+                <h4 className="text-sm font-semibold">
                   Validation Blocker Errors Detected
                 </h4>
-                <p className="text-xs text-red-300/80 mt-1">
+                <p className="text-xs mt-1 opacity-90">
                   You have {totalErrors} critical errors that must be resolved
                   before this evaluation can be certified or submitted for
                   review.
@@ -105,13 +105,11 @@ export default function ValidationResultsModal({
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-950/20 flex gap-3 items-start">
-              <span className="text-emerald-400 text-lg">✓</span>
+            <div className="apex-alert-banner apex-alert-banner--success">
+              <span className="text-lg">✓</span>
               <div>
-                <h4 className="text-sm font-semibold text-emerald-200">
-                  No Blockers Found
-                </h4>
-                <p className="text-xs text-emerald-300/80 mt-1">
+                <h4 className="text-sm font-semibold">No Blockers Found</h4>
+                <p className="text-xs mt-1 opacity-90">
                   All critical database rules and monospace dimensions are
                   satisfied.
                 </p>
@@ -122,27 +120,37 @@ export default function ValidationResultsModal({
           {/* Errors Section */}
           {totalErrors > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+              <h3
+                className="text-sm font-bold uppercase tracking-wider flex items-center gap-1.5"
+                style={{ color: "var(--destructive)" }}
+              >
                 <span>✕</span> Blocker Errors ({totalErrors})
               </h3>
               <div className="space-y-4">
                 {Object.entries(groupedErrors).map(([category, items]) => (
-                  <div
-                    key={category}
-                    className="rounded-lg bg-slate-900/60 border border-slate-800/80 overflow-hidden"
-                  >
-                    <div className="px-4 py-2 bg-slate-800/40 text-xs font-semibold text-[#c0d6e4] border-b border-slate-800/80">
-                      {category}
-                    </div>
-                    <ul className="divide-y divide-slate-800/50">
+                  <div key={category} className="apex-validation-group">
+                    <div className="apex-validation-group__header">{category}</div>
+                    <ul
+                      className="divide-y"
+                      style={{ borderColor: "var(--validation-group-divider)" }}
+                    >
                       {items.map((item, idx) => (
                         <li
                           key={idx}
-                          className="p-3 text-xs flex gap-2.5 items-start text-red-200/90"
+                          className="p-3 text-xs flex gap-2.5 items-start"
+                          style={{ color: "var(--alert-error-text)" }}
                         >
-                          <span className="text-red-400 mt-0.5">•</span>
+                          <span
+                            className="mt-0.5"
+                            style={{ color: "var(--destructive)" }}
+                          >
+                            •
+                          </span>
                           <div>
-                            <span className="font-semibold text-red-300 mr-1.5">
+                            <span
+                              className="font-semibold mr-1.5"
+                              style={{ color: "var(--alert-error-title)" }}
+                            >
                               {item.block ? `Block ${item.block}:` : "General:"}
                             </span>
                             {item.message}
@@ -159,27 +167,37 @@ export default function ValidationResultsModal({
           {/* Warnings Section */}
           {totalWarnings > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <h3
+                className="text-sm font-bold uppercase tracking-wider flex items-center gap-1.5"
+                style={{ color: "var(--accent-gold)" }}
+              >
                 <span>⚠️</span> Guidelines Warnings ({totalWarnings})
               </h3>
               <div className="space-y-4">
                 {Object.entries(groupedWarnings).map(([category, items]) => (
-                  <div
-                    key={category}
-                    className="rounded-lg bg-slate-900/60 border border-slate-800/80 overflow-hidden"
-                  >
-                    <div className="px-4 py-2 bg-slate-800/40 text-xs font-semibold text-[#c0d6e4] border-b border-slate-800/80">
-                      {category}
-                    </div>
-                    <ul className="divide-y divide-slate-800/50">
+                  <div key={category} className="apex-validation-group">
+                    <div className="apex-validation-group__header">{category}</div>
+                    <ul
+                      className="divide-y"
+                      style={{ borderColor: "var(--validation-group-divider)" }}
+                    >
                       {items.map((item, idx) => (
                         <li
                           key={idx}
-                          className="p-3 text-xs flex gap-2.5 items-start text-amber-200/90"
+                          className="p-3 text-xs flex gap-2.5 items-start"
+                          style={{ color: "var(--foreground)" }}
                         >
-                          <span className="text-amber-400 mt-0.5">•</span>
+                          <span
+                            className="mt-0.5"
+                            style={{ color: "var(--accent-gold)" }}
+                          >
+                            •
+                          </span>
                           <div>
-                            <span className="font-semibold text-amber-300 mr-1.5">
+                            <span
+                              className="font-semibold mr-1.5"
+                              style={{ color: "var(--accent-gold)" }}
+                            >
                               {item.block ? `Block ${item.block}:` : "General:"}
                             </span>
                             {item.message}

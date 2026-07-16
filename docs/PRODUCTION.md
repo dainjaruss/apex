@@ -4,12 +4,15 @@ Last updated: 2026-07-16 (post enterprise UI merge, PR #6).
 
 ## Deploy target
 
-- **Frontend:** Vercel (`apex-navy-eval` or linked project)
+- **Production URL:** https://apex-navy-eval.vercel.app
+- **Frontend:** Vercel project `apex-navy-eval` (linked; auto-deploy from `main`)
 - **Backend:** Supabase (Auth, Postgres, RLS, Storage)
 
-## Required environment variables
+Production env vars are already configured on Vercel. Re-check only when rotating keys or cloning the project.
 
-Set in Vercel **Production** (and Preview if you run e2e against preview):
+## Environment variables (reference)
+
+Vercel **Production** (and Preview for e2e against preview):
 
 | Variable | Required | Notes |
 |----------|----------|--------|

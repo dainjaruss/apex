@@ -120,6 +120,60 @@
   --btn-dashboard-hover: var(--primary-hover);
   --avatar-blue-from: #3b82f6;
   --avatar-blue-to: #1d4ed8;
+
+  --chart-fallback: #64748b;
+  --chart-axis: var(--subtle);
+  --chart-stage-sailor: #2563eb;
+  --chart-stage-rater: #d97706;
+  --chart-stage-senior-rater: #7c3aed;
+  --chart-stage-reporting-senior: #059669;
+  --chart-stage-debrief: #db2777;
+  --chart-stage-locked: #64748b;
+  --chart-stage-draft: #2563eb;
+  --chart-stage-unrouted: #64748b;
+  --chart-role-sailor: #2563eb;
+  --chart-role-rater: #d97706;
+  --chart-role-senior-rater: #7c3aed;
+  --chart-role-reporting-senior: #059669;
+  --chart-role-admin: #dc2626;
+  --chart-role-unknown: #64748b;
+  --chart-kpi-cyan: var(--accent-cyan);
+  --chart-kpi-emerald: var(--success);
+  --chart-kpi-purple: #9333ea;
+  --chart-kpi-gold: var(--accent-gold);
+  --chart-pipeline-draft: #2563eb;
+  --chart-pipeline-review: #d97706;
+  --chart-pipeline-completed: var(--success);
+  --chart-pipeline-archived: #64748b;
+
+  --trait-row-bg: color-mix(in srgb, var(--form-panel) 70%, var(--card));
+  --trait-row-border: var(--border-strong);
+  --trait-row-focus: var(--primary);
+  --trait-pill-active-bg: var(--primary);
+  --trait-pill-active-text: var(--primary-foreground);
+  --trait-pill-idle-bg: var(--muted);
+  --trait-pill-idle-text: var(--muted-foreground);
+  --trait-pill-idle-border: var(--border-strong);
+  --trait-panel-bg: var(--form-panel);
+  --trait-anchor-amber-border: rgba(217, 119, 6, 0.45);
+  --trait-anchor-amber-heading: #b45309;
+  --trait-anchor-sky-border: color-mix(in srgb, var(--primary) 40%, transparent);
+  --trait-anchor-sky-heading: var(--primary);
+  --trait-anchor-emerald-border: rgba(5, 150, 105, 0.45);
+  --trait-anchor-emerald-heading: #047857;
+
+  --alert-error-bg: color-mix(in srgb, var(--destructive) 10%, var(--card));
+  --alert-error-border: color-mix(in srgb, var(--destructive) 25%, transparent);
+  --alert-error-title: var(--destructive);
+  --alert-error-text: color-mix(in srgb, var(--destructive) 80%, var(--foreground));
+  --alert-success-bg: color-mix(in srgb, var(--success) 10%, var(--card));
+  --alert-success-border: color-mix(in srgb, var(--success) 28%, transparent);
+  --alert-success-title: var(--success);
+  --alert-success-text: color-mix(in srgb, var(--success) 70%, var(--foreground));
+  --validation-group-bg: var(--card-elevated);
+  --validation-group-header-bg: var(--muted);
+  --validation-group-header-text: var(--label);
+  --validation-group-divider: var(--border);
 }
 
 .dark {
@@ -218,6 +272,60 @@
   --btn-dashboard-hover: #2563eb;
   --avatar-blue-from: #3b82f6;
   --avatar-blue-to: #1d4ed8;
+
+  --chart-fallback: #6b849f;
+  --chart-axis: var(--subtle);
+  --chart-stage-sailor: #3b82f6;
+  --chart-stage-rater: #f59e0b;
+  --chart-stage-senior-rater: #a855f7;
+  --chart-stage-reporting-senior: #10b981;
+  --chart-stage-debrief: #ec4899;
+  --chart-stage-locked: #64748b;
+  --chart-stage-draft: #3b82f6;
+  --chart-stage-unrouted: #475569;
+  --chart-role-sailor: #3b82f6;
+  --chart-role-rater: #f59e0b;
+  --chart-role-senior-rater: #a855f7;
+  --chart-role-reporting-senior: #10b981;
+  --chart-role-admin: #ef4444;
+  --chart-role-unknown: #6b849f;
+  --chart-kpi-cyan: var(--accent-cyan);
+  --chart-kpi-emerald: var(--success);
+  --chart-kpi-purple: #a855f7;
+  --chart-kpi-gold: var(--accent-gold);
+  --chart-pipeline-draft: #3b82f6;
+  --chart-pipeline-review: #f59e0b;
+  --chart-pipeline-completed: var(--success);
+  --chart-pipeline-archived: #64748b;
+
+  --trait-row-bg: rgba(0, 0, 0, 0.2);
+  --trait-row-border: var(--border-strong);
+  --trait-row-focus: var(--accent-cyan);
+  --trait-pill-active-bg: var(--primary);
+  --trait-pill-active-text: var(--primary-foreground);
+  --trait-pill-idle-bg: color-mix(in srgb, var(--form-input-bg) 60%, transparent);
+  --trait-pill-idle-text: var(--muted-foreground);
+  --trait-pill-idle-border: var(--border-strong);
+  --trait-panel-bg: rgba(0, 0, 0, 0.25);
+  --trait-anchor-amber-border: rgba(251, 191, 36, 0.35);
+  --trait-anchor-amber-heading: #fcd34d;
+  --trait-anchor-sky-border: rgba(59, 130, 246, 0.4);
+  --trait-anchor-sky-heading: #93c5fd;
+  --trait-anchor-emerald-border: rgba(52, 211, 153, 0.35);
+  --trait-anchor-emerald-heading: #6ee7b7;
+
+  --alert-error-bg: rgba(127, 29, 29, 0.25);
+  --alert-error-border: rgba(239, 68, 68, 0.25);
+  --alert-error-title: #fecaca;
+  --alert-error-text: #fca5a5;
+  --alert-success-bg: rgba(6, 78, 59, 0.25);
+  --alert-success-border: rgba(16, 185, 129, 0.25);
+  --alert-success-title: #a7f3d0;
+  --alert-success-text: #6ee7b7;
+  --validation-group-bg: color-mix(in srgb, var(--card) 90%, #000);
+  --validation-group-header-bg: color-mix(in srgb, var(--muted) 80%, transparent);
+  --validation-group-header-text: var(--label);
+  --validation-group-divider: var(--border);
 }
 
 body {
@@ -726,6 +834,90 @@ body {
 
   .apex-reference-tip__icon {
     color: var(--reference-muted);
+  }
+
+  .apex-trait-row {
+    @apply flex flex-col p-3.5 rounded-lg border transition duration-150 cursor-pointer;
+    background: var(--trait-row-bg);
+    border-color: var(--trait-row-border);
+  }
+  .apex-trait-row:focus-within {
+    border-color: var(--trait-row-focus);
+  }
+  .apex-trait-row--error {
+    border-color: color-mix(in srgb, var(--destructive) 55%, transparent);
+  }
+  .apex-trait-row--error:focus-within {
+    border-color: var(--destructive);
+  }
+
+  .apex-grade-pill {
+    @apply px-3 py-1.5 text-xs font-bold rounded-md transition duration-150 min-w-[48px] text-center;
+  }
+  .apex-grade-pill--active {
+    background: var(--trait-pill-active-bg);
+    color: var(--trait-pill-active-text);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--trait-pill-active-bg) 35%, transparent);
+  }
+  .apex-grade-pill--idle {
+    background: var(--trait-pill-idle-bg);
+    color: var(--trait-pill-idle-text);
+    border: 1px solid var(--trait-pill-idle-border);
+  }
+  .apex-grade-pill--idle:hover {
+    color: var(--foreground);
+  }
+
+  .apex-trait-standard-panel {
+    @apply mt-3 rounded-lg border p-3;
+    background: var(--trait-panel-bg);
+    border-color: var(--trait-panel-border);
+  }
+  .apex-trait-standard-panel[data-anchor="1.0"] {
+    border-color: var(--trait-anchor-amber-border);
+  }
+  .apex-trait-standard-panel[data-anchor="3.0"] {
+    border-color: var(--trait-anchor-sky-border);
+  }
+  .apex-trait-standard-panel[data-anchor="5.0"] {
+    border-color: var(--trait-anchor-emerald-border);
+  }
+
+  .apex-alert-banner {
+    @apply p-4 rounded-xl border flex gap-3 items-start;
+  }
+  .apex-alert-banner--error {
+    background: var(--alert-error-bg);
+    border-color: var(--alert-error-border);
+    color: var(--alert-error-text);
+  }
+  .apex-alert-banner--error h4 {
+    color: var(--alert-error-title);
+  }
+  .apex-alert-banner--success {
+    background: var(--alert-success-bg);
+    border-color: var(--alert-success-border);
+    color: var(--alert-success-text);
+  }
+  .apex-alert-banner--success h4 {
+    color: var(--alert-success-title);
+  }
+
+  .apex-validation-group {
+    @apply rounded-lg border overflow-hidden;
+    background: var(--validation-group-bg);
+    border-color: var(--border-strong);
+  }
+  .apex-validation-group__header {
+    @apply px-4 py-2 text-xs font-semibold border-b;
+    background: var(--validation-group-header-bg);
+    color: var(--validation-group-header-text);
+    border-color: var(--validation-group-divider);
+  }
+
+  .apex-chart-bar-track {
+    @apply h-2 rounded-full;
+    background: var(--muted);
   }
 
   /* Admin Analytics Dashboard */

@@ -18,8 +18,11 @@ Defined in the `Semantic tokens` block in `globals.css`:
 - **Queue badges:** `--badge-draft-*`, `--badge-routing-*`, `--badge-reporting-senior-*`, `--badge-review-*`, `--badge-locked-*`
 - **BUPERS reference sticky note:** `--reference-*` (background, accent, text, checklist)
 - **Buttons:** `--danger-*`, `--success-solid*`, `--btn-dashboard-*`
+- **Charts (admin analytics):** `--chart-stage-*`, `--chart-role-*`, `--chart-kpi-*`, `--chart-pipeline-*` — use `chartStageColor()` / `chartRoleColor()` from `lib/chartColors.ts`
+- **Trait rows / grade pills:** `--trait-row-*`, `--trait-pill-*`, `--trait-anchor-*`
+- **Validation modal:** `--alert-error-*`, `--alert-success-*`, `--validation-group-*`
 
-Component classes map to these variables (e.g. `.apex-badge-reporting-senior`, `.apex-reference-tip`). Prefer adding a token + class over hardcoded hex in TSX.
+Component classes map to these variables (e.g. `.apex-badge-reporting-senior`, `.apex-reference-tip`, `.apex-grade-pill--active`). Prefer adding a token + class over hardcoded hex in TSX.
 
 ## Tailwind
 
