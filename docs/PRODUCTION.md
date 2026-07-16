@@ -44,11 +44,16 @@ Seed E2E fixtures: `npm run db:seed` (uses `E2E_TEST_PASSWORD` in `.env.local`).
 - Response headers: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` (see `next.config.mjs`)
 - Never commit `SUPABASE_SERVICE_ROLE_KEY` or `.env.local`
 
+## CI
+
+GitHub Actions workflow `.github/workflows/verify.yml` runs `npm run verify` on pushes and PRs to `main`.
+
 ## Known follow-ups (non-blocking)
 
 - Chart palette hex in `AnalyticsDashboard` (intentional data-viz colors)
 - `global-error.tsx` uses minimal inline styles (root layout unavailable)
 - Optional: error reporting service (Sentry, etc.) not wired yet
+- `npm audit` may report transitive issues in Next 14; plan a major Next upgrade separately
 
 ## Rollback
 
