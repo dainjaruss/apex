@@ -391,26 +391,36 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="apex-input max-w-[180px] py-2 text-xs"
-        >
-          <option value="all">All statuses</option>
-          <option value="draft">Draft</option>
-          <option value="ready_for_review">Ready for review</option>
-          <option value="completed">Completed</option>
-          <option value="archived">Archived</option>
-        </select>
+        <label className="flex flex-col gap-1 min-w-[10rem]">
+          <span className="apex-filter-label">Status</span>
+          <select
+            id="dashboard-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="apex-select max-w-[180px] py-2 text-xs"
+            aria-label="Filter evaluations by status"
+          >
+            <option value="all">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="ready_for_review">Ready for review</option>
+            <option value="completed">Completed</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
 
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="apex-input max-w-[180px] py-2 text-xs"
-        >
-          <option value="updated_desc">Recently updated</option>
-          <option value="name_asc">Name (A–Z)</option>
-        </select>
+        <label className="flex flex-col gap-1 min-w-[10rem]">
+          <span className="apex-filter-label">Sort</span>
+          <select
+            id="dashboard-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="apex-select max-w-[180px] py-2 text-xs"
+            aria-label="Sort evaluation queue"
+          >
+            <option value="updated_desc">Recently updated</option>
+            <option value="name_asc">Name (A–Z)</option>
+          </select>
+        </label>
       </div>
 
       <EvalQueueTable

@@ -218,7 +218,8 @@ export default function AdminPage() {
                     disabled={
                       saving === user.id || user.id === currentUser?.id
                     }
-                    className="apex-input max-w-[200px] py-1.5 text-xs"
+                    className="apex-select max-w-[200px] py-1.5 text-xs"
+                    aria-label={`Preferred role for ${user.email || `${user.first_name} ${user.last_name}`.trim() || "user"}`}
                   >
                     {ALL_ROLES.map((r) => (
                       <option key={r} value={r}>

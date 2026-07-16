@@ -397,6 +397,26 @@ body {
     color: var(--subtle);
   }
 
+  /* Native <select> — explicit contrast + option colors for a11y audits */
+  .apex-select {
+    @apply apex-input cursor-pointer;
+    color: var(--foreground);
+    background-color: var(--form-input-bg);
+    color-scheme: light;
+  }
+  .dark .apex-select {
+    color-scheme: dark;
+  }
+  .apex-select option {
+    background-color: var(--card);
+    color: var(--foreground);
+  }
+
+  .apex-filter-label {
+    @apply text-[10px] font-semibold uppercase tracking-wider;
+    color: var(--label);
+  }
+
   .apex-btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all disabled:opacity-50 disabled:pointer-events-none;
   }
