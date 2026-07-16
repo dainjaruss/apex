@@ -54,6 +54,23 @@ export default function Block42Signatures({
     issues.find((i) => i.field === field && i.severity === "error");
   const addrSpec = FIELD_FIT.reporting_senior_address;
 
+  const isChiefevalOrFitrep =
+    evalData.report_type === "CHIEFEVAL" ||
+    evalData.report_type === "FITREP" ||
+    evalData.form_definition_id?.startsWith("CHIEFEVAL") ||
+    evalData.form_definition_id?.startsWith("FITREP") ||
+    evalData.form_definition_id?.includes("c1616270") ||
+    evalData.form_definition_id?.includes("f1610020") ||
+    evalData.form_definition_id?.includes("f1610050");
+
+  const activeSectionFields = isChiefevalOrFitrep
+    ? [
+        "career_recommendations",
+        "promotion_recommendation",
+        "reporting_senior_address",
+      ]
+    : SECTION_FIELDS;
+
   return (
     <div className={FORM_PANEL}>
       <h3 className={FORM_SECTION_TITLE}>
@@ -61,21 +78,24 @@ export default function Block42Signatures({
           className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
           aria-hidden
         />
-        Recommendations &amp; Reporting Senior (Blocks 41, 45 - 48)
+        {isChiefevalOrFitrep
+          ? "Recommendations & Reporting Senior (Blocks 41, 45, 48)"
+          : "Recommendations & Reporting Senior (Blocks 41, 45 - 48)"}
       </h3>
 
       {/* Contextual BUPERS field guide for whichever section-4 field is focused. */}
       <BupersGuidelinesInline
         activeField={activeField || null}
-        sectionFields={SECTION_FIELDS}
+        sectionFields={activeSectionFields}
       />
 
-      {/* Block 41 / 45 / 47 */}
+      {/* Block 41 / 45 / (47 if EVAL) */}
       <RecommendationsRow
         evalData={evalData}
         onChange={onChange}
         issueFor={issueFor}
         onFocusField={onFocusField}
+        isChiefevalOrFitrep={Boolean(isChiefevalOrFitrep)}
       />
 
       {/* Block 48: Reporting Senior Address (text field, NOT a signature) — measured
@@ -114,14 +134,20 @@ function RecommendationsRow({
   onChange,
   issueFor,
   onFocusField,
+  isChiefevalOrFitrep,
 }: {
   evalData: Evaluation;
   onChange: (fields: Partial<Evaluation>) => void;
   issueFor: (f: string) => ValidationIssue | undefined;
   onFocusField?: (field: string | null) => void;
+  isChiefevalOrFitrep: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div
+      className={`grid grid-cols-1 ${
+        isChiefevalOrFitrep ? "md:grid-cols-2" : "md:grid-cols-3"
+      } gap-6 mb-6`}
+    >
       {/* Block 41 — exactly two slots (slot 1 required, slot 2 optional), max 20 chars each
           per BUPERSINST 1610.10H. "Do not leave blank" — enter NA/NONE if none applies. */}
       <div>
@@ -190,27 +216,29 @@ function RecommendationsRow({
         )}
       </div>
 
-      {/* Block 47 */}
-      <div>
-        <label className={FORM_LABEL}>47: Retention Recommendation</label>
-        <select
-          value={evalData.retention}
-          onFocus={() => onFocusField?.("retention")}
-          onChange={(e) => onChange({ retention: e.target.value as any })}
-          className={formFieldClass(!!issueFor("retention"))}
-        >
-          {RETENTION_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-        {issueFor("retention") && (
-          <p className="text-red-400 text-xs mt-1">
-            {issueFor("retention")?.message}
-          </p>
-        )}
-      </div>
+      {/* Block 47 (EVAL only) */}
+      {!isChiefevalOrFitrep && (
+        <div>
+          <label className={FORM_LABEL}>47: Retention Recommendation</label>
+          <select
+            value={evalData.retention}
+            onFocus={() => onFocusField?.("retention")}
+            onChange={(e) => onChange({ retention: e.target.value as any })}
+            className={formFieldClass(!!issueFor("retention"))}
+          >
+            {RETENTION_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+          {issueFor("retention") && (
+            <p className="text-red-400 text-xs mt-1">
+              {issueFor("retention")?.message}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

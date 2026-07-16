@@ -51,7 +51,30 @@ export default function Block33to39Traits({
     [evalData.report_type, evalData.form_definition_id],
   );
 
+  const isChiefEval = useMemo(
+    () =>
+      evalData.report_type === "CHIEFEVAL" ||
+      evalData.form_definition_id?.startsWith("CHIEFEVAL") ||
+      evalData.form_definition_id?.includes("c1616270"),
+    [evalData.report_type, evalData.form_definition_id],
+  );
+
   const traitList = useMemo(() => {
+    if (isChiefEval) {
+      return [
+        { key: "deckplate_leadership", label: "Deckplate Leadership (33)" },
+        { key: "professionalism", label: "Professionalism (34)" },
+        { key: "mission_accomplishment", label: "Mission Accomplishment (35)" },
+        { key: "human_development", label: "Human Development (36)" },
+        {
+          key: "eo_climate",
+          label: "Command Climate / Equal Opportunity (37)",
+        },
+        { key: "teamwork", label: "Teamwork (38)" },
+        { key: "leadership", label: "Leadership (39)" },
+      ];
+    }
+
     const base: Array<{ key: string; label: string }> = [
       { key: "knowledge", label: "Professional Knowledge (33)" },
       { key: "work", label: "Quality of Work (34)" },
@@ -71,7 +94,7 @@ export default function Block33to39Traits({
       });
     }
     return base;
-  }, [isFitrep]);
+  }, [isFitrep, isChiefEval]);
 
   // Only the grades the rater has actually set. Per EVALMAN an untouched trait is blank
   // and ungraded (excluded from the average) — never a silent 3.0 default.
@@ -167,16 +190,7 @@ export default function Block33to39Traits({
 
       <BupersGuidelinesInline
         activeField={activeField || null}
-        sectionFields={[
-          "trait_grades.knowledge",
-          "trait_grades.work",
-          "trait_grades.eo",
-          "trait_grades.bearing",
-          "trait_grades.accomplishment",
-          "trait_grades.teamwork",
-          "trait_grades.leadership",
-          ...(isFitrep ? ["trait_grades.tactical_performance"] : []),
-        ]}
+        sectionFields={traitList.map((t) => `trait_grades.${t.key}`)}
       />
 
       <div className="space-y-4">

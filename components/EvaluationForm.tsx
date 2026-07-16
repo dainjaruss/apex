@@ -49,6 +49,7 @@ interface EvaluationFormProps {
   // The editing user's role — gates Block 50a (summary group average): sailors don't see it while
   // drafting; reviewers do. Defaults to hidden when unknown.
   viewerRole?: string;
+  formCode?: string;
 }
 
 const STEPS = [
@@ -67,6 +68,7 @@ export default function EvaluationForm({
   onCancel,
   isSaving,
   viewerRole,
+  formCode,
 }: EvaluationFormProps) {
   // Stable per-evaluation autosave key (DB id when editing, per-user slot when new).
   const autosaveKey = useMemo(
@@ -310,6 +312,37 @@ export default function EvaluationForm({
     setIsModalOpen(true);
   };
 
+  const isChiefEvalForm =
+    formCode === "CHIEFEVAL" ||
+    formData.report_type === "CHIEFEVAL" ||
+    formData.form_definition_id?.startsWith("CHIEFEVAL") ||
+    formData.form_definition_id?.includes("c1616270");
+  const isFitrepForm =
+    formCode === "FITREP" ||
+    formCode?.startsWith("FITREP") ||
+    formData.report_type === "FITREP" ||
+    formData.form_definition_id?.startsWith("FITREP") ||
+    formData.form_definition_id?.includes("f1610020") ||
+    formData.form_definition_id?.includes("f1610050");
+
+  const formBadgeInfo = isChiefEvalForm
+    ? {
+        label: "CHIEFEVAL (NAVPERS 1616/27)",
+        className:
+          "bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+      }
+    : isFitrepForm
+      ? {
+          label: "FITREP (NAVPERS 1610/2)",
+          className:
+            "bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+        }
+      : {
+          label: "EVAL (NAVPERS 1616/26)",
+          className:
+            "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
+        };
+
   return (
     <GuidelinesVisibilityContext.Provider value={showGuidelines}>
       <div className="max-w-6xl mx-auto w-full">
@@ -324,13 +357,18 @@ export default function EvaluationForm({
           />
         )}
 
-        {/* Utility bar: autosave status + guidelines toggle */}
-        <div className="flex items-center justify-between mb-3 px-1">
-          <AutosaveStatus
-            savedAt={savedAt}
-            committed={committed}
-            dbSavedAt={dbSavedAt}
-          />
+        {/* Utility bar: form badge + autosave status + guidelines toggle */}
+        <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span className={formBadgeInfo.className}>
+              {formBadgeInfo.label}
+            </span>
+            <AutosaveStatus
+              savedAt={savedAt}
+              committed={committed}
+              dbSavedAt={dbSavedAt}
+            />
+          </div>
           <GuidelinesToggle on={showGuidelines} onToggle={toggleGuidelines} />
         </div>
 
