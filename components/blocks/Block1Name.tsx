@@ -408,7 +408,8 @@ function CheckOption({
         checked={checked}
         onChange={onToggle}
         onFocus={onFocus}
-        className="h-4 w-4 rounded border-slate-600 bg-[#1c2541] accent-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99]"
+        className="h-4 w-4 rounded border-border accent-primary focus:ring-1 focus:ring-primary"
+        style={{ background: "var(--form-input-bg)" }}
       />
       <span>{label}</span>
     </label>

@@ -53,7 +53,13 @@ function createMiddlewareClient(
 }
 
 function getRedirectTarget(user: any, path: string): string | null {
-  const protectedPrefixes = ["/dashboard", "/profile", "/evaluations"];
+  const protectedPrefixes = [
+    "/dashboard",
+    "/profile",
+    "/evaluations",
+    "/admin",
+    "/summary-groups",
+  ];
   const authRoutes = ["/login", "/register", "/"];
 
   const isProtected = protectedPrefixes.some((prefix) =>

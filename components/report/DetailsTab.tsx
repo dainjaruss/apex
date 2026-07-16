@@ -245,7 +245,7 @@ function SignatureRow({
   const signedName = bv[s.key];
   const signedDate = bv[`${s.key}_date`];
   return (
-    <div className="flex items-center justify-between gap-3 bg-[#0d1b2a]/40 border border-slate-800/60 rounded-lg px-3 py-2">
+    <div className="flex items-center justify-between gap-3 apex-form-panel border rounded-lg px-3 py-2">
       <div className="min-w-0">
         <div className="text-slate-500">
           {s.block}: {s.label}

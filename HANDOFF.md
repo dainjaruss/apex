@@ -1,15 +1,15 @@
 # Session handoff — Enterprise UI epic
 
-**Recorded:** 2026-07-16  
-**PR:** https://github.com/dainjaruss/apex/pull/6  
-**Branch:** `epic/enterprise-ui`  
-**Worktree:** `/srv/apex-enterprise-ui` (use this path; not `/srv/apex` alone)
+**Recorded:** 2026-07-16 (updated post-merge)  
+**PR #6:** **Merged** to `main` (`41ccb21`)  
+**Canonical checkout:** `/srv/apex` on `main`  
+**Prod guide:** `docs/PRODUCTION.md`
 
 ---
 
 ## Current goal
 
-Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production-oriented shell, table-based evaluation queue, and evaluation workspace layout. Mockups were approved; implementation is on `epic/enterprise-ui` awaiting merge after review feedback.
+**Production-ready** APEX on `main`: enterprise UI shipped; ongoing `chore/prod-ready` pass (health, errors, headers, theme tokens, verify gate).
 
 ---
 
