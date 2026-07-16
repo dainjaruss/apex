@@ -31,6 +31,7 @@ function statusBadgeClass(status: string, routingStage?: string) {
     status === "archived"
   )
     return "apex-badge-locked";
+  if (routingStage === "reporting_senior") return "apex-badge-reporting-senior";
   if (routingStage && routingStage !== "sailor") return "apex-badge-routing";
   if (status === "ready_for_review") return "apex-badge-review";
   return "apex-badge-draft";

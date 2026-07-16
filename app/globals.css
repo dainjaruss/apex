@@ -55,6 +55,71 @@
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
   --nav-active-glow: rgba(30, 64, 175, 0.1);
   --dashboard-card-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+
+  /* ── Semantic tokens (edit here to retune the whole UI) ── */
+  --focus-ring: rgba(37, 99, 235, 0.22);
+
+  --badge-draft-bg: rgba(37, 99, 235, 0.12);
+  --badge-draft-border: rgba(37, 99, 235, 0.35);
+  --badge-draft-text: #1d4ed8;
+
+  --badge-routing-bg: rgba(251, 191, 36, 0.28);
+  --badge-routing-border: rgba(217, 119, 6, 0.45);
+  --badge-routing-text: #92400e;
+
+  --badge-reporting-senior-bg: rgba(5, 150, 105, 0.14);
+  --badge-reporting-senior-border: rgba(5, 150, 105, 0.4);
+  --badge-reporting-senior-text: #047857;
+
+  --badge-review-bg: rgba(124, 58, 237, 0.12);
+  --badge-review-border: rgba(124, 58, 237, 0.35);
+  --badge-review-text: #6d28d9;
+
+  --badge-locked-bg: rgba(100, 116, 139, 0.14);
+  --badge-locked-border: rgba(100, 116, 139, 0.35);
+  --badge-locked-text: #475569;
+
+  --badge-amber-bg: rgba(251, 191, 36, 0.22);
+  --badge-amber-border: rgba(217, 119, 6, 0.4);
+  --badge-amber-text: #92400e;
+
+  --badge-emerald-bg: rgba(5, 150, 105, 0.14);
+  --badge-emerald-border: rgba(5, 150, 105, 0.38);
+  --badge-emerald-text: #047857;
+
+  --danger-bg: rgba(220, 38, 38, 0.1);
+  --danger-border: rgba(220, 38, 38, 0.32);
+  --danger-text: #b91c1c;
+
+  --success-solid: #059669;
+  --success-solid-hover: #047857;
+
+  --reference-bg: linear-gradient(
+    165deg,
+    #fffbeb 0%,
+    #fef3c7 48%,
+    #fde68a 100%
+  );
+  --reference-border: rgba(217, 119, 6, 0.35);
+  --reference-accent: #d97706;
+  --reference-shadow: 0 10px 28px rgba(180, 83, 9, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --reference-title: #78350f;
+  --reference-body: #422006;
+  --reference-muted: #92400e;
+  --reference-pill-bg: rgba(255, 255, 255, 0.55);
+  --reference-pill-border: rgba(217, 119, 6, 0.4);
+  --reference-pill-text: #b45309;
+  --reference-check-bg: rgba(255, 255, 255, 0.45);
+  --reference-check-border: rgba(5, 150, 105, 0.35);
+  --reference-check-title: #047857;
+  --reference-check-text: #14532d;
+  --reference-check-marker: #059669;
+
+  --btn-dashboard-bg: var(--primary);
+  --btn-dashboard-hover: var(--primary-hover);
+  --avatar-blue-from: #3b82f6;
+  --avatar-blue-to: #1d4ed8;
 }
 
 .dark {
@@ -89,6 +154,70 @@
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.22);
   --nav-active-glow: rgba(59, 130, 246, 0.12);
   --dashboard-card-bg: linear-gradient(165deg, #172038 0%, #0f1628 100%);
+
+  --focus-ring: rgba(34, 211, 238, 0.2);
+
+  --badge-draft-bg: rgba(59, 130, 246, 0.18);
+  --badge-draft-border: rgba(59, 130, 246, 0.45);
+  --badge-draft-text: #93c5fd;
+
+  --badge-routing-bg: rgba(251, 191, 36, 0.12);
+  --badge-routing-border: rgba(251, 191, 36, 0.35);
+  --badge-routing-text: #fcd34d;
+
+  --badge-reporting-senior-bg: rgba(16, 185, 129, 0.14);
+  --badge-reporting-senior-border: rgba(52, 211, 153, 0.4);
+  --badge-reporting-senior-text: #6ee7b7;
+
+  --badge-review-bg: rgba(168, 85, 247, 0.15);
+  --badge-review-border: rgba(168, 85, 247, 0.35);
+  --badge-review-text: #d8b4fe;
+
+  --badge-locked-bg: rgba(148, 163, 184, 0.12);
+  --badge-locked-border: rgba(148, 163, 184, 0.35);
+  --badge-locked-text: #cbd5e1;
+
+  --badge-amber-bg: rgba(251, 191, 36, 0.12);
+  --badge-amber-border: rgba(251, 191, 36, 0.35);
+  --badge-amber-text: #fcd34d;
+
+  --badge-emerald-bg: rgba(16, 185, 129, 0.12);
+  --badge-emerald-border: rgba(16, 185, 129, 0.35);
+  --badge-emerald-text: #6ee7b7;
+
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --danger-border: rgba(239, 68, 68, 0.35);
+  --danger-text: #fca5a5;
+
+  --success-solid: #059669;
+  --success-solid-hover: #047857;
+
+  --reference-bg: linear-gradient(
+    165deg,
+    #1e293b 0%,
+    #172033 55%,
+    #141b2e 100%
+  );
+  --reference-border: rgba(251, 191, 36, 0.28);
+  --reference-accent: #fbbf24;
+  --reference-shadow: 0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --reference-title: #fef3c7;
+  --reference-body: #f8fafc;
+  --reference-muted: #fcd34d;
+  --reference-pill-bg: rgba(251, 191, 36, 0.12);
+  --reference-pill-border: rgba(251, 191, 36, 0.35);
+  --reference-pill-text: #fde68a;
+  --reference-check-bg: rgba(16, 185, 129, 0.08);
+  --reference-check-border: rgba(52, 211, 153, 0.35);
+  --reference-check-title: #6ee7b7;
+  --reference-check-text: #ecfdf5;
+  --reference-check-marker: #34d399;
+
+  --btn-dashboard-bg: #3b82f6;
+  --btn-dashboard-hover: #2563eb;
+  --avatar-blue-from: #3b82f6;
+  --avatar-blue-to: #1d4ed8;
 }
 
 body {
@@ -154,7 +283,7 @@ body {
   }
   .apex-input:focus {
     border-color: var(--accent-cyan);
-    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
   .apex-input::placeholder {
     color: var(--subtle);
@@ -203,41 +332,41 @@ body {
 
   .apex-btn-danger {
     @apply apex-btn;
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #fca5a5;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger-text);
   }
   .apex-btn-danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.25);
+    background: color-mix(in srgb, var(--danger-bg) 70%, var(--destructive) 30%);
   }
 
   .apex-btn-success {
     @apply apex-btn text-white;
-    background: #059669;
+    background: var(--success-solid);
   }
   .apex-btn-success:hover:not(:disabled) {
-    background: #047857;
+    background: var(--success-solid-hover);
   }
 
   .apex-badge {
     @apply inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider;
     background: var(--accent-cyan-dim);
-    border: 1px solid rgba(34, 211, 238, 0.28);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
     color: var(--accent-cyan);
   }
 
   .apex-badge-amber {
     @apply apex-badge;
-    background: rgba(251, 191, 36, 0.12);
-    border-color: rgba(251, 191, 36, 0.35);
-    color: #fcd34d;
+    background: var(--badge-amber-bg);
+    border-color: var(--badge-amber-border);
+    color: var(--badge-amber-text);
   }
 
   .apex-badge-emerald {
     @apply apex-badge;
-    background: rgba(16, 185, 129, 0.12);
-    border-color: rgba(16, 185, 129, 0.35);
-    color: #6ee7b7;
+    background: var(--badge-emerald-bg);
+    border-color: var(--badge-emerald-border);
+    color: var(--badge-emerald-text);
   }
 
   .apex-section-title {
@@ -447,16 +576,20 @@ body {
 
   .apex-btn-dashboard {
     @apply apex-btn font-bold text-white;
-    background: #3b82f6;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    background: var(--btn-dashboard-bg);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--btn-dashboard-bg) 45%, transparent);
   }
   .apex-btn-dashboard:hover:not(:disabled) {
-    background: #2563eb;
+    background: var(--btn-dashboard-hover);
   }
 
   .apex-user-avatar {
     @apply rounded-full flex items-center justify-center font-bold text-white;
-    background: linear-gradient(145deg, #3b82f6 0%, #1d4ed8 100%);
+    background: linear-gradient(
+      145deg,
+      var(--avatar-blue-from) 0%,
+      var(--avatar-blue-to) 100%
+    );
     box-shadow:
       0 0 0 2px rgba(59, 130, 246, 0.35),
       0 4px 12px rgba(29, 78, 216, 0.45);
@@ -499,39 +632,112 @@ body {
 
   .apex-badge-draft {
     @apply apex-badge;
-    background: rgba(59, 130, 246, 0.18);
-    border-color: rgba(59, 130, 246, 0.45);
-    color: #93c5fd;
+    background: var(--badge-draft-bg);
+    border-color: var(--badge-draft-border);
+    color: var(--badge-draft-text);
   }
 
   .apex-badge-routing {
-    @apply apex-badge-amber;
+    @apply apex-badge;
+    background: var(--badge-routing-bg);
+    border-color: var(--badge-routing-border);
+    color: var(--badge-routing-text);
+  }
+
+  .apex-badge-reporting-senior {
+    @apply apex-badge;
+    background: var(--badge-reporting-senior-bg);
+    border-color: var(--badge-reporting-senior-border);
+    color: var(--badge-reporting-senior-text);
   }
 
   .apex-badge-locked {
     @apply apex-badge;
-    background: rgba(148, 163, 184, 0.12);
-    border-color: rgba(148, 163, 184, 0.35);
-    color: #cbd5e1;
+    background: var(--badge-locked-bg);
+    border-color: var(--badge-locked-border);
+    color: var(--badge-locked-text);
   }
 
   .apex-badge-review {
     @apply apex-badge;
-    background: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.35);
-    color: #d8b4fe;
+    background: var(--badge-review-bg);
+    border-color: var(--badge-review-border);
+    color: var(--badge-review-text);
+  }
+
+  /* BUPERS inline reference — sticky-note treatment */
+  .apex-reference-tip {
+    @apply sticky top-4 z-30 mb-6 rounded-xl p-4 transition-all duration-300;
+    background: var(--reference-bg);
+    border: 1px solid var(--reference-border);
+    border-left: 4px solid var(--reference-accent);
+    box-shadow: var(--reference-shadow);
+    transform: rotate(-0.2deg);
+  }
+
+  .apex-reference-tip__header {
+    @apply grid grid-cols-3 items-center gap-2 border-b pb-2.5 mb-3;
+    border-color: color-mix(in srgb, var(--reference-accent) 25%, transparent);
+  }
+
+  .apex-reference-tip__pill {
+    @apply justify-self-start flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider;
+    background: var(--reference-pill-bg);
+    border: 1px solid var(--reference-pill-border);
+    color: var(--reference-pill-text);
+  }
+
+  .apex-reference-tip__title {
+    @apply justify-self-center text-center text-sm font-extrabold tracking-wide;
+    color: var(--reference-title);
+  }
+
+  .apex-reference-tip__block {
+    @apply justify-self-end font-extrabold tracking-wider text-[10px] uppercase px-2 py-0.5 rounded border shadow-sm;
+    background: var(--reference-pill-bg);
+    border-color: var(--reference-pill-border);
+    color: var(--reference-pill-text);
+  }
+
+  .apex-reference-tip__excerpt {
+    @apply text-xs leading-relaxed italic font-normal;
+    color: var(--reference-body);
+  }
+
+  .apex-reference-tip__checklist {
+    @apply border-t md:border-t-0 md:border-l-2 pt-3 md:pt-0 md:pl-4 rounded-r-lg py-1 pr-2;
+    border-color: var(--reference-check-border);
+    background: var(--reference-check-bg);
+  }
+
+  .apex-reference-tip__checklist-title {
+    @apply text-[10px] font-black uppercase tracking-wider block mb-1.5 flex items-center gap-1;
+    color: var(--reference-check-title);
+  }
+
+  .apex-reference-tip__checklist ul {
+    @apply list-disc pl-4 space-y-1 text-xs font-medium;
+    color: var(--reference-check-text);
+  }
+
+  .apex-reference-tip__checklist li::marker {
+    color: var(--reference-check-marker);
+  }
+
+  .apex-reference-tip__icon {
+    color: var(--reference-muted);
   }
 
   /* Admin Analytics Dashboard */
   .admin-stat-card {
     @apply rounded-xl p-5 transition-all duration-200;
-    background: linear-gradient(165deg, #172038 0%, #0f1628 100%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    background: var(--dashboard-card-bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-card);
   }
   .admin-stat-card:hover {
-    border-color: rgba(255, 255, 255, 0.14);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border-strong));
+    box-shadow: var(--shadow-card);
     transform: translateY(-1px);
   }
 
@@ -539,7 +745,7 @@ body {
     @apply rounded-xl p-5;
     background: var(--card);
     border: 1px solid var(--border);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--shadow-card);
   }
 
   .admin-divider {
