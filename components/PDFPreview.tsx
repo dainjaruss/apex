@@ -86,9 +86,18 @@ export default function PDFPreview({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[500px] bg-slate-950/20 border border-slate-800 rounded-xl">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#608bb3] mb-4"></div>
-        <p className="text-xs text-slate-400 font-mono animate-pulse">
+      <div
+        className="apex-card flex flex-col items-center justify-center h-[500px]"
+        style={{ background: "var(--muted)" }}
+      >
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 mb-4"
+          style={{ borderColor: "var(--accent-cyan)" }}
+        />
+        <p
+          className="text-xs font-mono animate-pulse"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           Generating high-fidelity PDF canvas overlay...
         </p>
       </div>
@@ -109,16 +118,24 @@ export default function PDFPreview({
   }
 
   return (
-    <div className="flex flex-col h-[650px] bg-slate-900/40 rounded-xl border border-slate-800 overflow-hidden">
-      {/* Control bar */}
-      <div className="px-4 py-3 bg-slate-950/50 border-b border-slate-800 flex items-center justify-between">
-        <span className="text-xs font-mono text-slate-400">
+    <div className="apex-card flex flex-col h-[650px] overflow-hidden p-0">
+      <div
+        className="px-4 py-3 border-b flex items-center justify-between"
+        style={{
+          background: "var(--card-elevated)",
+          borderColor: "var(--border)",
+        }}
+      >
+        <span
+          className="text-xs font-mono"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           Document Output: 2 Pages (Letter Size)
         </span>
         {allowDownload ? (
           <button
             onClick={handleDownload}
-            className="px-3.5 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition flex items-center gap-1.5 shadow"
+            className="apex-btn-primary flex items-center gap-1.5"
           >
             <svg
               className="w-3.5 h-3.5"

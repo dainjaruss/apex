@@ -49,7 +49,7 @@ export function ReportBanner({
             <span className="apex-badge-amber">{stage}</span>
           )}
         </div>
-        <h2 className="text-2xl font-bold text-white">
+        <h2 className="text-2xl font-bold apex-heading">
           {evaluation.member_name}
         </h2>
         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -92,7 +92,7 @@ export function ReportBanner({
         <Stat
           label="Promotion Rec"
           value={evaluation.promotion_recommendation || "NOB"}
-          accent="text-white text-sm"
+          accent="apex-heading text-sm"
         />
       </div>
     </div>

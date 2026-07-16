@@ -9,7 +9,7 @@ export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
   return (
     <div className="glass-panel border border-slate-800 rounded-xl p-6 space-y-6">
       <div>
-        <h3 className="text-base font-bold text-white flex items-center gap-2">
+        <h3 className="text-base font-bold apex-heading flex items-center gap-2">
           <span className="text-[#3e6e99]">✦</span> Record Change History &
           Audit Logs
         </h3>
