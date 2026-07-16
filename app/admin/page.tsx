@@ -150,7 +150,7 @@ export default function AdminPage() {
       </div>
 
       <div className="apex-card p-4 mb-6 space-y-2">
-        <h3 className="apex-section-title">Role permissions reference</h3>
+        <h2 className="apex-section-title">Role permissions reference</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {ALL_ROLES.map((role) => (
             <div

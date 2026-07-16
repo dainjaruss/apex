@@ -85,7 +85,17 @@ function LandingFeatures() {
     },
   ];
   return (
-    <div className="grid md:grid-cols-3 gap-6 mt-20 w-full">
+    <section
+      className="mt-20 w-full"
+      aria-labelledby="landing-features-heading"
+    >
+      <h2
+        id="landing-features-heading"
+        className="text-2xl md:text-3xl font-bold apex-heading text-center mb-8"
+      >
+        Why APEX
+      </h2>
+      <div className="grid md:grid-cols-3 gap-6">
       {features.map((f) => (
         <div
           key={f.n}
@@ -94,6 +104,7 @@ function LandingFeatures() {
           <div
             className="text-2xl font-bold"
             style={{ color: "var(--accent-cyan)" }}
+            aria-hidden
           >
             {f.n}
           </div>
@@ -106,7 +117,8 @@ function LandingFeatures() {
           </p>
         </div>
       ))}
-    </div>
+      </div>
+    </section>
   );
 }
 
