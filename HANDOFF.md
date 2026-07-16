@@ -46,7 +46,7 @@ Ship the **post-capstone enterprise UI** for APEX: light/dark themes, production
 
 ## Untouched scope (explicitly not done)
 
-- **P1 review fixes** (see Open risks) — not implemented
+- **P1 review fixes** — addressed in follow-up commit after handoff (see git log after `1cdd8b1`)
 - **Register**, **landing `/`**, **admin** analytics — not restyled to match enterprise mockups
 - **Merge / land** — PR open; no merge to `main`
 - **`/srv/apex` (main clone)** — may still be **1 commit ahead** (`d27e7a2` theme work) **not** on `epic/enterprise-ui`; do not assume parity between clones

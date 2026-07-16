@@ -279,7 +279,12 @@ export default function AppShell({
         </main>
       </div>
 
-      <MobileTabBar tabs={defaultMobileTabs({ canGroups: !!canGroups })} />
+      <MobileTabBar
+        tabs={defaultMobileTabs({
+          canGroups: !!canGroups,
+          canAdmin: !!isAdmin,
+        })}
+      />
     </div>
   );
 }

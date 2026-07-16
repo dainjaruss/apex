@@ -61,6 +61,25 @@ const STEPS = [
 
 const GUIDELINES_PREF_KEY = "apex:show-field-guidelines";
 
+const RAIL_ISSUE_LIMIT = 6;
+
+/** Maps validation issue fields to wizard step index (0–3). */
+function issueAppliesToStep(field: string | undefined, step: number): boolean {
+  const f = field ?? "";
+  if (step === 1) return f.startsWith("trait_grades");
+  if (step === 2) return f === "comments";
+  if (step === 3) {
+    return (
+      f.startsWith("block_values") ||
+      f.includes("signature") ||
+      /^block_(42|49|50|51|52)/.test(f)
+    );
+  }
+  if (f.startsWith("trait_grades") || f === "comments") return false;
+  if (f.startsWith("block_values") || f.includes("signature")) return false;
+  return true;
+}
+
 export default function EvaluationForm({
   initialData,
   onSave,
@@ -343,10 +362,17 @@ export default function EvaluationForm({
             "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
         };
 
-  const errorIssues = issues.filter((i) => i.severity === "error");
-  const warnIssues = issues.filter(
-    (i) => i.severity === "warning" || !i.severity,
-  );
+  const errorIssues = issues
+    .filter((i) => i.severity === "error")
+    .filter((i) => issueAppliesToStep(i.field, currentStep));
+  const warnIssues = issues
+    .filter((i) => i.severity === "warning" || !i.severity)
+    .filter((i) => issueAppliesToStep(i.field, currentStep));
+  const issuesOnOtherSteps = issues.filter(
+    (i) => !issueAppliesToStep(i.field, currentStep),
+  ).length;
+  const hiddenErrorCount = Math.max(0, errorIssues.length - RAIL_ISSUE_LIMIT);
+  const hiddenWarnCount = Math.max(0, warnIssues.length - RAIL_ISSUE_LIMIT);
 
   return (
     <GuidelinesVisibilityContext.Provider value={showGuidelines}>
@@ -555,20 +581,31 @@ export default function EvaluationForm({
             </h3>
             {errorIssues.length === 0 && warnIssues.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--success)" }}>
-                ✓ No active policy issues on this section
+                ✓ No policy issues on this section
+                {issuesOnOtherSteps > 0 && (
+                  <span style={{ color: "var(--muted-foreground)" }}>
+                    {" "}
+                    ({issuesOnOtherSteps} on other sections)
+                  </span>
+                )}
               </p>
             ) : revealAllErrors ? (
               <ul className="space-y-2 text-xs">
-                {errorIssues.slice(0, 6).map((issue, i) => (
+                {errorIssues.slice(0, RAIL_ISSUE_LIMIT).map((issue, i) => (
                   <li key={`e-${i}`} style={{ color: "var(--destructive)" }}>
                     {issue.message}
                   </li>
                 ))}
-                {warnIssues.slice(0, 6).map((issue, i) => (
+                {warnIssues.slice(0, RAIL_ISSUE_LIMIT).map((issue, i) => (
                   <li key={`w-${i}`} style={{ color: "var(--accent-gold)" }}>
                     ⚠ {issue.message}
                   </li>
                 ))}
+                {(hiddenErrorCount > 0 || hiddenWarnCount > 0) && (
+                  <li style={{ color: "var(--subtle)" }}>
+                    +{hiddenErrorCount + hiddenWarnCount} more on this section
+                  </li>
+                )}
               </ul>
             ) : (
               <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
@@ -585,6 +622,9 @@ export default function EvaluationForm({
                     {warnIssues.length === 1 ? "" : "s"}
                   </span>
                 )}
+                {" on this section"}
+                {issuesOnOtherSteps > 0 &&
+                  ` · ${issuesOnOtherSteps} on other sections`}
                 {" — run Verify Rules for details"}
               </p>
             )}

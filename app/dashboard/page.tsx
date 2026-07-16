@@ -7,6 +7,8 @@ import { useEvaluations } from "@/hooks/useEvaluations";
 import { createBrowserClient } from "@/lib/supabaseClient";
 import AppShell from "@/components/layout/AppShell";
 import UserAvatar, { getMemberInitials } from "@/components/brand/UserAvatar";
+import { canPerformAction } from "@/lib/permissions";
+import type { Profile } from "@/types";
 
 const supabase = createBrowserClient();
 
@@ -114,12 +116,12 @@ function evalCategory(
 function EvalQueueTable({
   loading,
   rows,
-  profileId,
+  profile,
   emptyMessage,
 }: {
   loading: boolean;
   rows: any[];
-  profileId?: string;
+  profile?: Profile | null;
   emptyMessage: string;
 }) {
   const router = useRouter();
@@ -145,8 +147,8 @@ function EvalQueueTable({
   }
 
   return (
-    <div className="apex-card overflow-hidden">
-      <table className="apex-data-table">
+    <div className="apex-card overflow-x-auto">
+      <table className="apex-data-table min-w-[720px]">
         <thead>
           <tr>
             <th>Sailor</th>
@@ -162,8 +164,9 @@ function EvalQueueTable({
           {rows.map((ev) => {
             const badgeClass = statusBadgeClass(ev.status, ev.routing_stage);
             const badgeText = statusLabel(ev.status, ev.routing_stage);
-            const cat = evalCategory(ev, profileId);
-            const canEdit = cat === "drafts" || cat === "action";
+            const canEdit =
+              !!profile &&
+              canPerformAction(profile, "edit_evaluation", ev);
             return (
               <tr key={ev.id}>
                 <td>
@@ -343,7 +346,7 @@ export default function DashboardPage() {
         />
         <DashboardStat label="My drafts" value={drafts.length} />
         <DashboardStat label="Completed / locked" value={finalized.length} />
-        <DashboardStat label="Total in queue" value={processedEvals.length} />
+        <DashboardStat label="Loaded reports" value={evaluations.length} />
       </div>
 
       <div className="apex-card p-3 mb-4 flex flex-wrap gap-2 items-center">
@@ -360,6 +363,7 @@ export default function DashboardPage() {
               key={key}
               type="button"
               onClick={() => setQueueTab(key)}
+              aria-pressed={queueTab === key}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
                 queueTab === key
                   ? "bg-[var(--card)] shadow-sm"
@@ -399,7 +403,7 @@ export default function DashboardPage() {
       <EvalQueueTable
         loading={loading}
         rows={processedEvals}
-        profileId={profile?.id}
+        profile={profile}
         emptyMessage="No evaluations match your filters."
       />
     </AppShell>

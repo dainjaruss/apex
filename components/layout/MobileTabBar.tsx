@@ -6,6 +6,7 @@ import {
   IconDashboard,
   IconFilePlus,
   IconFolder,
+  IconShield,
   IconUser,
   NavIconComponent,
 } from "@/components/layout/NavIcons";
@@ -58,6 +59,7 @@ export default function MobileTabBar({ tabs }: { tabs: Tab[] }) {
 
 export function defaultMobileTabs(options: {
   canGroups?: boolean;
+  canAdmin?: boolean;
 }): Tab[] {
   const tabs: Tab[] = [
     {
@@ -79,6 +81,14 @@ export function defaultMobileTabs(options: {
       label: "Groups",
       icon: IconFolder,
       match: (p) => p.startsWith("/summary-groups"),
+    });
+  }
+  if (options.canAdmin) {
+    tabs.push({
+      href: "/admin",
+      label: "Admin",
+      icon: IconShield,
+      match: (p) => p.startsWith("/admin"),
     });
   }
   tabs.push({
