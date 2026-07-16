@@ -86,6 +86,33 @@ const E2E_USERS = [
     dodId: "5678901234",
     rank: "CAPT",
   },
+  {
+    email: "it1.williams@franklyn.dev",
+    role: "Sailor",
+    firstName: "SARAH",
+    lastName: "WILLIAMS",
+    middleInitial: "K",
+    dodId: "6789012345",
+    rank: "IT1",
+  },
+  {
+    email: "itcs.rodriguez@franklyn.dev",
+    role: "Senior Rater",
+    firstName: "MARCOS",
+    lastName: "RODRIGUEZ",
+    middleInitial: "E",
+    dodId: "7890123456",
+    rank: "ITCS",
+  },
+  {
+    email: "lt.chen@franklyn.dev",
+    role: "Reporting Senior",
+    firstName: "DAVID",
+    lastName: "CHEN",
+    middleInitial: "T",
+    dodId: "8901234567",
+    rank: "LT",
+  },
 ] as const;
 
 const E2E_MEMBER_NAMES = [
@@ -93,6 +120,9 @@ const E2E_MEMBER_NAMES = [
   "DOE, JOHN A (RECYCLE)",
   "SMITH, BETTY L (CHIEF)",
   "JONES, CARL R (OFFICER)",
+  "WILLIAMS, SARAH K (IT1)",
+  "RODRIGUEZ, MARCOS E (ITCS)",
+  "CHEN, DAVID T (LT)",
 ];
 
 async function findUserByEmail(email: string) {
@@ -234,9 +264,80 @@ async function seedEvals(users: Record<string, string>) {
     retention: undefined,
   });
 
+  const williamsId = users.it1Williams || users.sailor;
+  const rodriguezId = users.itcsRodriguez || users.seniorRater;
+  const chenId = users.ltChen || users.reportingSenior;
+
+  const williamsDraft = buildValidEval({
+    created_by: williamsId,
+    current_holder_id: raterId,
+    previous_holder_id: williamsId,
+    routing_stage: "rater",
+    participants: [williamsId, raterId],
+    member_name: "WILLIAMS, SARAH K (IT1)",
+    form_definition_id: FORM_DEFINITION_ID,
+    report_type: "EVAL",
+    grade_rate: "IT1",
+  });
+
+  const rodriguezDraft = buildValidEval({
+    created_by: rodriguezId,
+    current_holder_id: rodriguezId,
+    previous_holder_id: null,
+    routing_stage: "sailor",
+    participants: [rodriguezId],
+    member_name: "RODRIGUEZ, MARCOS E (ITCS)",
+    form_definition_id: "c1616270-cafe-4b08-9df2-5d8f28d8b4cd",
+    report_type: "CHIEFEVAL",
+    grade_rate: "ITCS",
+    trait_grades: {
+      deckplate_leadership: "4.0",
+      professionalism: "5.0",
+      mission_accomplishment: "4.0",
+      human_development: "5.0",
+      eo_climate: "4.0",
+      teamwork: "4.0",
+      leadership: "5.0",
+    },
+    trait_average: 4.43,
+    retention: undefined,
+  });
+
+  const chenDraft = buildValidEval({
+    created_by: chenId,
+    current_holder_id: chenId,
+    previous_holder_id: null,
+    routing_stage: "sailor",
+    participants: [chenId],
+    member_name: "CHEN, DAVID T (LT)",
+    form_definition_id: "f1610020-cafe-4b08-9df2-5d8f28d8b4cd",
+    report_type: "FITREP",
+    grade_rate: "LT",
+    trait_grades: {
+      knowledge: "4.0",
+      work: "4.0",
+      eo: "4.0",
+      bearing: "4.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+      tactical_performance: "5.0",
+    },
+    trait_average: 4.13,
+    retention: undefined,
+  });
+
   const { data: inserted, error } = await admin
     .from("evaluations")
-    .insert([routingDraft, recycleDraft, chiefEvalDraft, fitrepDraft])
+    .insert([
+      routingDraft,
+      recycleDraft,
+      chiefEvalDraft,
+      fitrepDraft,
+      williamsDraft,
+      rodriguezDraft,
+      chenDraft,
+    ])
     .select("id, member_name");
   if (error) throw new Error(`evaluations insert: ${error.message}`);
 
@@ -250,7 +351,16 @@ async function seedEvals(users: Record<string, string>) {
   const fitrep = inserted!.find(
     (e) => e.member_name === "JONES, CARL R (OFFICER)",
   );
-  if (!routing || !recycle || !chiefEval || !fitrep) {
+  const williamsEval = inserted!.find(
+    (e) => e.member_name === "WILLIAMS, SARAH K (IT1)",
+  );
+  const rodriguezChiefEval = inserted!.find(
+    (e) => e.member_name === "RODRIGUEZ, MARCOS E (ITCS)",
+  );
+  const chenFitrep = inserted!.find(
+    (e) => e.member_name === "CHEN, DAVID T (LT)",
+  );
+  if (!routing || !recycle || !chiefEval || !fitrep || !williamsEval || !rodriguezChiefEval || !chenFitrep) {
     throw new Error("Failed to locate seeded eval IDs");
   }
 
@@ -265,6 +375,9 @@ async function seedEvals(users: Record<string, string>) {
           recycle: recycle.id,
           chiefEval: chiefEval.id,
           fitrep: fitrep.id,
+          williamsEval: williamsEval.id,
+          rodriguezChiefEval: rodriguezChiefEval.id,
+          chenFitrep: chenFitrep.id,
         },
         password: process.env.E2E_TEST_PASSWORD || password,
         seededAt: new Date().toISOString(),
@@ -277,6 +390,9 @@ async function seedEvals(users: Record<string, string>) {
   console.log(`  recycle eval: ${recycle.id}`);
   console.log(`  chiefEval eval: ${chiefEval.id}`);
   console.log(`  fitrep eval: ${fitrep.id}`);
+  console.log(`  williams eval: ${williamsEval.id}`);
+  console.log(`  rodriguez chiefEval: ${rodriguezChiefEval.id}`);
+  console.log(`  chen fitrep: ${chenFitrep.id}`);
   console.log(`  wrote ${idsPath}`);
 }
 
@@ -290,13 +406,14 @@ async function main() {
   const normalized: Record<string, string> = {};
   for (const u of E2E_USERS) {
     const id = await upsertUser(u);
-    const key =
-      u.role === "Senior Rater"
-        ? "seniorRater"
-        : u.role === "Reporting Senior"
-          ? "reportingSenior"
-          : u.role.toLowerCase();
-    normalized[key] = id;
+    if (u.email === "sailor@franklyn.dev") normalized.sailor = id;
+    else if (u.email === "rater@franklyn.dev") normalized.rater = id;
+    else if (u.email === "seniorrater@franklyn.dev") normalized.seniorRater = id;
+    else if (u.email === "reportingsenior@franklyn.dev") normalized.reportingSenior = id;
+    else if (u.email === "admin@franklyn.dev") normalized.admin = id;
+    else if (u.email === "it1.williams@franklyn.dev") normalized.it1Williams = id;
+    else if (u.email === "itcs.rodriguez@franklyn.dev") normalized.itcsRodriguez = id;
+    else if (u.email === "lt.chen@franklyn.dev") normalized.ltChen = id;
   }
 
   console.log("Evaluations:");
