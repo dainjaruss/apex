@@ -107,7 +107,26 @@ Every Summary Group is pre-populated with exactly **4 competing Sailors** repres
 
 ---
 
-## 4. How to Stress Test Summary Groups & Forced Distribution
+## 4. Core E2E Test Subjects & Seeded Evaluations (`scripts/seed-e2e.ts`)
+
+In addition to the 49 stress test users above, running `npm run db:seed` (`scripts/seed-e2e.ts`) populates the core E2E test subjects and test fixtures used for automated Playwright suites, form inspection, and manual testing across the three Navy evaluation report formats (`EVAL`, `CHIEFEVAL`, and `FITREP`):
+
+| Email (`@franklyn.dev`) | Name & Paygrade | Role | Seeded Evaluation Fixture | Form / Report Type |
+| :--- | :--- | :--- | :--- | :--- |
+| `sailor@franklyn.dev` | JOHN A. DOE (`PO2` / E-5) | Sailor | `DOE, JOHN A` & `DOE, JOHN A (RECYCLE)` | NAVPERS 1616/26 (`EVAL`) |
+| `rater@franklyn.dev` | ALAN M. RAY (`PO1` / E-6) | Rater | Rater Custody Holder (`DOE, JOHN A (RECYCLE)`) | NAVPERS 1616/26 (`EVAL`) |
+| `seniorrater@franklyn.dev` | BETTY L. SMITH (`CPO` / E-7) | Senior Rater | `SMITH, BETTY L (CHIEF)` | NAVPERS 1616/27 (`CHIEFEVAL`) |
+| `reportingsenior@franklyn.dev` | CARL R. JONES (`CDR` / O-5) | Reporting Senior | `JONES, CARL R (OFFICER)` | NAVPERS 1610/2 (`FITREP`) |
+| `admin@franklyn.dev` | APEX X. ADMIN (`CAPT` / O-6) | Admin | System Administrator Oversight | All Forms |
+| `it1.williams@franklyn.dev` | SARAH K. WILLIAMS (`IT1` / E-6) | Sailor | `WILLIAMS, SARAH K (IT1)` | NAVPERS 1616/26 (`EVAL`) |
+| `itcs.rodriguez@franklyn.dev` | MARCOS E. RODRIGUEZ (`ITCS` / E-8) | Senior Rater | `RODRIGUEZ, MARCOS E (ITCS)` | NAVPERS 1616/27 (`CHIEFEVAL`) |
+| `lt.chen@franklyn.dev` | DAVID T. CHEN (`LT` / O-3) | Reporting Senior | `CHEN, DAVID T (LT)` | NAVPERS 1610/2 (`FITREP`) |
+
+All core E2E user IDs and evaluation fixture UUIDs are output to `tests/fixtures/e2e-ids.json` on every seed run.
+
+---
+
+## 5. How to Stress Test Summary Groups & Forced Distribution
 
 1. **Test Forced Distribution Quotas:**
    - Log in as `co.enterprise@franklyn.dev` (Reporting Senior) using password `NavyEval!2026`.

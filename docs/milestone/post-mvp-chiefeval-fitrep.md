@@ -135,8 +135,9 @@ Extending APEX to cover these forms completes the enlisted-to-officer continuum 
 
 **`scripts/seed-e2e.ts`**
 
-- Added CHIEFEVAL test records for Chief users.
-- Added FITREP test records for Reporting Senior users.
+- Added CHIEFEVAL test records (`rodriguezChiefEval` for ITCS Marcos E. Rodriguez, E-8, `itcs.rodriguez@franklyn.dev`).
+- Added FITREP test records (`chenFitrep` for LT David T. Chen, O-3, `lt.chen@franklyn.dev`).
+- Added additional EVAL test records (`williamsEval` for IT1 Sarah K. Williams, E-6, `it1.williams@franklyn.dev`).
 
 ### Phase 9 — Validation Engine Substantiation ✅
 

@@ -2,7 +2,14 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 export type E2ERole =
-  "sailor" | "rater" | "seniorRater" | "reportingSenior" | "admin";
+  | "sailor"
+  | "rater"
+  | "seniorRater"
+  | "reportingSenior"
+  | "admin"
+  | "it1Williams"
+  | "itcsRodriguez"
+  | "ltChen";
 
 export interface E2EIds {
   users: Record<E2ERole, string>;
@@ -11,6 +18,9 @@ export interface E2EIds {
     recycle: string;
     chiefEval?: string;
     fitrep?: string;
+    williamsEval?: string;
+    rodriguezChiefEval?: string;
+    chenFitrep?: string;
   };
   password: string;
   seededAt: string;
@@ -22,6 +32,9 @@ const ROLE_EMAIL: Record<E2ERole, string> = {
   seniorRater: "seniorrater@franklyn.dev",
   reportingSenior: "reportingsenior@franklyn.dev",
   admin: "admin@franklyn.dev",
+  it1Williams: "it1.williams@franklyn.dev",
+  itcsRodriguez: "itcs.rodriguez@franklyn.dev",
+  ltChen: "lt.chen@franklyn.dev",
 };
 
 export function loadE2EIds(): E2EIds {
