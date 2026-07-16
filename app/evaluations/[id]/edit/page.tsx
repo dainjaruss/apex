@@ -136,11 +136,22 @@ export default function EditEvaluationPage() {
   return (
     <AppShell
       profile={profile}
-      title="Edit Evaluation Draft"
-      subtitle="Modify performance comments or trait grades — validated in real time"
-      badge="Edit EVAL"
-      maxWidth="6xl"
+      maxWidth="full"
+      contentHeader={false}
+      breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Edit evaluation" },
+      ]}
     >
+      <div className="mb-4">
+        <h1 className="apex-page-title">
+          {evaluation.member_name || "Edit evaluation"}
+        </h1>
+        <p className="apex-page-subtitle">
+          {evaluation.report_type || "EVAL"} · UIC {evaluation.uic || "—"} ·
+          Period {evaluation.period_from} – {evaluation.period_to}
+        </p>
+      </div>
       <EvaluationForm
         initialData={evaluation}
         onSave={handleSave}

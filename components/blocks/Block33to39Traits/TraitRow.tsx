@@ -6,7 +6,7 @@ import TraitStandardPanel from "@/components/blocks/Block33to39Traits/TraitStand
 import { TRAIT_STANDARDS, TraitKey } from "@/lib/traitStandards";
 
 type TraitRowProps = {
-  traitKey: keyof Evaluation["trait_grades"];
+  traitKey: string;
   label: string;
   value: string;
   error?: string;

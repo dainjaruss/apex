@@ -11,6 +11,7 @@ import {
 } from "@/lib/schemas";
 import ApexLogo from "@/components/brand/ApexLogo";
 import NavyBranding from "@/components/brand/NavyBranding";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 type FieldErrors = LoginFieldErrors;
 
@@ -222,17 +223,20 @@ export default function LoginPage() {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center p-4"
+      className="relative flex min-h-screen items-center justify-center p-4"
       style={{ background: "var(--background)" }}
     >
+      <div className="absolute top-4 right-4">
+        <ThemeToggle compact />
+      </div>
       <div className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold text-white tracking-wide">
-              APEX Portal
+            <h2 className="text-2xl font-bold apex-heading tracking-wide">
+              Sign in
             </h2>
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
               Enter credentials to access evaluation portal

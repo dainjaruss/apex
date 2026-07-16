@@ -9,7 +9,6 @@ import {
   IconShield,
   IconUser,
   IconLogOut,
-  IconChevronRight,
   NavIconComponent,
 } from "@/components/layout/NavIcons";
 import ApexLogo from "@/components/brand/ApexLogo";
@@ -17,6 +16,10 @@ import NavyBranding from "@/components/brand/NavyBranding";
 import UserAvatar from "@/components/brand/UserAvatar";
 import { signOut } from "@/lib/auth";
 import { hasPermission, canManageSummaryGroups } from "@/lib/permissions";
+import ThemeToggle from "@/components/theme/ThemeToggle";
+import MobileTabBar, {
+  defaultMobileTabs,
+} from "@/components/layout/MobileTabBar";
 
 export type ShellProfile = {
   id?: string;
@@ -26,6 +29,14 @@ export type ShellProfile = {
   preferred_role?: string;
 };
 
+export type BreadcrumbItem = { label: string; href?: string };
+
+export type TopbarSearchProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+};
+
 interface AppShellProps {
   children: React.ReactNode;
   profile?: ShellProfile | null;
@@ -33,13 +44,18 @@ interface AppShellProps {
   subtitle?: string;
   badge?: string;
   headerActions?: React.ReactNode;
-  maxWidth?: "5xl" | "6xl" | "7xl";
+  breadcrumbs?: BreadcrumbItem[];
+  topbarSearch?: TopbarSearchProps;
+  maxWidth?: "5xl" | "6xl" | "7xl" | "full";
+  /** When true, page title renders inside main content band (enterprise default) */
+  contentHeader?: boolean;
 }
 
 const WIDTH: Record<NonNullable<AppShellProps["maxWidth"]>, string> = {
   "5xl": "max-w-5xl",
   "6xl": "max-w-6xl",
   "7xl": "max-w-7xl",
+  full: "max-w-none",
 };
 
 export default function AppShell({
@@ -49,7 +65,10 @@ export default function AppShell({
   subtitle,
   badge,
   headerActions,
-  maxWidth = "6xl",
+  breadcrumbs,
+  topbarSearch,
+  maxWidth = "7xl",
+  contentHeader = true,
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -62,26 +81,30 @@ export default function AppShell({
     label: string;
     icon: NavIconComponent;
     match: (p: string) => boolean;
+    group: "ops" | "account";
   }[] = [
     {
       href: "/dashboard",
       label: "Dashboard",
       icon: IconDashboard,
       match: (p) => p === "/dashboard",
+      group: "ops",
     },
     {
       href: "/evaluations/new",
-      label: "New Evaluation",
+      label: "New evaluation",
       icon: IconFilePlus,
       match: (p) => p === "/evaluations/new",
+      group: "ops",
     },
   ];
   if (canGroups) {
     nav.push({
       href: "/summary-groups",
-      label: "Summary Groups",
+      label: "Summary groups",
       icon: IconFolder,
       match: (p) => p.startsWith("/summary-groups"),
+      group: "ops",
     });
   }
   if (isAdmin) {
@@ -90,6 +113,7 @@ export default function AppShell({
       label: "Admin",
       icon: IconShield,
       match: (p) => p.startsWith("/admin"),
+      group: "ops",
     });
   }
 
@@ -98,13 +122,15 @@ export default function AppShell({
     router.push("/login");
   };
 
+  const opsNav = nav.filter((n) => n.group === "ops");
+
   return (
     <div
-      className="flex min-h-screen"
+      className="flex min-h-screen pb-16 lg:pb-0"
       style={{ background: "var(--background)", color: "var(--foreground)" }}
     >
       <aside
-        className="hidden lg:flex w-60 shrink-0 flex-col border-r"
+        className="apex-sidebar hidden lg:flex w-60 shrink-0 flex-col border-r"
         style={{
           background: "var(--sidebar)",
           borderColor: "var(--sidebar-border)",
@@ -121,29 +147,35 @@ export default function AppShell({
                 APEX
               </div>
               <div className="text-[10px] uppercase tracking-[0.22em] gold-accent font-semibold">
-                Naval EVAL
+                Eval workflow
               </div>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-0.5">
-          {nav.map((item) => {
-            const active = item.match(pathname);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`apex-nav-item ${active ? "apex-nav-item-active" : ""}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-                {active && <IconChevronRight className="ml-auto opacity-60" />}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="flex-1 p-3 space-y-4">
+          <div>
+            <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+              Operations
+            </div>
+            <nav className="space-y-0.5">
+              {opsNav.map((item) => {
+                const active = item.match(pathname);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`apex-nav-item ${active ? "apex-nav-item-active" : ""}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
 
         <div className="px-3 pb-2">
           <NavyBranding sidebar />
@@ -154,28 +186,14 @@ export default function AppShell({
           style={{ borderColor: "var(--sidebar-border)" }}
         >
           {profile && (
-            <Link
-              href="/profile"
-              className={`flex items-center gap-3 px-2 py-2 mb-1 rounded-lg transition-colors hover:bg-white/[0.04] ${pathname === "/profile" ? "ring-1 ring-cyan-500/30" : ""}`}
-            >
-              <UserAvatar
-                firstName={profile.first_name}
-                lastName={profile.last_name}
-                size="md"
-                plain
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-white truncate">
-                  {profile.navy_rank} {profile.last_name}
-                </div>
-                <div
-                  className="text-[11px] truncate capitalize"
-                  style={{ color: "var(--subtle)" }}
-                >
-                  {profile.preferred_role?.replace(/_/g, " ")}
-                </div>
-              </div>
-            </Link>
+            <div className="px-2 py-2 mb-1 text-[11px] text-white/50 truncate">
+              {profile.navy_rank} {profile.last_name}
+              {profile.preferred_role && (
+                <span className="block capitalize text-white/35">
+                  {profile.preferred_role.replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
           )}
           <Link
             href="/profile"
@@ -190,66 +208,78 @@ export default function AppShell({
             className="apex-nav-item w-full text-left"
           >
             <IconLogOut className="h-4 w-4" />
-            Sign Out
+            Sign out
           </button>
         </div>
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0">
         <header
-          className="lg:hidden flex items-center justify-between px-4 py-3 border-b"
+          className="sticky top-0 z-30 flex flex-wrap items-center gap-3 px-4 sm:px-6 py-3 border-b"
           style={{ borderColor: "var(--border)", background: "var(--card)" }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 lg:hidden">
             <ApexLogo size="sm" />
-            <span className="font-extrabold text-white">APEX</span>
+            <span className="font-extrabold apex-heading text-sm">APEX</span>
           </div>
-          <div className="flex items-center gap-2">
-            {profile && (
-              <UserAvatar
-                firstName={profile.first_name}
-                lastName={profile.last_name}
-                size="sm"
-                plain
-              />
-            )}
-            <Link href="/dashboard" className="apex-btn-ghost px-2 py-1.5">
-              Home
-            </Link>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="apex-btn-ghost px-2 py-1.5"
+
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <nav
+              className="hidden sm:flex flex-1 min-w-0 text-sm gap-1 items-center"
+              aria-label="Breadcrumb"
+              style={{ color: "var(--muted-foreground)" }}
             >
-              Out
-            </button>
+              {breadcrumbs.map((crumb, i) => (
+                <span key={`${crumb.label}-${i}`} className="flex items-center gap-1">
+                  {i > 0 && <span className="opacity-50">/</span>}
+                  {crumb.href ? (
+                    <Link
+                      href={crumb.href}
+                      className="hover:underline"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <strong style={{ color: "var(--heading)" }}>{crumb.label}</strong>
+                  )}
+                </span>
+              ))}
+            </nav>
+          )}
+
+          {topbarSearch && (
+            <input
+              type="search"
+              className="apex-topbar-search flex-1 sm:flex-none sm:min-w-[220px]"
+              placeholder={topbarSearch.placeholder ?? "Search…"}
+              value={topbarSearch.value}
+              onChange={(e) => topbarSearch.onChange(e.target.value)}
+              aria-label="Search"
+            />
+          )}
+
+          <div className="flex items-center gap-2 ml-auto">
+            <ThemeToggle compact />
+            {headerActions}
           </div>
         </header>
-
-        {(title || headerActions) && (
-          <div
-            className="px-6 py-5 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-            style={{ borderColor: "var(--border)", background: "var(--card)" }}
-          >
-            <div>
-              {badge && <span className="apex-badge mb-2">{badge}</span>}
-              {title && <h1 className="apex-page-title">{title}</h1>}
-              {subtitle && <p className="apex-page-subtitle">{subtitle}</p>}
-            </div>
-            {headerActions && (
-              <div className="flex flex-wrap items-center gap-2">
-                {headerActions}
-              </div>
-            )}
-          </div>
-        )}
 
         <main
           className={`flex-1 w-full mx-auto px-4 sm:px-6 py-6 ${WIDTH[maxWidth]}`}
         >
+          {contentHeader && (title || subtitle || badge) && (
+            <div className="mb-6">
+              {badge && <span className="apex-badge mb-2">{badge}</span>}
+              {title && <h1 className="apex-page-title">{title}</h1>}
+              {subtitle && <p className="apex-page-subtitle">{subtitle}</p>}
+            </div>
+          )}
           {children}
         </main>
       </div>
+
+      <MobileTabBar tabs={defaultMobileTabs({ canGroups: !!canGroups })} />
     </div>
   );
 }

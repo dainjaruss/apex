@@ -50,15 +50,7 @@ export interface Evaluation {
   uic: string;
   ship_station: string;
   promotion_status: "Regular" | "Frocked" | "Selected" | "Spot" | string;
-  trait_grades: {
-    knowledge?: string; // '1.0' - '5.0' or 'NOB'
-    work?: string;
-    eo?: string;
-    bearing?: string;
-    accomplishment?: string;
-    teamwork?: string;
-    leadership?: string;
-  };
+  trait_grades: Record<string, string | undefined>;
   trait_average?: number;
   // Block 50 Summary Group Average — computed at render time from the member's summary
   // group (average of the members' individual trait averages). Transient: attached to the

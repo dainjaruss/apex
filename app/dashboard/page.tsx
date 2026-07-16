@@ -20,6 +20,8 @@ const STAGE_LABEL: Record<string, string> = {
   locked: "Locked",
 };
 
+type QueueTab = "all" | "action" | "drafts" | "finalized";
+
 function statusBadgeClass(status: string, routingStage?: string) {
   if (
     routingStage === "locked" ||
@@ -39,6 +41,16 @@ function statusLabel(status: string, routingStage?: string) {
   return status.replace(/_/g, " ");
 }
 
+function formatUpdated(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  if (diff < 86_400_000) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return d.toLocaleDateString();
+}
+
 function DashboardStat({
   label,
   value,
@@ -52,184 +64,11 @@ function DashboardStat({
     <div className="apex-dashboard-stat">
       <span
         className="apex-dashboard-stat-value"
-        style={highlight ? { color: "#fbbf24" } : undefined}
+        style={highlight ? { color: "var(--accent-gold)" } : undefined}
       >
         {value}
       </span>
       <span className="apex-dashboard-stat-label">{label}</span>
-    </div>
-  );
-}
-
-function evalAvatarTone(
-  status: string,
-  routingStage?: string,
-): "blue" | "amber" | "cyan" | "slate" {
-  if (
-    routingStage === "locked" ||
-    status === "completed" ||
-    status === "archived"
-  )
-    return "slate";
-  if (routingStage && routingStage !== "sailor") return "amber";
-  if (status === "ready_for_review") return "cyan";
-  return "blue";
-}
-
-function EvalCard({
-  ev,
-  onView,
-  onEdit,
-  showEdit,
-}: {
-  ev: any;
-  onView: () => void;
-  onEdit?: () => void;
-  showEdit?: boolean;
-}) {
-  const badgeClass = statusBadgeClass(ev.status, ev.routing_stage);
-  const badgeText = statusLabel(ev.status, ev.routing_stage).toUpperCase();
-
-  return (
-    <article className="apex-dashboard-card">
-      <div className="flex justify-between items-start gap-3">
-        <div className="flex gap-3 min-w-0 flex-1">
-          <UserAvatar
-            initials={getMemberInitials(ev.member_name)}
-            tone={evalAvatarTone(ev.status, ev.routing_stage)}
-            size="md"
-            className="mt-0.5"
-          />
-          <div className="min-w-0 space-y-1">
-            <h4 className="text-lg font-bold text-white truncate leading-tight">
-              {ev.member_name || "UNNAMED SAILOR"}
-            </h4>
-            <p
-              className="text-sm font-medium"
-              style={{ color: "var(--label)" }}
-            >
-              {ev.grade_rate}
-              <span style={{ color: "var(--subtle)" }}> · </span>
-              UIC {ev.uic || "—"}
-            </p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              Period {ev.period_from} – {ev.period_to}
-            </p>
-          </div>
-        </div>
-        <span className={`${badgeClass} shrink-0 px-2.5 py-1 text-[10px]`}>
-          {badgeText}
-        </span>
-      </div>
-
-      {ev.comments && (
-        <blockquote
-          className="text-sm line-clamp-2 italic rounded-lg px-3 py-2.5 border-l-2"
-          style={{
-            color: "var(--muted-foreground)",
-            background: "rgba(0,0,0,0.25)",
-            borderColor: "#3b82f6",
-          }}
-        >
-          {ev.comments}
-        </blockquote>
-      )}
-
-      <div
-        className="grid grid-cols-2 gap-3 text-xs rounded-lg px-3 py-2.5"
-        style={{
-          background: "rgba(0,0,0,0.2)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div>
-          <div
-            className="uppercase tracking-wider font-semibold mb-0.5"
-            style={{ color: "var(--subtle)" }}
-          >
-            DoD ID
-          </div>
-          <div className="font-mono text-white">{ev.dod_id || "N/A"}</div>
-        </div>
-        <div>
-          <div
-            className="uppercase tracking-wider font-semibold mb-0.5"
-            style={{ color: "var(--subtle)" }}
-          >
-            Promotion Rec
-          </div>
-          <div className="font-bold text-white">
-            {ev.promotion_recommendation || "NOB"}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onView}
-          className="apex-btn-secondary py-2 px-4 text-sm"
-        >
-          View Report
-        </button>
-        {showEdit && onEdit && (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="apex-btn-dashboard py-2 px-4 text-sm"
-          >
-            Edit Draft
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function EvalGrid({
-  loading,
-  evaluations,
-  emptyMessage,
-  showEdit,
-}: {
-  loading: boolean;
-  evaluations: any[];
-  emptyMessage: string;
-  showEdit?: boolean;
-}) {
-  const router = useRouter();
-
-  if (loading && evaluations.length === 0) {
-    return (
-      <div className="apex-dashboard-card p-10 text-center">
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          Loading evaluations…
-        </p>
-      </div>
-    );
-  }
-
-  if (evaluations.length === 0) {
-    return (
-      <div className="apex-dashboard-card p-12 text-center">
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          {emptyMessage}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-2">
-      {evaluations.map((ev) => (
-        <EvalCard
-          key={ev.id}
-          ev={ev}
-          showEdit={showEdit}
-          onView={() => router.push(`/evaluations/${ev.id}`)}
-          onEdit={() => router.push(`/evaluations/${ev.id}/edit`)}
-        />
-      ))}
     </div>
   );
 }
@@ -261,20 +100,143 @@ function partitionEvals(evaluations: any[], profileId?: string) {
   return { inbox, drafts, finalized };
 }
 
+function evalCategory(
+  ev: any,
+  profileId?: string,
+): "action" | "drafts" | "finalized" | "other" {
+  const { inbox, drafts, finalized } = partitionEvals([ev], profileId);
+  if (inbox.length) return "action";
+  if (drafts.length) return "drafts";
+  if (finalized.length) return "finalized";
+  return "other";
+}
+
+function EvalQueueTable({
+  loading,
+  rows,
+  profileId,
+  emptyMessage,
+}: {
+  loading: boolean;
+  rows: any[];
+  profileId?: string;
+  emptyMessage: string;
+}) {
+  const router = useRouter();
+
+  if (loading && rows.length === 0) {
+    return (
+      <div className="apex-card p-10 text-center">
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          Loading evaluations…
+        </p>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="apex-card p-12 text-center">
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          {emptyMessage}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="apex-card overflow-hidden">
+      <table className="apex-data-table">
+        <thead>
+          <tr>
+            <th>Sailor</th>
+            <th>Rate</th>
+            <th>Form</th>
+            <th>Period</th>
+            <th>Stage</th>
+            <th>Updated</th>
+            <th className="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((ev) => {
+            const badgeClass = statusBadgeClass(ev.status, ev.routing_stage);
+            const badgeText = statusLabel(ev.status, ev.routing_stage);
+            const cat = evalCategory(ev, profileId);
+            const canEdit = cat === "drafts" || cat === "action";
+            return (
+              <tr key={ev.id}>
+                <td>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UserAvatar
+                      initials={getMemberInitials(ev.member_name)}
+                      size="sm"
+                      tone="blue"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-semibold apex-heading truncate">
+                        {ev.member_name || "Unnamed"}
+                      </div>
+                      <div
+                        className="text-xs font-mono truncate"
+                        style={{ color: "var(--subtle)" }}
+                      >
+                        {ev.id?.slice(0, 8)}…
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>{ev.grade_rate || "—"}</td>
+                <td className="font-mono text-xs">
+                  {ev.report_type || "EVAL"}
+                </td>
+                <td className="text-xs whitespace-nowrap">
+                  {ev.period_from} – {ev.period_to}
+                </td>
+                <td>
+                  <span className={`${badgeClass} px-2 py-0.5 text-[10px]`}>
+                    {badgeText}
+                  </span>
+                </td>
+                <td className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {formatUpdated(ev.updated_at || ev.created_at)}
+                </td>
+                <td className="text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/evaluations/${ev.id}`)}
+                    className="apex-btn-secondary py-1.5 px-3 text-xs mr-1"
+                  >
+                    View
+                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/evaluations/${ev.id}/edit`)}
+                      className="apex-btn-primary py-1.5 px-3 text-xs"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { evaluations, loading, error } = useEvaluations();
   const [profile, setProfile] = useState<any>(null);
 
-  // Search, filter, and sort state
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [queueTab, setQueueTab] = useState<QueueTab>("all");
   const [sortBy, setSortBy] = useState("updated_desc");
-
-  // Section collapse state
-  const [inboxOpen, setInboxOpen] = useState(true);
-  const [draftsOpen, setDraftsOpen] = useState(true);
-  const [finalizedOpen, setFinalizedOpen] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -292,11 +254,9 @@ export default function DashboardPage() {
     })();
   }, [router]);
 
-  // Filter and sort evaluation list
   const processedEvals = useMemo(() => {
     let list = [...evaluations];
 
-    // 1. Search filter
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((e) => {
@@ -304,17 +264,22 @@ export default function DashboardPage() {
           (e.member_name || "").toLowerCase().includes(q) ||
           (e.dod_id || "").toLowerCase().includes(q) ||
           (e.uic || "").toLowerCase().includes(q) ||
-          (e.grade_rate || "").toLowerCase().includes(q)
+          (e.grade_rate || "").toLowerCase().includes(q) ||
+          (e.id || "").toLowerCase().includes(q)
         );
       });
     }
 
-    // 2. Status filter
     if (statusFilter !== "all") {
       list = list.filter((e) => e.status === statusFilter);
     }
 
-    // 3. Sort
+    if (queueTab !== "all") {
+      list = list.filter(
+        (e) => evalCategory(e, profile?.id) === queueTab,
+      );
+    }
+
     list.sort((a, b) => {
       if (sortBy === "updated_desc") {
         return (
@@ -322,324 +287,121 @@ export default function DashboardPage() {
           new Date(a.updated_at || a.created_at || 0).getTime()
         );
       }
-      if (sortBy === "updated_asc") {
-        return (
-          new Date(a.updated_at || a.created_at || 0).getTime() -
-          new Date(b.updated_at || b.created_at || 0).getTime()
-        );
-      }
       if (sortBy === "name_asc") {
         return (a.member_name || "").localeCompare(b.member_name || "");
-      }
-      if (sortBy === "name_desc") {
-        return (b.member_name || "").localeCompare(a.member_name || "");
-      }
-      if (sortBy === "average_desc") {
-        return (b.trait_average || 0) - (a.trait_average || 0);
-      }
-      if (sortBy === "average_asc") {
-        return (a.trait_average || 0) - (b.trait_average || 0);
       }
       return 0;
     });
 
     return list;
-  }, [evaluations, search, statusFilter, sortBy]);
+  }, [evaluations, search, statusFilter, queueTab, sortBy, profile?.id]);
 
   const { inbox, drafts, finalized } = partitionEvals(
-    processedEvals,
+    evaluations,
     profile?.id,
   );
-  const displayName = profile
-    ? `${profile.navy_rank || ""} ${profile.last_name || ""}`.trim()
-    : "";
 
   return (
     <AppShell
       profile={profile}
-      title="Evaluation Portal"
-      subtitle="Draft and validate NAVPERS 1616/26 evaluations"
-      badge="Dashboard"
-      maxWidth="7xl"
+      maxWidth="full"
+      breadcrumbs={[{ label: "Dashboard" }]}
+      topbarSearch={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Search sailors, UIC, eval ID…",
+      }}
       headerActions={
         <button
           type="button"
           onClick={() => router.push("/evaluations/new")}
-          className="apex-btn-dashboard"
+          className="apex-btn-primary"
         >
-          + Draft New EVAL
+          + New eval
         </button>
       }
     >
       {error && (
-        <div className="mb-6 p-4 rounded-lg text-xs text-red-300 border border-red-500/30 bg-red-950/30">
+        <div className="mb-6 p-4 rounded-lg text-xs border border-red-500/30 bg-red-950/30 text-red-300">
           {error}
         </div>
       )}
 
-      {/* Welcome + stat tiles */}
-      <div className="mb-8 space-y-5">
-        {displayName && (
-          <div className="flex items-center gap-3">
-            <UserAvatar
-              firstName={profile?.first_name}
-              lastName={profile?.last_name}
-              size="lg"
-              plain
-            />
-            <p
-              className="text-base"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              Welcome back,{" "}
-              <span className="font-bold text-white">{displayName}</span>
-              {profile?.preferred_role && (
-                <span className="ml-2 apex-badge-draft normal-case">
-                  {profile.preferred_role}
-                </span>
-              )}
-            </p>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-4">
-          <DashboardStat
-            label="Awaiting Action"
-            value={inbox.length}
-            highlight={inbox.length > 0}
-          />
-          <DashboardStat label="My Drafts" value={drafts.length} />
-          <DashboardStat
-            label="Completed & Finalized"
-            value={finalized.length}
-          />
-          <DashboardStat
-            label="Total Visible"
-            value={inbox.length + drafts.length + finalized.length}
-          />
-        </div>
+      <div className="mb-6">
+        <h1 className="apex-page-title">Evaluation queue</h1>
+        <p className="apex-page-subtitle">
+          {processedEvals.length} visible report
+          {processedEvals.length === 1 ? "" : "s"} · manage drafts and routing
+        </p>
       </div>
 
-      {/* Search, Filter, and Sort Controls */}
-      <div className="glass-panel border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between mb-8">
-        <div className="relative w-full sm:flex-1">
-          <input
-            type="text"
-            placeholder="Search by member name, DoD ID, UIC, or rate..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#1c2541]/40 border border-slate-700/60 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-          />
-          <div className="absolute left-3.5 top-2.5 text-slate-500">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-        </div>
+      <div className="flex flex-wrap gap-3 mb-6">
+        <DashboardStat
+          label="Awaiting your action"
+          value={inbox.length}
+          highlight={inbox.length > 0}
+        />
+        <DashboardStat label="My drafts" value={drafts.length} />
+        <DashboardStat label="Completed / locked" value={finalized.length} />
+        <DashboardStat label="Total in queue" value={processedEvals.length} />
+      </div>
 
-        <div className="flex flex-wrap gap-2.5 w-full sm:w-auto">
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#131b2e] text-white border border-slate-700/60 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 transition cursor-pointer"
-          >
-            <option value="all" className="bg-[#131b2e] text-white">
-              All Statuses
-            </option>
-            <option value="draft" className="bg-[#131b2e] text-white">
-              Draft
-            </option>
-            <option
-              value="ready_for_review"
-              className="bg-[#131b2e] text-white"
-            >
-              Ready for Review
-            </option>
-            <option value="completed" className="bg-[#131b2e] text-white">
-              Completed
-            </option>
-            <option value="archived" className="bg-[#131b2e] text-white">
-              Archived
-            </option>
-          </select>
-
-          {/* Sort dropdown */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="bg-[#131b2e] text-white border border-slate-700/60 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500 transition cursor-pointer"
-          >
-            <option value="updated_desc" className="bg-[#131b2e] text-white">
-              Recently Updated
-            </option>
-            <option value="updated_asc" className="bg-[#131b2e] text-white">
-              Oldest Updated
-            </option>
-            <option value="name_asc" className="bg-[#131b2e] text-white">
-              Name (A-Z)
-            </option>
-            <option value="name_desc" className="bg-[#131b2e] text-white">
-              Name (Z-A)
-            </option>
-            <option value="average_desc" className="bg-[#131b2e] text-white">
-              Trait Avg (High-Low)
-            </option>
-            <option value="average_asc" className="bg-[#131b2e] text-white">
-              Trait Avg (Low-High)
-            </option>
-          </select>
-
-          {/* Reset Filters button */}
-          {(search || statusFilter !== "all" || sortBy !== "updated_desc") && (
+      <div className="apex-card p-3 mb-4 flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-[var(--muted)]">
+          {(
+            [
+              ["all", "All"],
+              ["action", "Awaiting action"],
+              ["drafts", "Drafts"],
+              ["finalized", "Finalized"],
+            ] as const
+          ).map(([key, label]) => (
             <button
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-                setSortBy("updated_desc");
-              }}
-              className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
+              key={key}
+              type="button"
+              onClick={() => setQueueTab(key)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                queueTab === key
+                  ? "bg-[var(--card)] shadow-sm"
+                  : "text-[var(--muted-foreground)]"
+              }`}
+              style={
+                queueTab === key ? { color: "var(--heading)" } : undefined
+              }
             >
-              Reset
+              {label}
             </button>
-          )}
+          ))}
         </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="apex-input max-w-[180px] py-2 text-xs"
+        >
+          <option value="all">All statuses</option>
+          <option value="draft">Draft</option>
+          <option value="ready_for_review">Ready for review</option>
+          <option value="completed">Completed</option>
+          <option value="archived">Archived</option>
+        </select>
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="apex-input max-w-[180px] py-2 text-xs"
+        >
+          <option value="updated_desc">Recently updated</option>
+          <option value="name_asc">Name (A–Z)</option>
+        </select>
       </div>
 
-      <div className="space-y-10">
-        <section className="space-y-4">
-          <h2
-            onClick={() => setInboxOpen(!inboxOpen)}
-            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
-          >
-            <span
-              className="inline-block h-2 w-2 rounded-full bg-amber-400 mr-2"
-              aria-hidden
-            />
-            Awaiting Your Action
-            {inbox.length > 0 && (
-              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                {inbox.length}
-              </span>
-            )}
-            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
-              {inboxOpen ? "Collapse" : "Expand"}
-              <svg
-                className={`w-3.5 h-3.5 transform transition-transform ${inboxOpen ? "rotate-180" : ""}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </span>
-          </h2>
-          {inboxOpen && (
-            <EvalGrid
-              loading={loading}
-              evaluations={inbox}
-              emptyMessage="Nothing is awaiting your action."
-            />
-          )}
-        </section>
-
-        <section className="space-y-4">
-          <h2
-            onClick={() => setDraftsOpen(!draftsOpen)}
-            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
-          >
-            <span
-              className="inline-block h-2 w-2 rounded-full bg-blue-400 mr-2"
-              aria-hidden
-            />
-            My Drafts
-            {drafts.length > 0 && (
-              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                {drafts.length}
-              </span>
-            )}
-            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
-              {draftsOpen ? "Collapse" : "Expand"}
-              <svg
-                className={`w-3.5 h-3.5 transform transition-transform ${draftsOpen ? "rotate-180" : ""}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </span>
-          </h2>
-          {draftsOpen && (
-            <EvalGrid
-              loading={loading}
-              evaluations={drafts}
-              emptyMessage="No evaluation drafts found."
-              showEdit
-            />
-          )}
-        </section>
-
-        <section className="space-y-4">
-          <h2
-            onClick={() => setFinalizedOpen(!finalizedOpen)}
-            className="apex-dashboard-section-title flex items-center cursor-pointer select-none group"
-          >
-            <span
-              className="inline-block h-2 w-2 rounded-full bg-slate-400 mr-2"
-              aria-hidden
-            />
-            Completed & Finalized
-            {finalized.length > 0 && (
-              <span className="ml-1 text-xs font-bold px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30">
-                {finalized.length}
-              </span>
-            )}
-            <span className="ml-auto text-xs font-normal normal-case text-slate-500 group-hover:text-slate-300 transition-colors flex items-center gap-1">
-              {finalizedOpen ? "Collapse" : "Expand"}
-              <svg
-                className={`w-3.5 h-3.5 transform transition-transform ${finalizedOpen ? "rotate-180" : ""}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </span>
-          </h2>
-          {finalizedOpen && (
-            <EvalGrid
-              loading={loading}
-              evaluations={finalized}
-              emptyMessage="No completed or locked evaluations found."
-            />
-          )}
-        </section>
-      </div>
+      <EvalQueueTable
+        loading={loading}
+        rows={processedEvals}
+        profileId={profile?.id}
+        emptyMessage="No evaluations match your filters."
+      />
     </AppShell>
   );
 }
