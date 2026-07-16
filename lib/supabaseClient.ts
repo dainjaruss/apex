@@ -40,7 +40,7 @@ export const createCredentialVerifierClient = () => {
 };
 
 /** Supabase local default anon key — used only when public env vars are absent (e.g. `next build` without .env). */
-const BUILD_PLACEHOLDER_ANON_KEY =
+export const BUILD_PLACEHOLDER_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
 // Custom browser client for APEX dashboard and profile pages

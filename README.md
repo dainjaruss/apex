@@ -60,6 +60,17 @@ To install project dependencies, open your terminal in the project root and run:
 npm install
 ```
 
+### Quality gate (before merge / deploy)
+
+From the **enterprise UI** worktree (`epic/enterprise-ui` branch), or after that branch is merged:
+
+```bash
+npm run verify          # vitest (72 tests) + production build
+npm run verify:e2e      # above + Playwright (needs .env.local + tests/fixtures/e2e-ids.json)
+```
+
+`verify` only exists on branches that include the enterprise UI tooling; use `/srv/apex-enterprise-ui` if your local `main` clone is behind.
+
 ### 2. Environment Configuration (`.env.local`)
 
 Copy the provided `.env.example` file to create your local environment configuration:
