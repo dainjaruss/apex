@@ -45,9 +45,7 @@ function FormInput({
 }: FormInputProps) {
   return (
     <div className={containerClassName}>
-      <label className="apex-label">
-        {label}
-      </label>
+      <label className="apex-label">{label}</label>
       <input className={fieldClass} {...props} />
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
@@ -72,9 +70,7 @@ function FormSelect({
 }: FormSelectProps) {
   return (
     <div className={containerClassName}>
-      <label className="apex-label">
-        {label}
-      </label>
+      <label className="apex-label">{label}</label>
       <select className={fieldClass} {...props}>
         {children}
       </select>
@@ -85,24 +81,24 @@ function FormSelect({
 
 function RegistrationSuccess({ email }: { email: string }) {
   return (
-    <div className="apex-auth-shell relative">
+    <div
+      className="relative flex min-h-screen items-center justify-center p-4"
+      style={{ background: "var(--background)" }}
+    >
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="apex-auth-card max-w-lg text-center">
-        <h2 className="text-2xl font-bold text-success tracking-wide">
+      <div className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6 text-center">
+        <h2 className="text-2xl font-bold text-green-500 dark:text-green-400 tracking-wide">
           Registration Submitted
         </h2>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
           We have sent a secure verification link to <strong>{email}</strong>.
           Please check your inbox and click the link to confirm your identity
           before logging in.
         </p>
         <div className="pt-6">
-          <Link
-            href="/login"
-            className="text-sm font-semibold text-primary hover:underline"
-          >
+          <Link href="/login" className="apex-btn-secondary text-sm">
             Return to Login
           </Link>
         </div>
@@ -233,7 +229,10 @@ function ProfessionalFields({
         label={
           <>
             UIC{" "}
-            <span className="text-[#608bb3] normal-case font-normal">
+            <span
+              className="normal-case font-normal"
+              style={{ color: "var(--subtle)" }}
+            >
               (optional)
             </span>
           </>
@@ -292,7 +291,7 @@ function AccountFields({
         fieldClass={fieldClass("email")}
         placeholder="sailor@navy.mil"
         error={fieldErrors.email}
-        containerClassName="space-y-1.5 md:col-span-2 border-t border-[#1c2541] pt-4 mt-2"
+        containerClassName="space-y-1.5 md:col-span-2 border-t border-[var(--border)] pt-4 mt-2"
       />
       <FormInput
         id="reg-password"
@@ -354,7 +353,7 @@ function RegisterForm({
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold transition-all disabled:opacity-50 text-sm tracking-wide shadow-lg shadow-blue-900/20 md:col-span-2 mt-2"
+        className="apex-btn-primary w-full py-3 text-sm tracking-wide md:col-span-2 mt-2"
       >
         {loading ? "Creating Account..." : "Complete Registration"}
       </button>
@@ -430,9 +429,7 @@ function useRegisterForm() {
   };
 
   const fieldClass = (field: keyof RegisterFormData) =>
-    `apex-input ${
-      fieldErrors[field] ? "!border-red-500/70 focus:!border-red-400" : ""
-    }`;
+    `apex-input ${fieldErrors[field] ? "!border-red-500/70 focus:!border-red-400" : ""}`;
 
   return {
     formData,
@@ -463,11 +460,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="apex-auth-shell relative">
+    <div
+      className="relative flex min-h-screen items-center justify-center p-4"
+      style={{ background: "var(--background)" }}
+    >
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="apex-auth-card max-w-lg">
+      <div className="w-full max-w-lg p-8 rounded-2xl apex-card space-y-6">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
@@ -476,14 +476,18 @@ export default function RegisterPage() {
             <h2 className="text-2xl font-bold apex-heading tracking-wide">
               APEX Registry
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
               Create a new profile to access the evaluation platform
             </p>
           </div>
           <NavyBranding sidebar className="mt-2" />
         </div>
 
-        {serverError && <div className="apex-alert-error">{serverError}</div>}
+        {serverError && (
+          <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
+            {serverError}
+          </div>
+        )}
 
         <RegisterForm
           formData={formData}
@@ -494,9 +498,12 @@ export default function RegisterPage() {
           fieldClass={fieldClass}
         />
 
-        <div className="text-center text-xs text-subtle pt-2" style={{ color: "var(--subtle)" }}>
+        <div
+          className="text-center text-xs pt-2"
+          style={{ color: "var(--subtle)" }}
+        >
           Already registered?{" "}
-          <Link href="/login" className="text-primary hover:underline font-medium">
+          <Link href="/login" className="text-blue-500 hover:underline font-medium">
             Sign In here
           </Link>
         </div>

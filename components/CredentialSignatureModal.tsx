@@ -141,17 +141,18 @@ export default function CredentialSignatureModal({
     }
   };
 
-  const FIELD =
-    "w-full bg-[#1c2541]/40 border border-slate-700/60 rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#3e6e99] focus:ring-1 focus:ring-[#3e6e99] transition";
-  const LABEL =
-    "block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1";
+  const FIELD = "apex-input";
+  const LABEL = "apex-label mb-1";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b132b]/80 backdrop-blur-sm">
-      <div className="w-full max-w-lg p-6 rounded-2xl glass-panel space-y-4 border border-[#3e6e99]/30 shadow-2xl">
-        <div className="border-b border-slate-700/40 pb-3">
+    <div className="apex-modal-overlay">
+      <div className="w-full max-w-lg p-6 rounded-2xl apex-card space-y-4 shadow-2xl">
+        <div className="border-b pb-3" style={{ borderColor: "var(--border)" }}>
           <h3 className="text-lg font-bold gold-accent">Sign Block {block}</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p
+            className="text-xs mt-0.5"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             {blockLabel} — to be signed by the {signer}. Enter your own
             credentials to certify.
           </p>
@@ -184,7 +185,8 @@ export default function CredentialSignatureModal({
             <button
               type="button"
               onClick={clearCanvas}
-              className="mt-1 text-[10px] text-slate-400 hover:text-white"
+              className="mt-1 text-[10px] hover:underline"
+              style={{ color: "var(--muted-foreground)" }}
             >
               Clear drawing
             </button>
@@ -223,7 +225,10 @@ export default function CredentialSignatureModal({
             onChange={(e) => setConsent(e.target.checked)}
             className="mt-0.5 accent-blue-500"
           />
-          <span className="text-[10px] text-slate-400 leading-tight">
+          <span
+            className="text-[10px] leading-tight"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             I certify that this electronic signature is a true and accurate
             representation of my signature and constitutes my legal sign-off on
             this evaluation record.
@@ -232,18 +237,23 @@ export default function CredentialSignatureModal({
 
         {error && <p className="text-red-400 text-xs font-semibold">{error}</p>}
 
-        <div className="pt-2 flex justify-end gap-3 border-t border-slate-700/40">
+        <div
+          className="pt-2 flex justify-end gap-3 border-t"
+          style={{ borderColor: "var(--border)" }}
+        >
           <button
+            type="button"
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 rounded text-xs font-semibold text-slate-400 hover:text-white transition"
+            className="apex-btn-secondary"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-5 py-2 rounded bg-[#3e6e99] hover:bg-[#4e82b0] disabled:opacity-50 text-white font-bold text-xs transition"
+            className="apex-btn-primary disabled:opacity-50"
           >
             {submitting ? "Verifying…" : "Sign & Certify"}
           </button>

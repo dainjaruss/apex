@@ -56,21 +56,32 @@ export default function ValidationResultsModal({
   const totalWarnings = warnings.length;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b132b]/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-[#0f172a] border border-[#3e6e99]/30 shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="p-6 border-b border-[#3e6e99]/20 flex items-center justify-between bg-[#1e293b]/40">
+    <div className="apex-modal-overlay animate-fade-in">
+      <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl apex-card shadow-2xl overflow-hidden">
+        <div
+          className="p-6 border-b flex items-center justify-between"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--card-elevated)",
+          }}
+        >
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+            <h2 className="text-xl font-bold apex-heading tracking-wide flex items-center gap-2">
               <span>📋</span> Validation Rules Check
             </h2>
-            <p className="text-xs text-[#91aec9] mt-1">
+            <p
+              className="text-xs mt-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               BUPERSINST 1610.10H (EVALMAN) compliance check results
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-[#91aec9] hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg transition-colors hover:opacity-80"
+            style={{ color: "var(--muted-foreground)" }}
+            aria-label="Close"
           >
             ✕
           </button>
@@ -184,19 +195,23 @@ export default function ValidationResultsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-[#3e6e99]/20 bg-[#1e293b]/40 flex flex-col-reverse sm:flex-row justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-lg text-[#91aec9] hover:bg-slate-800 hover:text-white transition-all text-xs font-semibold"
-          >
+        <div
+          className="p-6 border-t flex flex-col-reverse sm:flex-row justify-end gap-3"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--card-elevated)",
+          }}
+        >
+          <button type="button" onClick={onClose} className="apex-btn-secondary">
             Close Results
           </button>
 
           {totalErrors === 0 && onConfirmSubmit && (
             <button
+              type="button"
               onClick={onConfirmSubmit}
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition-all shadow-lg text-xs flex items-center gap-2 disabled:opacity-50"
+              className="apex-btn-primary flex items-center gap-2 disabled:opacity-50"
             >
               {isSubmitting ? "Submitting..." : "Submit Evaluation"}
             </button>

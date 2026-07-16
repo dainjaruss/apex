@@ -44,14 +44,14 @@ function AuthNotifications({
 }: AuthNotificationsProps) {
   if (serverError) {
     return (
-      <div className="apex-alert-error">
+      <div className="p-3.5 rounded bg-red-950/40 border border-red-800/40 text-xs text-red-300">
         {serverError}
       </div>
     );
   }
   if (resendSuccess) {
     return (
-      <div className="apex-alert-success">
+      <div className="p-3.5 rounded bg-green-900/40 border border-green-800/40 text-xs text-green-300">
         A new verification link has been sent to your email. Please check your
         inbox.
       </div>
@@ -222,18 +222,21 @@ export default function LoginPage() {
   } = useLoginForm();
 
   return (
-    <div className="apex-auth-shell relative">
+    <div
+      className="relative flex min-h-screen items-center justify-center p-4"
+      style={{ background: "var(--background)" }}
+    >
       <div className="absolute top-4 right-4">
         <ThemeToggle compact />
       </div>
-      <div className="apex-auth-card">
+      <div className="w-full max-w-md p-8 rounded-2xl apex-card space-y-6">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <ApexLogo size="xl" />
           </div>
           <div className="space-y-1">
             <h2 className="text-2xl font-bold apex-heading tracking-wide">
-              APEX Portal
+              Sign in
             </h2>
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
               Enter credentials to access evaluation portal
@@ -266,7 +269,7 @@ export default function LoginPage() {
           New to APEX?{" "}
           <Link
             href="/register"
-            className="text-primary hover:underline font-medium"
+            className="text-blue-400 hover:underline font-medium"
           >
             Register for a profile
           </Link>

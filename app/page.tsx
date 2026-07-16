@@ -5,7 +5,7 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 
 function LandingHeader() {
   return (
-    <header className="px-6 py-4 flex items-center justify-between border-b sticky top-0 z-50 bg-card/95 backdrop-blur-md border-border rounded-none border-x-0 border-t-0">
+    <header className="px-6 py-4 flex items-center justify-between border-b sticky top-0 z-50 apex-card rounded-none border-x-0 border-t-0">
       <div className="flex items-center gap-3">
         <ApexLogo size="md" className="shrink-0" />
         <div>
@@ -21,7 +21,8 @@ function LandingHeader() {
         <ThemeToggle compact />
         <Link
           href="/login"
-          className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="text-sm font-medium transition-colors hover:opacity-90"
+          style={{ color: "var(--muted-foreground)" }}
         >
           Sign In
         </Link>

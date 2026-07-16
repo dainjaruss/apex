@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
   className?: string;
-  /** Compact icon-only control for dense headers */
   compact?: boolean;
 };
 
@@ -58,10 +57,7 @@ export default function ThemeToggle({
       <button
         type="button"
         onClick={cycle}
-        className={cn(
-          "apex-btn-ghost h-9 w-9 p-0 shrink-0",
-          className,
-        )}
+        className={cn("apex-btn-ghost h-9 w-9 p-0 shrink-0", className)}
         aria-label={`Appearance: ${label}. Click to change.`}
         title={label}
       >

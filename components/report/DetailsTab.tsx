@@ -20,7 +20,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <div className={LBL}>{label}</div>
-      <div className="font-semibold text-white mt-0.5">{value}</div>
+      <div className="font-semibold apex-heading mt-0.5">{value}</div>
     </div>
   );
 }
@@ -96,11 +96,11 @@ function SignField({
       </div>
     );
   if (e.status === "archived" || e.signature_locked)
-    return <div className="font-semibold text-white mt-0.5">— (blank)</div>;
+    return <div className="font-semibold apex-heading mt-0.5">— (blank)</div>;
   return (
     <button
       onClick={() => onSign(block, label, signer)}
-      className="mt-1 px-2.5 py-1 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-white text-[11px] font-semibold transition"
+      className="apex-btn-primary mt-1 text-[11px]"
     >
       ✍ Sign
     </button>
@@ -189,7 +189,7 @@ function TraitRatingsSection({ e }: { e: Evaluation }) {
             <div className="text-[10px] text-slate-500 font-semibold uppercase truncate">
               {key === "eo" ? "Climate/EO" : key}
             </div>
-            <div className="text-base font-bold text-white mt-1">
+            <div className="text-base font-bold apex-heading mt-1">
               {val as string}
             </div>
           </div>
@@ -262,7 +262,7 @@ function SignatureRow({
       {!signedName && e.status !== "archived" && !e.signature_locked && (
         <button
           onClick={() => onSign(s.block, s.label, s.signer)}
-          className="shrink-0 px-3 py-1.5 rounded bg-[#3e6e99] hover:bg-[#4e82b0] text-white font-semibold transition"
+          className="apex-btn-primary shrink-0"
         >
           ✍ Sign
         </button>
@@ -286,7 +286,7 @@ function RecommendationsSection({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-6">
         <div>
           <div className={LBL}>Block 41: Career Recommendations</div>
-          <ul className="list-disc pl-5 mt-1 font-semibold text-white">
+          <ul className="list-disc pl-5 mt-1 font-semibold apex-heading">
             {recs.length ? (
               recs.map((r, i) => <li key={i}>{r}</li>)
             ) : (
@@ -325,7 +325,7 @@ function RecommendationsSection({
                 className="px-2 py-1 rounded bg-slate-800/60 text-slate-200"
               >
                 {c}:{" "}
-                <span className="font-bold text-white">
+                <span className="font-bold apex-heading">
                   {e.summary_group_distribution?.[c] ?? 0}
                 </span>
               </span>

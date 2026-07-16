@@ -61,6 +61,25 @@ const STEPS = [
 
 const GUIDELINES_PREF_KEY = "apex:show-field-guidelines";
 
+const RAIL_ISSUE_LIMIT = 6;
+
+/** Maps validation issue fields to wizard step index (0–3). */
+function issueAppliesToStep(field: string | undefined, step: number): boolean {
+  const f = field ?? "";
+  if (step === 1) return f.startsWith("trait_grades");
+  if (step === 2) return f === "comments";
+  if (step === 3) {
+    return (
+      f.startsWith("block_values") ||
+      f.includes("signature") ||
+      /^block_(42|49|50|51|52)/.test(f)
+    );
+  }
+  if (f.startsWith("trait_grades") || f === "comments") return false;
+  if (f.startsWith("block_values") || f.includes("signature")) return false;
+  return true;
+}
+
 export default function EvaluationForm({
   initialData,
   onSave,
@@ -343,10 +362,21 @@ export default function EvaluationForm({
             "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wider",
         };
 
+  const errorIssues = issues
+    .filter((i) => i.severity === "error")
+    .filter((i) => issueAppliesToStep(i.field, currentStep));
+  const warnIssues = issues
+    .filter((i) => i.severity === "warning" || !i.severity)
+    .filter((i) => issueAppliesToStep(i.field, currentStep));
+  const issuesOnOtherSteps = issues.filter(
+    (i) => !issueAppliesToStep(i.field, currentStep),
+  ).length;
+  const hiddenErrorCount = Math.max(0, errorIssues.length - RAIL_ISSUE_LIMIT);
+  const hiddenWarnCount = Math.max(0, warnIssues.length - RAIL_ISSUE_LIMIT);
+
   return (
     <GuidelinesVisibilityContext.Provider value={showGuidelines}>
-      <div className="max-w-6xl mx-auto w-full">
-        {/* Recovered-draft notice */}
+      <div className="w-full max-w-none">
         {recoveredAt && (
           <RecoveredBanner
             savedAt={recoveredAt}
@@ -357,9 +387,8 @@ export default function EvaluationForm({
           />
         )}
 
-        {/* Utility bar: form badge + autosave status + guidelines toggle */}
-        <div className="flex items-center justify-between mb-3 px-1 flex-wrap gap-2">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className={formBadgeInfo.className}>
               {formBadgeInfo.label}
             </span>
@@ -372,51 +401,68 @@ export default function EvaluationForm({
           <GuidelinesToggle on={showGuidelines} onToggle={toggleGuidelines} />
         </div>
 
-        {/* Wizard step pills */}
-        <div className="apex-stepper mb-8">
-          {STEPS.map((step, idx) => {
-            const isActive = currentStep === idx;
-            const isCompleted = currentStep > idx;
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => setCurrentStep(idx)}
-                className={`apex-step-pill ${isActive ? "apex-step-pill-active" : ""}`}
-              >
-                <div
-                  className={`apex-step-num ${
+        <div className="grid gap-4 lg:grid-cols-[200px_1fr_260px] items-start">
+          <nav className="apex-card p-3 hidden lg:block sticky top-20">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2 px-2" style={{ color: "var(--muted-foreground)" }}>
+              Sections
+            </p>
+            {STEPS.map((step, idx) => {
+              const isActive = currentStep === idx;
+              const isCompleted = currentStep > idx;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setCurrentStep(idx)}
+                  className={`w-full text-left rounded-lg px-2.5 py-2 text-xs font-semibold mb-0.5 transition ${
                     isActive
-                      ? "apex-step-num-active"
-                      : isCompleted
-                        ? "apex-step-num-done"
-                        : "apex-step-num-idle"
+                      ? "bg-[var(--nav-active-glow)]"
+                      : "hover:bg-[var(--muted)]"
                   }`}
-                >
-                  {isCompleted ? "✓" : idx + 1}
-                </div>
-                <span
-                  className={`text-xs font-semibold hidden sm:block ${
-                    isActive
-                      ? "text-white"
+                  style={{
+                    color: isActive
+                      ? "var(--primary)"
                       : isCompleted
-                        ? "text-emerald-400"
-                        : ""
-                  }`}
-                  style={
-                    !isActive && !isCompleted
-                      ? { color: "var(--subtle)" }
-                      : undefined
-                  }
+                        ? "var(--success)"
+                        : "var(--muted-foreground)",
+                  }}
                 >
+                  {isCompleted ? "✓ " : `${idx + 1}. `}
                   {step.title.replace(/^\d+\.\s*/, "")}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </nav>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pb-20">
+          <div className="min-w-0">
+            <div className="apex-stepper mb-6 lg:hidden">
+              {STEPS.map((step, idx) => {
+                const isActive = currentStep === idx;
+                const isCompleted = currentStep > idx;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => setCurrentStep(idx)}
+                    className={`apex-step-pill ${isActive ? "apex-step-pill-active" : ""}`}
+                  >
+                    <div
+                      className={`apex-step-num ${
+                        isActive
+                          ? "apex-step-num-active"
+                          : isCompleted
+                            ? "apex-step-num-done"
+                            : "apex-step-num-idle"
+                      }`}
+                    >
+                      {isCompleted ? "✓" : idx + 1}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Render Only the Active Step */}
           {currentStep === 0 && (
             <>
@@ -513,20 +559,81 @@ export default function EvaluationForm({
             )}
           </div>
 
-          {/* Unified Save / Status Panel */}
-          <StatusBar
-            issues={issues}
-            saveError={saveError}
-            isSaving={isSaving}
-            onCancel={onCancel}
-            onVerify={handleTriggerVerify}
-            isValidating={isValidating}
-            savedAt={savedAt}
-            committed={committed}
-          />
+          <div className="apex-sticky-form-bar">
+            <StatusBar
+              issues={issues}
+              saveError={saveError}
+              isSaving={isSaving}
+              onCancel={onCancel}
+              onVerify={handleTriggerVerify}
+              isValidating={isValidating}
+              savedAt={savedAt}
+              committed={committed}
+              compact
+            />
+          </div>
         </form>
+          </div>
 
-        {/* Rules Validation Details Modal */}
+          <aside className="apex-workspace-rail hidden lg:block">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted-foreground)" }}>
+              Validation
+            </h3>
+            {errorIssues.length === 0 && warnIssues.length === 0 ? (
+              <p className="text-xs" style={{ color: "var(--success)" }}>
+                ✓ No policy issues on this section
+                {issuesOnOtherSteps > 0 && (
+                  <span style={{ color: "var(--muted-foreground)" }}>
+                    {" "}
+                    ({issuesOnOtherSteps} on other sections)
+                  </span>
+                )}
+              </p>
+            ) : revealAllErrors ? (
+              <ul className="space-y-2 text-xs">
+                {errorIssues.slice(0, RAIL_ISSUE_LIMIT).map((issue, i) => (
+                  <li key={`e-${i}`} style={{ color: "var(--destructive)" }}>
+                    {issue.message}
+                  </li>
+                ))}
+                {warnIssues.slice(0, RAIL_ISSUE_LIMIT).map((issue, i) => (
+                  <li key={`w-${i}`} style={{ color: "var(--accent-gold)" }}>
+                    ⚠ {issue.message}
+                  </li>
+                ))}
+                {(hiddenErrorCount > 0 || hiddenWarnCount > 0) && (
+                  <li style={{ color: "var(--subtle)" }}>
+                    +{hiddenErrorCount + hiddenWarnCount} more on this section
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {errorIssues.length > 0 && (
+                  <span>
+                    {errorIssues.length} error
+                    {errorIssues.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                {errorIssues.length > 0 && warnIssues.length > 0 && " · "}
+                {warnIssues.length > 0 && (
+                  <span>
+                    {warnIssues.length} warning
+                    {warnIssues.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                {" on this section"}
+                {issuesOnOtherSteps > 0 &&
+                  ` · ${issuesOnOtherSteps} on other sections`}
+                {" — run Verify Rules for details"}
+              </p>
+            )}
+            <p className="text-[11px] mt-4" style={{ color: "var(--subtle)" }}>
+              Section {currentStep + 1} of {STEPS.length}
+            </p>
+          </aside>
+        </div>
+
         <ValidationResultsModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -863,6 +970,7 @@ function StatusBar({
   isValidating,
   savedAt,
   committed,
+  compact,
 }: {
   issues: ValidationIssue[];
   saveError: string | null;
@@ -872,9 +980,16 @@ function StatusBar({
   isValidating: boolean;
   savedAt: number | null;
   committed: boolean;
+  compact?: boolean;
 }) {
   return (
-    <div className="glass-panel rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-800">
+    <div
+      className={
+        compact
+          ? "flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full"
+          : "glass-panel rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-800"
+      }
+    >
       <div>
         {issues.length > 0 ? (
           <div className="text-amber-400 text-xs font-semibold flex items-center gap-1.5">

@@ -73,18 +73,18 @@ export default function RoleGuard({
  */
 export function AccessDeniedPanel({ message }: { message?: string }) {
   return (
-    <div className="min-h-screen bg-[#0b132b] flex flex-col items-center justify-center p-6 text-center">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+      style={{ background: "var(--background)", color: "var(--foreground)" }}
+    >
       <div className="bg-red-950/35 border border-red-900/40 rounded-xl p-8 max-w-md space-y-4">
         <div className="text-3xl">🔒</div>
         <h3 className="text-lg font-bold text-red-400">Access Restricted</h3>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
           {message ||
             "You do not have the required permissions to access this page."}
         </p>
-        <a
-          href="/dashboard"
-          className="inline-block px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-white transition"
-        >
+        <a href="/dashboard" className="apex-btn-secondary inline-block">
           Return to Dashboard
         </a>
       </div>

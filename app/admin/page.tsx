@@ -2,7 +2,6 @@
 //
 // Admin dashboard for managing users and roles.
 // Restricted to Admin role via RoleGuard.
-//
 
 "use client";
 
@@ -14,6 +13,7 @@ import { Profile } from "@/types";
 import { hasPermission, getRoleDescription, Role } from "@/lib/permissions";
 import { AccessDeniedPanel } from "@/components/RoleGuard";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
+import AppShell from "@/components/layout/AppShell";
 
 const supabase = createBrowserClient();
 
@@ -24,6 +24,14 @@ const ALL_ROLES: Role[] = [
   "Reporting Senior",
   "Admin",
 ];
+
+function roleBadgeClass(role: string) {
+  if (role === "Admin")
+    return "bg-red-950/40 text-red-300 border-red-900/50";
+  if (role === "Reporting Senior")
+    return "bg-emerald-950/40 text-emerald-300 border-emerald-900/50";
+  return "bg-blue-950/40 text-blue-300 border-blue-900/50";
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -81,9 +89,15 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b132b] flex items-center justify-center">
-        <p className="text-sm text-slate-500 animate-pulse">
-          Loading admin panel...
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "var(--background)" }}
+      >
+        <p
+          className="text-sm animate-pulse"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          Loading admin panel…
         </p>
       </div>
     );
@@ -109,154 +123,139 @@ export default function AdminPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      {/* Header */}
-      <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel">
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-xl tracking-wider text-white">
-            APEX
-          </span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-950/40 text-red-300 border border-red-900/30">
-            ADMIN
-          </span>
-        </div>
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="px-3.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition"
-        >
-          ← Back to Dashboard
-        </button>
-      </header>
+    <AppShell
+      profile={currentUser}
+      maxWidth="6xl"
+      badge="ADMIN"
+      breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard" },
+        { label: "Administration" },
+      ]}
+      topbarSearch={{
+        value: searchQuery,
+        onChange: setSearchQuery,
+        placeholder: "Search users by name, email, or role…",
+      }}
+    >
+      <AnalyticsDashboard />
 
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
-        {/* Analytics Dashboard */}
-        <AnalyticsDashboard />
+      <div className="admin-divider my-8" />
 
-        {/* Divider between analytics and user management */}
-        <div className="admin-divider" />
+      <div className="mb-6">
+        <h1 className="apex-page-title">User & role management</h1>
+        <p className="apex-page-subtitle">
+          Assign roles to control evaluation workflow permissions across the
+          chain of command.
+        </p>
+      </div>
 
-        <div>
-          <h2 className="text-2xl font-bold text-white">
-            User & Role Management
-          </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Assign roles to control evaluation workflow permissions across the
-            chain of command.
-          </p>
-        </div>
-
-        {/* Role Legend */}
-        <div className="glass-panel border border-slate-800 rounded-xl p-4 space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Role Permissions Reference
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {ALL_ROLES.map((role) => (
+      <div className="apex-card p-4 mb-6 space-y-2">
+        <h3 className="apex-section-title">Role permissions reference</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {ALL_ROLES.map((role) => (
+            <div
+              key={role}
+              className="rounded-lg p-3 border"
+              style={{
+                background: "var(--muted)",
+                borderColor: "var(--border)",
+              }}
+            >
               <div
-                key={role}
-                className="bg-[#0d1b2a]/60 rounded-lg p-3 border border-slate-800/60"
+                className="text-xs font-bold"
+                style={{ color: "var(--accent-cyan)" }}
               >
-                <div className="text-xs font-bold text-blue-300">{role}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  {getRoleDescription(role)}
-                </div>
+                {role}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Search users by name, email, or role..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-[#1c2541]/40 border border-slate-700/60 rounded-lg px-4 py-2.5
-                     text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-        />
-
-        {/* Users Table */}
-        <div className="glass-panel border border-slate-800 rounded-xl overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-[#0d1b2a]/80 text-slate-400 uppercase tracking-wider">
-                <th className="text-left px-4 py-3 font-semibold">Name</th>
-                <th className="text-left px-4 py-3 font-semibold">Rank</th>
-                <th className="text-left px-4 py-3 font-semibold">Email</th>
-                <th className="text-left px-4 py-3 font-semibold">
-                  Current Role
-                </th>
-                <th className="text-left px-4 py-3 font-semibold">
-                  Assign Role
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-900/30 transition">
-                  <td className="px-4 py-3 font-semibold text-white">
-                    {user.last_name}, {user.first_name}{" "}
-                    {user.middle_initial || ""}
-                  </td>
-                  <td className="px-4 py-3 text-slate-300">
-                    {user.navy_rank || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {user.email || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        user.preferred_role === "Admin"
-                          ? "bg-red-950/40 text-red-300 border-red-900/50"
-                          : user.preferred_role === "Reporting Senior"
-                            ? "bg-emerald-950/40 text-emerald-300 border-emerald-900/50"
-                            : "bg-blue-950/40 text-blue-300 border-blue-900/50"
-                      }`}
-                    >
-                      {user.preferred_role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={user.preferred_role}
-                      onChange={(e) =>
-                        handleRoleChange(user.id, e.target.value as Role)
-                      }
-                      disabled={
-                        saving === user.id || user.id === currentUser?.id
-                      }
-                      className="bg-[#1c2541] border border-slate-700 rounded px-2 py-1 text-xs text-white
-                                 focus:outline-none focus:border-blue-500 disabled:opacity-40"
-                    >
-                      {ALL_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                    {saving === user.id && (
-                      <span className="ml-2 text-[10px] text-blue-400 animate-pulse">
-                        Saving...
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {filteredUsers.length === 0 && (
-            <div className="p-8 text-center text-sm text-slate-500">
-              No users match your search criteria.
+              <div
+                className="text-[10px] mt-0.5"
+                style={{ color: "var(--subtle)" }}
+              >
+                {getRoleDescription(role)}
+              </div>
             </div>
-          )}
+          ))}
         </div>
+      </div>
 
-        <div className="text-[10px] text-slate-600 text-center">
-          Total registered users: {users.length}
-        </div>
-      </main>
-    </div>
+      <div className="apex-card overflow-x-auto">
+        <table className="apex-data-table min-w-[720px]">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Rank</th>
+              <th>Email</th>
+              <th>Current role</th>
+              <th>Assign role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((user) => (
+              <tr key={user.id}>
+                <td className="font-semibold">
+                  {user.last_name}, {user.first_name}{" "}
+                  {user.middle_initial || ""}
+                </td>
+                <td style={{ color: "var(--muted-foreground)" }}>
+                  {user.navy_rank || "—"}
+                </td>
+                <td style={{ color: "var(--muted-foreground)" }}>
+                  {user.email || "—"}
+                </td>
+                <td>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${roleBadgeClass(user.preferred_role)}`}
+                  >
+                    {user.preferred_role}
+                  </span>
+                </td>
+                <td>
+                  <select
+                    value={user.preferred_role}
+                    onChange={(e) =>
+                      handleRoleChange(user.id, e.target.value as Role)
+                    }
+                    disabled={
+                      saving === user.id || user.id === currentUser?.id
+                    }
+                    className="apex-input max-w-[200px] py-1.5 text-xs"
+                  >
+                    {ALL_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                  {saving === user.id && (
+                    <span
+                      className="ml-2 text-[10px] animate-pulse"
+                      style={{ color: "var(--accent-cyan)" }}
+                    >
+                      Saving…
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredUsers.length === 0 && (
+          <div
+            className="p-8 text-center text-sm"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            No users match your search criteria.
+          </div>
+        )}
+      </div>
+
+      <p
+        className="text-[10px] text-center mt-4"
+        style={{ color: "var(--subtle)" }}
+      >
+        Total registered users: {users.length}
+      </p>
+    </AppShell>
   );
 }

@@ -235,7 +235,9 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
       render(<EditEvaluationPage />);
     });
     await waitFor(() => {
-      expect(screen.getByText(/Edit Evaluation Draft/i)).toBeDefined();
+      expect(
+        screen.getByRole("button", { name: /Save Evaluation Draft/i }),
+      ).toBeDefined();
     });
 
     const saveButton = screen.getByRole("button", {

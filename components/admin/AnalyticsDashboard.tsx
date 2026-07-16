@@ -33,7 +33,7 @@ function StatCard({
           >
             {label}
           </p>
-          <p className="text-3xl font-black tabular-nums text-white">{value}</p>
+          <p className="text-3xl font-black tabular-nums apex-heading">{value}</p>
           {sub && (
             <p className="text-[10px]" style={{ color: "var(--subtle)" }}>
               {sub}
@@ -76,7 +76,7 @@ function HBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold text-white">{label}</span>
+        <span className="font-semibold apex-heading">{label}</span>
         <span style={{ color: "var(--subtle)" }}>
           {value} <span className="text-[10px]">({pct})</span>
         </span>
@@ -181,7 +181,7 @@ function DonutChart({
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ background: seg.color }}
               />
-              <span className="text-white font-medium truncate">
+              <span className="apex-heading font-medium truncate">
                 {seg.label}
               </span>
               <span
@@ -219,7 +219,7 @@ function ActivityItem({ ev }: { ev: Evaluation }) {
         style={{ background: color, boxShadow: `0 0 6px ${color}60` }}
       />
       <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="text-xs font-semibold text-white truncate">
+        <p className="text-xs font-semibold apex-heading truncate">
           {ev.member_name || "Unnamed"}
         </p>
         <p className="text-[10px]" style={{ color: "var(--subtle)" }}>
@@ -374,7 +374,7 @@ export default function AnalyticsDashboard() {
       {/* Section Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-xl font-bold apex-heading flex items-center gap-2">
             <svg
               className="w-5 h-5"
               fill="none"
@@ -492,7 +492,7 @@ export default function AnalyticsDashboard() {
       {/* Pipeline Status Bars */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="admin-analytics-panel">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-bold apex-heading mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 rounded-full bg-cyan-400" />
             Evaluation Status Pipeline
           </h3>
@@ -530,7 +530,7 @@ export default function AnalyticsDashboard() {
 
         {/* Routing Stage Donut */}
         <div className="admin-analytics-panel">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-bold apex-heading mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 rounded-full bg-purple-400" />
             Routing Stage Distribution
           </h3>
@@ -541,7 +541,7 @@ export default function AnalyticsDashboard() {
       {/* Role Distribution + Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="admin-analytics-panel">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-bold apex-heading mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 rounded-full bg-amber-400" />
             Role Distribution
           </h3>
@@ -562,7 +562,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         <div className="admin-analytics-panel">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-bold apex-heading mb-4 flex items-center gap-2">
             <span className="w-1.5 h-4 rounded-full bg-emerald-400" />
             Recent Activity
           </h3>

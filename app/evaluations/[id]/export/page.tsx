@@ -20,8 +20,9 @@ import {
   checkForcedDistribution,
   ForcedDistributionResult,
 } from "@/lib/forcedDistribution";
-import { Evaluation, ValidationResult } from "@/types";
+import { Evaluation, Profile, ValidationResult } from "@/types";
 import PDFPreview from "@/components/PDFPreview";
+import AppShell from "@/components/layout/AppShell";
 
 export default function EvaluationExportPage() {
   const params = useParams();
@@ -29,6 +30,7 @@ export default function EvaluationExportPage() {
   const id = params?.id as string;
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export default function EvaluationExportPage() {
         setUserId(session.user.id);
 
         const viewer = await getProfile(session.user.id);
+        if (viewer) setProfile(viewer);
         if (!id) return;
         const data = await loadById(id);
 
@@ -115,25 +118,32 @@ export default function EvaluationExportPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0b132b] text-[#608bb3] font-mono text-sm">
-        Executing final validation checks...
+      <div
+        className="flex items-center justify-center min-h-screen text-sm"
+        style={{ background: "var(--background)", color: "var(--muted-foreground)" }}
+      >
+        Executing final validation checks…
       </div>
     );
   }
 
   if (error || !evaluation || !validationResult) {
     return (
-      <div className="min-h-screen bg-[#0b132b] flex flex-col items-center justify-center p-6 text-center">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
+        style={{ background: "var(--background)" }}
+      >
         <div className="bg-red-950/35 border border-red-900/40 rounded-xl p-6 max-w-md space-y-4">
           <h3 className="text-lg font-bold text-red-400">
             Error Loading Export Portal
           </h3>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             {error || "Record could not be loaded."}
           </p>
           <button
+            type="button"
             onClick={() => router.push("/dashboard")}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-white transition"
+            className="apex-btn-secondary"
           >
             Return to Dashboard
           </button>
@@ -145,44 +155,45 @@ export default function EvaluationExportPage() {
   const { success, errors, warnings } = validationResult;
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-[#f0f4f8]">
-      <header className="px-6 py-4 flex items-center justify-between border-b border-[#1c2541] glass-panel mb-6">
-        <div className="flex items-center gap-3">
-          <span className="font-extrabold text-xl tracking-wider text-white">
-            APEX
-          </span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#1c2541] text-[#3e6e99]">
-            EXPORT PORTAL
-          </span>
-        </div>
+    <AppShell
+      profile={profile}
+      maxWidth="5xl"
+      badge="Export"
+      breadcrumbs={[
+        { label: "Dashboard", href: "/dashboard" },
+        {
+          label: evaluation.member_name || "Evaluation",
+          href: `/evaluations/${evaluation.id}`,
+        },
+        { label: "Export" },
+      ]}
+      title="Export & submit evaluation"
+      subtitle={`${evaluation.grade_rate} · ${evaluation.status.replace(/_/g, " ")}`}
+      headerActions={
         <button
+          type="button"
           onClick={() => router.push(`/evaluations/${evaluation.id}`)}
-          className="text-xs text-slate-400 hover:text-white transition px-3 py-1.5"
+          className="apex-btn-secondary"
         >
-          Back to View
+          Back to view
         </button>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 pb-12 space-y-6">
-        <div className="bg-slate-900/40 p-6 rounded-xl border border-slate-800 space-y-2">
-          <h2 className="text-2xl font-bold text-white">
-            Export & Submit Evaluation
-          </h2>
-          <p className="text-xs text-slate-400">
+      }
+    >
+      <div className="space-y-6">
+        <div className="apex-card p-6 space-y-2">
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
             Member:{" "}
-            <span className="text-white font-semibold">
+            <span className="font-semibold apex-heading">
               {evaluation.member_name}
-            </span>{" "}
-            | Grade/Rate: {evaluation.grade_rate} | Status:{" "}
-            <span className="text-blue-400 uppercase font-bold">
-              {evaluation.status}
             </span>
           </p>
         </div>
 
-        {/* Validation Check Results */}
-        <div className="glass-panel rounded-xl p-6 border border-slate-800 space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+        <div className="apex-card p-6 space-y-6">
+          <div
+            className="flex justify-between items-center border-b pb-4"
+            style={{ borderColor: "var(--border)" }}
+          >
             <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
               EVALMAN Validation Check Results
             </h3>
@@ -276,9 +287,12 @@ export default function EvaluationExportPage() {
         {/* Forced-distribution status (BUPERSINST 1610.10H Table 1-2) — a hard blocker for finalize */}
         {forcedDist && (
           <div
-            className={`glass-panel rounded-xl p-6 border space-y-3 ${forcedDist.compliant ? "border-slate-800" : "border-red-500/30"}`}
+            className={`apex-card p-6 space-y-3 ${forcedDist.compliant ? "" : "border-red-500/30"}`}
           >
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+            <div
+              className="flex justify-between items-center border-b pb-3"
+              style={{ borderColor: "var(--border)" }}
+            >
               <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
                 Summary Group Forced Distribution
               </h3>
@@ -292,20 +306,20 @@ export default function EvaluationExportPage() {
                 {forcedDist.compliant ? "WITHIN LIMITS" : "OVER LIMIT"}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
               Observed group size:{" "}
-              <span className="text-white font-semibold">
+              <span className="font-semibold apex-heading">
                 {forcedDist.observedCount}
               </span>{" "}
               · Max Early Promote:{" "}
-              <span className="text-white font-semibold">
+              <span className="font-semibold apex-heading">
                 {forcedDist.earlyPromoteMax}
               </span>
               {forcedDist.combinedMax != null && (
                 <>
                   {" "}
                   · Max Early + Must Promote (E5–E6):{" "}
-                  <span className="text-white font-semibold">
+                  <span className="font-semibold apex-heading">
                     {forcedDist.combinedMax}
                   </span>
                 </>
@@ -356,14 +370,17 @@ export default function EvaluationExportPage() {
         </div>
 
         {/* Action Panel */}
-        <div className="glass-panel rounded-xl p-6 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="apex-card p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h4 className="text-sm font-semibold text-white">
+            <h4 className="text-sm font-semibold apex-heading">
               {success
                 ? "Export & Production Actions"
                 : "In Progress — Preview Available"}
             </h4>
-            <p className="text-xs text-slate-400 mt-1">
+            <p
+              className="text-xs mt-1"
+              style={{ color: "var(--muted-foreground)" }}
+            >
               {success
                 ? "Generate high-fidelity PDF copy or submit report to finalize status."
                 : "Preview the report below to track progress. Resolve the blockers above to download or finalize."}
@@ -376,21 +393,23 @@ export default function EvaluationExportPage() {
                 const el = document.getElementById("apex-pdf-preview-section");
                 el?.scrollIntoView({ behavior: "smooth" });
               }}
-              className="px-5 py-2.5 rounded-lg bg-[#3e6e99] hover:bg-[#4e82b0] text-xs font-bold text-white transition shadow-lg"
+              className="apex-btn-primary"
             >
               View Document Preview
             </button>
             {!success ? (
               <button
+                type="button"
                 onClick={() =>
                   router.push(`/evaluations/${evaluation.id}/edit`)
                 }
-                className="px-5 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-bold transition text-xs tracking-wide shadow-lg"
+                className="apex-btn-primary"
               >
                 Edit Draft
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleFinalize}
                 disabled={
                   isFinalizing ||
@@ -402,7 +421,7 @@ export default function EvaluationExportPage() {
                     ? "Blocked: summary group exceeds the forced-distribution caps"
                     : undefined
                 }
-                className="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold text-white transition border border-slate-700"
+                className="apex-btn-secondary disabled:opacity-50"
               >
                 {isFinalizing
                   ? "Finalizing..."
@@ -413,7 +432,7 @@ export default function EvaluationExportPage() {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
