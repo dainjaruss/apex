@@ -108,13 +108,28 @@ board_precepts (active cycle flags)─────────────┘   
 ## Maintaining the LaDR knowledge base
 
 LaDRs are public PDFs on Navy COOL (`https://www.cool.osd.mil/usn/LaDR/{rating}_{paygrade}.pdf`,
-reviewed annually; the cover month+year is the version key). There is no bulk
-API, so ingestion is deliberate: transcribe a rating's milestones into a
-`scripts/ladr-data/<rating>.ts` dataset (copy `it_e1_e9.ts` as the template),
-register it in `scripts/seed-ladr.ts`, and re-run the seed. Refreshes insert a
-**new versioned row** per LaDR issue — never overwrite — and member checklists
-remap by category + item code (spec §10.3). Datasets not transcribed from the
-source PDF must carry `source: 'representative'`.
+reviewed annually; the cover month+year is the version key). Two ingestion
+paths, both inserting a **new versioned row** per LaDR issue — never
+overwriting (spec §10.3):
+
+1. **On-demand fetch (v1.4)** — on the LaDR tab, selecting a rating with no
+   stored document offers "Fetch official LaDR from Navy COOL": the server
+   downloads the PDF (a dedicated TLS agent pins the site's public certificate
+   chain — cool.osd.mil omits its intermediate; see
+   `lib/boardConfidence/ladrCerts.ts`), extracts the text in memory (the PDF
+   is never persisted), and stores conservatively parsed milestones flagged
+   `auto_extracted` (the checklist shows a verify-against-the-source note).
+   The rating dropdown itself lists the full static catalog
+   (`lib/boardConfidence/ratings.ts`), so it works before anything is stored.
+2. **Curated seed (higher fidelity)** — transcribe a rating's milestones into
+   a `scripts/ladr-data/<rating>.ts` dataset (copy `it_e1_e9.ts` as the
+   template), register it in `scripts/seed-ladr.ts`, and re-run the seed.
+   Datasets not transcribed from the source PDF must carry
+   `source: 'representative'`.
+
+A curated seed and a fetched document for the same LaDR issue share the same
+`(rating, version)` key, so whichever lands first wins and the other reports
+"already current".
 
 ## Manual steps & known limits (v1)
 

@@ -135,6 +135,18 @@ export const runBoardAnalysis = async (body: {
   )) as BoardAnalysisRow;
 };
 
+/** v1.4: fetch + store the official LaDR for a rating from Navy COOL. */
+export const fetchLadr = async (
+  rating: string,
+): Promise<{ status: "stored" | "already_current"; rating: string; version: string; milestones: number }> => {
+  return (await postRoute("/api/board-confidence/ladr-fetch", { rating })) as {
+    status: "stored" | "already_current";
+    rating: string;
+    version: string;
+    milestones: number;
+  };
+};
+
 /* ── Reference-only attachments (private 'board-docs' bucket) ──────────────── */
 
 /** Upload an attachment under the caller's own folder; returns the storage path. */

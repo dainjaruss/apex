@@ -1261,6 +1261,26 @@ content was verified from the source PDF. `('BM', 'Boatswain's Mate', 'E1-E9',
 **Precept:** `('FY27 Active-Duty E7', 'FY27 CPO Selection Board emphasis (modeled)',
 '{"warfighting": true, "leadership_positions": true, "sea_duty": true}', null, true)`.
 
+### 10.3½ On-demand LaDR fetch (v1.4, additive)
+
+`POST /api/board-confidence/ladr-fetch { rating }` — any authenticated user;
+rating validated against the static `NAVY_RATINGS` catalog
+(`lib/boardConfidence/ratings.ts`, which also feeds the Record Entry dropdown
+so it functions with zero stored documents). Pipeline
+(`lib/boardConfidence/ladrFetch.ts`): undici fetch of
+`{rating}_e1_e9.pdf` with a dedicated Agent pinning the site's public
+ZeroSSL/USERTrust chain (`ladrCerts.ts` — cool.osd.mil omits its TLS
+intermediate) + browser UA → in-memory `unpdf` extraction (the PDF bytes are
+never persisted) → conservative anchor-based `parseLadr` (cover "Month YYYY"
+version; NELD ladder → `pme_required`; warfare/PQS/education signals; the COOL
+credential table rows with printed Target Paygrades; EVERY milestone
+`detail.source = 'auto_extracted'`, surfaced as a verify note in the
+checklist) → `storeLadr` inserting a NEW `(rating, version)` document +
+milestones, or `already_current` if that issue exists from either the curated
+seed or a prior fetch (never overwrites, §10.3). Statuses: 401 / 400 unknown
+rating / 404 no COOL file / 429 concurrency (cap 1) / 502 fetch-or-parse /
+500. Live-verified against YN, LS, and OS (all July 2026).
+
 ### 10.3 Versioning / annual-refresh procedure (documented behavior)
 
 - LaDRs are reviewed annually; the cover month+year is the version key. A new issue
