@@ -103,6 +103,8 @@ const ENV_KEYS = [
   "AI_GATEWAY_API_KEY",
   "VERCEL_OIDC_TOKEN",
   "BOARD_NARRATIVE_MODEL",
+  "BOARD_NARRATIVE_BASE_URL",
+  "BOARD_NARRATIVE_API_KEY",
 ] as const;
 const ORIGINAL_ENV = Object.fromEntries(
   ENV_KEYS.map((k) => [k, process.env[k]]),
@@ -231,5 +233,45 @@ describe("generateNarrative — mocked gateway model path (spec §4.3.2, v1.3)",
 
     const out = await generateNarrative(fixtureResult);
     expect(out.source).toBe("model");
+  });
+});
+
+describe("generateNarrative — direct OpenAI-compatible mode (v1.3: zero Vercel services)", () => {
+  it("BOARD_NARRATIVE_BASE_URL alone enables the model path — no gateway credentials", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
+    process.env.BOARD_NARRATIVE_API_KEY = "xai-test-key";
+    process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+
+    const args = h.generateText.mock.calls[0][0];
+    // A provider model OBJECT, not a gateway string — nothing resolves
+    // through the Vercel gateway on this path.
+    expect(typeof args.model).toBe("object");
+    expect(args.model.modelId).toBe("grok-4-fast");
+    expect(out.source).toBe("model");
+    expect(out.model).toBe("grok-4-fast");
+  });
+
+  it("works for keyless local endpoints (e.g. Ollama on the self-hosted box)", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "http://localhost:11434/v1";
+    process.env.BOARD_NARRATIVE_MODEL = "llama3.3";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+    expect(out.source).toBe("model");
+    expect(h.generateText.mock.calls[0][0].model.modelId).toBe("llama3.3");
+  });
+
+  it("direct endpoint takes precedence over gateway credentials when both are set", async () => {
+    process.env.AI_GATEWAY_API_KEY = "gateway-key";
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
+    process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    await generateNarrative(fixtureResult);
+    // Object model = direct path; a string would mean the gateway won.
+    expect(typeof h.generateText.mock.calls[0][0].model).toBe("object");
   });
 });

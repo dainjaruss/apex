@@ -52,7 +52,8 @@ board_precepts (active cycle flags)─────────────┘   
 - **What reaches the AI:** only rubric numbers, LaDR category completion
   ratios, precept flags, target paygrade, and the rating abbreviation. Never a
   name, DoD ID, award title, tour title, free text, or uploaded file content.
-  The provider is operator-selected through the Vercel AI Gateway (see below);
+  The provider is operator-selected (direct OpenAI-compatible endpoint or
+  the Vercel AI Gateway — see Setup);
   review the chosen provider's data-use terms — the payload contains no PII
   regardless.
 - **Ephemeral uploads:** ESR/PSR/OMPF (field codes 30–38) documents can be
@@ -79,16 +80,30 @@ board_precepts (active cycle flags)─────────────┘   
    npx tsx scripts/seed-ladr.ts
    ```
    Ships IT (transcribed from the real July 2026 Navy COOL LaDR), BM and HM.
-3. Optional AI narrative — provider-agnostic via the Vercel AI Gateway:
-   - `AI_GATEWAY_API_KEY` — gateway credential (on Vercel deployments, OIDC
-     is picked up automatically instead).
-   - `BOARD_NARRATIVE_MODEL` — any gateway `provider/model` string; pick by
-     price/quality. Default `anthropic/claude-opus-4.8`. Examples:
-     `xai/grok-4.5`, `xai/grok-4.1-fast-non-reasoning`,
-     `anthropic/claude-sonnet-4.5`. List models:
-     `curl -s https://ai-gateway.vercel.sh/v1/models`.
-   Without credentials the analyzer produces a deterministic narrative — every
-   feature still works.
+3. Optional AI narrative — provider-agnostic, two independent modes.
+   **Neither requires hosting on Vercel** (the whole app runs self-hosted;
+   only the NAVFIT `.accdb` export's JRE requirement drives hosting choice):
+   - **Direct mode (zero Vercel services)** — any OpenAI-compatible endpoint;
+     takes precedence when set:
+     ```env
+     BOARD_NARRATIVE_BASE_URL=https://api.x.ai/v1   # xAI/Grok; or OpenRouter,
+                                                    # Groq, or a local Ollama
+                                                    # (http://localhost:11434/v1)
+     BOARD_NARRATIVE_API_KEY=...                    # omit for keyless local
+     BOARD_NARRATIVE_MODEL=grok-4-fast              # the provider's NATIVE id
+     ```
+     OpenRouter (`https://openrouter.ai/api/v1`) is the best-price
+     multi-provider option on this path — it routes across vendors including
+     Anthropic and xAI.
+   - **Gateway mode (one key, many providers, cost dashboard)** — the Vercel
+     AI Gateway is a plain HTTPS API callable from any host:
+     ```env
+     AI_GATEWAY_API_KEY=...                          # or OIDC on Vercel deploys
+     BOARD_NARRATIVE_MODEL=anthropic/claude-opus-4.8 # or xai/grok-4.5, etc.
+     ```
+     List models: `curl -s https://ai-gateway.vercel.sh/v1/models`.
+   Without either configuration the analyzer produces a deterministic
+   narrative — every feature still works.
 
 ## Maintaining the LaDR knowledge base
 

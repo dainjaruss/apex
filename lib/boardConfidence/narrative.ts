@@ -12,6 +12,7 @@
 // details ever leave the server — the raw RubricInputs object is never passed in.
 
 import { generateText, Output } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
 import type {
   FactorKey,
@@ -35,10 +36,18 @@ export const NarrativeSchema = z.object({
 });
 export type Narrative = z.infer<typeof NarrativeSchema>;
 
-// v1.3: provider-agnostic via the Vercel AI Gateway — any "provider/model"
-// string the gateway serves (anthropic/…, xai/grok-…, openai/…). Operators
-// pick by price/quality with BOARD_NARRATIVE_MODEL; auth is AI_GATEWAY_API_KEY
-// (or automatic OIDC on Vercel deployments).
+// v1.3: provider-agnostic. Two independent paths — NEITHER requires hosting
+// on (or any service from) Vercel:
+//  1. DIRECT (self-host friendly, zero Vercel involvement):
+//     BOARD_NARRATIVE_BASE_URL = any OpenAI-compatible endpoint (xAI
+//     https://api.x.ai/v1, OpenRouter, Groq, a local Ollama, …) +
+//     BOARD_NARRATIVE_API_KEY (omit for keyless local endpoints) +
+//     BOARD_NARRATIVE_MODEL = that provider's NATIVE model id (e.g. grok-4).
+//     Takes precedence when set.
+//  2. GATEWAY (one key, many providers, price comparison): the Vercel AI
+//     Gateway is a plain HTTPS API callable from any host —
+//     BOARD_NARRATIVE_MODEL = "provider/model" string, auth via
+//     AI_GATEWAY_API_KEY (or OIDC when deployed on Vercel).
 export const DEFAULT_NARRATIVE_MODEL = "anthropic/claude-opus-4.8";
 
 export const narrativeModelId = (): string =>
@@ -204,10 +213,13 @@ export async function generateNarrative(
     fallbackReason,
   });
 
-  // Keyless gate: no request constructed, no network touched. The AI Gateway
+  // Keyless gate: no request constructed, no network touched. Direct mode
+  // (BOARD_NARRATIVE_BASE_URL) needs no Vercel service at all; gateway mode
   // authenticates via AI_GATEWAY_API_KEY or Vercel OIDC on deployments.
-  if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN)
-    return fallbackOutcome("no_key");
+  const directBaseUrl = process.env.BOARD_NARRATIVE_BASE_URL;
+  const hasGatewayAuth =
+    !!process.env.AI_GATEWAY_API_KEY || !!process.env.VERCEL_OIDC_TOKEN;
+  if (!directBaseUrl && !hasGatewayAuth) return fallbackOutcome("no_key");
 
   try {
     // Strict no-PII payload (spec §4.3 item 4): factor numbers + structured
@@ -224,8 +236,17 @@ export async function generateNarrative(
     };
 
     const modelId = narrativeModelId();
+    // Direct endpoint wins over the gateway when both are configured.
+    const model = directBaseUrl
+      ? createOpenAICompatible({
+          name: "board-narrative",
+          baseURL: directBaseUrl,
+          apiKey: process.env.BOARD_NARRATIVE_API_KEY,
+          supportsStructuredOutputs: true,
+        })(modelId)
+      : modelId; // gateway "provider/model" string
     const { output } = await generateText({
-      model: modelId, // gateway "provider/model" string
+      model,
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(30_000),
       system: NARRATIVE_SYSTEM_PROMPT,
