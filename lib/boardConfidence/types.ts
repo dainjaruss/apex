@@ -124,8 +124,10 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
   factor_scores: FactorResult[];
   overall_score: number;
   band: BandVote;
+  adverse_adjustment: number;           // A, persisted (v1.1 review fix — never derived client-side)
   narrative: Narrative;                 // from narrative.ts
   narrative_source: "model" | "fallback";
+  narrative_fallback_reason: "no_key" | "model_error" | null; // v1.1 review fix; null when source="model"
   model: string | null;
   created_by: string;
   created_at?: string;

@@ -1,16 +1,18 @@
 -- Migration 004: Board Confidence Analyzer
 --
 -- Adds versioned LaDR reference data, board precept emphasis flags, per-member
--- structured PSR/ESR record entry, persisted analysis runs, and a private
--- storage bucket for optional record attachments.
+-- structured PSR/ESR record entry, and persisted analysis runs.
 --
 -- 004:1  ladr_documents      — one row per rating + paygrade-range + annual issue (never mutated)
 -- 004:2  ladr_milestones     — checklist items per LaDR document
 -- 004:3  board_precepts      — board-cycle emphasis flags (at most one active)
 -- 004:4  member_board_records— per-user structured PSR/ESR entry (RLS owner-only)
 -- 004:5  board_analyses      — immutable analysis run snapshots (RLS owner-only read)
--- 004:6  storage bucket 'board-docs' — private, owner-folder-only
--- 004:7  idx_evaluations_created_by — per-member history query support (see spec §2)
+-- 004:6  idx_evaluations_created_by — per-member history query support (see spec §2)
+--
+-- v1.1 review fix: the 'board-docs' storage bucket + storage.objects policy
+-- moved to 005_board_docs_storage.sql so a storage-ownership failure on hosted
+-- Supabase cannot roll back these tables.
 
 -- 1. LaDR documents (versioned reference data) --------------------------------
 create table if not exists public.ladr_documents (
@@ -148,8 +150,14 @@ create table if not exists public.board_analyses (
     overall_score numeric(4,1) not null
         check (overall_score >= 0 and overall_score <= 100),
     band smallint not null check (band in (0, 25, 50, 75, 100)),
+    -- v1.1 review fix: A is stored — the UI must never re-derive it (wrong when
+    -- the final clamps to 0).
+    adverse_adjustment numeric(4,1) not null default 0,
     narrative jsonb not null,      -- {strengths[], gaps[], recommendations[], factor_commentary{}}
     narrative_source text not null check (narrative_source in ('model','fallback')),
+    -- v1.1 review fix: why the fallback narrative was used; null on the model path
+    narrative_fallback_reason text
+        check (narrative_fallback_reason in ('no_key','model_error')),
     model text,                    -- 'claude-opus-4-8' when narrative_source='model', else null
     created_by uuid references auth.users not null,        -- who ran it (owner or Admin)
     created_at timestamptz default now() not null
@@ -165,36 +173,6 @@ create policy ba_select_own on public.board_analyses
     for select to authenticated using (user_id = auth.uid());
 -- inserts happen only through the service-role API route (no insert policy).
 
--- 6. Storage bucket for optional ESR/PSR PDF attachments -----------------------
--- First bucket in this project (evaluations.pdf_storage_path is a dead column;
--- nothing else uses Storage). Private; each user may only touch objects under a
--- folder named with their own auth uid: board-docs/<auth.uid()>/<filename>.
---
--- Deploy caution (004:6): `create policy ... on storage.objects` requires
--- ownership of storage.objects. It applies cleanly on the local Supabase CLI
--- stack (superuser), but on current hosted Supabase projects the `postgres`
--- role does not own storage.objects, so `db push` of the 004:6 statements can
--- fail with `must be owner of table objects`. Fallback: create the
--- 'board-docs' bucket and the identical owner-folder policy through the
--- dashboard (Storage -> Policies) and skip the 004:6 statements in the pushed
--- migration -- the policy definition below remains the normative content
--- either way.
-insert into storage.buckets (id, name, public)
-    values ('board-docs', 'board-docs', false)
-    on conflict (id) do nothing;
-
-drop policy if exists board_docs_owner_rw on storage.objects;
-create policy board_docs_owner_rw on storage.objects
-    for all to authenticated
-    using (
-        bucket_id = 'board-docs'
-        and (storage.foldername(name))[1] = auth.uid()::text
-    )
-    with check (
-        bucket_id = 'board-docs'
-        and (storage.foldername(name))[1] = auth.uid()::text
-    );
-
--- 7. Per-member eval history index --------------------------------------------
+-- 6. Per-member eval history index --------------------------------------------
 create index if not exists idx_evaluations_created_by
     on public.evaluations (created_by);

@@ -108,6 +108,31 @@ function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
   );
 }
 
+const isIsoDate = (s: string | null | undefined): boolean =>
+  !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
+
+// v1.1 review fix: rows saved without dates silently change scores (the engine
+// must exclude or conservatively count them) — block the save and name the rows.
+const dateErrors = (r: MemberBoardRecord): string[] => {
+  const errs: string[] = [];
+  r.awards.forEach((a, i) => {
+    if (!isIsoDate(a.date_awarded)) errs.push(`award ${i + 1}`);
+  });
+  r.pfa_history.forEach((p, i) => {
+    if (!isIsoDate(p.date)) errs.push(`PFA cycle ${i + 1}`);
+  });
+  r.tours.forEach((t, i) => {
+    if (!isIsoDate(t.start) || (t.end !== null && !isIsoDate(t.end)))
+      errs.push(`tour ${i + 1}`);
+    else if (t.end !== null && t.end < t.start)
+      errs.push(`tour ${i + 1} (end before start)`);
+  });
+  r.adverse.forEach((a, i) => {
+    if (!isIsoDate(a.date)) errs.push(`adverse entry ${i + 1}`);
+  });
+  return errs;
+};
+
 const emptyRecord = (userId: string): MemberBoardRecord => ({
   user_id: userId,
   rating_abbrev: null,
@@ -218,6 +243,11 @@ export default function BoardConfidencePage() {
 
   const save = useCallback(async () => {
     if (!userId || !record) return;
+    const badRows = dateErrors(record);
+    if (badRows.length > 0) {
+      setSaveMsg(`Cannot save — add valid dates first: ${badRows.join(", ")}.`);
+      return;
+    }
     setSaving(true);
     setSaveMsg(null);
     try {

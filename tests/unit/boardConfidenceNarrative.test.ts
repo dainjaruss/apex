@@ -120,6 +120,7 @@ describe("generateNarrative — keyless fallback (feature works without ANTHROPI
     const out = await generateNarrative(fixtureResult);
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
+    expect(out.fallbackReason).toBe("no_key"); // v1.1 review fix
     expect(NarrativeSchema.safeParse(out.narrative).success).toBe(true);
     expect(h.anthropicCtor).not.toHaveBeenCalled();
     expect(h.parseMock).not.toHaveBeenCalled();
@@ -165,6 +166,7 @@ describe("generateNarrative — mocked model path (spec §4.3.2 call shape)", ()
 
     expect(out.source).toBe("model");
     expect(out.model).toBe(NARRATIVE_MODEL);
+    expect(out.fallbackReason).toBeNull(); // v1.1 review fix
     expect(out.narrative).toEqual(validNarrative);
   });
 
@@ -187,6 +189,7 @@ describe("generateNarrative — mocked model path (spec §4.3.2 call shape)", ()
 
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
+    expect(out.fallbackReason).toBe("model_error"); // v1.1 review fix
     expect(out.narrative).toEqual(fallbackNarrative(fixtureResult));
     errSpy.mockRestore();
   });
@@ -198,6 +201,7 @@ describe("generateNarrative — mocked model path (spec §4.3.2 call shape)", ()
 
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
+    expect(out.fallbackReason).toBe("model_error"); // v1.1 review fix
     expect(NarrativeSchema.safeParse(out.narrative).success).toBe(true);
   });
 });

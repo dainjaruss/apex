@@ -15,7 +15,7 @@ import {
 } from "@/lib/traitAverage";
 import { tallyRecommendations } from "@/lib/forcedDistribution";
 import { paygradeOf } from "@/lib/paygrade";
-import { scoreBoardConfidence } from "@/lib/boardConfidence/rubric";
+import { REC_POINTS, scoreBoardConfidence } from "@/lib/boardConfidence/rubric";
 import { generateNarrative } from "@/lib/boardConfidence/narrative";
 import {
   BOARD_DISCLAIMER,
@@ -122,14 +122,19 @@ export async function assembleRubricInputs(
     targetPaygrade = Number.isFinite(n) ? Math.min(9, n + 1) : null;
   }
 
+  // v1.1 review fix: the DB defaults every section to [] the moment a row
+  // exists, so an empty list means "not entered" — it must not earn
+  // completeness points. Map [] (and null) to null; adverse stays a list.
+  const section = <E,>(x: E[] | null | undefined): E[] | null =>
+    x && x.length ? x : null;
   const psr: PsrSection = mbr
     ? {
         entered: mbr.psr_entered,
-        awards: mbr.awards ?? null,
-        necs: mbr.necs ?? null,
-        education: mbr.education ?? null,
-        tours: mbr.tours ?? null,
-        pfa: mbr.pfa_history ?? null,
+        awards: section(mbr.awards),
+        necs: section(mbr.necs),
+        education: section(mbr.education),
+        tours: section(mbr.tours),
+        pfa: section(mbr.pfa_history),
         adverse: mbr.adverse ?? [],
       }
     : {
@@ -207,11 +212,23 @@ export async function assembleRubricInputs(
       const group = ev.summary_group_id
         ? groupContext.get(ev.summary_group_id)
         : undefined;
+      // v1.1 review fix: a null/empty/unknown recommendation maps to NOB
+      // (excluded from Performance, still counts for Continuity coverage) —
+      // never indexes REC_POINTS with an unknown key, never NaN (§7 item 8).
+      const rawRec = ev.promotion_recommendation;
+      const rec: PromotionRec =
+        rawRec === "NOB" || (typeof rawRec === "string" && rawRec in REC_POINTS)
+          ? (rawRec as PromotionRec)
+          : "NOB";
+      if (rec !== rawRec)
+        warnings.push(
+          `1 report has no promotion recommendation and was excluded from Performance scoring (period ${ev.period_from}–${ev.period_to}).`,
+        );
       return {
         period_from: ev.period_from,
         period_to: ev.period_to,
         report_type: ev.report_type,
-        promotion_recommendation: ev.promotion_recommendation as PromotionRec,
+        promotion_recommendation: rec,
         trait_average: computeTraitAverage(ev.trait_grades).average,
         summary_group_average: group?.sga ?? null,
         rsca: ctx.rsca ?? null,
@@ -309,7 +326,7 @@ export async function runBoardAnalysis(
   // 1. Assemble → score (pure) → narrative (model or deterministic fallback).
   const assembled = await assembleRubricInputs(admin, subjectUserId, boardDate);
   const result = scoreBoardConfidence(assembled.inputs);
-  const { narrative, source, model } = await generateNarrative(result, {
+  const { narrative, source, model, fallbackReason } = await generateNarrative(result, {
     preceptFlags: assembled.inputs.preceptFlags,
     targetPaygrade: assembled.meta.target_paygrade,
     ratingAbbrev: assembled.meta.rating_abbrev,
@@ -331,8 +348,12 @@ export async function runBoardAnalysis(
         factor_scores: result.factors,
         overall_score: result.final,
         band: result.band,
+        // v1.1 review fix: A is persisted — the UI must never re-derive it
+        // (Σcontributions − overall is wrong when the final clamps to 0).
+        adverse_adjustment: result.adverseAdjustment,
         narrative,
         narrative_source: source,
+        narrative_fallback_reason: fallbackReason,
         model,
         created_by: callerId,
       },
@@ -361,7 +382,17 @@ export async function runBoardAnalysis(
   ]);
   if (auditError) {
     console.error("board analysis audit insert failed:", auditError);
-    await admin.from("board_analyses").delete().eq("id", inserted.id);
+    // v1.1 review fix: verify the compensating delete — if it ALSO fails, the
+    // unaudited analysis row is orphaned and needs manual cleanup.
+    const { error: deleteError } = await admin
+      .from("board_analyses")
+      .delete()
+      .eq("id", inserted.id);
+    if (deleteError)
+      console.error(
+        `CRITICAL: unaudited board_analyses row ${inserted.id} could not be deleted after the audit failure — orphaned analysis requires manual cleanup:`,
+        deleteError,
+      );
     throw new Error(
       "Analysis could not be recorded in the audit log; no result was released.",
     );

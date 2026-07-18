@@ -8,7 +8,22 @@
 // documented empty PsrSection when no member_board_records row exists.
 
 import { describe, it, expect, vi } from "vitest";
-import { assembleRubricInputs } from "@/lib/boardConfidence/service";
+import {
+  assembleRubricInputs,
+  runBoardAnalysis,
+} from "@/lib/boardConfidence/service";
+import { BOARD_DISCLAIMER } from "@/lib/boardConfidence/types";
+
+// runBoardAnalysis calls the narrative module (Anthropic SDK) — stub it with a
+// pinned outcome so persistence of source/model/fallbackReason is assertable.
+vi.mock("@/lib/boardConfidence/narrative", () => ({
+  generateNarrative: vi.fn(async () => ({
+    narrative: { summary: "stub", strengths: [], gaps: [], recommendations: [] },
+    source: "fallback",
+    model: null,
+    fallbackReason: "model_error",
+  })),
+}));
 
 const FINALIZED_GATE =
   "status.eq.completed,signature_locked.eq.true,routing_stage.eq.locked";
@@ -229,6 +244,58 @@ describe("assembleRubricInputs — LaDR applicability (§3 rule) and scored cate
   });
 });
 
+describe("assembleRubricInputs — v1.1 review fixes", () => {
+  it("maps a null promotion_recommendation to NOB with the warning (never NaN)", async () => {
+    const { admin } = makeAdmin(
+      baseTables({ evaluations: [dbEval({ promotion_recommendation: null })] }),
+    );
+
+    const res = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+
+    expect(res.inputs.evals[0].promotion_recommendation).toBe("NOB");
+    expect(res.warnings).toContain(
+      "1 report has no promotion recommendation and was excluded from Performance scoring (period 2024-06-01–2025-05-31).",
+    );
+  });
+
+  it("maps empty-array PSR sections to null — empty list = not entered", async () => {
+    const { admin } = makeAdmin(
+      baseTables({
+        member_board_records: [
+          {
+            id: "mbr-1",
+            user_id: "subj-1",
+            rating_abbrev: null,
+            target_paygrade: null,
+            psr_entered: true,
+            awards: [],
+            necs: [],
+            quals: [],
+            education: [],
+            pfa_history: [],
+            tours: [],
+            adverse: [],
+            eval_context: {},
+            ladr_checklist: {},
+          },
+        ],
+      }),
+    );
+
+    const res = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+
+    expect(res.inputs.psr).toEqual({
+      entered: true,
+      awards: null,
+      necs: null,
+      education: null,
+      tours: null,
+      pfa: null,
+      adverse: [],
+    });
+  });
+});
+
 describe("assembleRubricInputs — absent member_board_records row", () => {
   it("yields the documented empty PsrSection (null sections ≠ empty lists)", async () => {
     const { admin } = makeAdmin(baseTables()); // member_board_records: []
@@ -246,5 +313,183 @@ describe("assembleRubricInputs — absent member_board_records row", () => {
     });
     expect(res.inputs.ladr).toEqual([]);
     expect(res.meta.rating_abbrev).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runBoardAnalysis — persistence + fail-closed audit (spec §4.4)
+// ---------------------------------------------------------------------------
+
+const runMbr = {
+  id: "mbr-1",
+  user_id: "subj-1",
+  rating_abbrev: null,
+  target_paygrade: null,
+  psr_entered: true,
+  awards: [],
+  necs: [],
+  quals: [],
+  education: [],
+  pfa_history: [],
+  tours: [],
+  adverse: [{ kind: "njp", date: "2024-01-10" }],
+  eval_context: {},
+  ladr_checklist: {},
+};
+
+// Admin stub for the full run: assembly reads fall through to makeAdmin;
+// board_analyses insert/delete and audit_logs insert are argument-capturing.
+const makeRunAdmin = (
+  opts: {
+    auditError?: unknown;
+    deleteError?: unknown;
+    tables?: Record<string, any[]>;
+  } = {},
+) => {
+  const base = makeAdmin(baseTables(opts.tables));
+  const calls: {
+    insertPayload?: any;
+    auditPayload?: any;
+    deleted?: [string, string];
+  } = {};
+  const admin: any = {
+    from: vi.fn((table: string) => {
+      if (table === "board_analyses") {
+        return {
+          insert: vi.fn((rows: any[]) => {
+            calls.insertPayload = rows[0];
+            return {
+              select: () => ({
+                single: async () =>
+                  ({ data: { id: "ba-1", ...rows[0] }, error: null }) as Res,
+              }),
+            };
+          }),
+          delete: vi.fn(() => ({
+            eq: async (col: string, id: string) => {
+              calls.deleted = [col, id];
+              return { error: opts.deleteError ?? null };
+            },
+          })),
+        };
+      }
+      if (table === "audit_logs") {
+        return {
+          insert: vi.fn(async (rows: any[]) => {
+            calls.auditPayload = rows[0];
+            return { error: opts.auditError ?? null };
+          }),
+        };
+      }
+      return base.admin.from(table);
+    }),
+  };
+  return { admin, calls };
+};
+
+const AUDIT_FAIL_MSG =
+  "Analysis could not be recorded in the audit log; no result was released.";
+
+describe("runBoardAnalysis — success path persists the full snapshot", () => {
+  it("persists BOARD_DISCLAIMER verbatim, the real adverse_adjustment, and narrative_fallback_reason; audits with the analysis id", async () => {
+    const { admin, calls } = makeRunAdmin({
+      tables: { member_board_records: [runMbr] },
+    });
+
+    const row = await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
+    expect(row.id).toBe("ba-1");
+
+    const p = calls.insertPayload;
+    expect(p.user_id).toBe("subj-1");
+    expect(p.created_by).toBe("caller-1");
+    expect(p.board_date).toBe("2026-09-01");
+    expect(p.input.disclaimer).toBe(BOARD_DISCLAIMER);
+    // One NJP adverse item → A = 15 (a constant-0 mutation cannot pass).
+    expect(p.adverse_adjustment).toBe(15);
+    expect(p.narrative_source).toBe("fallback");
+    expect(p.model).toBeNull();
+    expect(p.narrative_fallback_reason).toBe("model_error");
+    expect(Number.isFinite(p.overall_score)).toBe(true);
+
+    expect(calls.auditPayload.action).toBe("BOARD_ANALYSIS_RUN");
+    expect(calls.auditPayload.user_id).toBe("caller-1");
+    expect(calls.auditPayload.details.analysis_id).toBe("ba-1");
+    expect(calls.auditPayload.details.subject_user_id).toBe("subj-1");
+    // Nothing was deleted on the happy path.
+    expect(calls.deleted).toBeUndefined();
+  });
+});
+
+describe("runBoardAnalysis — fail-closed audit (v1.1 review fix)", () => {
+  it("audit insert failure: the analysis row is deleted AND the call throws", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { admin, calls } = makeRunAdmin({
+      auditError: { message: "audit down" },
+    });
+
+    await expect(
+      runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01"),
+    ).rejects.toThrow(AUDIT_FAIL_MSG);
+    expect(calls.deleted).toEqual(["id", "ba-1"]);
+    errSpy.mockRestore();
+  });
+
+  it("audit fails AND the delete fails: still throws, CRITICAL orphan log names the row", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { admin, calls } = makeRunAdmin({
+      auditError: { message: "audit down" },
+      deleteError: { message: "delete down" },
+    });
+
+    await expect(
+      runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01"),
+    ).rejects.toThrow(AUDIT_FAIL_MSG);
+    expect(calls.deleted).toEqual(["id", "ba-1"]);
+
+    const critical = errSpy.mock.calls.find((c) =>
+      String(c[0]).includes("CRITICAL"),
+    );
+    expect(critical).toBeDefined();
+    expect(String(critical![0])).toContain("ba-1");
+    errSpy.mockRestore();
+  });
+});
+
+describe("runBoardAnalysis — v1.1 scoring semantics reach the persisted snapshot", () => {
+  it("null promotion_recommendation: finite score, warning persisted, excluded from Performance", async () => {
+    const { admin, calls } = makeRunAdmin({
+      tables: { evaluations: [dbEval({ promotion_recommendation: null })] },
+    });
+
+    await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
+
+    const p = calls.insertPayload;
+    expect(Number.isFinite(p.overall_score)).toBe(true);
+    expect(p.input.warnings).toContain(
+      "1 report has no promotion recommendation and was excluded from Performance scoring (period 2024-06-01–2025-05-31).",
+    );
+    const perf = p.factor_scores.find((f: any) => f.key === "performance");
+    expect(perf.detail.no_data).toBe(true);
+    expect(perf.detail.nObserved).toBe(0);
+    // The NOB report still exists for continuity coverage.
+    const cont = p.factor_scores.find((f: any) => f.key === "continuity");
+    expect(cont.detail.coveredDays).toBeGreaterThan(0);
+  });
+
+  it("empty-array PSR sections: completeness awards no necs/education/awards points", async () => {
+    const { admin, calls } = makeRunAdmin({
+      tables: { member_board_records: [{ ...runMbr, adverse: [] }] },
+    });
+
+    await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
+
+    const comp = calls.insertPayload.factor_scores.find(
+      (f: any) => f.key === "completeness",
+    );
+    expect(comp.detail.psrEntered).toBe(15); // the row exists and is entered...
+    expect(comp.detail.necs).toBe(0); // ...but empty lists earn nothing
+    expect(comp.detail.education).toBe(0);
+    expect(comp.detail.awards).toBe(0);
+    expect(comp.detail.pfa3).toBe(0);
   });
 });

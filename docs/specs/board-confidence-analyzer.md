@@ -1,7 +1,12 @@
 # APEX Board Confidence Analyzer — Implementation Specification
 
-Status: **APPROVED FOR BUILD** · Version 1 · 2026-07-18
+Status: **APPROVED FOR BUILD** · Version 1.1 · 2026-07-18
 Companion spec style: `docs/specs/navfit98-field-mapping.md`
+v1.1: normative edits marked "v1.1 review fix" applied from the adjudicated
+adversarial-review brief (owner-only auth, NOB mapping for unknown recs,
+empty-list = not-entered, persisted adverse adjustment, date guards,
+future-eval exclusion, narrative fallback reason, audited-delete check,
+storage DDL split to migration 005).
 
 This document is the authoritative build document for the Board Confidence Analyzer.
 An implementer must be able to build every part from it without re-research. Where a
@@ -79,6 +84,11 @@ equivalence.
 3. Migration 004 adds `idx_evaluations_created_by` so the per-member history query is
    indexed. It does **not** attempt to backfill or constrain `evaluations.dod_id`
    (out of scope; would require touching the eval-creation flow).
+4. **v1.1 review fix — access is OWNER-ONLY.** `profiles.preferred_role` /
+   `assigned_roles` are user-editable (self-asserted; `RoleGuard` is client-side
+   UX, not authority), so an "Admin" check against them authorizes nothing. The
+   former Admin-on-behalf path is removed from both API routes and deferred until
+   real server-side role authority exists.
 
 ---
 
@@ -96,16 +106,18 @@ Full DDL (this is the migration, verbatim):
 -- Migration 004: Board Confidence Analyzer
 --
 -- Adds versioned LaDR reference data, board precept emphasis flags, per-member
--- structured PSR/ESR record entry, persisted analysis runs, and a private
--- storage bucket for optional record attachments.
+-- structured PSR/ESR record entry, and persisted analysis runs.
 --
 -- 004:1  ladr_documents      — one row per rating + paygrade-range + annual issue (never mutated)
 -- 004:2  ladr_milestones     — checklist items per LaDR document
 -- 004:3  board_precepts      — board-cycle emphasis flags (at most one active)
 -- 004:4  member_board_records— per-user structured PSR/ESR entry (RLS owner-only)
 -- 004:5  board_analyses      — immutable analysis run snapshots (RLS owner-only read)
--- 004:6  storage bucket 'board-docs' — private, owner-folder-only
--- 004:7  idx_evaluations_created_by — per-member history query support (see spec §2)
+-- 004:6  idx_evaluations_created_by — per-member history query support (see spec §2)
+--
+-- v1.1 review fix: the 'board-docs' storage bucket + storage.objects policy
+-- moved to 005_board_docs_storage.sql so a storage-ownership failure on hosted
+-- Supabase cannot roll back these tables.
 
 -- 1. LaDR documents (versioned reference data) --------------------------------
 create table if not exists public.ladr_documents (
@@ -243,10 +255,16 @@ create table if not exists public.board_analyses (
     overall_score numeric(4,1) not null
         check (overall_score >= 0 and overall_score <= 100),
     band smallint not null check (band in (0, 25, 50, 75, 100)),
+    -- v1.1 review fix: A is stored — the UI must never re-derive it (wrong when
+    -- the final clamps to 0).
+    adverse_adjustment numeric(4,1) not null default 0,
     narrative jsonb not null,      -- {strengths[], gaps[], recommendations[], factor_commentary{}}
     narrative_source text not null check (narrative_source in ('model','fallback')),
+    -- v1.1 review fix: why the fallback narrative was used; null on the model path
+    narrative_fallback_reason text
+        check (narrative_fallback_reason in ('no_key','model_error')),
     model text,                    -- 'claude-opus-4-8' when narrative_source='model', else null
-    created_by uuid references auth.users not null,        -- who ran it (owner or Admin)
+    created_by uuid references auth.users not null,        -- who ran it (the owner, v1.1 owner-only)
     created_at timestamptz default now() not null
 );
 
@@ -260,30 +278,19 @@ create policy ba_select_own on public.board_analyses
     for select to authenticated using (user_id = auth.uid());
 -- inserts happen only through the service-role API route (no insert policy).
 
--- 6. Storage bucket for optional ESR/PSR PDF attachments -----------------------
--- First bucket in this project (evaluations.pdf_storage_path is a dead column;
--- nothing else uses Storage). Private; each user may only touch objects under a
--- folder named with their own auth uid: board-docs/<auth.uid()>/<filename>.
-insert into storage.buckets (id, name, public)
-    values ('board-docs', 'board-docs', false)
-    on conflict (id) do nothing;
-
-drop policy if exists board_docs_owner_rw on storage.objects;
-create policy board_docs_owner_rw on storage.objects
-    for all to authenticated
-    using (
-        bucket_id = 'board-docs'
-        and (storage.foldername(name))[1] = auth.uid()::text
-    )
-    with check (
-        bucket_id = 'board-docs'
-        and (storage.foldername(name))[1] = auth.uid()::text
-    );
-
--- 7. Per-member eval history index --------------------------------------------
+-- 6. Per-member eval history index --------------------------------------------
 create index if not exists idx_evaluations_created_by
     on public.evaluations (created_by);
 ```
+
+**Migration 005 — `supabase/migrations/005_board_docs_storage.sql` (v1.1 review
+fix):** the `board-docs` storage bucket and the `board_docs_owner_rw` policy on
+`storage.objects` live in their own migration. Private bucket; each user may
+only touch objects under a folder named with their own auth uid
+(`board-docs/<auth.uid()>/<filename>`). It applies where the migration role may
+manage storage policies (local CLI stack); on hosted projects where it cannot,
+create the bucket + policy via the dashboard using 005 as the normative
+reference — the 004 tables are unaffected either way.
 
 Notes:
 
@@ -301,14 +308,15 @@ Notes:
   §6 Record Entry tab, displayed back to the member, and deliberately **never read by
   the rubric** and not part of `PsrSection` — scored qualifications come exclusively
   from the LaDR checklist (Factor 3).
-- **Deploy caution (004:6):** `create policy ... on storage.objects` requires
-  ownership of `storage.objects`. It applies cleanly on the local Supabase CLI stack
-  (superuser), but on current **hosted** Supabase projects the `postgres` role does
-  not own `storage.objects`, so `db push` of the 004:6 statements can fail with
-  `must be owner of table objects`. Fallback: create the `board-docs` bucket and the
-  identical owner-folder policy through the dashboard (Storage → Policies) and skip
-  the 004:6 statements in the pushed migration — the policy definition above remains
-  the normative content either way.
+- **Deploy caution (storage, v1.1 review fix):** `create policy ... on
+  storage.objects` requires ownership of `storage.objects`. It applies cleanly on
+  the local Supabase CLI stack (superuser), but on current **hosted** Supabase
+  projects the `postgres` role does not own `storage.objects` and the statement
+  fails with `must be owner of table objects`. The storage DDL therefore lives in
+  its own migration `005_board_docs_storage.sql` so that failure cannot roll back
+  the 004 tables; where 005 cannot be applied, create the `board-docs` bucket and
+  the identical owner-folder policy through the dashboard (Storage → Policies)
+  using 005 as the normative reference.
 
 ---
 
@@ -372,13 +380,18 @@ export interface AdverseEntry { kind: "page13" | "njp" | "court_memo" | "punitiv
 
 export interface PsrSection {
   entered: boolean;                  // member_board_records.psr_entered
-  awards: AwardEntry[] | null;       // null = section never filled (≠ empty list)
+  awards: AwardEntry[] | null;       // null = section not entered
   necs: NecEntry[] | null;
   education: EducationEntry[] | null;
   tours: TourEntry[] | null;
   pfa: PfaCycle[] | null;
   adverse: AdverseEntry[];           // always an array; default []
 }
+// v1.1 review fix (normative): the DB defaults every section to [] the moment a
+// member_board_records row exists (it cannot represent null), so an EMPTY LIST
+// means "not entered" — service.ts maps [] to null for awards/necs/education/
+// tours/pfa. A section must never earn completeness points for zero content.
+// adverse stays a list ([] is fine — zero adverse entries is real data).
 
 export type LadrCategory =
   | "career_milestone" | "skill_training_required" | "skill_training_recommended"
@@ -441,8 +454,10 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
   factor_scores: FactorResult[];
   overall_score: number;
   band: BandVote;
+  adverse_adjustment: number;           // A, persisted (v1.1 review fix — never derived client-side)
   narrative: Narrative;                 // from narrative.ts
   narrative_source: "model" | "fallback";
+  narrative_fallback_reason: "no_key" | "model_error" | null; // v1.1 review fix
   model: string | null;
   created_by: string;
   created_at?: string;
@@ -612,6 +627,11 @@ export interface NarrativeOutcome {
   narrative: Narrative;
   source: "model" | "fallback";
   model: string | null;          // NARRATIVE_MODEL when source === "model", else null
+  // v1.1 review fix: WHY the fallback was used, persisted as
+  // board_analyses.narrative_fallback_reason and surfaced by the UI badge —
+  // "no_key" (ANTHROPIC_API_KEY unset) vs "model_error" (call failed, threw, or
+  // parsed_output was null). null when source === "model".
+  fallbackReason: "no_key" | "model_error" | null;
 }
 
 /** Deterministic, rubric-derived text. No I/O. Used keyless and on any model failure. */
@@ -624,8 +644,9 @@ export async function generateNarrative(result: RubricResult): Promise<Narrative
 `generateNarrative` contract:
 
 1. **Keyless gate:** `if (!process.env.ANTHROPIC_API_KEY) return { narrative:
-   fallbackNarrative(result), source: "fallback", model: null };` — no client is
-   constructed, no network is touched.
+   fallbackNarrative(result), source: "fallback", model: null,
+   fallbackReason: "no_key" };` — no client is constructed, no network is
+   touched (fallbackReason per the v1.1 review fix).
 2. Model call (exact shape — `claude-opus-4-8` rejects `temperature`/`top_p`/`top_k`
    with a 400, so **no sampling parameters are ever sent**):
 
@@ -644,8 +665,9 @@ export async function generateNarrative(result: RubricResult): Promise<Narrative
    ```
 3. **Every** thrown error (auth, rate limit, network, refusal, parse) is caught,
    logged with `console.error("board narrative generation failed:", err)`, and
-   resolves to the fallback outcome. The analyze route never fails because of the
-   narrative.
+   resolves to the fallback outcome with `fallbackReason: "model_error"` (v1.1
+   review fix — same for `parsed_output: null`). The analyze route never fails
+   because of the narrative.
 4. **Privacy (normative):** `payload` contains ONLY: the six `FactorResult` objects
    (key, weight, score, confidence, contribution, detail), `final`, `band`,
    `bandLabel`, `adverseAdjustment` (a number — never the adverse entries
@@ -751,8 +773,11 @@ export async function runBoardAnalysis(
 2. Insert into `board_analyses`:
    `{ user_id, board_date, input: { ...inputs, disclaimer: BOARD_DISCLAIMER,
    warnings: result.warnings.concat(assembled.warnings), meta }, factor_scores:
-   result.factors, overall_score: result.final, band: result.band, narrative,
-   narrative_source, model, created_by: callerId }` — `.select().single()` to get id.
+   result.factors, overall_score: result.final, band: result.band,
+   adverse_adjustment: result.adverseAdjustment, narrative, narrative_source,
+   narrative_fallback_reason: fallbackReason, model, created_by: callerId }` —
+   `.select().single()` to get id (adverse_adjustment + narrative_fallback_reason
+   per the v1.1 review fixes).
 3. **Fail-closed audit** (the stricter navfit98 pattern, route.ts:94-113 — analysis
    output is derived career data about a member, treated as record egress):
    insert into `audit_logs`
@@ -761,6 +786,9 @@ export async function runBoardAnalysis(
    overall_score: result.final, band: result.band, narrative_source } }`.
    If the audit insert errors: delete the just-inserted `board_analyses` row and
    throw `new Error("Analysis could not be recorded in the audit log; no result was released.")`.
+   **v1.1 review fix:** the compensating delete's `{ error }` is checked — if the
+   delete ALSO fails, a `CRITICAL` line naming the orphaned analysis id is logged
+   via `console.error`, and the same error is still thrown.
 4. Return the inserted row.
 
 New audit action string added to the project's action inventory: `BOARD_ANALYSIS_RUN`.
@@ -847,17 +875,14 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(T) || Number.isNaN(Date.parse(T)))
       return fail("Invalid boardDate (expected YYYY-MM-DD).", 400);
 
-    const admin = createAdminClient();
+    // Owner-only (v1.1 review fix): profiles.preferred_role/assigned_roles are
+    // user-editable (self-asserted), so an "Admin" check against them authorizes
+    // nothing. Admin-on-behalf is deferred until real server-side role authority
+    // exists.
+    if (subjectUserId !== callerId)
+      return fail("Only the record owner may run/view analyses.", 403);
 
-    // Owner-or-Admin: only the Sailor themself or an Admin may analyze a record.
-    if (subjectUserId !== callerId) {
-      const { data: caller } = await admin
-        .from("profiles").select("preferred_role, assigned_roles")
-        .eq("id", callerId).single();
-      const isAdmin = caller?.preferred_role === "Admin"
-        || (caller?.assigned_roles || []).includes("Admin");
-      if (!isAdmin) return fail("Only the record owner or an Admin may run an analysis.", 403);
-    }
+    const admin = createAdminClient();
 
     const { data: subject } = await admin
       .from("profiles").select("id").eq("id", subjectUserId).single();
@@ -874,7 +899,8 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-Error inventory: 401 unauthenticated · 400 bad `boardDate` · 403 not owner/Admin ·
+Error inventory: 401 unauthenticated · 400 bad `boardDate` · 403 not the owner
+(v1.1 review fix — owner-only, `"Only the record owner may run/view analyses."`) ·
 404 subject profile missing · 429 concurrency cap · 500 audit-insert failure
 (fail-closed, message surfaced generically) or unexpected error. There is no 422:
 thin/empty records are a *scored condition* (rubric missing-data policy), not a
@@ -884,18 +910,18 @@ factor with an empty normalizing denominator — never NaN).
 
 ### 5.2 `GET /api/board-confidence/runs` — `app/api/board-confidence/runs/route.ts`
 
-Serves the prior-run list, including the Admin-views-another-user case that RLS
-(`ba_select_own`) cannot serve from the browser.
+Serves the caller's prior-run list. **v1.1 review fix: owner-only** — the former
+Admin-views-another-user case trusted self-asserted profiles roles and is
+removed (deferred with the §2 note).
 
-Query params: `?userId=<uuid>` (optional; default caller).
-Auth: identical owner-or-Admin check as §5.1 (401/403).
+Query params: `?userId=<uuid>` (optional; must equal the caller when present).
+Auth: identical owner-only check as §5.1 (401/403, same 403 message).
 Query: `admin.from("board_analyses")
-.select("id, user_id, board_date, overall_score, band, narrative_source, model, created_at")
+.select("id, user_id, board_date, overall_score, band, adverse_adjustment, narrative_source, narrative_fallback_reason, model, created_at")
 .eq("user_id", subjectUserId).order("created_at", { ascending: false }).limit(50)`.
 Response `200`: `{ runs: [...] }`. Read-only — no audit row.
 (For the owner's own history the UI may equivalently use
-`listMyAnalyses` via RLS; this route is the canonical path and the only one that
-works for Admin.)
+`listMyAnalyses` via RLS; this route remains the canonical path.)
 
 ---
 
@@ -928,7 +954,11 @@ page file — component names below are the contract, file granularity is not):
      complete" attestation checkbox writes `psr_entered`. Optional attachments
      block: upload/list/delete against `board-docs` via §4.5 helpers, with the
      caption "Attachments are stored for your reference only; they are never read
-     or scored." Save button → `saveMemberBoardRecord`. All inputs use
+     or scored." Save button → `saveMemberBoardRecord`. **v1.1 review fix
+     (normative):** the save handler validates that every award/PFA/tour/adverse
+     row has a parseable `YYYY-MM-DD` date (and tour end ≥ start when present);
+     on violation the save is blocked and the page's existing save-message
+     surface names the rows needing dates. All inputs use
      `apex-input` / `apex-select`, labels via `apex-filter-label`, and every select
      carries an explicit `aria-label` (repo a11y convention, dashboard:396,413).
   2. **LaDR Checklist** (`LadrChecklist`) — auto-loads `getLatestLadr(rating_abbrev)`,
@@ -955,10 +985,15 @@ page file — component names below are the contract, file granularity is not):
        `P1 = Σ rᵢ·pts / Σ rᵢ = 97.00`, `coverage = 0.4003, gaps > 90d: 2,
        S_C = 100·0.4003 − 30 = 10.03`). Numbers come from `detail` — never
        recomputed client-side.
-     - Adverse adjustment line when `adverseAdjustment > 0`, warnings list
-       (`warnings`), then Strengths / Gaps / Recommendations lists and per-factor
-       commentary from `narrative`, with a chip "AI narrative (claude-opus-4-8)" or
-       "Deterministic narrative (no API key configured)" per `narrative_source`.
+     - Adverse adjustment line when the STORED `board_analyses.adverse_adjustment`
+       is > 0 (v1.1 review fix — never derived client-side from
+       Σcontributions − overall, which is wrong when the final clamps to 0),
+       warnings list (`warnings`), then Strengths / Gaps / Recommendations lists
+       and per-factor commentary from `narrative`, with a chip per
+       `narrative_source` + `narrative_fallback_reason` (v1.1 review fix):
+       "AI narrative (claude-opus-4-8)", "Deterministic narrative (no API key
+       configured)" (`no_key`), or "Deterministic narrative (AI narrative
+       unavailable — model call failed)" (`model_error`).
      - **Prior runs** table (`apex-data-table` inside `apex-card overflow-x-auto`
        with `min-w-[720px]`): date, board date, score, band, source; row click
        loads that run's stored result (no recompute — snapshots are immutable).
@@ -1020,6 +1055,32 @@ MISSING-DATA POLICY (uniform, never fabricate): (1) A factor's uncomputable subc
 
 DETERMINISM/TESTABILITY: no randomness, no clock reads (T is an input), integer month flooring, explicit clamps, single terminal rounding. Boundary tests: band edges 85/70/50/30; gap edge 90 days; grace edge 365 days; coverage edge 0.95; N_obs edge 3; trend edge 4 evals; adverse caps 30/20.
 ```
+
+**v1.1 review fixes (normative addendum to the rubric above):**
+
+1. **Unknown recommendations are NOB.** Any observed-eval
+   `promotion_recommendation` that is not a `REC_POINTS` key (null, empty, or an
+   unrecognized value) is treated as `NOB`: excluded from Performance, still
+   counted for Continuity coverage. `service.ts` maps such rows to `"NOB"` at
+   assembly with the warning `"1 report has no promotion recommendation and was
+   excluded from Performance scoring (period <from>–<to>)."`; `rubric.ts`
+   additionally guards (defense in depth) so `REC_POINTS` is never indexed with
+   an unknown key. Never NaN (item 8 extends to this case).
+2. **Future-dated evals are excluded.** Observed evals require
+   `0 <= monthsBefore(period_to, T) <= 72`; any eval with `period_to` after `T`
+   is excluded from ALL factors including Continuity (a future `period_to` would
+   otherwise earn recency weight > 1), with the warning
+   `"Excluded N reports dated after the board date."`
+3. **Dateless entries.** Awards and tours with missing/unparseable dates are
+   EXCLUDED from scoring with the warning `"N entries with missing dates were
+   excluded from scoring — add dates in Record Entry."`. A PFA `result="fail"`
+   with a missing date APPLIES the −10 adverse penalty anyway (conservative —
+   never inflate) with the warning `"A PFA failure without a date was counted as
+   recent — add the date to confirm the 36-month window."`
+4. **Empty list = not entered.** Per §4.1: `service.ts` maps empty-array PSR
+   sections (awards/necs/education/tours/pfa) to `null` before scoring — the DB
+   cannot represent null once a row exists, and an empty section must not score
+   as "entered" for Completeness.
 
 ### 7.1 Bands (normative)
 
@@ -1272,8 +1333,9 @@ Mock `@/lib/supabaseClient` (`getRouteUserId`, `createAdminClient`) and
 
 - 401 when `getRouteUserId` resolves null.
 - 400 on `boardDate: "09/01/2026"` and `"2026-13-40"`.
-- 403 when caller ≠ subject and caller profile is not Admin; 200 path when caller
-  is Admin (`preferred_role` or `assigned_roles`).
+- 403 whenever caller ≠ subject — including when the caller's profile claims
+  Admin (`preferred_role` or `assigned_roles`), and without any profile-role
+  lookup (v1.1 review fix — owner-only).
 - 429 when `MAX_CONCURRENT_ANALYSES` slots are held (fire 3 concurrent requests
   against a `runBoardAnalysis` mock that blocks on a deferred promise; assert the
   third gets 429 and the counter releases after resolution).
@@ -1304,8 +1366,8 @@ stale column value); LaDR applicability `min(applies_to_paygrades) <= target`;
   Sailor owns still score under the same rubric, but the LaDR/precept model, bands
   disclaimer, and seed data target enlisted advancement only.
 - **Multi-member command views** (a Rater/RS analyzing their whole division, slate
-  simulation, cross-member ranking) — the API is deliberately owner-or-Admin,
-  single subject per run.
+  simulation, cross-member ranking) — the API is deliberately owner-only (v1.1
+  review fix; Admin-on-behalf deferred per §2), single subject per run.
 - Precept **management UI** (v1 precepts are seed-script-managed; the page only
   displays the active one).
 - Any writeback to `evaluations` (the analyzer is read-only over eval data) and any
@@ -1318,6 +1380,7 @@ stale column value); LaDR applicability `min(applies_to_paygrades) <= target`;
 | Path | Kind |
 |---|---|
 | `supabase/migrations/004_board_confidence.sql` | new (DDL in §3, verbatim) |
+| `supabase/migrations/005_board_docs_storage.sql` | new (v1.1 review fix — storage DDL split out of 004, §3) |
 | `lib/boardConfidence/types.ts` | new |
 | `lib/boardConfidence/rubric.ts` | new |
 | `lib/boardConfidence/narrative.ts` | new |

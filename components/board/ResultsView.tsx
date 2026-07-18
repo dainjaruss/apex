@@ -271,19 +271,10 @@ export default function ResultsView({
     }
   };
 
-  // ponytail: adverseAdjustment is not persisted on board_analyses; for display
-  // derive A = Σ contributions − final (≥ 0). Exact except when the final was
-  // clamped at 0; upgrade path is persisting A in the snapshot meta.
-  const adverse = selected
-    ? Math.max(
-        0,
-        Math.round(
-          (selected.factor_scores.reduce((s, f) => s + f.contribution, 0) -
-            Number(selected.overall_score)) *
-            10,
-        ) / 10,
-      )
-    : 0;
+  // v1.1 review fix: A comes from the stored board_analyses.adverse_adjustment
+  // column — never derived client-side (Σcontributions − overall is wrong when
+  // the final clamps to 0). numeric arrives as a string from PostgREST.
+  const adverse = selected ? Number(selected.adverse_adjustment ?? 0) : 0;
 
   const warnings: string[] = selected?.input?.warnings ?? [];
 
@@ -384,7 +375,9 @@ export default function ResultsView({
               <span className="apex-badge-draft px-2 py-0.5 text-[10px]">
                 {selected.narrative_source === "model"
                   ? `AI narrative (${selected.model ?? "model"})`
-                  : "Deterministic narrative (no API key configured)"}
+                  : selected.narrative_fallback_reason === "model_error"
+                    ? "Deterministic narrative (AI narrative unavailable — model call failed)"
+                    : "Deterministic narrative (no API key configured)"}
               </span>
             </div>
             <NarrativeList

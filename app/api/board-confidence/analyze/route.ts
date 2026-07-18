@@ -1,8 +1,10 @@
 // app/api/board-confidence/analyze/route.ts
 //
-// Runs a Board Confidence analysis for a subject user: assembles rubric inputs
-// server-side, scores, generates the narrative, and persists the snapshot with a
-// fail-closed audit row. Owner-or-Admin only.
+// Runs a Board Confidence analysis for the caller's own record: assembles rubric
+// inputs server-side, scores, generates the narrative, and persists the snapshot
+// with a fail-closed audit row. OWNER-ONLY (v1.1 review fix): profiles roles are
+// self-asserted (RoleGuard is client-side UX, not authority), so an
+// Admin-on-behalf path is deferred until real server-side role authority exists.
 // Spec: docs/specs/board-confidence-analyzer.md §5.1
 
 import { NextRequest, NextResponse } from "next/server";
@@ -34,21 +36,12 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(T) || Number.isNaN(Date.parse(T)))
       return fail("Invalid boardDate (expected YYYY-MM-DD).", 400);
 
-    const admin = createAdminClient();
+    // Owner-only (v1.1 review fix): profiles.preferred_role/assigned_roles are
+    // user-editable, so an "Admin" check against them authorizes nothing.
+    if (subjectUserId !== callerId)
+      return fail("Only the record owner may run/view analyses.", 403);
 
-    // Owner-or-Admin: only the Sailor themself or an Admin may analyze a record.
-    if (subjectUserId !== callerId) {
-      const { data: caller } = await admin
-        .from("profiles")
-        .select("preferred_role, assigned_roles")
-        .eq("id", callerId)
-        .single();
-      const isAdmin =
-        caller?.preferred_role === "Admin" ||
-        (caller?.assigned_roles || []).includes("Admin");
-      if (!isAdmin)
-        return fail("Only the record owner or an Admin may run an analysis.", 403);
-    }
+    const admin = createAdminClient();
 
     const { data: subject } = await admin
       .from("profiles")

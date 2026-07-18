@@ -572,11 +572,14 @@ describe("completeness — continuity-coverage item edge at 0.95", () => {
 // Missing-data policy — N_obs edge 3, trend edge 4, sub-weight removal
 // ---------------------------------------------------------------------------
 
+// n contiguous annual reports, all ending BEFORE T (v1.1 review fix: the old
+// helper's latest period_to was 2027-03-15 — after T — and passed only because
+// future-dated evals used to slip through with recency weight > 1).
 const annual = (n: number): RubricEvalInput[] =>
   Array.from({ length: n }, (_, i) =>
     ev({
-      period_from: `${2026 - n + i}-03-16`,
-      period_to: `${2027 - n + i}-03-15`,
+      period_from: `${2025 - n + i}-03-16`,
+      period_to: `${2026 - n + i}-03-15`,
     }),
   );
 
@@ -772,6 +775,174 @@ describe("zero-data guard — empty record still yields a finite low score (§7 
       expect(Number.isFinite(fac.contribution)).toBe(true);
     }
     expect(r.band).toBe(0); // an unbriefable record does not exist to the board
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v1.1 review fixes — future evals, unknown recs, dateless entries
+// ---------------------------------------------------------------------------
+
+describe("v1.1 review fixes — robustness guards", () => {
+  it("evals with period_to after T are excluded from ALL factors, with warning", () => {
+    const future = ev({ period_from: "2026-03-16", period_to: "2027-03-15" });
+    const withFuture = run({ evals: [ev({}), future] });
+    const without = run({ evals: [ev({})] });
+    expect(withFuture.factors).toEqual(without.factors); // continuity included
+    expect(withFuture.warnings).toContain(
+      "Excluded 1 reports dated after the board date.",
+    );
+  });
+
+  it("an unknown promotion_recommendation is treated as NOB — continuity yes, performance no", () => {
+    const bogus = ev({ promotion_recommendation: "EP" as PromotionRec });
+    const r = run({ evals: [bogus] });
+    const f = byKey(r);
+    expect(f.performance.detail.no_data).toBe(true); // never indexes REC_POINTS
+    expect(num(f.continuity.detail.coveredDays)).toBeGreaterThan(0);
+    expect(Number.isFinite(r.final)).toBe(true);
+  });
+
+  it("a dateless award is excluded from L2, with the missing-dates warning", () => {
+    const psr: PsrSection = {
+      ...emptyPsr,
+      awards: [
+        { title: "NAM", level: "personal_achievement", date_awarded: "", verified_in_ompf: true },
+        { title: "NCM", level: "personal_commendation", date_awarded: "2024-02-01", verified_in_ompf: true },
+      ],
+    };
+    const r = run({ psr });
+    expect(byKey(r).leadership.score).toBeCloseTo(20, 1); // dated NCM only
+    expect(r.warnings).toContain(
+      "1 entries with missing dates were excluded from scoring — add dates in Record Entry.",
+    );
+  });
+
+  it("a PFA failure without a date still applies the −10 penalty (conservative), with warning", () => {
+    const r = run({
+      psr: { ...emptyPsr, pfa: [{ cycle: "2025-1", date: "", result: "fail" }] },
+    });
+    expect(r.adverseAdjustment).toBe(10);
+    expect(r.warnings).toContain(
+      "A PFA failure without a date was counted as recent — add the date to confirm the 36-month window.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mutation kills — clamp order, board-date boundary, dateless tours, NOB mixing
+// ---------------------------------------------------------------------------
+
+describe("mutation kills — decline penalty applies BEFORE the clamp", () => {
+  it("weak declining record floors at S_P = 0 with a non-negative contribution", () => {
+    // P1 ≈ 10.4 (Progressing→Significant Problems), P2 = 0 (trait 3.4 vs SGA
+    // 3.9 → clamp), so sum/a_P ≈ 5.2 < the 10-point penalty. Penalty-then-clamp
+    // gives 0; a clamp-then-penalty mutation would leave S_P ≈ −4.8 and a
+    // negative contribution.
+    const p = byKey(
+      run({
+        evals: [
+          ev({
+            period_from: "2024-03-16",
+            period_to: "2025-03-15",
+            promotion_recommendation: "Progressing",
+            trait_average: 3.4,
+            summary_group_average: 3.9,
+          }),
+          ev({
+            period_from: "2025-03-16",
+            period_to: "2026-03-15",
+            promotion_recommendation: "Significant Problems",
+            trait_average: 3.4,
+            summary_group_average: 3.9,
+          }),
+        ],
+      }),
+    ).performance;
+    expect(num(p.detail.declinePenalty)).toBe(10);
+    expect(num(p.detail.P2)).toBe(0);
+    expect(p.score).toBe(0);
+    expect(p.contribution).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("mutation kills — board-date boundary on the future-eval filter", () => {
+  it("an eval ending exactly ON the board date is included, without the exclusion warning", () => {
+    const r = run({
+      evals: [ev({ period_from: "2025-09-02", period_to: T })],
+    });
+    const f = byKey(r);
+    expect(num(f.performance.detail.nObserved)).toBe(1);
+    expect(num(f.continuity.detail.coveredDays)).toBeGreaterThan(0);
+    expect(r.warnings).not.toContain(
+      "Excluded 1 reports dated after the board date.",
+    );
+  });
+
+  it("an eval ending one day AFTER the board date is excluded from every factor, with the warning", () => {
+    const r = run({
+      evals: [ev({ period_from: "2025-09-03", period_to: "2026-09-02" })],
+    });
+    const f = byKey(r);
+    expect(f.performance.detail.no_data).toBe(true);
+    expect(num(f.continuity.detail.coveredDays)).toBe(0);
+    expect(r.warnings).toContain(
+      "Excluded 1 reports dated after the board date.",
+    );
+  });
+});
+
+describe("mutation kills — dateless tours and dateless PFA passes", () => {
+  it("a tour with a missing start date is excluded from L1/L3, with the warning", () => {
+    const psr: PsrSection = {
+      ...emptyPsr,
+      tours: [
+        { title: "dateless", start: "", end: null, sea_duty: true, leadership: true },
+        { title: "dated", start: "2023-01-01", end: null, sea_duty: false, leadership: true },
+      ],
+    };
+    const r = run({ psr });
+    const l = byKey(r).leadership;
+    expect(num(l.detail.L1)).toBe(50); // only the dated leadership tour counts
+    expect(num(l.detail.seaMonths72)).toBe(0); // the dateless sea tour adds nothing
+    expect(r.warnings).toContain(
+      "1 entries with missing dates were excluded from scoring — add dates in Record Entry.",
+    );
+  });
+
+  it("a dateless PFA PASS adds no penalty and no dateless-fail warning", () => {
+    const r = run({
+      psr: { ...emptyPsr, pfa: [{ cycle: "2025-1", date: "", result: "pass" }] },
+    });
+    expect(r.adverseAdjustment).toBe(0);
+    expect(r.warnings).not.toContain(
+      "A PFA failure without a date was counted as recent — add the date to confirm the 36-month window.",
+    );
+  });
+});
+
+describe("mutation kills — NOB/null rec mixed with an observed rec", () => {
+  it("counts continuity coverage but carries zero Performance weight", () => {
+    const f = byKey(
+      run({
+        evals: [
+          ev({
+            period_from: "2024-03-16",
+            period_to: "2025-03-15",
+            promotion_recommendation: null as unknown as PromotionRec,
+          }),
+          ev({
+            period_from: "2025-03-16",
+            period_to: "2026-03-15",
+            promotion_recommendation: "Must Promote",
+          }),
+        ],
+      }),
+    );
+    expect(num(f.performance.detail.nObserved)).toBe(1);
+    // MP alone → P1 exactly 80; a NOB-as-0-points mutation would drag it down.
+    expect(num(f.performance.detail.P1)).toBeCloseTo(80, 6);
+    // Both periods merge into one covered run: 2024-03-16..2026-03-15 = 730 days.
+    expect(num(f.continuity.detail.coveredDays)).toBe(730);
   });
 });
 

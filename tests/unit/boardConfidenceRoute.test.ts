@@ -1,9 +1,10 @@
 // tests/unit/boardConfidenceRoute.test.ts
 //
 // POST /api/board-confidence/analyze and GET /api/board-confidence/runs
-// (spec §5): auth 401, boardDate 400, owner-or-Admin 403, the in-process
-// concurrency cap 429 (MAX_CONCURRENT_ANALYSES = 2), and the generic 500 that
-// never echoes internals (fail-closed audit error stays in server logs).
+// (spec §5): auth 401, boardDate 400, OWNER-ONLY 403 (v1.1 review fix — the
+// former Admin path trusted self-asserted profiles roles and is removed), the
+// in-process concurrency cap 429 (MAX_CONCURRENT_ANALYSES = 2), and the generic
+// 500 that never echoes internals (fail-closed audit error stays in server logs).
 // getRouteUserId / createAdminClient / runBoardAnalysis are mocked per-suite.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -111,67 +112,68 @@ describe("POST /api/board-confidence/analyze — auth and validation", () => {
   });
 });
 
-describe("POST /api/board-confidence/analyze — owner-or-Admin authorization", () => {
-  it("403 when caller ≠ subject and caller is not an Admin", async () => {
+describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 review fix)", () => {
+  it("403 when caller ≠ subject — before the admin client is even created", async () => {
+    const res = await POST(postReq({ userId: "u2", boardDate: "2026-09-01" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "Only the record owner may run/view analyses.",
+    );
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
+    expect(h.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("403 even when the caller's profile claims Admin (roles are self-asserted)", async () => {
     const { client } = makeAdmin({
-      profiles: [ok({ preferred_role: "Sailor", assigned_roles: ["Rater"] })],
+      profiles: [ok({ preferred_role: "Admin", assigned_roles: ["Admin"] })],
     });
     h.createAdminClient.mockReturnValue(client);
 
     const res = await POST(postReq({ userId: "u2", boardDate: "2026-09-01" }));
     expect(res.status).toBe(403);
-    expect((await res.json()).error).toBe(
-      "Only the record owner or an Admin may run an analysis.",
-    );
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
+    // The profile role lookup no longer exists — nothing may consult it.
+    expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("404 when the subject profile does not exist — looked up by the SUBJECT's id", async () => {
+    const { client, builders } = makeAdmin({ profiles: [ok(null)] });
+    h.createAdminClient.mockReturnValue(client);
+
+    const res = await POST(postReq({ boardDate: "2026-09-01" }));
+    expect(res.status).toBe(404);
+
+    const q = builders.find((b) => b.table === "profiles");
+    expect(q).toBeDefined();
+    expect(q.eq).toHaveBeenCalledWith("id", "u1");
+    expect(q.single).toHaveBeenCalled();
     expect(h.runBoardAnalysis).not.toHaveBeenCalled();
   });
 
-  it("200 when caller's preferred_role is Admin", async () => {
-    const { client } = makeAdmin({
-      profiles: [
-        ok({ preferred_role: "Admin", assigned_roles: [] }), // caller role check
-        ok({ id: "u2" }), // subject exists
-      ],
-    });
+  it("200 owner default path (no userId): profile checked by id u1, analysis run as u1/u1", async () => {
+    const { client, builders } = makeAdmin({ profiles: [ok({ id: "u1" })] });
     h.createAdminClient.mockReturnValue(client);
-    h.runBoardAnalysis.mockResolvedValue({ ...fakeRow, user_id: "u2" });
 
-    const res = await POST(postReq({ userId: "u2", boardDate: "2026-09-01" }));
+    const res = await POST(postReq({ boardDate: "2026-09-01" }));
     expect(res.status).toBe(200);
-    expect((await res.json()).user_id).toBe("u2");
+    expect(await res.json()).toEqual(fakeRow);
+
+    // Argument-aware: the profile existence check must target the SUBJECT row.
+    const q = builders.find((b) => b.table === "profiles");
+    expect(q).toBeDefined();
+    expect(q.select).toHaveBeenCalledWith("id");
+    expect(q.eq).toHaveBeenCalledWith("id", "u1");
     expect(h.runBoardAnalysis).toHaveBeenCalledWith(
       client,
-      "u2",
+      "u1",
       "u1",
       "2026-09-01",
     );
   });
 
-  it("200 when Admin arrives via assigned_roles", async () => {
-    const { client } = makeAdmin({
-      profiles: [
-        ok({ preferred_role: "Senior Rater", assigned_roles: ["Admin"] }),
-        ok({ id: "u2" }),
-      ],
-    });
-    h.createAdminClient.mockReturnValue(client);
-
-    const res = await POST(postReq({ userId: "u2", boardDate: "2026-09-01" }));
+  it("200 when the body userId explicitly equals the caller", async () => {
+    const res = await POST(postReq({ userId: "u1", boardDate: "2026-09-01" }));
     expect(res.status).toBe(200);
-  });
-
-  it("404 when the subject profile does not exist", async () => {
-    const { client } = makeAdmin({ profiles: [ok(null)] });
-    h.createAdminClient.mockReturnValue(client);
-
-    const res = await POST(postReq({ boardDate: "2026-09-01" }));
-    expect(res.status).toBe(404);
-  });
-
-  it("200 owner path returns the full analysis row", async () => {
-    const res = await POST(postReq({ boardDate: "2026-09-01" }));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(fakeRow);
     expect(h.runBoardAnalysis).toHaveBeenCalledWith(
       expect.anything(),
       "u1",
@@ -239,14 +241,20 @@ describe("GET /api/board-confidence/runs — prior-run list (§5.2)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("403 when requesting another user's runs without Admin", async () => {
+  it("403 when requesting another user's runs — owner-only, Admin claims included (v1.1)", async () => {
     const { client } = makeAdmin({
-      profiles: [ok({ preferred_role: "Sailor", assigned_roles: [] })],
+      profiles: [ok({ preferred_role: "Admin", assigned_roles: ["Admin"] })],
     });
     h.createAdminClient.mockReturnValue(client);
 
     const res = await GET(getReq(`${RUNS_URL}?userId=u2`));
     expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "Only the record owner may run/view analyses.",
+    );
+    // 403 fires before the admin client exists — no query, no role lookup.
+    expect(h.createAdminClient).not.toHaveBeenCalled();
+    expect(client.from).not.toHaveBeenCalled();
   });
 
   it("200 returns the caller's runs ordered created_at desc", async () => {
@@ -266,5 +274,25 @@ describe("GET /api/board-confidence/runs — prior-run list (§5.2)", () => {
     expect(q.eq).toHaveBeenCalledWith("user_id", "u1");
     expect(q.order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(q.limit).toHaveBeenCalledWith(50);
+    // v1.1 columns must be part of the select the route consumers see.
+    expect(q.select).toHaveBeenCalledWith(
+      expect.stringContaining("adverse_adjustment"),
+    );
+    expect(q.select).toHaveBeenCalledWith(
+      expect.stringContaining("narrative_fallback_reason"),
+    );
+  });
+
+  it("200 when the userId param explicitly equals the caller — query still by u1", async () => {
+    const { client, builders } = makeAdmin({ board_analyses: [ok([])] });
+    h.createAdminClient.mockReturnValue(client);
+
+    const res = await GET(getReq(`${RUNS_URL}?userId=u1`));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ runs: [] });
+
+    const q = builders.find((b) => b.table === "board_analyses");
+    expect(q).toBeDefined();
+    expect(q.eq).toHaveBeenCalledWith("user_id", "u1");
   });
 });

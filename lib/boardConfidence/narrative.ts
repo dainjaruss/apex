@@ -41,6 +41,9 @@ export interface NarrativeOutcome {
   narrative: Narrative;
   source: "model" | "fallback";
   model: string | null; // NARRATIVE_MODEL when source === "model", else null
+  // v1.1 review fix: why the fallback was used (null when source === "model") —
+  // "no_key" = ANTHROPIC_API_KEY unset; "model_error" = model call failed/unparseable.
+  fallbackReason: "no_key" | "model_error" | null;
 }
 
 /** Non-identifying context the service may pass alongside the rubric result. */
@@ -177,14 +180,17 @@ export async function generateNarrative(
   result: RubricResult,
   context?: NarrativeContext,
 ): Promise<NarrativeOutcome> {
-  const fallbackOutcome = (): NarrativeOutcome => ({
+  const fallbackOutcome = (
+    fallbackReason: "no_key" | "model_error",
+  ): NarrativeOutcome => ({
     narrative: fallbackNarrative(result),
     source: "fallback",
     model: null,
+    fallbackReason,
   });
 
   // Keyless gate: no client constructed, no network touched.
-  if (!process.env.ANTHROPIC_API_KEY) return fallbackOutcome();
+  if (!process.env.ANTHROPIC_API_KEY) return fallbackOutcome("no_key");
 
   try {
     // Strict no-PII payload (spec §4.3 item 4): factor numbers + structured
@@ -211,15 +217,16 @@ export async function generateNarrative(
       output_config: { format: zodOutputFormat(NarrativeSchema) },
     });
 
-    if (!response.parsed_output) return fallbackOutcome();
+    if (!response.parsed_output) return fallbackOutcome("model_error");
     return {
       narrative: response.parsed_output,
       source: "model",
       model: NARRATIVE_MODEL,
+      fallbackReason: null,
     };
   } catch (err) {
     // The analyze route never fails because of the narrative.
     console.error("board narrative generation failed:", err);
-    return fallbackOutcome();
+    return fallbackOutcome("model_error");
   }
 }

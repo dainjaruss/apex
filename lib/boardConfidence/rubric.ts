@@ -7,7 +7,11 @@
 // precision throughout with a single terminal 1-decimal rounding, and the band
 // is computed from that ROUNDED final. Zero-data guard (§7 item 8): any factor
 // whose normalizing denominator is 0 emits S_f = 0, conf_f = 0,
-// detail.no_data = true — never NaN.
+// detail.no_data = true — never NaN. v1.1 review fixes: unknown/absent
+// promotion recommendations are treated as NOB (never index REC_POINTS with an
+// unknown key); evals with period_to after T are excluded from every factor;
+// dateless awards/tours are excluded from scoring; a dateless PFA failure
+// counts as recent (conservative — never inflate). All emit result warnings.
 
 import type {
   AwardLevel,
@@ -100,6 +104,14 @@ const daysBetween = (a: string, b: string): number => dayNum(b) - dayNum(a);
 
 const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
+/** True when s is a parseable YYYY-MM-DD date (v1.1 review fix — dateless entries). */
+const hasDate = (s: string | null | undefined): boolean =>
+  !!s && !Number.isNaN(dayNum(s));
+
+/** Observed rec = a REC_POINTS key; NOB and any unknown value are not observed. */
+const isObservedRec = (r: PromotionRec): r is Exclude<PromotionRec, "NOB"> =>
+  (r as string) in REC_POINTS;
+
 /** floor(daysBetween(date, T) / 30.44); daysBetween via UTC-midnight Date.UTC(y,m,d). */
 export function monthsBefore(dateIso: string, tIso: string): number {
   return Math.floor(daysBetween(dateIso, tIso) / 30.44);
@@ -128,12 +140,17 @@ export function round1HalfAway(n: number): number {
 type Detail = FactorResult["detail"];
 type FactorScore = { S: number; conf: number; detail: Detail };
 
-// FACTOR 1 — Performance (§7). Observed = non-NOB rows within the 72-month
-// lookback, chronological. Missing subcomponents are removed and the score is
-// renormalized over the available sub-weights a_P; conf_P = a_P·min(1, N/3).
+// FACTOR 1 — Performance (§7). Observed = rows with a REC_POINTS rec within the
+// 0..72-month lookback, chronological (unknown recs are treated as NOB — v1.1
+// review fix, never index REC_POINTS with an unknown key). Missing subcomponents
+// are removed and the score is renormalized over the available sub-weights a_P;
+// conf_P = a_P·min(1, N/3).
 function scorePerformance(evals: RubricEvalInput[], T: string): FactorScore {
   const obs = evals
-    .filter((e) => e.promotion_recommendation !== "NOB" && monthsBefore(e.period_to, T) <= LOOKBACK_MONTHS)
+    .filter((e) => {
+      const m = monthsBefore(e.period_to, T);
+      return isObservedRec(e.promotion_recommendation) && m >= 0 && m <= LOOKBACK_MONTHS;
+    })
     .sort((a, b) => a.period_to.localeCompare(b.period_to));
   if (obs.length === 0) {
     return { S: 0, conf: 0, detail: { no_data: true, nObserved: 0 } };
@@ -422,12 +439,42 @@ function scorePrecept(
 /** The engine. Pure: no Date.now(), no randomness, no I/O. */
 export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
   const T = inputs.boardDate;
+  const warnings: string[] = [];
 
-  const perf = scorePerformance(inputs.evals, T);
-  const lead = scoreLeadership(inputs.psr, T);
+  // v1.1 review fix: a period_to after T would earn recency weight > 1 —
+  // future-dated reports are excluded from ALL factors, continuity included.
+  const evals = inputs.evals.filter((e) => monthsBefore(e.period_to, T) >= 0);
+  const futureCount = inputs.evals.length - evals.length;
+  if (futureCount > 0)
+    warnings.push(`Excluded ${futureCount} reports dated after the board date.`);
+
+  // v1.1 review fix: dateless awards/tours cannot be placed in any lookback
+  // window — exclude them from scoring rather than let NaN comparisons decide.
+  let dateless = 0;
+  const keepDated = <E,>(arr: E[] | null, ok: (x: E) => boolean): E[] | null => {
+    if (!arr) return null;
+    const kept = arr.filter(ok);
+    dateless += arr.length - kept.length;
+    return kept;
+  };
+  const psr: PsrSection = {
+    ...inputs.psr,
+    awards: keepDated(inputs.psr.awards, (a) => hasDate(a.date_awarded)),
+    tours: keepDated(
+      inputs.psr.tours,
+      (t) => hasDate(t.start) && (t.end === null || hasDate(t.end)),
+    ),
+  };
+  if (dateless > 0)
+    warnings.push(
+      `${dateless} entries with missing dates were excluded from scoring — add dates in Record Entry.`,
+    );
+
+  const perf = scorePerformance(evals, T);
+  const lead = scoreLeadership(psr, T);
   const dev = scoreLadr(inputs.ladr);
-  const cont = scoreContinuity(inputs.evals, T);
-  const comp = scoreCompleteness(inputs.psr, inputs.ladr, cont.coverage, dev.answered, dev.applicable);
+  const cont = scoreContinuity(evals, T);
+  const comp = scoreCompleteness(psr, inputs.ladr, cont.coverage, dev.answered, dev.applicable);
 
   // Zero precept flags is an ADMIN omission: the factor is excluded and the
   // other five weights redistribute ×100/90 — the only weight redistribution.
@@ -459,14 +506,27 @@ export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
 
   // Adverse adjustment A: 15 per adverse item (cap 30) + 10 for any PFA failure
   // within 36 months of T (INCLUSIVE bound — exactly 36 months is inside).
-  const pfaFail = (inputs.psr.pfa ?? []).some(
-    (p) => p.result === "fail" && monthsBefore(p.date, T) <= PFA_FAIL_LOOKBACK_MONTHS,
-  );
+  // v1.1 review fix: a failure WITHOUT a date is counted as recent (conservative
+  // — never inflate) with a warning, instead of NaN silently skipping the penalty.
+  const pfaCycles = psr.pfa ?? [];
+  const datelessFail = pfaCycles.some((p) => p.result === "fail" && !hasDate(p.date));
+  if (datelessFail)
+    warnings.push(
+      "A PFA failure without a date was counted as recent — add the date to confirm the 36-month window.",
+    );
+  const pfaFail =
+    datelessFail ||
+    pfaCycles.some(
+      (p) =>
+        p.result === "fail" &&
+        hasDate(p.date) &&
+        monthsBefore(p.date, T) <= PFA_FAIL_LOOKBACK_MONTHS,
+    );
   const adverseAdjustment =
-    Math.min(ADVERSE_CAP, ADVERSE_PER_ITEM * inputs.psr.adverse.length) +
+    Math.min(ADVERSE_CAP, ADVERSE_PER_ITEM * psr.adverse.length) +
     (pfaFail ? PFA_FAIL_PENALTY : 0);
 
   const final = round1HalfAway(clamp(raw - adverseAdjustment, 0, 100));
   const { vote, label } = bandFor(final);
-  return { final, band: vote, bandLabel: label, factors, adverseAdjustment, warnings: [] };
+  return { final, band: vote, bandLabel: label, factors, adverseAdjustment, warnings };
 }
