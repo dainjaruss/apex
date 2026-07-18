@@ -30,8 +30,10 @@
   --card-foreground: #0f172a;
   --label: #475569;
   --muted: #e2e8f0;
-  --muted-foreground: #64748b;
-  --subtle: #64748b;
+  /* #64748b was 4.39:1 on --background (#f4f6f9) — just under WCAG AA 4.5:1.
+     Darkened to #5c6b81 → 5.0:1 on the page bg, ~5.7:1 on white cards. */
+  --muted-foreground: #5c6b81;
+  --subtle: #5c6b81;
   --text-secondary: #475569;
   --border: rgba(15, 23, 42, 0.1);
   --border-strong: rgba(15, 23, 42, 0.16);
