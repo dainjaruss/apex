@@ -80,7 +80,9 @@ const FLAG_CUES: Record<PreceptFlag, RegExp> = {
   warfighting: /\b(warfare qualif\w*|warfighting|lethality|combat readiness|tactical proficiency)\b/i,
   leadership_positions: /\b(leadership positions?|leading Sailors|billets? of (?:increasing )?responsibility|deckplate leadership)\b/i,
   sea_duty: /\b(sea duty|sea tours?|arduous sea|at[- ]sea|afloat|operational tours?)\b/i,
-  education: /\b(off[- ]duty education|academic|college|degree|USMAP|educational advancement)\b/i,
+  // NOT bare "degree" — the FY27 precept says "fourth degree of kinship"
+  // (a recusal clause), a false positive that proves suggestions need review.
+  education: /\b(off[- ]duty education|college degree|academic (?:degree|achievement)|USMAP|educational advancement|associate'?s? degree|bachelor'?s?|master'?s? degree)\b/i,
   technical_expertise: /\b(technical expertise|in[- ]rate (?:knowledge|proficiency)|rating knowledge|NEC\b|subject matter expert)\b/i,
 };
 
