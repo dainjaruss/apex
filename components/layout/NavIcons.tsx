@@ -131,3 +131,41 @@ export function IconChevronRight({ className = "h-3.5 w-3.5" }: IconProps) {
 }
 
 export type NavIconComponent = typeof IconDashboard;
+
+export function IconGauge({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4.5 17.5a9 9 0 1115 0M12 13l3.5-3.5M12 13a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"
+      />
+    </svg>
+  );
+}
+
+export function IconClipboardList({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4"
+      />
+    </svg>
+  );
+}
