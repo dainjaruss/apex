@@ -80,11 +80,17 @@ const fakeRow = {
   created_by: "u1",
 };
 
+const CONSENTED = ok({ consented_at: "2026-07-18T00:00:00.000Z" });
+
 beforeEach(() => {
   vi.clearAllMocks();
   h.getRouteUserId.mockResolvedValue("u1");
   h.createAdminClient.mockImplementation(
-    () => makeAdmin({ profiles: [ok({ id: "u1" })] }).client,
+    () =>
+      makeAdmin({
+        profiles: [ok({ id: "u1" })],
+        member_board_records: [CONSENTED],
+      }).client,
   );
   h.runBoardAnalysis.mockResolvedValue(fakeRow);
 });
@@ -151,7 +157,10 @@ describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 
   });
 
   it("200 owner default path (no userId): profile checked by id u1, analysis run as u1/u1", async () => {
-    const { client, builders } = makeAdmin({ profiles: [ok({ id: "u1" })] });
+    const { client, builders } = makeAdmin({
+      profiles: [ok({ id: "u1" })],
+      member_board_records: [CONSENTED],
+    });
     h.createAdminClient.mockReturnValue(client);
 
     const res = await POST(postReq({ boardDate: "2026-09-01" }));
@@ -163,6 +172,11 @@ describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 
     expect(q).toBeDefined();
     expect(q.select).toHaveBeenCalledWith("id");
     expect(q.eq).toHaveBeenCalledWith("id", "u1");
+    // Argument-aware: the consent lookup must target the SUBJECT's record row.
+    const c = builders.find((b) => b.table === "member_board_records");
+    expect(c).toBeDefined();
+    expect(c.select).toHaveBeenCalledWith("consented_at");
+    expect(c.eq).toHaveBeenCalledWith("user_id", "u1");
     expect(h.runBoardAnalysis).toHaveBeenCalledWith(
       client,
       "u1",
@@ -180,6 +194,35 @@ describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 
       "u1",
       "2026-09-01",
     );
+  });
+});
+
+describe("POST /api/board-confidence/analyze — consent gate (server-enforced)", () => {
+  it("403 when no member_board_records row exists (consent never recorded)", async () => {
+    const { client } = makeAdmin({
+      profiles: [ok({ id: "u1" })],
+      member_board_records: [ok(null)],
+    });
+    h.createAdminClient.mockReturnValue(client);
+
+    const res = await POST(postReq({ boardDate: "2026-09-01" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe(
+      "Consent required. Review and accept the Board Confidence Analyzer terms before running an analysis.",
+    );
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("403 when the record exists but consented_at is null", async () => {
+    const { client } = makeAdmin({
+      profiles: [ok({ id: "u1" })],
+      member_board_records: [ok({ consented_at: null })],
+    });
+    h.createAdminClient.mockReturnValue(client);
+
+    const res = await POST(postReq({ boardDate: "2026-09-01" }));
+    expect(res.status).toBe(403);
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
   });
 });
 

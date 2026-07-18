@@ -104,6 +104,9 @@ create table if not exists public.member_board_records (
     ladr_checklist jsonb not null default '{}'::jsonb,
         -- {"<ladr_milestone_id>": {"status": "met"|"not_met"|"na"|"unanswered",
         --                          "verified_in_ompf": bool}}
+    -- v1.1: explicit informed consent (first-use modal). The analyze route
+    -- refuses to run until this is set; recorded once, server-checked.
+    consented_at timestamptz,
     created_at timestamptz default now() not null,
     updated_at timestamptz default now() not null
 );

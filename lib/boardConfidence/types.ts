@@ -148,6 +148,8 @@ export interface MemberBoardRecord {    // mirror of public.member_board_records
   adverse: AdverseEntry[];
   eval_context: Record<string, { rsca?: number; sea_duty?: boolean }>;
   ladr_checklist: Record<string, { status: LadrStatus; verified_in_ompf: boolean }>;
+  /** v1.1: informed-consent timestamp; the analyze route refuses to run while null. */
+  consented_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

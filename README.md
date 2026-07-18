@@ -31,6 +31,11 @@ All libraries and frameworks are open-source. Exact versions, licenses, and attr
 - Custom Canvas text-measurement utility (`lib/validationEngine.ts`)
 - pdf-lib for client-side PDF generation (`lib/pdfOverlay.ts`)
 - Self-hosted Courier Prime monospace fonts (`public/fonts/`)
+- NAVFIT 98A `.accdb` export for finalized reports (`lib/navfit98/`, Java/Jackcess sidecar)
+- Board Confidence Analyzer — unofficial E-7+ board-prep self-assessment with a
+  deterministic published rubric and optional Claude-generated narrative
+  (`lib/boardConfidence/`, `/board-confidence`; see
+  [`docs/BOARD-CONFIDENCE.md`](docs/BOARD-CONFIDENCE.md))
 
 **Testing & Deployment**
 

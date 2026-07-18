@@ -56,6 +56,7 @@ export interface PreceptSeed {
 
 import { itE1E9 } from "./ladr-data/it_e1_e9";
 import { bmE1E9 } from "./ladr-data/bm_e1_e9";
+import { hmE1E9 } from "./ladr-data/hm_e1_e9";
 import { fy27Precept } from "./ladr-data/precept_fy27";
 
 function loadEnv() {
@@ -96,7 +97,7 @@ if (ratingIdx >= 0 && !onlyRating) {
   process.exit(1);
 }
 
-const seeds = [itE1E9, bmE1E9].filter(
+const seeds = [itE1E9, bmE1E9, hmE1E9].filter(
   (s) => !onlyRating || s.document.rating_abbrev === onlyRating,
 );
 if (!seeds.length) {

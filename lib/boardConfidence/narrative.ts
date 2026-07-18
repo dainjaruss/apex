@@ -61,11 +61,19 @@ export const NARRATIVE_SYSTEM_PROMPT =
   "ratios), the overall score with its confidence band, the adverse adjustment " +
   "amount, the active precept emphasis flags, and the member's target paygrade and " +
   "rating abbreviation. Ground every statement in those provided numbers; never " +
-  "invent facts that are not in the payload. Produce 2-5 items per list " +
-  "(strengths, gaps, recommendations). Phrase each recommendation as a concrete " +
-  "record action (e.g. \"close out the eval gap\", \"verify the award in OMPF via " +
-  "NDAWS\", \"answer the remaining LaDR checklist items\"). This tool is not a " +
-  "selection board: never claim to predict board results or selection outcomes.";
+  "invent facts, milestones, or qualifications that are not in the payload. " +
+  "CITE your grounding: every strengths/gaps/recommendations item must end with " +
+  "the payload path(s) it derives from in square brackets, e.g. " +
+  "[performance.detail.P1] or [development.detail.categories.qual_warfare]. A " +
+  "statement you cannot cite to a payload field must not be made. The " +
+  "factor_commentary.development entry must explicitly compare the record " +
+  "against the rating's LaDR: name each LaDR category in the payload whose " +
+  "completion ratio is below 1.0 and what completing it would change. Produce " +
+  "2-5 items per list (strengths, gaps, recommendations). Phrase each " +
+  "recommendation as a concrete record action (e.g. \"close out the eval gap\", " +
+  "\"verify the award in OMPF via NDAWS\", \"answer the remaining LaDR checklist " +
+  "items\"). This tool is not a selection board: never claim to predict board " +
+  "results or selection outcomes.";
 
 const FACTOR_LABELS: Record<FactorKey, string> = {
   performance: "Performance",
