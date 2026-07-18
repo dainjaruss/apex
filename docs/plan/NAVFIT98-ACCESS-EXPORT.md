@@ -2,7 +2,7 @@
 
 **Goal:** Evaluations drafted and finalized in APEX export to a file format that **NAVFIT 98** can import (legacy “i2” / fleet workflow), so commands can keep using NAVFIT for batch submission to PERS while authoring in APEX.
 
-**Status:** Planning — **blocked on MS Access schema** from stakeholder (table names, field types, keys, import procedure NAVFIT expects).
+**Status:** **Shipped (Phase 2+)** — schema package received (`my_tools/navfit/`, local), spec at `docs/specs/navfit98-field-mapping.md`, implementation in `lib/navfit98/` + `app/api/export/navfit98/` + `scripts/navfit98/` (Java/Jackcess sidecar). Round-trip tested against the golden `juniorEnlisted.accdb`. Remaining: manual NAVFIT 98A verification on Windows (`docs/how-to/navfit98-import-verify.md`) and the spec §8 open questions (CHIEFEVAL trait columns, ReportType casing for non-EVAL).
 
 **Related today in APEX:**
 - PDF overlay export (`app/api/pdf`, `lib/pdfOverlay.ts`, CHIEFEVAL/FITREP overlays)

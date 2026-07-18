@@ -40,6 +40,7 @@ export default function EvaluationExportPage() {
     null,
   );
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isExportingNavfit, setIsExportingNavfit] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -113,6 +114,44 @@ export default function EvaluationExportPage() {
       alert("Failed to finalize evaluation report status.");
     } finally {
       setIsFinalizing(false);
+    }
+  };
+
+  // Mirrors the server-side state gate on /api/export/navfit98 (409 otherwise).
+  const navfitReady =
+    evaluation != null &&
+    (evaluation.status === "completed" ||
+      !!evaluation.signature_locked ||
+      evaluation.routing_stage === "locked");
+
+  const handleNavfitDownload = async () => {
+    if (!evaluation) return;
+    setIsExportingNavfit(true);
+    try {
+      const res = await fetch("/api/export/navfit98", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evaluationId: evaluation.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}) as any);
+        throw new Error(
+          err.error ||
+            err.errors?.map((e: any) => e.message).join(" ") ||
+            `NAVFIT 98 export failed (${res.status}).`,
+        );
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `NAVFIT98_${(evaluation.member_name || "REPORT").replace(/[^a-zA-Z0-9]/g, "_")}.accdb`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error("NAVFIT 98 export failed:", err);
+      alert(err.message || "NAVFIT 98 export failed.");
+    } finally {
+      setIsExportingNavfit(false);
     }
   };
 
@@ -430,6 +469,19 @@ export default function EvaluationExportPage() {
                     : "Finalize & Submit"}
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleNavfitDownload}
+              disabled={isExportingNavfit || !navfitReady}
+              title={
+                !navfitReady
+                  ? "Available once the report is signed and locked or finalized"
+                  : undefined
+              }
+              className="apex-btn-secondary disabled:opacity-50"
+            >
+              {isExportingNavfit ? "Exporting..." : "Download for NAVFIT 98"}
+            </button>
           </div>
         </div>
       </div>

@@ -204,9 +204,17 @@ function refineDateCounseled(
   ctx: z.RefinementCtx,
 ): void {
   const dcUpper = dateCounseled.toUpperCase();
-  const dcIsDate =
-    /^\d{4}-\d{2}-\d{2}$/.test(dateCounseled) ||
-    NAVY_DATE_REGEX.test(dateCounseled);
+  // ISO input must be a real calendar date (same rule as refineDateReported) —
+  // e.g. 2025-13-01 would otherwise flow to the PDF/NAVFIT exports malformed.
+  let dcIsDate = NAVY_DATE_REGEX.test(dateCounseled);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateCounseled)) {
+    const [y, m, d] = dateCounseled.split("-").map(Number);
+    const parsed = new Date(y, m - 1, d);
+    dcIsDate =
+      parsed.getFullYear() === y &&
+      parsed.getMonth() === m - 1 &&
+      parsed.getDate() === d;
+  }
   if (dcUpper !== "NOT REQ" && dcUpper !== "NOT PERF" && !dcIsDate) {
     ctx.addIssue({
       path: ["date_counseled"],
