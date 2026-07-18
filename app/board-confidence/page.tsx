@@ -217,7 +217,7 @@ export default function BoardConfidencePage() {
         setFinalizedEvals(((evalRows.data as FinalizedEvalRef[]) ?? []) || []);
       } catch (err: any) {
         console.error("Board confidence page load failed:", err);
-        setLoadError(err?.message || "Failed to load board confidence data.");
+        setLoadError(err?.message || "Failed to load record readiness data.");
       } finally {
         setLoading(false);
       }
@@ -328,7 +328,7 @@ export default function BoardConfidencePage() {
           color: "var(--muted-foreground)",
         }}
       >
-        Loading board confidence data…
+        Loading record readiness data…
       </div>
     );
   }
@@ -341,7 +341,7 @@ export default function BoardConfidencePage() {
       >
         <div className="bg-red-950/35 border border-red-900/40 rounded-xl p-6 max-w-md space-y-4">
           <h3 className="text-lg font-bold text-red-400">
-            Error Loading Board Confidence
+            Error Loading Record Readiness
           </h3>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             {loadError || "Your profile could not be loaded."}
@@ -362,7 +362,7 @@ export default function BoardConfidencePage() {
     <AppShell
       profile={profile}
       maxWidth="6xl"
-      breadcrumbs={[{ label: "Board Confidence" }]}
+      breadcrumbs={[{ label: "Record Readiness" }]}
     >
       <RoleGuard
         user={profile}
@@ -377,7 +377,7 @@ export default function BoardConfidencePage() {
       >
         <div className="space-y-6">
           <div>
-            <h1 className="apex-page-title">Board Confidence Analyzer</h1>
+            <h1 className="apex-page-title">Record Readiness Review</h1>
             <p className="apex-page-subtitle">
               LaDR:{" "}
               {ladr

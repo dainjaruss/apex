@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (!consentRow?.consented_at)
       return fail(
-        "Consent required. Review and accept the Board Confidence Analyzer terms before running an analysis.",
+        "Consent required. Review and accept the Record Readiness Review terms before running an analysis.",
         403,
       );
 

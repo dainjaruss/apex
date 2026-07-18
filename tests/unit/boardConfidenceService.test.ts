@@ -242,6 +242,51 @@ describe("assembleRubricInputs — LaDR applicability (§3 rule) and scored cate
     expect(m3.status).toBe("unanswered");
     expect(m3.verified_in_ompf).toBe(false);
   });
+
+  it("v1.5: derives board_emphasis (explicit flag, category, or E7-only ∧ target ≥ 7)", async () => {
+    const e7mbr = { ...mbr, target_paygrade: 7 };
+    const { admin } = makeAdmin(
+      baseTables({
+        member_board_records: [e7mbr],
+        ladr_documents: [doc],
+        ladr_milestones: [
+          // E7-only milestone while the member targets E7 → emphasized.
+          ms("e7only", "credential", [7]),
+          // Applies across grades (min 4) → NOT emphasized by the paygrade rule.
+          ms("broad", "credential", [4, 5, 6, 7]),
+          // Explicit parser/seed flag → emphasized regardless of paygrades.
+          {
+            ...ms("flagged", "qual_watchstanding", [4, 5, 6, 7]),
+            detail: { board_emphasis: true },
+          },
+          // The considerations category is always emphasized.
+          ms("consid", "advancement_consideration", [7]),
+        ],
+      }),
+    );
+
+    const res = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+    const flag = (id: string) =>
+      res.inputs.ladr.find((i) => i.milestone_id === id)?.board_emphasis;
+    expect(flag("e7only")).toBe(true);
+    expect(flag("broad")).toBe(false);
+    expect(flag("flagged")).toBe(true);
+    expect(flag("consid")).toBe(true);
+  });
+
+  it("v1.5: does NOT emphasize an E7-only milestone when the member targets E6", async () => {
+    const { admin } = makeAdmin(
+      baseTables({
+        member_board_records: [mbr], // target_paygrade 6
+        ladr_documents: [doc],
+        ladr_milestones: [ms("m1", "credential", [4, 5, 6])],
+      }),
+    );
+    const res = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+    expect(res.inputs.ladr.find((i) => i.milestone_id === "m1")?.board_emphasis).toBe(
+      false,
+    );
+  });
 });
 
 describe("assembleRubricInputs — v1.1 review fixes", () => {
@@ -417,6 +462,50 @@ describe("runBoardAnalysis — success path persists the full snapshot", () => {
     expect(calls.auditPayload.details.subject_user_id).toBe("subj-1");
     // Nothing was deleted on the happy path.
     expect(calls.deleted).toBeUndefined();
+  });
+
+  it("v1.5: snapshots the rubric config + continuity advisory into input.meta (reproducibility + the UI banner read this)", async () => {
+    const { admin, calls } = makeRunAdmin({
+      tables: { member_board_records: [runMbr] },
+    });
+
+    await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
+
+    const meta = calls.insertPayload.input.meta;
+    // Absent board_rubric_config row → defaults are snapshotted verbatim.
+    expect(meta.rubric_config).toMatchObject({
+      weights: { performance: 40, precept: 10 },
+      continuity_gap_days: 90,
+      board_emphasis_multiplier: 2,
+    });
+    // These exact snake_case keys are what ResultsView reads — a rename breaks
+    // the "continuity gap" banner silently, so pin them.
+    expect(meta).toHaveProperty("continuity_gap");
+    expect(meta).toHaveProperty("continuity_advisory");
+    expect(typeof meta.continuity_gap).toBe("boolean");
+  });
+
+  it("v1.5: loadRubricConfig reads the active row and falls back to defaults on malformed values", async () => {
+    const { admin, calls } = makeRunAdmin({
+      tables: {
+        member_board_records: [runMbr],
+        board_rubric_config: [
+          {
+            weights: { performance: 50, leadership: 10, development: 10, continuity: 10, completeness: 10, precept: 10 },
+            continuity_gap_days: "oops", // malformed → default 90
+            board_emphasis_multiplier: 3,
+            active: true,
+          },
+        ],
+      },
+    });
+
+    await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
+
+    const cfg = calls.insertPayload.input.meta.rubric_config;
+    expect(cfg.weights.performance).toBe(50); // operator override honored
+    expect(cfg.board_emphasis_multiplier).toBe(3);
+    expect(cfg.continuity_gap_days).toBe(90); // malformed value → default
   });
 });
 

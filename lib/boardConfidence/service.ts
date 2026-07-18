@@ -15,13 +15,18 @@ import {
 } from "@/lib/traitAverage";
 import { tallyRecommendations } from "@/lib/forcedDistribution";
 import { paygradeOf } from "@/lib/paygrade";
-import { REC_POINTS, scoreBoardConfidence } from "@/lib/boardConfidence/rubric";
+import {
+  DEFAULT_RUBRIC_CONFIG,
+  REC_POINTS,
+  scoreBoardConfidence,
+} from "@/lib/boardConfidence/rubric";
 import { generateNarrative } from "@/lib/boardConfidence/narrative";
 import {
   BOARD_DISCLAIMER,
   type BoardAnalysisRow,
   type LadrCategory,
   type LadrItemInput,
+  type RubricConfig,
   type LadrStatus,
   type MemberBoardRecord,
   type PreceptFlag,
@@ -279,11 +284,22 @@ export async function assembleRubricInputs(
             status: "unanswered" as LadrStatus,
             verified_in_ompf: false,
           };
+          // v1.5 board emphasis: explicit "Considerations for advancement"
+          // items (parser/seed flag), or milestones that exist only at E7+
+          // while the member is targeting E7+.
+          const board_emphasis =
+            m.detail?.board_emphasis === true ||
+            m.category === "advancement_consideration" ||
+            (targetPaygrade != null &&
+              targetPaygrade >= 7 &&
+              m.applies_to_paygrades.length > 0 && // Math.min() of [] is Infinity
+              Math.min(...m.applies_to_paygrades) >= 7);
           return {
             milestone_id: m.id,
             category: m.category,
             status: entry.status,
             verified_in_ompf: entry.verified_in_ompf,
+            board_emphasis,
           };
         });
     }
@@ -317,15 +333,50 @@ export async function assembleRubricInputs(
   };
 }
 
+/** v1.5: active tunable rubric parameters; absent/malformed row ⇒ defaults. */
+export async function loadRubricConfig(
+  admin: SupabaseClient,
+): Promise<RubricConfig> {
+  const { data, error } = await admin
+    .from("board_rubric_config")
+    .select("weights, continuity_gap_days, board_emphasis_multiplier")
+    .eq("active", true)
+    .maybeSingle();
+  if (error || !data) return DEFAULT_RUBRIC_CONFIG;
+  const w = data.weights ?? {};
+  const num = (v: unknown, d: number) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : d;
+  return {
+    weights: {
+      performance: num(w.performance, DEFAULT_RUBRIC_CONFIG.weights.performance),
+      leadership: num(w.leadership, DEFAULT_RUBRIC_CONFIG.weights.leadership),
+      development: num(w.development, DEFAULT_RUBRIC_CONFIG.weights.development),
+      continuity: num(w.continuity, DEFAULT_RUBRIC_CONFIG.weights.continuity),
+      completeness: num(w.completeness, DEFAULT_RUBRIC_CONFIG.weights.completeness),
+      precept: num(w.precept, DEFAULT_RUBRIC_CONFIG.weights.precept),
+    },
+    continuity_gap_days: num(
+      data.continuity_gap_days,
+      DEFAULT_RUBRIC_CONFIG.continuity_gap_days,
+    ),
+    board_emphasis_multiplier: num(
+      Number(data.board_emphasis_multiplier),
+      DEFAULT_RUBRIC_CONFIG.board_emphasis_multiplier,
+    ),
+  };
+}
+
 export async function runBoardAnalysis(
   admin: SupabaseClient,
   subjectUserId: string,
   callerId: string,
   boardDate: string,
 ): Promise<BoardAnalysisRow> {
-  // 1. Assemble → score (pure) → narrative (model or deterministic fallback).
+  // 1. Assemble → score (pure, under the ACTIVE tunable config, which is
+  //    snapshotted into the run for reproducibility) → narrative.
   const assembled = await assembleRubricInputs(admin, subjectUserId, boardDate);
-  const result = scoreBoardConfidence(assembled.inputs);
+  const rubricConfig = await loadRubricConfig(admin);
+  const result = scoreBoardConfidence(assembled.inputs, rubricConfig);
   const { narrative, source, model, fallbackReason } = await generateNarrative(result, {
     preceptFlags: assembled.inputs.preceptFlags,
     targetPaygrade: assembled.meta.target_paygrade,
@@ -343,7 +394,14 @@ export async function runBoardAnalysis(
           ...assembled.inputs,
           disclaimer: BOARD_DISCLAIMER,
           warnings: result.warnings.concat(assembled.warnings),
-          meta: assembled.meta,
+          meta: {
+            ...assembled.meta,
+            // v1.5: snapshot the exact tuning used for this run (reproducibility)
+            // plus the continuity advisory outcome the results view surfaces.
+            rubric_config: rubricConfig,
+            continuity_gap: result.continuityGap,
+            continuity_advisory: result.continuityAdvisory,
+          },
         },
         factor_scores: result.factors,
         overall_score: result.final,

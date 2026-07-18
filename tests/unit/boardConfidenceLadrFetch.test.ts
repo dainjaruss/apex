@@ -20,7 +20,9 @@ CAREER MILESTONES AVERAGE TIME TO ADVANCE COMMISSIONING OR OTHER SPECIAL PROGRAM
 Enlisted Leadership Development: NELD-03 2 days. NELD-04 3 days Professional Military Knowledge Eligibility Exam (PMK-EE). NELD-05 4 days Professional Military Knowledge Eligibility Exam. NELD-06 5 days Ethics Training Command Delivered Required.
 Personnel Qualification Standards (PQS), Job Qualification Requirements (JQR), or watchstation qualifications apply at every command.
 Surface Warfare Specialist Submarine Warfare Specialist Aviation Warfare Specialist Expeditionary Warfare Specialist warfare qualifications, college enrollment, and USMAP certifications.
-The following certifications and licenses are applicable to the YN-Yeoman rating. For more information visit NAVY COOL. Target Paygrade Certifying Agency Credential Title Date Completed E7 Human Resource Certification Institute (HRCI) Associate Professional in Human Resources (aPHR) E3 Microsoft Corporation Microsoft Office Specialist (MOS): Excel Associate (Office 2019) E5 Society for Human Resource Management (SHRM) SHRM Certified Professional (SHRM-CP)`;
+The following certifications and licenses are applicable to the YN-Yeoman rating. For more information visit NAVY COOL. Target Paygrade Certifying Agency Credential Title Date Completed E7 Human Resource Certification Institute (HRCI) Associate Professional in Human Resources (aPHR) E3 Microsoft Corporation Microsoft Office Specialist (MOS): Excel Associate (Office 2019) E5 Society for Human Resource Management (SHRM) SHRM Certified Professional (SHRM-CP)
+Considerations for advancement from E6 to E7 1. Candidates eligible for selection to YNC should have documented leadership as an LPO or leading significant leadership positions within command programs, including leadership of peers. 2. Duty Assignments: Sea Duty: Serve onboard CVN, LHD, LHA, LSD, LPD, DDG, CG, CSG, ESG, CAG, DESRON, PHIBRON, sea going squadrons, and Joint operational commands.
+Considerations for advancement from E7 to E8 1. Candidates eligible for selection to YNCS should have documented leadership as an LCPO or other significant leadership positions, including leadership up the chain of command.`;
 
 const ALLOWED_CATEGORIES = new Set(Object.keys(LADR_CATEGORY_WEIGHTS));
 
@@ -71,6 +73,49 @@ describe("parseLadr — conservative extraction from real LaDR structure", () =>
     expect(aphr!.applies_to_paygrades).toEqual([7]);
     const shrm = creds.find((m) => m.item.includes("SHRM"));
     expect(shrm!.applies_to_paygrades).toEqual([5]);
+  });
+
+  it("v1.5: extracts 'Considerations for advancement' items as board-emphasis milestones", () => {
+    const ac = parsed.milestones.filter(
+      (m) => m.category === "advancement_consideration",
+    );
+    // 2 items in the E6→E7 block, 1 in E7→E8.
+    expect(ac.length).toBe(3);
+    const e7 = ac.filter((m) => m.applies_to_paygrades.join() === "7");
+    const e8 = ac.filter((m) => m.applies_to_paygrades.join() === "8");
+    expect(e7.length).toBe(2);
+    expect(e8.length).toBe(1);
+    for (const m of ac) {
+      expect(m.detail.board_emphasis).toBe(true);
+      expect(m.item).toMatch(/^E[789] board: /);
+      expect(typeof m.detail.notes).toBe("string");
+    }
+    expect(e7[0].item).toContain("Candidates eligible for selection to YNC");
+    expect(e8[0].item).toContain("YNCS");
+  });
+
+  it("v1.5: a table-of-contents 'Considerations…' entry harvests no milestones", () => {
+    // TOC line (dot leaders + page number) followed by unrelated front-matter.
+    const toc =
+      "Yeoman (YN) July 2026 Table of Contents Considerations for advancement " +
+      "from E8 to E9 ..... 14 1. Purpose of this instruction is broad and applies " +
+      "to all hands. 2. Scope covers every Sailor in the community worldwide.";
+    const p = parseLadr(toc, "YN")!;
+    expect(
+      p.milestones.filter((m) => m.category === "advancement_consideration"),
+    ).toHaveLength(0);
+  });
+
+  it("v1.5: does not split a numbered item on a back-reference inside its prose", () => {
+    const prose =
+      "Yeoman (YN) July 2026 header. Considerations for advancement from E6 to E7 " +
+      "1. Sustained superior performance documented per reference 1. Documented " +
+      "leadership of junior Sailors is essential for every advancement candidate.";
+    const ac = parseLadr(prose, "YN")!.milestones.filter(
+      (m) => m.category === "advancement_consideration",
+    );
+    expect(ac).toHaveLength(1); // one item, not split at "reference 1."
+    expect(ac[0].item).toContain("Sustained superior performance");
   });
 
   it("returns null on text with no LaDR head (never guesses)", () => {

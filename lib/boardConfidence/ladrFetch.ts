@@ -216,6 +216,60 @@ export function parseLadr(text: string, rating: string): ParsedLadr | null {
     }
   }
 
+  // 6. v1.5 board emphasis: "Considerations for advancement from E6 to E7 /
+  //    E7 to E8 / E8 to E9" — the sections where the LaDR states what the
+  //    selection board actually weighs. Each numbered item becomes an
+  //    advancement_consideration milestone flagged detail.board_emphasis, which
+  //    the rubric counts ×board_emphasis_multiplier.
+  const secRe = /Considerations for advancement from E([678]) to E([789])/g;
+  // Region ends at the next section boundary — the next considerations header,
+  // the COOL credential table, or the career-path block — capped conservatively.
+  const stopRe =
+    /Considerations for advancement from E[678]|Target Paygrade\s+Certifying Agency|The following certifications|CAREER MILESTONES/i;
+  let sec: RegExpExecArray | null;
+  while ((sec = secRe.exec(text))) {
+    const target = Number(sec[2]);
+    const start = sec.index + sec[0].length;
+    // A real section header is immediately followed by its first numbered item
+    // ("… E7 1. Candidates…"). A table-of-contents entry is followed by dot
+    // leaders + a page number ("… E8 to E9 ..... 14"). Require the "1." so TOC
+    // matches and bare mentions never harvest front-matter as milestones.
+    if (!/^[\s.]{0,10}1\.\s/.test(text.slice(start, start + 30))) continue;
+    const rest = text.slice(start);
+    const stopAt = rest.search(stopRe);
+    const region = rest.slice(0, stopAt >= 0 ? Math.min(stopAt, 2500) : 2500);
+    // Numbered narrative items: "1. Candidates eligible…", "2. Duty Assignments…".
+    // Split only at a number that follows a sentence boundary (. : •) — never a
+    // back-reference inside prose ("…per reference 1. Documented…").
+    const items = region
+      .split(/(?<=[.:•])\s+(?=[1-9]\.\s+[A-Z])/)
+      .map((s) =>
+        s
+          .replace(/^\s*[1-9]\.\s+/, "")
+          .replace(/\s+/g, " ")
+          .replace(/^[:\s–-]+/, "")
+          .trim(),
+      )
+      .filter((s) => s.length >= 60);
+    for (const full of items.slice(0, 6)) {
+      // Display name = first sentence, capped; full text kept in detail.notes.
+      const firstStop = full.indexOf(". ", 40);
+      const label =
+        firstStop > 0 && firstStop < 160 ? full.slice(0, firstStop + 1) : `${full.slice(0, 157)}…`;
+      push({
+        category: "advancement_consideration",
+        item: `E${target} board: ${label}`,
+        item_code: null,
+        applies_to_paygrades: [target],
+        detail: {
+          ...auto,
+          board_emphasis: true,
+          notes: full.replace(//g, "•").slice(0, 1500),
+        },
+      });
+    }
+  }
+
   return {
     rating_abbrev: abbrev,
     rating_name: ratingName(abbrev) ?? headMatch[1].trim(),

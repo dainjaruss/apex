@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import {
+  DEFAULT_RUBRIC_CONFIG,
   scoreBoardConfidence,
   bandFor,
   round1HalfAway,
@@ -458,18 +459,94 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(f.completeness.score).toBeCloseTo(8, 1);
   });
 
-  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); FINAL = 10.2 → vote 0 (exact)", () => {
+  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); final pins the §7.2 value 10.2 (graded, NOT gated)", () => {
     expect(rawSum(r)).toBeCloseTo(20.23, 1);
     expect(r.adverseAdjustment).toBe(10);
+    // v1.5 (corrected): continuity is graded, never a hard zero. The §7.2
+    // worked example stays pinned at 10.2 — the two graded gaps still cost
+    // −15 each in the continuity factor, but the score is no longer forced to 0.
     expect(r.final).toBe(10.2);
     expect(r.band).toBe(0);
     expect(r.bandLabel).toBe("Drop-from-consideration risk");
   });
+
+  it("raises the continuity advisory for the genuine trailing gap (leading span excluded)", () => {
+    // gapCount 2 (graded: leading + trailing) but only the trailing gap is a
+    // genuine reporting break, so recordGapCount 1 drives the advisory.
+    expect(num(f.continuity.detail.recordGapCount)).toBe(1);
+    expect(r.continuityGap).toBe(true);
+    expect(r.continuityAdvisory).toMatch(/reporting continuity/i);
+    expect(r.warnings.some((w) => /even a single day/i.test(w))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// §7.1 band boundaries + terminal rounding
+// v1.5 config tuning — weights, board-emphasis multiplier, gap threshold
 // ---------------------------------------------------------------------------
+
+describe("v1.5 RubricConfig tuning", () => {
+  it("weights are normalized to 100: doubling every weight changes nothing", () => {
+    const doubled = Object.fromEntries(
+      Object.entries(DEFAULT_RUBRIC_CONFIG.weights).map(([k, v]) => [k, v * 2]),
+    ) as Record<FactorKey, number>;
+    const a = scoreBoardConfidence(ex1Inputs);
+    const b = scoreBoardConfidence(ex1Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      weights: doubled,
+    });
+    expect(b.final).toBe(a.final);
+    expect(byKey(b).performance.weight).toBe(byKey(a).performance.weight);
+  });
+
+  it("skewed weights shift the final and show up as normalized factor weights", () => {
+    const skewed = scoreBoardConfidence(ex1Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      weights: {
+        performance: 70,
+        leadership: 10,
+        development: 5,
+        continuity: 5,
+        completeness: 5,
+        precept: 5,
+      },
+    });
+    expect(byKey(skewed).performance.weight).toBe(70);
+    expect(skewed.final).not.toBe(scoreBoardConfidence(ex1Inputs).final);
+  });
+
+  it("board_emphasis items count ×multiplier inside their category", () => {
+    const dev = (mult: number) =>
+      byKey(
+        scoreBoardConfidence(
+          {
+            boardDate: T,
+            evals: [],
+            psr: emptyPsr,
+            preceptFlags: [],
+            ladr: [
+              li("qual_warfare", "met"),
+              { ...li("qual_warfare", "not_met", false), board_emphasis: true },
+            ],
+          },
+          { ...DEFAULT_RUBRIC_CONFIG, board_emphasis_multiplier: mult },
+        ),
+      ).development.score;
+    // met=1 vs emphasized not_met: mult 1 → 1/2, default mult 2 → 1/3.
+    expect(dev(1)).toBeCloseTo(50, 1);
+    expect(dev(2)).toBeCloseTo(100 / 3, 1);
+  });
+
+  it("continuity_gap_days is the advisory threshold: raising it past Ex3's gaps clears the advisory and lifts the graded score", () => {
+    const wide = scoreBoardConfidence(ex3Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      continuity_gap_days: 1100, // both Ex3 gaps (~1002 and ~93 days) tolerated
+    });
+    expect(wide.continuityGap).toBe(false);
+    expect(wide.continuityAdvisory).toBeNull();
+    // no gap penalty now → continuity factor rises → final above the gated case
+    expect(wide.final).toBeGreaterThan(10.2);
+  });
+});
 
 describe("bands — §7.1 boundaries are ≥ on the lower bound", () => {
   const cases: Array<[number, number]> = [

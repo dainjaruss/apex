@@ -208,7 +208,7 @@ describe("POST /api/board-confidence/analyze — consent gate (server-enforced)"
     const res = await POST(postReq({ boardDate: "2026-09-01" }));
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe(
-      "Consent required. Review and accept the Board Confidence Analyzer terms before running an analysis.",
+      "Consent required. Review and accept the Record Readiness Review terms before running an analysis.",
     );
     expect(h.runBoardAnalysis).not.toHaveBeenCalled();
   });

@@ -62,6 +62,8 @@ const fixtureResult: RubricResult = {
   band: 50,
   bandLabel: "Crunch — middle band",
   adverseAdjustment: 15,
+  continuityGap: false,
+  continuityAdvisory: null,
   factors: [
     f("performance", 40, 82, 1, {
       P1: 80,

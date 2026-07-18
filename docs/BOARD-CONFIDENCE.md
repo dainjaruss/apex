@@ -1,10 +1,14 @@
-# Board Confidence Analyzer
+# Record Readiness Review
+
+> Displayed in-app as **"Record Readiness Review"** (v1.5). Internal
+> identifiers — the `/board-confidence` route, `board_*` tables, and
+> `boardConfidence*` modules — keep the original name for stability.
 
 An **unofficial, educational** self-assessment tool that scores a Sailor's
-record the way a selection-board recorder reads one, for E-7+ (CPO and above)
-board preparation. Full implementation spec:
+record the way a selection-board recorder reads one, to help prepare for an
+advancement board at any paygrade. Full implementation spec:
 [`docs/specs/board-confidence-analyzer.md`](specs/board-confidence-analyzer.md)
-(v1.3 — the normative rubric, DDL, and API contracts live there).
+(the normative rubric, DDL, and API contracts live there).
 
 > **UNOFFICIAL TOOL — NOT A SELECTION BOARD.** Not affiliated with or endorsed
 > by the U.S. Navy, MyNavy HR, or any selection board. Scores are computed by a
@@ -37,10 +41,25 @@ board_precepts (active cycle flags)─────────────┘   
   rubric's numeric output, with citation-style references to the payload fields
   it used. Spec §7 is the normative rubric; three worked examples are pinned by
   tests to the decimal.
-- **Six factors** (weights): Performance 40, Leadership/Impact 15,
+- **Six factors** (default weights): Performance 40, Leadership/Impact 15,
   Professional Development vs LaDR 15, Continuity 10, Record Completeness 10,
   Precept Alignment 10. Missing data shrinks a factor's confidence (and thus
   its contribution) rather than being fabricated.
+- **Board emphasis (v1.5):** the LaDR's "Considerations for advancement from
+  E6 to E7 / E7 to E8 / E8 to E9" sections are ingested as
+  `advancement_consideration` checklist items — the heaviest LaDR category —
+  and every board-emphasis item counts double (tunable) inside its category.
+- **Continuity advisory (v1.5):** continuity is a *graded* factor, never a
+  hard zero — this tool does not decide selection. When a genuine reporting
+  break is found (a missing period inside your record; the time before your
+  first report is not counted, so a short but unbroken record is not flagged),
+  the results view shows a prominent advisory: a real selection board can treat
+  **any** gap in the record — even a single day — as disqualifying. Verify your
+  continuity on BOL and NSIPS.
+- **Upload-driven entry (v1.5):** on the Record Entry tab, "Extract to
+  record" parses an uploaded ESR/PSR/OMPF document in memory and pre-fills
+  awards, NECs, education, and PFA cycles as editable, unverified rows — in
+  lieu of manual entry. Nothing is scored until you review and save.
 - **Identity model:** a run scores the caller's own finalized evaluations
   (`created_by` = subject, with a DoD-ID cross-check). Routes are owner-only.
 
@@ -131,11 +150,32 @@ A curated seed and a fetched document for the same LaDR issue share the same
 `(rating, version)` key, so whichever lands first wins and the other reports
 "already current".
 
+## Tuning the rubric (v1.5)
+
+The `board_rubric_config` table (migration 007) holds the tunable rubric
+parameters; the single `active` row is loaded for every run and snapshotted
+into that run's `input.meta.rubric_config`, so past scores stay reproducible
+after retuning. Columns:
+
+- `weights` — per-factor weights (jsonb); normalized to sum 100 at run time.
+  A zero/blank sum falls back to the default weights with a warning.
+- `continuity_gap_days` (default `90`) — a missing reporting period longer than
+  this is graded as a gap and raises the continuity advisory.
+- `board_emphasis_multiplier` (default `2.0`) — how much extra weight
+  board-emphasis LaDR items carry inside their category.
+
+Because in-app roles are self-asserted, there is **no in-app admin UI**:
+retune via the Supabase dashboard or service-role SQL — insert a new row with
+your values and move the `active` flag to it (a partial unique index enforces
+one active row). Defaults reproduce spec §7 exactly; the worked examples are
+pinned by tests under the default config.
+
 ## Manual steps & known limits (v1)
 
 - Migrations/seed must be applied to the hosted project (see Setup).
-- Officer boards, automated LaDR PDF scraping, ESR/PSR OCR, pgvector
-  embeddings, and leadership/multi-member views are out of scope (spec §12).
+- Officer boards, OCR of scanned/image-only ESR/PSR PDFs (v1.5 extraction
+  needs a text layer), pgvector embeddings, and leadership/multi-member views
+  are out of scope (spec §12).
 - Admin-on-behalf analysis is deferred: `profiles` roles are self-asserted in
   this app, so the server cannot trust them for cross-user access.
 - CPO boards vote slates by rating panel rather than per-record confidence

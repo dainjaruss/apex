@@ -14,6 +14,7 @@
 // counts as recent (conservative — never inflate). All emit result warnings.
 
 import type {
+  RubricConfig,
   AwardLevel,
   BandVote,
   FactorKey,
@@ -44,6 +45,16 @@ export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
   performance: 40, leadership: 15, development: 15,
   continuity: 10, completeness: 10, precept: 10,
 };
+// v1.5: operator-tunable parameters. Defaults reproduce spec §7. Continuity is
+// GRADED, never a hard zero (a real board decides selection, not this tool);
+// a detected reporting gap raises a prominent advisory instead — see
+// scoreBoardConfidence.
+export const DEFAULT_RUBRIC_CONFIG: RubricConfig = {
+  weights: { ...FACTOR_WEIGHTS },
+  continuity_gap_days: 90,
+  board_emphasis_multiplier: 2,
+};
+
 export const PERF_SUBWEIGHTS = { P1: 0.35, P2: 0.35, P3: 0.15, P4: 0.15 } as const;
 export const FALLBACK_P2_MULT = 0.6;
 export const P2_SLOPE = 125;              // score2 = clamp(50 + 125·d, 0, 100)
@@ -61,6 +72,10 @@ export const AWARD_POINTS: Record<AwardLevel, number> = {
 export const AWARD_LOOKBACK_MONTHS = 120;
 export const SEA_MONTHS_FULL = 36;             // L3 = min(100, (100/36)·seaMonths72)
 export const LADR_CATEGORY_WEIGHTS: Record<LadrCategory, number> = {
+  // v1.5: the explicit E7+ advancement-considerations section carries the bulk
+  // of the board emphasis — the heaviest category when present. Weights
+  // renormalize over present categories, so LaDRs without it are unaffected.
+  advancement_consideration: 30,
   qual_warfare: 20, pme_required: 20, qual_rate_specific: 15, qual_watchstanding: 10,
   skill_training_required: 10, credential: 10, education_degree: 5, nec_opportunity: 5,
   pme_recommended: 3, skill_training_recommended: 2,
@@ -68,7 +83,7 @@ export const LADR_CATEGORY_WEIGHTS: Record<LadrCategory, number> = {
 };
 export const CONTINUITY_WINDOW_DAYS = 1826;    // 60 months
 export const CONTINUITY_GRACE_DAYS = 365;
-export const CONTINUITY_GAP_DAYS = 90;
+export const CONTINUITY_GAP_DAYS_DEFAULT = 90;
 export const CONTINUITY_GAP_PENALTY = 15;
 export const COMPLETENESS_POINTS = {           // sum = 100 (§7 Factor 5)
   continuity95: 20, psrEntered: 15, awards: 15, necs: 10,
@@ -278,7 +293,7 @@ function scoreLeadership(
 // (not applicable ≠ unknown); 'unanswered' rows lower conf_D only; unverified
 // met items count at 0.5. Also returns per-category ratios (precept) and the
 // answered/applicable counts (completeness).
-function scoreLadr(items: LadrItemInput[]): FactorScore & {
+function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & {
   ratios: Partial<Record<LadrCategory, number>>;
   answered: number;
   applicable: number;
@@ -291,9 +306,12 @@ function scoreLadr(items: LadrItemInput[]): FactorScore & {
     const c = (perCat[it.category] ??= { met: 0, answered: 0 });
     applicable++;
     if (it.status === "unanswered") continue;
-    c.answered++;
+    // v1.5: board-emphasis items (E7+ advancement considerations, or E7+-only
+    // milestones for an E7+ target) count ×emphasisMult within their category.
+    const w = it.board_emphasis ? emphasisMult : 1;
+    c.answered += w;
     answered++;
-    if (it.status === "met") c.met += it.verified_in_ompf ? 1 : UNVERIFIED_MULT;
+    if (it.status === "met") c.met += (it.verified_in_ompf ? 1 : UNVERIFIED_MULT) * w;
   }
   const ratios: Partial<Record<LadrCategory, number>> = {};
   const ratioDetail: Detail = {};
@@ -321,9 +339,12 @@ function scoreLadr(items: LadrItemInput[]): FactorScore & {
 
 // FACTOR 4 — Continuity (§7). Window is the half-open day interval
 // (windowStart, windowEnd] of exactly 1826 days; periods cover both endpoints
-// inclusive. Uncovered runs > 90 days (leading/trailing included) each cost 15.
-// conf_C = 1 always — absence of evals IS the signal continuity measures.
-function scoreContinuity(evals: RubricEvalInput[], T: string): FactorScore & { coverage: number } {
+// inclusive. Uncovered runs > gapDays (leading/internal/trailing) each cost 15
+// in the GRADED score (gapCount, unchanged). recordGapCount is a separate,
+// advisory-only count of GENUINE reporting breaks — internal and trailing gaps
+// only, never the pre-first-report leading span (a 3-year Sailor has no "break",
+// so the continuity advisory must not fire on them). conf_C = 1 always.
+function scoreContinuity(evals: RubricEvalInput[], T: string, gapDays: number): FactorScore & { coverage: number } {
   const tDay = dayNum(T);
   const latestTo = evals.map((e) => e.period_to).sort().at(-1);
   const graceEndDay = tDay - CONTINUITY_GRACE_DAYS;
@@ -350,13 +371,22 @@ function scoreContinuity(evals: RubricEvalInput[], T: string): FactorScore & { c
   const coveredDays = merged.reduce((a, [f, t]) => a + (t - f + 1), 0);
   const coverage = Math.min(1, coveredDays / CONTINUITY_WINDOW_DAYS);
 
-  let gapCount = 0;
+  let gapCount = 0;        // graded penalty — leading/internal/trailing (unchanged)
+  let recordGapCount = 0;  // advisory only — genuine breaks (excludes leading)
   let cursor = winStartDay; // boundary: first in-window day is cursor + 1
+  let seenReport = false;
   for (const [f, t] of merged) {
-    if (f - cursor - 1 > CONTINUITY_GAP_DAYS) gapCount++;
+    if (f - cursor - 1 > gapDays) {
+      gapCount++;
+      if (seenReport) recordGapCount++; // a gap BETWEEN two reports
+    }
+    seenReport = true;
     cursor = Math.max(cursor, t);
   }
-  if (winEndDay - cursor > CONTINUITY_GAP_DAYS) gapCount++;
+  if (winEndDay - cursor > gapDays) {
+    gapCount++;
+    if (seenReport) recordGapCount++; // trailing gap after the last report
+  }
 
   const S = clamp(100 * coverage - CONTINUITY_GAP_PENALTY * gapCount, 0, 100);
   return {
@@ -369,6 +399,7 @@ function scoreContinuity(evals: RubricEvalInput[], T: string): FactorScore & { c
       coverage,
       coveredDays,
       gapCount,
+      recordGapCount,
     },
   };
 }
@@ -437,9 +468,29 @@ function scorePrecept(
 // ---------------------------------------------------------------------------
 
 /** The engine. Pure: no Date.now(), no randomness, no I/O. */
-export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
+export function scoreBoardConfidence(
+  inputs: RubricInputs,
+  config: RubricConfig = DEFAULT_RUBRIC_CONFIG,
+): RubricResult {
   const T = inputs.boardDate;
   const warnings: string[] = [];
+
+  // Defensive: weights are normalized to sum 100 so a hand-edited config row
+  // cannot silently inflate or deflate the scale. A zero (or negative) sum —
+  // e.g. an operator blanks the weights jsonb — would otherwise score everyone
+  // 0 silently; fall back to the spec defaults and warn instead.
+  const wSumCfg = (Object.values(config.weights) as number[]).reduce((a, b) => a + b, 0);
+  let W: Record<FactorKey, number>;
+  if (wSumCfg > 0) {
+    W = { ...config.weights };
+    if (Math.abs(wSumCfg - 100) > 1e-9)
+      for (const k of Object.keys(W) as FactorKey[]) W[k] = (W[k] / wSumCfg) * 100;
+  } else {
+    W = { ...FACTOR_WEIGHTS };
+    warnings.push(
+      "Configured rubric weights summed to zero — the default factor weights were used for this analysis.",
+    );
+  }
 
   // v1.1 review fix: a period_to after T would earn recency weight > 1 —
   // future-dated reports are excluded from ALL factors, continuity included.
@@ -472,14 +523,14 @@ export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
 
   const perf = scorePerformance(evals, T);
   const lead = scoreLeadership(psr, T);
-  const dev = scoreLadr(inputs.ladr);
-  const cont = scoreContinuity(evals, T);
+  const dev = scoreLadr(inputs.ladr, config.board_emphasis_multiplier);
+  const cont = scoreContinuity(evals, T, config.continuity_gap_days);
   const comp = scoreCompleteness(psr, inputs.ladr, cont.coverage, dev.answered, dev.applicable);
 
   // Zero precept flags is an ADMIN omission: the factor is excluded and the
   // other five weights redistribute ×100/90 — the only weight redistribution.
   const preceptIncluded = inputs.preceptFlags.length > 0;
-  const scale = preceptIncluded ? 1 : 100 / 90;
+  const scale = preceptIncluded ? 1 : 100 / Math.max(1e-9, 100 - W.precept);
   const prec: FactorScore = preceptIncluded
     ? scorePrecept(inputs.preceptFlags, { ratios: dev.ratios, L1: lead.L1, seaMonths72: lead.seaMonths72 })
     : { S: 0, conf: 1, detail: { excluded: true } };
@@ -494,12 +545,12 @@ export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
   });
 
   const factors: FactorResult[] = [
-    factor("performance", FACTOR_WEIGHTS.performance * scale, perf),
-    factor("leadership", FACTOR_WEIGHTS.leadership * scale, lead),
-    factor("development", FACTOR_WEIGHTS.development * scale, dev),
-    factor("continuity", FACTOR_WEIGHTS.continuity * scale, cont),
-    factor("completeness", FACTOR_WEIGHTS.completeness * scale, comp),
-    factor("precept", preceptIncluded ? FACTOR_WEIGHTS.precept : 0, prec),
+    factor("performance", W.performance * scale, perf),
+    factor("leadership", W.leadership * scale, lead),
+    factor("development", W.development * scale, dev),
+    factor("continuity", W.continuity * scale, cont),
+    factor("completeness", W.completeness * scale, comp),
+    factor("precept", preceptIncluded ? W.precept : 0, prec),
   ];
 
   const raw = factors.reduce((a, f) => a + f.contribution, 0);
@@ -527,6 +578,28 @@ export function scoreBoardConfidence(inputs: RubricInputs): RubricResult {
     (pfaFail ? PFA_FAIL_PENALTY : 0);
 
   const final = round1HalfAway(clamp(raw - adverseAdjustment, 0, 100));
+
+  // v1.5: continuity is GRADED (already reflected in the continuity factor),
+  // never a hard zero — this tool does not decide selection. But a detected
+  // reporting gap is surfaced as a prominent, paygrade-agnostic advisory,
+  // because a real selection board can treat ANY break in reporting continuity
+  // as disqualifying. This is advisory only; it does not alter the score.
+  const recordGapCount = Number(cont.detail.recordGapCount ?? 0);
+  const continuityGap = recordGapCount > 0;
+  const continuityAdvisory = continuityGap
+    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. A selection board can treat ANY gap in the record — even a single day — as enough to disqualify a candidate. Verify your reporting continuity on BOL and NSIPS and be prepared to explain any break.`
+    : null;
+  if (continuityAdvisory) warnings.push(continuityAdvisory);
+
   const { vote, label } = bandFor(final);
-  return { final, band: vote, bandLabel: label, factors, adverseAdjustment, warnings };
+  return {
+    final,
+    band: vote,
+    bandLabel: label,
+    factors,
+    adverseAdjustment,
+    warnings,
+    continuityGap,
+    continuityAdvisory,
+  };
 }

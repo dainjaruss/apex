@@ -272,7 +272,7 @@ export default function ResultsView({
       const row = await runBoardAnalysis({ boardDate });
       onRunComplete(row);
     } catch (err: any) {
-      setRunError(err?.message || "Board confidence analysis failed.");
+      setRunError(err?.message || "Record readiness analysis failed.");
     } finally {
       setRunning(false);
     }
@@ -284,6 +284,12 @@ export default function ResultsView({
   const adverse = selected ? Number(selected.adverse_adjustment ?? 0) : 0;
 
   const warnings: string[] = selected?.input?.warnings ?? [];
+
+  // v1.5 continuity advisory — read from the stored run's meta snapshot.
+  const meta = (selected?.input?.meta ?? {}) as Record<string, unknown>;
+  const continuityGap = meta.continuity_gap === true;
+  const continuityAdvisory =
+    typeof meta.continuity_advisory === "string" ? meta.continuity_advisory : null;
 
   return (
     <div className="space-y-6">
@@ -345,6 +351,20 @@ export default function ResultsView({
 
       {selected ? (
         <>
+          {continuityGap && (
+            <div
+              role="alert"
+              className="p-4 rounded-lg border border-red-900/50 bg-red-950/30 text-red-200 text-sm space-y-1"
+            >
+              <p className="font-bold uppercase tracking-wider text-red-300">
+                Reporting continuity gap detected
+              </p>
+              <p className="text-xs">
+                {continuityAdvisory ??
+                  "A gap in reporting continuity was found. A selection board can treat any break in the record — even a single day — as disqualifying. Verify your continuity on BOL and NSIPS."}
+              </p>
+            </div>
+          )}
           <div className="apex-card p-6">
             <ScoreDial
               score={Number(selected.overall_score)}

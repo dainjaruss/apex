@@ -9,7 +9,7 @@
 import type { Narrative } from "@/lib/boardConfidence/narrative";
 
 export const BOARD_DISCLAIMER =
-  "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Board Confidence Analyzer is " +
+  "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Record Readiness Review is " +
   "a self-assessment aid. It is not affiliated with, endorsed by, or predictive of any " +
   "U.S. Navy selection board, Navy Personnel Command, or BUPERS process. Scores are " +
   "computed by a fixed, published rubric modeled on the officer-brief confidence vote " +
@@ -67,7 +67,10 @@ export type LadrCategory =
   | "career_milestone" | "skill_training_required" | "skill_training_recommended"
   | "nec_opportunity" | "pme_required" | "pme_recommended" | "qual_watchstanding"
   | "qual_warfare" | "qual_rate_specific" | "credential" | "education_degree"
-  | "billet_recommended";
+  | "billet_recommended"
+  // v1.5: the LaDR's "Considerations for advancement from E6 to E7 / E7 to E8 /
+  // E8 to E9" sections — where the board's selection emphasis actually lives.
+  | "advancement_consideration";
 
 export type LadrStatus = "met" | "not_met" | "na" | "unanswered";
 
@@ -76,6 +79,11 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
   category: LadrCategory;
   status: LadrStatus;
   verified_in_ompf: boolean;           // meaningful only when status === "met"
+  // v1.5: true when the item carries the LaDR's board emphasis — a milestone
+  // from the "Considerations for advancement" E7+ sections, or any item whose
+  // applies_to_paygrades sits entirely at E7+ while the member targets E7+.
+  // Emphasized items count ×board_emphasis_multiplier inside their category.
+  board_emphasis?: boolean;
 }
 
 export type PreceptFlag =
@@ -114,6 +122,21 @@ export interface RubricResult {
                                         // detail.excluded = true
   adverseAdjustment: number;            // A
   warnings: string[];                   // e.g. dod_id-mismatch exclusions (§2)
+  // v1.5: continuity is graded, not gated. A detected reporting gap (a missing
+  // period > continuity_gap_days, excluding the pre-first-report span) sets
+  // continuityGap and a paygrade-agnostic advisory — a real board can treat any
+  // break as disqualifying. Advisory only; the score is NOT forced to 0.
+  continuityGap: boolean;
+  continuityAdvisory: string | null;
+}
+
+// v1.5: operator-tunable rubric parameters (board_rubric_config table; the
+// active row is snapshotted into every analysis for reproducibility). Defaults
+// reproduce the spec §7 rubric with the continuity hard gate ON.
+export interface RubricConfig {
+  weights: Record<FactorKey, number>;   // normalized to sum 100 at run time
+  continuity_gap_days: number;          // a missing period longer than this ⇒ advisory
+  board_emphasis_multiplier: number;    // ×weight for board-emphasis LaDR items
 }
 
 export interface BoardAnalysisRow {     // mirror of public.board_analyses

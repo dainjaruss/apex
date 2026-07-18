@@ -42,6 +42,7 @@ const CATEGORY_LABELS: Record<LadrCategory, string> = {
   nec_opportunity: "NEC opportunities",
   pme_recommended: "PME — recommended",
   skill_training_recommended: "Skill training — recommended",
+  advancement_consideration: "E7+ advancement considerations (board emphasis)",
   career_milestone: "Career milestones",
   billet_recommended: "Recommended billets",
 };
