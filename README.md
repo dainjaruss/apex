@@ -36,6 +36,11 @@ All libraries and frameworks are open-source. Exact versions, licenses, and attr
   deterministic published rubric and optional Claude-generated narrative
   (`lib/boardConfidence/`, `/board-confidence`; see
   [`docs/BOARD-CONFIDENCE.md`](docs/BOARD-CONFIDENCE.md))
+- Brag Sheet + AI Auto-Fill — year-round accomplishment collector (branded
+  PDF/JSON export, in-memory prior-eval/PRIMS extraction, never persisted)
+  with an optional citation-grounded, fit-checked AI draft of the narrative
+  blocks; trait grades and Block 45 are never generated (`lib/bragSheet/`,
+  `/brag-sheet`; see [`docs/BRAG-SHEET.md`](docs/BRAG-SHEET.md))
 
 **Testing & Deployment**
 
