@@ -1,6 +1,8 @@
 # APEX Board Confidence Analyzer — Implementation Specification
 
-Status: **APPROVED FOR BUILD** · Version 1.2 · 2026-07-18
+Status: **APPROVED FOR BUILD** · Version 1.3 · 2026-07-18
+
+> **v1.3 (provider-agnostic AI + ephemeral uploads):** narrative generation moved from the Anthropic SDK to the **Vercel AI SDK via the AI Gateway** — `generateText` + `Output.object(NarrativeSchema)`, model chosen by `BOARD_NARRATIVE_MODEL` (any gateway `provider/model` string, e.g. `anthropic/claude-opus-4.8` (default) or `xai/grok-4.5`), credentials `AI_GATEWAY_API_KEY` or Vercel OIDC; keyless/fallback semantics and the §4.3.4 no-PII payload unchanged. Record-document uploads (ESR / PSR / OMPF field codes 30–38) added to the Record Entry tab: PII-redaction advisory with a confirmation checkbox gating the upload, typed filenames (`TYPE__name`), reference-only (never parsed/scored), and **session-ephemeral** — `lib/auth.ts` destroys the caller's `board-docs` objects at logout (before `auth.signOut()`, RLS requires the session) and sweeps leftovers at the next login; purge failures never block auth.
 
 > **v1.2 (full-requirements reconciliation):** explicit informed consent — `member_board_records.consented_at`, first-use modal (`components/board/BoardConsentModal.tsx`), server-enforced 403 on `POST /analyze` until recorded; two additional disclaimer layers (persistent page footer + score-dial tooltip carrying the modeled-bands caveat); citation-style grounding added to `NARRATIVE_SYSTEM_PROMPT` (every narrative item cites the payload path it derives from; development commentary must name each LaDR category below 1.0); HM added as a third seed rating, transcribed from the real July 2026 Navy COOL PDF; docs/BOARD-CONFIDENCE.md + README entry added.
 Companion spec style: `docs/specs/navfit98-field-mapping.md`

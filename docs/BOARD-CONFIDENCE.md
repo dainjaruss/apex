@@ -4,7 +4,7 @@ An **unofficial, educational** self-assessment tool that scores a Sailor's
 record the way a selection-board recorder reads one, for E-7+ (CPO and above)
 board preparation. Full implementation spec:
 [`docs/specs/board-confidence-analyzer.md`](specs/board-confidence-analyzer.md)
-(v1.1 — the normative rubric, DDL, and API contracts live there).
+(v1.3 — the normative rubric, DDL, and API contracts live there).
 
 > **UNOFFICIAL TOOL — NOT A SELECTION BOARD.** Not affiliated with or endorsed
 > by the U.S. Navy, MyNavy HR, or any selection board. Scores are computed by a
@@ -20,10 +20,12 @@ ladr_documents/ladr_milestones (versioned)──────┼──▶ lib/boa
 board_precepts (active cycle flags)─────────────┘        service.ts               factor breakdown
                                                                                      │
                                                                      numbers only ▼ (no PII)
-                                                        generateNarrative() — claude-opus-4-8, Zod
-                                                        structured output; deterministic fallback
-                                                        when ANTHROPIC_API_KEY is absent or the
-                                                        model call fails
+                                                        generateNarrative() — Vercel AI SDK via the
+                                                        AI Gateway (BOARD_NARRATIVE_MODEL: any
+                                                        provider/model, e.g. anthropic/… or
+                                                        xai/grok-…); Zod structured output;
+                                                        deterministic fallback when no gateway
+                                                        credentials exist or the model call fails
                                                                                      │
                                                                                      ▼
                                                         board_analyses row (input snapshot, factor
@@ -49,8 +51,15 @@ board_precepts (active cycle flags)─────────────┘   
   refuses to run without it.
 - **What reaches the AI:** only rubric numbers, LaDR category completion
   ratios, precept flags, target paygrade, and the rating abbreviation. Never a
-  name, DoD ID, award title, tour title, free text, or file content. Anthropic
-  does not train models on API data.
+  name, DoD ID, award title, tour title, free text, or uploaded file content.
+  The provider is operator-selected through the Vercel AI Gateway (see below);
+  review the chosen provider's data-use terms — the payload contains no PII
+  regardless.
+- **Ephemeral uploads:** ESR/PSR/OMPF (field codes 30–38) documents can be
+  uploaded as reference copies. Users are instructed to **redact PII before
+  uploading** (a confirmation checkbox gates the upload), the files are never
+  parsed or scored, and they are **destroyed at logout** (with a sweep at next
+  login for sessions that ended without one, e.g. a closed browser).
 - **No full-record logging:** server logs carry error metadata only.
 - **RLS:** `member_board_records` and `board_analyses` are owner-only;
   analysis inserts are server-role only; every run writes a
@@ -70,9 +79,16 @@ board_precepts (active cycle flags)─────────────┘   
    npx tsx scripts/seed-ladr.ts
    ```
    Ships IT (transcribed from the real July 2026 Navy COOL LaDR), BM and HM.
-3. Optional AI narrative: set `ANTHROPIC_API_KEY` in the server environment.
-   Without it the analyzer produces a deterministic narrative — every feature
-   still works.
+3. Optional AI narrative — provider-agnostic via the Vercel AI Gateway:
+   - `AI_GATEWAY_API_KEY` — gateway credential (on Vercel deployments, OIDC
+     is picked up automatically instead).
+   - `BOARD_NARRATIVE_MODEL` — any gateway `provider/model` string; pick by
+     price/quality. Default `anthropic/claude-opus-4.8`. Examples:
+     `xai/grok-4.5`, `xai/grok-4.1-fast-non-reasoning`,
+     `anthropic/claude-sonnet-4.5`. List models:
+     `curl -s https://ai-gateway.vercel.sh/v1/models`.
+   Without credentials the analyzer produces a deterministic narrative — every
+   feature still works.
 
 ## Maintaining the LaDR knowledge base
 
