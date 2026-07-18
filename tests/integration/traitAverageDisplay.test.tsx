@@ -10,6 +10,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import Block33to39Traits from "@/components/blocks/Block33to39Traits";
 import { Evaluation } from "@/types";
 
+// Deliberately partial fixture: Block33to39Traits only reads trait_grades.
 const seed = (): Evaluation =>
   ({
     trait_grades: {
@@ -21,7 +22,7 @@ const seed = (): Evaluation =>
       teamwork: "3.0",
       leadership: "3.0",
     },
-  }) as Evaluation;
+  }) as unknown as Evaluation;
 
 function Harness() {
   const [data, setData] = useState<Evaluation>(seed());
@@ -48,9 +49,10 @@ describe("Trait section average (Block 40)", () => {
   it("averages only graded traits and excludes untouched ones (EVALMAN: ungraded = blank)", () => {
     function PartialHarness() {
       // Only two traits graded; the other five are untouched/blank and must NOT count.
+      // Deliberately partial fixture: the component only reads trait_grades.
       const [data, setData] = useState<Evaluation>({
         trait_grades: { knowledge: "4.0", leadership: "4.0" },
-      } as Evaluation);
+      } as unknown as Evaluation);
       const onChange = (fields: Partial<Evaluation>) =>
         setData((prev) => ({ ...prev, ...fields }));
       return (
@@ -66,9 +68,10 @@ describe("Trait section average (Block 40)", () => {
 
   it("clears a trait when its active grade is clicked again (toggle to ungraded)", () => {
     function ToggleHarness() {
+      // Deliberately partial fixture: the component only reads trait_grades.
       const [data, setData] = useState<Evaluation>({
         trait_grades: { knowledge: "4.0", work: "2.0" },
-      } as Evaluation);
+      } as unknown as Evaluation);
       const onChange = (fields: Partial<Evaluation>) =>
         setData((prev) => ({ ...prev, ...fields }));
       return (

@@ -139,9 +139,12 @@ describe("CHIEFEVAL validation (NAVPERS 1616/27)", () => {
   });
 
   it("does not require retention (Block 47 omitted)", () => {
-    const noRetention = { ...mockChiefEval, retention: undefined };
+    // CHIEFEVAL omits Block 47, so build the fixture without a retention key at all.
+    const { retention: _retention, ...noRetention } = mockChiefEval;
     expect(
-      runFullValidation(noRetention).errors.some((e) => e.field === "retention"),
+      runFullValidation(noRetention as Evaluation).errors.some(
+        (e) => e.field === "retention",
+      ),
     ).toBe(false);
   });
 });

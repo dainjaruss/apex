@@ -66,8 +66,10 @@ const baseEval: Evaluation = {
   grade_rate: "PO2",
   period_from: "2025-01-01",
   period_to: "2025-12-31",
+  duty_status: "ACT",
   uic: "12345",
   ship_station: "USS NEVERSAIL",
+  promotion_status: "Regular",
   comments: "GOOD JOB.",
   career_recommendations: [],
   promotion_recommendation: "Promotable",
@@ -97,7 +99,9 @@ const rater: Profile = {
 
 describe("APEX RoutingPanel Integration Tests", () => {
   const onWorkflowAction = vi.fn();
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("lets the sailor (current holder, draft) route forward to a Rater", async () => {
     const { routeForward } = await import("@/lib/evaluationService");

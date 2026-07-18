@@ -120,7 +120,7 @@ describe("APEX Full Evaluation Lifecycle E2E Integration Test", () => {
     expect(draftEval.status).toBe("draft");
 
     // Verify audit log for REPORT_CREATED is recorded
-    const auditLogs1 = await fetchAuditLogs(draftEval.id);
+    const auditLogs1 = await fetchAuditLogs(draftEval.id!);
     expect(auditLogs1.length).toBe(1);
     expect(auditLogs1[0].action).toBe("REPORT_CREATED");
 
@@ -185,7 +185,7 @@ describe("APEX Full Evaluation Lifecycle E2E Integration Test", () => {
     expect(updatedEval.dod_id).toBe("1234567890");
 
     // Verify audit log for REPORT_UPDATED is recorded
-    const auditLogs2 = await fetchAuditLogs(updatedEval.id);
+    const auditLogs2 = await fetchAuditLogs(updatedEval.id!);
     expect(auditLogs2.some((log) => log.action === "REPORT_UPDATED")).toBe(
       true,
     );
@@ -197,42 +197,42 @@ describe("APEX Full Evaluation Lifecycle E2E Integration Test", () => {
 
     // Step 4: Submit the evaluation for review
     const submittedEval = await submitForReview(
-      updatedEval.id,
+      updatedEval.id!,
       reviewerId,
       userId,
     );
     expect(submittedEval.status).toBe("ready_for_review");
 
     // Verify audit log is created for submission
-    const auditLogs3 = await fetchAuditLogs(updatedEval.id);
+    const auditLogs3 = await fetchAuditLogs(updatedEval.id!);
     expect(
       auditLogs3.some((log) => log.action === "SUBMITTED_FOR_REVIEW"),
     ).toBe(true);
 
     // Step 5: Approve the evaluation as the Reporting Senior
     const approvedEval = await approveEvaluation(
-      submittedEval.id,
+      submittedEval.id!,
       reviewerId,
       "Excellent performance across all traits.",
     );
     expect(approvedEval.status).toBe("completed");
 
     // Verify audit log is created for approval
-    const auditLogs4 = await fetchAuditLogs(updatedEval.id);
+    const auditLogs4 = await fetchAuditLogs(updatedEval.id!);
     expect(auditLogs4.some((log) => log.action === "REVIEW_APPROVED")).toBe(
       true,
     );
 
     // Step 6: Finalize status & simulate PDF export
     const finalizedEval = await updateStatus(
-      approvedEval.id,
+      approvedEval.id!,
       "completed",
       userId,
     );
     expect(finalizedEval.status).toBe("completed");
 
     // Verify final audit logs
-    const finalAuditLogs = await fetchAuditLogs(finalizedEval.id);
+    const finalAuditLogs = await fetchAuditLogs(finalizedEval.id!);
     expect(finalAuditLogs.some((log) => log.action === "STATUS_CHANGED")).toBe(
       true,
     );
