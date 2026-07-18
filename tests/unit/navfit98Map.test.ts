@@ -467,6 +467,16 @@ describe("mapEvaluationToNavfit — dates", () => {
     expect(mapEvaluationToNavfit(chiefFixture).DateCounseled).toBe("NOT REQ");
     expect(mapEvaluationToNavfit(fitrepFixture).DateCounseled).toBe("25JAN15");
   });
+
+  it("never interpolates 'undefined' for an out-of-range ISO month", () => {
+    const row = mapEvaluationToNavfit({
+      ...evalFixture,
+      block_values: { ...evalFixture.block_values, date_counseled: "2025-13-01" },
+    });
+    // Falls through verbatim (validateNavfitExport rejects it by length).
+    expect(row.DateCounseled).toBe("2025-13-01");
+    expect(String(row.DateCounseled)).not.toContain("undefined");
+  });
 });
 
 describe("mapEvaluationToNavfit — trait grades (§4.3)", () => {

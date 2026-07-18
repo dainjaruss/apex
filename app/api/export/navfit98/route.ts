@@ -20,7 +20,18 @@ import {
 const fail = (error: string, status: number) =>
   NextResponse.json({ error }, { status });
 
+// Each export spawns a JVM and buffers an .accdb; cap concurrent runs so an
+// authenticated user can't exhaust the host with parallel requests.
+// ponytail: in-process counter — move to shared rate limiting if we ever scale
+// this route across workers.
+const MAX_CONCURRENT_EXPORTS = 2;
+let activeExports = 0;
+
 export async function POST(req: NextRequest) {
+  if (activeExports >= MAX_CONCURRENT_EXPORTS) {
+    return fail("Too many NAVFIT exports in progress. Try again shortly.", 429);
+  }
+  activeExports++;
   try {
     const callerId = await getRouteUserId();
     if (!callerId) return fail("Not authenticated.", 401);
@@ -80,7 +91,8 @@ export async function POST(req: NextRequest) {
     const accdb = await writeNavfitAccdb([mapEvaluationToNavfit(ev)]);
     const filename = `NAVFIT98_${(ev.member_name || "REPORT").replace(/[^a-zA-Z0-9]/g, "_")}.accdb`;
 
-    await admin.from("audit_logs").insert([
+    // Fail closed: an official record must not leave the system unaudited.
+    const { error: auditError } = await admin.from("audit_logs").insert([
       {
         evaluation_id: evaluationId,
         user_id: callerId,
@@ -92,6 +104,13 @@ export async function POST(req: NextRequest) {
         },
       },
     ]);
+    if (auditError) {
+      console.error("NAVFIT 98 export audit insert failed:", auditError);
+      return fail(
+        "Export could not be recorded in the audit log; no file was released.",
+        500,
+      );
+    }
 
     return new NextResponse(new Uint8Array(accdb), {
       status: 200,
@@ -101,7 +120,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
+    // Sidecar errors carry server paths/stderr — log them, never echo them.
     console.error("NAVFIT 98 export error:", error);
-    return fail(error.message || "NAVFIT 98 export failed.", 500);
+    return fail("NAVFIT 98 export failed. See server logs for details.", 500);
+  } finally {
+    activeExports--;
   }
 }

@@ -12,7 +12,7 @@
 
 **Plan (committed on `main`):** [`docs/plan/NAVFIT98-ACCESS-EXPORT.md`](docs/plan/NAVFIT98-ACCESS-EXPORT.md)
 
-Export APEX evaluations to an MS Access–compatible file so **NAVFIT 98** can import them (backward-compatible fleet workflow). **Blocked on:** sanitized Access `.mdb`/`.accdb` schema + NAVFIT import SOP from stakeholder. Next step after schema: fill `docs/specs/navfit98-field-mapping.md` and implement Phase 2 (EVAL MVP) per the plan.
+**Shipped 2026-07-17** (`feat/navfit98-export`): mapping spec (`docs/specs/navfit98-field-mapping.md`), `lib/navfit98/` mapper/validator/writer, `POST /api/export/navfit98`, export-page button, Java/Jackcess sidecar (`scripts/navfit98/`, needs a JRE — route 501s without one, e.g. Vercel). 86 tests incl. .accdb round-trips against the golden `juniorEnlisted.accdb`. Remaining: manual NAVFIT 98A Windows verification (`docs/how-to/navfit98-import-verify.md`) + spec §8 open questions before trusting CHIEFEVAL/FITREP exports in the fleet.
 
 ---
 

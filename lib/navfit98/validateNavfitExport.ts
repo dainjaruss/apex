@@ -9,9 +9,14 @@
 
 import { Evaluation, ValidationIssue } from "@/types";
 import { getBlockForField } from "@/lib/validationEngine";
-import { DUTY_STATUS_OPTIONS, RETENTION_OPTIONS } from "@/types/navpers";
+import {
+  DUTY_STATUS_OPTIONS,
+  PROMOTION_RECOMMENDATIONS,
+  RETENTION_OPTIONS,
+} from "@/types/navpers";
 import { NavfitValidationResult } from "./types";
 import { NAVFIT_TRAIT_MAP } from "./constants";
+import { formatNavpersDate } from "./mapEvaluationToNavfit";
 
 const VALID_GRADES = new Set(["1.0", "2.0", "3.0", "4.0", "5.0", "NOB"]);
 
@@ -37,6 +42,20 @@ export function validateNavfitExport(
     ["counselor", bv.counselor, "Counseler", 20],
     ["rater_signature", bv.rater_signature, "Rater", 28, 42],
     ["senior_rater_signature", bv.senior_rater_signature, "SeniorRater", 28, 49],
+    // Columns whose caps neither APEX validation nor the rows above cover —
+    // without these a long value only fails inside the Java sidecar (a 500,
+    // not a block-numbered 422).
+    ["uic", evaluation.uic, "UIC", 5],
+    ["designator", evaluation.designator, "Desig", 12],
+    ["promotion_status", evaluation.promotion_status, "PromotionStatus", 8],
+    ["reporting_senior_grade", bv.reporting_senior_grade, "RSGrade", 5],
+    ["reporting_senior_designator", bv.reporting_senior_designator, "RSDesig", 5],
+    ["reporting_senior_title", bv.reporting_senior_title, "RSTitle", 14],
+    ["reporting_senior_uic", bv.reporting_senior_uic, "RSUIC", 5],
+    ["primary_duty_abbrev", bv.primary_duty_abbrev, "PrimaryDuty", 14],
+    // Checked post-transform: ISO input becomes YYMMMDD (7 chars); anything
+    // that still exceeds 8 (e.g. a malformed date) must be fixed, not truncated.
+    ["date_counseled", formatNavpersDate(bv.date_counseled), "DateCounseled", 8, 30],
   ];
   for (const [field, value, column, max, block] of caps) {
     if (value && value.length > max) {
@@ -94,6 +113,21 @@ export function validateNavfitExport(
         `Trait grade "${grade}" (Block ${block}) is not a NAVFIT value (1.0-5.0 or NOB).`,
       );
     }
+  }
+
+  // PromotionRecom is a radio index 0-5 with no "unset" representation; a null
+  // here would silently export as 0 = NOB on an observed report. runFullValidation
+  // masks a null by defaulting its payload to "Promotable", so gate it here.
+  if (
+    !(PROMOTION_RECOMMENDATIONS as readonly string[]).includes(
+      evaluation.promotion_recommendation || "",
+    )
+  ) {
+    err(
+      "promotion_recommendation",
+      getBlockForField("promotion_recommendation"),
+      `Promotion recommendation "${evaluation.promotion_recommendation || ""}" must be set to one of the Block 45 categories before NAVFIT export (an unset value would export as NOB).`,
+    );
   }
 
   // §6.5 — exclusive checkbox groups. Duty status must map to exactly one of the

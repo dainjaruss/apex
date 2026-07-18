@@ -215,6 +215,62 @@ describe("validateNavfitExport — NAVFIT length caps (spec §6.3)", () => {
       fail: withBv(validEval, { rater_signature: "A".repeat(29) }),
     },
     {
+      name: "uic ≤5 (UIC)",
+      block: 6,
+      pass: { ...validEval, uic: "12345" },
+      fail: { ...validEval, uic: "123456" },
+    },
+    {
+      name: "designator ≤12 (Desig)",
+      block: 3,
+      pass: { ...validEval, designator: "A".repeat(12) },
+      fail: { ...validEval, designator: "A".repeat(13) },
+    },
+    {
+      name: "promotion_status ≤8 (PromotionStatus)",
+      block: 8,
+      pass: { ...validEval, promotion_status: "SELECTED" }, // 8
+      fail: { ...validEval, promotion_status: "SELECTEDX" }, // 9
+    },
+    {
+      name: "reporting_senior_grade ≤5 (RSGrade)",
+      block: 23,
+      pass: withBv(validEval, { reporting_senior_grade: "CAPT" }),
+      fail: withBv(validEval, { reporting_senior_grade: "ABCDEF" }),
+    },
+    {
+      name: "reporting_senior_designator ≤5 (RSDesig)",
+      block: 24,
+      pass: withBv(validEval, { reporting_senior_designator: "1110" }),
+      fail: withBv(validEval, { reporting_senior_designator: "ABCDEF" }),
+    },
+    {
+      name: "reporting_senior_title ≤14 (RSTitle)",
+      block: 25,
+      pass: withBv(validEval, { reporting_senior_title: "A".repeat(14) }),
+      fail: withBv(validEval, { reporting_senior_title: "A".repeat(15) }),
+    },
+    {
+      name: "reporting_senior_uic ≤5 (RSUIC)",
+      block: 26,
+      pass: withBv(validEval, { reporting_senior_uic: "55555" }),
+      fail: withBv(validEval, { reporting_senior_uic: "555556" }),
+    },
+    {
+      name: "primary_duty_abbrev ≤14 (PrimaryDuty)",
+      block: 29,
+      pass: withBv(validEval, { primary_duty_abbrev: "A".repeat(14) }),
+      fail: withBv(validEval, { primary_duty_abbrev: "A".repeat(15) }),
+    },
+    {
+      name: "date_counseled ≤8 after YYMMMDD transform (DateCounseled)",
+      block: 30,
+      pass: withBv(validEval, { date_counseled: "2025-07-17" }), // → 25JUL17 (7)
+      // Malformed month passes the ISO shape but not the transform — stays
+      // 10 chars verbatim and must be rejected, never truncated.
+      fail: withBv(validEval, { date_counseled: "2025-13-01" }),
+    },
+    {
       name: "summary counts ≤999 (SummarySP…EP are Text(3))",
       block: 46,
       pass: {
@@ -282,6 +338,37 @@ describe("validateNavfitExport — trait/NOB consistency (spec §6.4)", () => {
       trait_grades: {},
     };
     expect(validateNavfitExport(blankTraits).ok).toBe(true);
+  });
+});
+
+describe("validateNavfitExport — promotion recommendation (Block 45)", () => {
+  // An unset value would export as PromotionRecom 0 = NOB on an observed
+  // report; runFullValidation masks null by defaulting to "Promotable", so
+  // this gate is the only defense.
+  it("rejects a null promotion_recommendation", () => {
+    const res = validateNavfitExport({
+      ...validEval,
+      promotion_recommendation: null as unknown as string,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.block === 45)).toBe(true);
+  });
+
+  it("rejects an unknown promotion_recommendation string", () => {
+    const res = validateNavfitExport({
+      ...validEval,
+      promotion_recommendation: "Highly Promotable",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.block === 45)).toBe(true);
+  });
+
+  it('accepts explicit "NOB"', () => {
+    const res = validateNavfitExport({
+      ...validEval,
+      promotion_recommendation: "NOB",
+    });
+    expect(res.errors).toEqual([]);
   });
 });
 

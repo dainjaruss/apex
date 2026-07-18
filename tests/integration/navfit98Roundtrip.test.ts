@@ -192,6 +192,22 @@ describe.skipIf(!available)(
       expect(rows.map((r) => r.ReportType).sort()).toEqual(["Eval", "FitRep"]);
     });
 
+    it("seeds ReportID sequentially from 1 (spec §0 golden-row pattern)", () => {
+      const ids = reader
+        .getTable("Reports")
+        .getData()
+        .map((r) => r.ReportID)
+        .sort();
+      expect(ids).toEqual([1, 2]);
+    });
+
+    it("rejects (not truncates) a TEXT value exceeding its column cap", async () => {
+      // Last-line defense inside the Java sidecar — validateNavfitExport caps
+      // most fields, but the writer must never silently truncate any column.
+      const oversized = { ...evalRow, RSTitle: "A".repeat(15) }; // Text(14)
+      await expect(writeNavfitAccdb([oversized])).rejects.toThrow(/RSTitle/);
+    }, 60_000);
+
     it("keeps exactly the golden Root row in Folders", () => {
       const folders = reader.getTable("Folders").getData();
       expect(folders).toHaveLength(1);

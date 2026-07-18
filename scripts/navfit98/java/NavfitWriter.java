@@ -90,6 +90,10 @@ public class NavfitWriter {
             }
 
             JSONArray reportRows = payload.getJSONArray("reports");
+            // Spec §0: ReportID sequential from 1 (golden-row pattern). Only safe
+            // when the table was just cleared; otherwise let AutoNumber assign.
+            boolean seedIds = payload.optBoolean("clearReports", true);
+            if (seedIds) reports.setAllowAutoNumberInsert(true);
             for (int i = 0; i < reportRows.length(); i++) {
                 JSONObject src = reportRows.getJSONObject(i);
                 Object parent = src.opt("Parent");
@@ -97,7 +101,9 @@ public class NavfitWriter {
                     int idx = Integer.parseInt(((String) parent).substring("@folder:".length()));
                     src.put("Parent", "a " + insertedFolderIds[idx]);
                 }
-                Map<String, Object> row = reports.addRowFromMap(coerceRow(reports, src));
+                Map<String, Object> coerced = coerceRow(reports, src);
+                if (seedIds) coerced.put("ReportID", i + 1);
+                Map<String, Object> row = reports.addRowFromMap(coerced);
                 reportIds.put(((Number) row.get("ReportID")).longValue());
             }
         }

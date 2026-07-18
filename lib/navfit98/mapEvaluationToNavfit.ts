@@ -47,7 +47,7 @@ const COUNSELOR_SHAPE = /^[A-Za-z]+,\s*[A-Za-z](\s+[A-Za-z])?$/;
 // Mirrors formatNavpersDate (lib/pdfOverlay.ts:42-61) — ISO → YYMMMDD; YYMMMDD /
 // NOT REQ / NOT PERF pass through uppercased (§4.2). Mirrored rather than imported
 // so the mapper does not drag pdf-lib in.
-function formatNavpersDate(dateStr?: string): string {
+export function formatNavpersDate(dateStr?: string): string {
   if (!dateStr) return "";
   const months = [
     "JAN",
@@ -64,7 +64,10 @@ function formatNavpersDate(dateStr?: string): string {
     "DEC",
   ];
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-  if (iso) return `${iso[1].slice(-2)}${months[Number(iso[2]) - 1]}${iso[3]}`;
+  // Out-of-range month falls through verbatim (then fails the ≤8-char export
+  // cap) instead of interpolating the string "undefined".
+  if (iso && months[Number(iso[2]) - 1])
+    return `${iso[1].slice(-2)}${months[Number(iso[2]) - 1]}${iso[3]}`;
   return dateStr.toUpperCase();
 }
 
