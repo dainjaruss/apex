@@ -190,18 +190,30 @@ rubric tuning):
    emphasis flags. (`scripts/seed-ladr.ts` still seeds the shipped **modeled**
    FY27 precept; `set-precept.ts` is the path for a real, version-controlled one.)
 
-**Fetch-to-reference (v1.6).** Precepts are published PDFs on MyNavyHR — the
-default is the FY-27 Active-Duty senior-enlisted precept. The precept tab has a
-**"Reference a published precept"** panel: it fetches the PDF server-side
-(`POST /api/board-confidence/precept-fetch`, in-memory extract, never persisted,
-host allow-listed to `mynavyhr.navy.mil` as an SSRF guard), shows the text, and
-suggests which of the five flags the precept names — with the triggering quote.
+**Fetch-to-reference (v1.6).** Precepts are published PDFs on MyNavyHR
+([Flag boards](https://www.mynavyhr.navy.mil/Career-Management/Boards/Flag/Precepts/),
+[CPO/enlisted boards](https://www.mynavyhr.navy.mil/Career-Management/Boards/Active-Duty-Enlisted/CPO-Selection-Boards/)).
+The precept tab's **"Reference a published precept"** panel takes the PDF one of
+two ways, both extracting text in memory (never persisted) and suggesting which
+of the five flags the precept names — with the triggering quote:
+
+- **Upload (primary, v1.6.1)** — download the precept from MyNavyHR and upload
+  it (`POST /api/board-confidence/precept-extract`, same in-memory/no-persist
+  invariants as record-extract). The browser already has the file, so the
+  **server needs no outbound access** — this works when server egress to
+  `mynavyhr.navy.mil` is blocked (proxy/firewall/DoD IP filtering), which is the
+  common case ("Could not download the precept" from the URL fetch).
+- **Fetch by URL (fallback)** — `POST /api/board-confidence/precept-fetch`
+  downloads it server-side (host allow-listed to `mynavyhr.navy.mil` as an SSRF
+  guard). Only works where the runtime can reach MyNavyHR.
+
 Because a precept is broad prose (not a clean checklist like the LaDR
-"Considerations for advancement"), those suggestions are a **starting point you
-confirm against the text**, never an auto-derived scoring input. The panel then
+"Considerations for advancement"), the suggestions are a **starting point you
+confirm against the text**, never an auto-derived scoring input — verified on the
+real FY-27 enlisted precept, which names none of the five areas. The panel then
 emits the exact `precept_current.ts` values to apply via `npm run seed:precept`.
-The fetch is read-only and open to any authenticated user (it reads a public
-document); activation stays the privileged service-role step above.
+Both extract paths are read-only and open to any authenticated user (they read a
+public document); activation stays the privileged service-role step above.
 
 Equivalent one-off via the Supabase SQL editor:
 

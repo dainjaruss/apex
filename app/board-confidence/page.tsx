@@ -27,6 +27,7 @@ import {
   getLatestLadr,
   fetchLadr,
   fetchPreceptPreview,
+  extractPreceptFromFile,
   listMyAnalyses,
   saveMemberBoardRecord,
   type PreceptPreview,
@@ -125,17 +126,35 @@ function PreceptReference() {
   const [cycle, setCycle] = useState("");
   const [title, setTitle] = useState("");
 
+  const applyPreview = (p: PreceptPreview) => {
+    setPreview(p);
+    const next = emptyFlags();
+    for (const s of p.suggestions) next[s.flag] = true;
+    setFlags(next);
+  };
+
   const doFetch = async () => {
     setBusy(true);
     setErr(null);
     try {
-      const p = await fetchPreceptPreview(url);
-      setPreview(p);
-      const next = emptyFlags();
-      for (const s of p.suggestions) next[s.flag] = true;
-      setFlags(next);
+      applyPreview(await fetchPreceptPreview(url));
     } catch (e: any) {
-      setErr(e?.message || "Fetch failed.");
+      setErr(
+        (e?.message || "Fetch failed.") +
+          " If your server can't reach MyNavyHR, download the PDF and use Upload below.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doUpload = async (file: File) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      applyPreview(await extractPreceptFromFile(file));
+    } catch (e: any) {
+      setErr(e?.message || "Could not read that PDF.");
     } finally {
       setBusy(false);
     }
@@ -159,32 +178,76 @@ function PreceptReference() {
           Reference a published precept
         </h3>
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Fetch the board&apos;s precept from MyNavyHR, read it here, and confirm
-          which of the five areas it emphasizes. Precepts are broad prose, so the
-          suggestions below are a starting point — set the flags from the text,
-          not the guess.
+          Read the board&apos;s precept here and confirm which of the five areas
+          it emphasizes. Precepts are broad prose, so the suggestions below are a
+          starting point — set the flags from the text, not the guess. Precepts
+          are published on MyNavyHR:{" "}
+          <a
+            href="https://www.mynavyhr.navy.mil/Career-Management/Boards/Flag/Precepts/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            Flag boards
+          </a>
+          {" · "}
+          <a
+            href="https://www.mynavyhr.navy.mil/Career-Management/Boards/Active-Duty-Enlisted/CPO-Selection-Boards/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            CPO (enlisted) boards
+          </a>
+          .
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 flex-1 min-w-[16rem]">
-          <span className="apex-filter-label">Precept PDF URL (mynavyhr.navy.mil)</span>
+      {/* Upload is the primary path — no server egress to MyNavyHR needed. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="apex-btn-primary text-xs cursor-pointer">
+          {busy ? "Reading…" : "Upload precept PDF"}
           <input
-            className="apex-input text-xs"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            aria-label="Precept PDF URL"
+            type="file"
+            accept="application/pdf"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) doUpload(f);
+              e.target.value = "";
+            }}
           />
         </label>
-        <button
-          type="button"
-          className="apex-btn-secondary text-xs"
-          onClick={doFetch}
-          disabled={busy}
-        >
-          {busy ? "Fetching…" : "Fetch precept"}
-        </button>
+        <span className="text-xs" style={{ color: "var(--subtle)" }}>
+          Download the precept PDF from MyNavyHR, then upload it here.
+        </span>
       </div>
+
+      <details className="text-xs">
+        <summary className="cursor-pointer" style={{ color: "var(--muted-foreground)" }}>
+          Or fetch by URL (needs server internet access to MyNavyHR)
+        </summary>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 flex-1 min-w-[16rem]">
+            <span className="apex-filter-label">Precept PDF URL (mynavyhr.navy.mil)</span>
+            <input
+              className="apex-input text-xs"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              aria-label="Precept PDF URL"
+            />
+          </label>
+          <button
+            type="button"
+            className="apex-btn-secondary text-xs"
+            onClick={doFetch}
+            disabled={busy}
+          >
+            {busy ? "Fetching…" : "Fetch precept"}
+          </button>
+        </div>
+      </details>
       {err && (
         <p className="text-xs text-red-400" role="alert">
           {err}
