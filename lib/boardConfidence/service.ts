@@ -292,6 +292,7 @@ export async function assembleRubricInputs(
             m.category === "advancement_consideration" ||
             (targetPaygrade != null &&
               targetPaygrade >= 7 &&
+              m.applies_to_paygrades.length > 0 && // Math.min() of [] is Infinity
               Math.min(...m.applies_to_paygrades) >= 7);
           return {
             milestone_id: m.id,
