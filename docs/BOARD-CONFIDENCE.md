@@ -170,6 +170,57 @@ your values and move the `active` flag to it (a partial unique index enforces
 one active row). Defaults reproduce spec §7 exactly; the worked examples are
 pinned by tests under the default config.
 
+## Setting the board precept
+
+The Precept Alignment factor (§7 Factor 6, 10% weight) scores a member's record
+against the **active** board precept — the emphasis areas a selection board's
+convening order names. With no active precept (a fresh install), the factor is
+excluded and its weight redistributes across the other five; the UI says so.
+That is a graceful degrade, not an error — load a precept to activate the factor.
+
+Because the precept is system-wide config and in-app roles are self-asserted,
+it is set **only** by whoever holds the service-role key (same trust model as
+rubric tuning):
+
+1. Edit `scripts/ladr-data/precept_current.ts` — set `cycle`, `title`, the real
+   `emphasis_flags` (set `true` only for the areas the board's precept names),
+   and `source_url` (the convening-order link, or `null` for a modeled precept).
+2. `npm run seed:precept` — upserts on `cycle` and makes it the single active
+   row. The script refuses to run on the unedited template or with zero
+   emphasis flags. (`scripts/seed-ladr.ts` still seeds the shipped **modeled**
+   FY27 precept; `set-precept.ts` is the path for a real, version-controlled one.)
+
+**Fetch-to-reference (v1.6).** Precepts are published PDFs on MyNavyHR — the
+default is the FY-27 Active-Duty senior-enlisted precept. The precept tab has a
+**"Reference a published precept"** panel: it fetches the PDF server-side
+(`POST /api/board-confidence/precept-fetch`, in-memory extract, never persisted,
+host allow-listed to `mynavyhr.navy.mil` as an SSRF guard), shows the text, and
+suggests which of the five flags the precept names — with the triggering quote.
+Because a precept is broad prose (not a clean checklist like the LaDR
+"Considerations for advancement"), those suggestions are a **starting point you
+confirm against the text**, never an auto-derived scoring input. The panel then
+emits the exact `precept_current.ts` values to apply via `npm run seed:precept`.
+The fetch is read-only and open to any authenticated user (it reads a public
+document); activation stays the privileged service-role step above.
+
+Equivalent one-off via the Supabase SQL editor:
+
+```sql
+insert into public.board_precepts (cycle, title, emphasis_flags, source_url, active)
+values (
+  'FY27 Active-Duty E7',                                  -- board cycle
+  'FY27 CPO Selection Board emphasis',                    -- title
+  '{"warfighting":true,"leadership_positions":true,"sea_duty":true,
+    "education":false,"technical_expertise":false}'::jsonb,-- true = emphasized
+  null,                                                    -- convening-order URL, or null
+  true
+)
+on conflict (cycle) do update
+  set title = excluded.title, emphasis_flags = excluded.emphasis_flags,
+      source_url = excluded.source_url, active = true;
+update public.board_precepts set active = false where cycle <> 'FY27 Active-Duty E7';
+```
+
 ## Manual steps & known limits (v1)
 
 - Migrations/seed must be applied to the hosted project (see Setup).

@@ -22,6 +22,8 @@ function authRouteList(): { path: string; name: string }[] {
     { path: "/dashboard", name: "Dashboard" },
     { path: "/evaluations/new", name: "New evaluation" },
     { path: "/summary-groups", name: "Summary groups" },
+    { path: "/board-confidence", name: "Record Readiness" },
+    { path: "/brag-sheet", name: "Brag Sheet" },
   ];
   const fixturePath = resolve(process.cwd(), "tests/fixtures/e2e-ids.json");
   if (existsSync(fixturePath)) {
