@@ -13,7 +13,7 @@
 // rejects non-browser agents).
 
 import { createHash } from "node:crypto";
-import { Agent, fetch as undiciFetch } from "undici";
+import type { Agent } from "undici";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ZEROSSL_INTERMEDIATE_PEM, USERTRUST_ROOT_PEM } from "./ladrCerts";
 import { isKnownRating, ratingName } from "./ratings";
@@ -55,10 +55,13 @@ export type LadrStoreResult =
   | { status: "already_current"; documentId: string; milestones: number };
 
 // Dedicated agent — the pinned CA set applies only to LaDR fetches, never to
-// the process-wide dispatcher.
+// the process-wide dispatcher. undici is imported lazily (like unpdf) so that
+// importing this module for its pure parsers (parseLadr) never loads undici's
+// index — which crashes some vitest/Node combos on CacheStorage init.
 let ladrAgent: Agent | undefined;
-function agent(): Agent {
+async function agent(): Promise<Agent> {
   if (!ladrAgent) {
+    const { Agent } = await import("undici");
     ladrAgent = new Agent({
       connect: { ca: [ZEROSSL_INTERMEDIATE_PEM, USERTRUST_ROOT_PEM] },
     });
@@ -71,8 +74,9 @@ export async function fetchLadrPdf(rating: string): Promise<LadrFetchResult> {
     return { status: "error", message: `Unknown rating "${rating}".` };
   const sourceUrl = `${COOL_BASE}/${rating.toLowerCase()}_e1_e9.pdf`;
   try {
+    const { fetch: undiciFetch } = await import("undici");
     const res = await undiciFetch(sourceUrl, {
-      dispatcher: agent(),
+      dispatcher: await agent(),
       headers: { "User-Agent": BROWSER_UA },
       signal: AbortSignal.timeout(60_000),
     });

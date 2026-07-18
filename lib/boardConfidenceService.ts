@@ -35,6 +35,25 @@ export const fetchPreceptPreview = async (
     url ? { url } : {},
   )) as PreceptPreview;
 
+/**
+ * v1.6.1: upload path for the precept preview — the browser already holds the
+ * public PDF, so the server needs no outbound access to MyNavyHR (which many
+ * runtimes block). Same in-memory, never-persisted extraction as the URL fetch.
+ */
+export const extractPreceptFromFile = async (
+  file: File,
+): Promise<PreceptPreview> => {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/board-confidence/precept-extract", {
+    method: "POST",
+    body: form,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Request failed");
+  return json as PreceptPreview;
+};
+
 const supabase = createBrowserClient();
 
 async function postRoute(url: string, body: Record<string, any>) {
