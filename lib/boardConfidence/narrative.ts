@@ -12,8 +12,8 @@
 // details ever leave the server — the raw RubricInputs object is never passed in.
 
 import { generateText, Output } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { z } from "zod";
+import { resolveAiModel } from "@/lib/aiProvider";
 import type {
   FactorKey,
   FactorResult,
@@ -216,10 +216,17 @@ export async function generateNarrative(
   // Keyless gate: no request constructed, no network touched. Direct mode
   // (BOARD_NARRATIVE_BASE_URL) needs no Vercel service at all; gateway mode
   // authenticates via AI_GATEWAY_API_KEY or Vercel OIDC on deployments.
-  const directBaseUrl = process.env.BOARD_NARRATIVE_BASE_URL;
-  const hasGatewayAuth =
-    !!process.env.AI_GATEWAY_API_KEY || !!process.env.VERCEL_OIDC_TOKEN;
-  if (!directBaseUrl && !hasGatewayAuth) return fallbackOutcome("no_key");
+  // Resolution is shared with brag-sheet autofill (lib/aiProvider.ts, spec §4.1).
+  const resolved = resolveAiModel(
+    {
+      baseUrlVar: "BOARD_NARRATIVE_BASE_URL",
+      apiKeyVar: "BOARD_NARRATIVE_API_KEY",
+      modelVar: "BOARD_NARRATIVE_MODEL",
+      name: "board-narrative",
+    },
+    DEFAULT_NARRATIVE_MODEL,
+  );
+  if (!resolved) return fallbackOutcome("no_key");
 
   try {
     // Strict no-PII payload (spec §4.3 item 4): factor numbers + structured
@@ -235,18 +242,8 @@ export async function generateNarrative(
       ratingAbbrev: context?.ratingAbbrev ?? null,
     };
 
-    const modelId = narrativeModelId();
-    // Direct endpoint wins over the gateway when both are configured.
-    const model = directBaseUrl
-      ? createOpenAICompatible({
-          name: "board-narrative",
-          baseURL: directBaseUrl,
-          apiKey: process.env.BOARD_NARRATIVE_API_KEY,
-          supportsStructuredOutputs: true,
-        })(modelId)
-      : modelId; // gateway "provider/model" string
     const { output } = await generateText({
-      model,
+      model: resolved.model,
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(30_000),
       system: NARRATIVE_SYSTEM_PROMPT,
@@ -258,7 +255,7 @@ export async function generateNarrative(
     return {
       narrative: output,
       source: "model",
-      model: modelId,
+      model: resolved.modelId,
       fallbackReason: null,
     };
   } catch (err) {

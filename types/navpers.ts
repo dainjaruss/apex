@@ -8,7 +8,7 @@
 import { z } from "zod";
 import { PRIMARY_DUTY_ABBREV_MAX } from "../lib/commentFit";
 
-const TRAIT_KEYS = [
+export const TRAIT_KEYS = [
   "knowledge",
   "work",
   "eo",
