@@ -190,6 +190,19 @@ rubric tuning):
    emphasis flags. (`scripts/seed-ladr.ts` still seeds the shipped **modeled**
    FY27 precept; `set-precept.ts` is the path for a real, version-controlled one.)
 
+**Fetch-to-reference (v1.6).** Precepts are published PDFs on MyNavyHR — the
+default is the FY-27 Active-Duty senior-enlisted precept. The precept tab has a
+**"Reference a published precept"** panel: it fetches the PDF server-side
+(`POST /api/board-confidence/precept-fetch`, in-memory extract, never persisted,
+host allow-listed to `mynavyhr.navy.mil` as an SSRF guard), shows the text, and
+suggests which of the five flags the precept names — with the triggering quote.
+Because a precept is broad prose (not a clean checklist like the LaDR
+"Considerations for advancement"), those suggestions are a **starting point you
+confirm against the text**, never an auto-derived scoring input. The panel then
+emits the exact `precept_current.ts` values to apply via `npm run seed:precept`.
+The fetch is read-only and open to any authenticated user (it reads a public
+document); activation stays the privileged service-role step above.
+
 Equivalent one-off via the Supabase SQL editor:
 
 ```sql

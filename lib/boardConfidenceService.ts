@@ -12,7 +12,28 @@ import type {
   LadrDocument,
   LadrMilestone,
   MemberBoardRecord,
+  PreceptFlag,
 } from "@/lib/boardConfidence/types";
+
+export interface PreceptPreview {
+  source_url: string;
+  excerpt: string;
+  truncated: boolean;
+  suggestions: { flag: PreceptFlag; evidence: string }[];
+}
+
+/**
+ * v1.6: fetch-to-reference — download a published MyNavyHR precept and return
+ * its text + a keyword flag suggestion for the operator to confirm on-screen.
+ * Read-only; activating a precept stays a service-role op (scripts/set-precept).
+ */
+export const fetchPreceptPreview = async (
+  url?: string,
+): Promise<PreceptPreview> =>
+  (await postRoute(
+    "/api/board-confidence/precept-fetch",
+    url ? { url } : {},
+  )) as PreceptPreview;
 
 const supabase = createBrowserClient();
 

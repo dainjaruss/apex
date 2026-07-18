@@ -26,8 +26,10 @@ import {
   getMemberBoardRecord,
   getLatestLadr,
   fetchLadr,
+  fetchPreceptPreview,
   listMyAnalyses,
   saveMemberBoardRecord,
+  type PreceptPreview,
 } from "@/lib/boardConfidenceService";
 import type {
   BoardAnalysisRow,
@@ -58,17 +60,17 @@ const PRECEPT_FLAG_LABELS: Array<[PreceptFlag, string]> = [
   ["technical_expertise", "Technical expertise"],
 ];
 
-function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
-  if (!precept) {
-    return (
-      <div className="apex-card p-8 text-center">
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          No board precept is configured. The Precept Alignment factor will be
-          excluded and its weight redistributed.
-        </p>
-      </div>
-    );
-  }
+// The published FY-27 Active-Duty senior-enlisted precept (default fetch source).
+const DEFAULT_PRECEPT_URL =
+  "https://www.mynavyhr.navy.mil/Portals/55/Boards/Active%20Duty%20Enlisted/Documents/FY27_AD/FY27_Enlisted_Precept.pdf";
+
+const emptyFlags = (): Record<PreceptFlag, boolean> =>
+  Object.fromEntries(PRECEPT_FLAG_LABELS.map(([f]) => [f, false])) as Record<
+    PreceptFlag,
+    boolean
+  >;
+
+function ActivePreceptCard({ precept }: { precept: BoardPrecept }) {
   return (
     <div className="apex-card p-6 space-y-4">
       <div className="space-y-1">
@@ -103,9 +105,197 @@ function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
         })}
       </div>
       <p className="text-xs" style={{ color: "var(--subtle)" }}>
-        Emphasis areas are admin-configured per board cycle and feed the Precept
-        Alignment factor. This panel is read-only.
+        Emphasis areas are set per board cycle and feed the Precept Alignment
+        factor. This panel is read-only.
       </p>
+    </div>
+  );
+}
+
+// Fetch-to-reference: pull a published precept PDF, read it on-screen, confirm
+// the 5 emphasis flags, and get the exact config to activate via the
+// service-role script (setting the active precept is privileged — a system-wide
+// scoring input — so it is NOT written from here).
+function PreceptReference() {
+  const [url, setUrl] = useState(DEFAULT_PRECEPT_URL);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreceptPreview | null>(null);
+  const [flags, setFlags] = useState<Record<PreceptFlag, boolean>>(emptyFlags);
+  const [cycle, setCycle] = useState("");
+  const [title, setTitle] = useState("");
+
+  const doFetch = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const p = await fetchPreceptPreview(url);
+      setPreview(p);
+      const next = emptyFlags();
+      for (const s of p.suggestions) next[s.flag] = true;
+      setFlags(next);
+    } catch (e: any) {
+      setErr(e?.message || "Fetch failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const flagsLiteral = PRECEPT_FLAG_LABELS.map(
+    ([f]) => `    ${f}: ${flags[f] ? "true" : "false"},`,
+  ).join("\n");
+  const configSnippet =
+    `// scripts/ladr-data/precept_current.ts\n` +
+    `cycle: ${JSON.stringify(cycle || "FY27 Active-Duty E7")},\n` +
+    `title: ${JSON.stringify(title || "FY27 CPO Selection Board emphasis")},\n` +
+    `emphasis_flags: {\n${flagsLiteral}\n},\n` +
+    `source_url: ${JSON.stringify(preview?.source_url ?? url)},\n` +
+    `active: true,`;
+
+  return (
+    <div className="apex-card p-6 space-y-4">
+      <div className="space-y-1">
+        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
+          Reference a published precept
+        </h3>
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          Fetch the board&apos;s precept from MyNavyHR, read it here, and confirm
+          which of the five areas it emphasizes. Precepts are broad prose, so the
+          suggestions below are a starting point — set the flags from the text,
+          not the guess.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 flex-1 min-w-[16rem]">
+          <span className="apex-filter-label">Precept PDF URL (mynavyhr.navy.mil)</span>
+          <input
+            className="apex-input text-xs"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            aria-label="Precept PDF URL"
+          />
+        </label>
+        <button
+          type="button"
+          className="apex-btn-secondary text-xs"
+          onClick={doFetch}
+          disabled={busy}
+        >
+          {busy ? "Fetching…" : "Fetch precept"}
+        </button>
+      </div>
+      {err && (
+        <p className="text-xs text-red-400" role="alert">
+          {err}
+        </p>
+      )}
+
+      {preview && (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="apex-filter-label">Board cycle</span>
+              <input
+                className="apex-input text-xs"
+                placeholder="FY27 Active-Duty E7"
+                value={cycle}
+                onChange={(e) => setCycle(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="apex-filter-label">Title</span>
+              <input
+                className="apex-input text-xs"
+                placeholder="FY27 CPO Selection Board emphasis"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <span className="apex-filter-label">Emphasis areas (confirm against the text)</span>
+            {PRECEPT_FLAG_LABELS.map(([flag, label]) => {
+              const s = preview.suggestions.find((x) => x.flag === flag);
+              return (
+                <label key={flag} className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={flags[flag]}
+                    onChange={(e) =>
+                      setFlags((prev) => ({ ...prev, [flag]: e.target.checked }))
+                    }
+                    aria-label={`Emphasize ${label}`}
+                  />
+                  <span>
+                    <span style={{ color: "var(--foreground)" }}>{label}</span>
+                    {s && (
+                      <span
+                        className="block italic"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        suggested — {s.evidence}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          <details className="text-xs">
+            <summary
+              className="cursor-pointer"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Precept text {preview.truncated ? "(first 20k chars)" : ""}
+            </summary>
+            <pre
+              className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-[11px] leading-relaxed"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              {preview.excerpt}
+            </pre>
+          </details>
+
+          <div className="space-y-2">
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              Setting the active precept is a privileged, service-role operation
+              (it drives every member&apos;s score). Put these values in{" "}
+              <code>scripts/ladr-data/precept_current.ts</code> and run{" "}
+              <code>npm run seed:precept</code>:
+            </p>
+            <pre
+              className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-[11px] leading-relaxed"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              {configSnippet}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
+  return (
+    <div className="space-y-4">
+      {precept ? (
+        <ActivePreceptCard precept={precept} />
+      ) : (
+        <div className="apex-card p-6">
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            No board precept is loaded, so the Precept Alignment factor is
+            excluded and its 10% weight is spread across the other five factors.
+            This is expected until a precept is set — load one below to score
+            alignment.
+          </p>
+        </div>
+      )}
+      <PreceptReference />
     </div>
   );
 }
