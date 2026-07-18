@@ -46,6 +46,7 @@ const mockData: Evaluation = {
   promotion_recommendation: "Must Promote",
   retention: "Recommended",
   status: "draft",
+  block_values: {},
 };
 
 describe("EvaluationForm On-Demand Rules Check Integration Tests", () => {

@@ -53,8 +53,14 @@ vi.mock("next/server", () => {
   return {
     NextRequest: MockNextRequest,
     NextResponse: {
-      next: vi.fn().mockReturnValue({ cookies: { set: vi.fn() } }),
-      redirect: vi.fn().mockReturnValue({ status: 307 }),
+      // middleware.ts copies session cookies from the next() response onto
+      // redirects (getAll → redirect.cookies.set) — both shapes must exist.
+      next: vi.fn().mockReturnValue({
+        cookies: { set: vi.fn(), getAll: vi.fn().mockReturnValue([]) },
+      }),
+      redirect: vi
+        .fn()
+        .mockReturnValue({ status: 307, cookies: { set: vi.fn() } }),
     },
   };
 });
