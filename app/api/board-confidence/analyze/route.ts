@@ -50,6 +50,19 @@ export async function POST(req: NextRequest) {
       .single();
     if (!subject) return fail("Subject profile not found.", 404);
 
+    // Explicit informed consent (first-use modal) is server-enforced: an
+    // analysis processes the member's record and may call an external AI API.
+    const { data: consentRow } = await admin
+      .from("member_board_records")
+      .select("consented_at")
+      .eq("user_id", subjectUserId)
+      .maybeSingle();
+    if (!consentRow?.consented_at)
+      return fail(
+        "Consent required. Review and accept the Board Confidence Analyzer terms before running an analysis.",
+        403,
+      );
+
     const row = await runBoardAnalysis(admin, subjectUserId, callerId, T);
     return NextResponse.json(row, { status: 200 });
   } catch (error: any) {

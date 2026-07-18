@@ -88,6 +88,22 @@ function Field({
   );
 }
 
+// v1.3 typed record documents. FC 30-38 = the OMPF field codes a board sees
+// (fitness reports/evals and related performance documents).
+const DOC_TYPES = {
+  ESR: "ESR (Electronic Service Record export)",
+  PSR: "PSR (Performance Summary Record)",
+  OMPF_FC_30_38: "OMPF documents, field codes 30–38",
+} as const;
+
+/** "ESR__file.pdf" → { label: "ESR", file: "file.pdf" } (legacy names untyped). */
+function splitDocName(name: string): { label: string | null; file: string } {
+  const i = name.indexOf("__");
+  if (i > 0 && name.slice(0, i) in DOC_TYPES)
+    return { label: name.slice(0, i).replace(/_/g, " "), file: name.slice(i + 2) };
+  return { label: null, file: name };
+}
+
 function Section({
   title,
   hint,
@@ -198,9 +214,13 @@ export default function RecordEntryForm({
   saving,
 }: RecordEntryFormProps) {
   // ---- Attachments (reference-only storage, never parsed) ----
+  // v1.3: typed record documents (ESR / PSR / OMPF FC 30-38), gated by a
+  // PII-redaction confirmation; session-ephemeral (destroyed at logout).
   const [docs, setDocs] = useState<{ name: string }[]>([]);
   const [docBusy, setDocBusy] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
+  const [docType, setDocType] = useState<keyof typeof DOC_TYPES>("ESR");
+  const [redactionConfirmed, setRedactionConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -210,10 +230,18 @@ export default function RecordEntryForm({
   }, [userId]);
 
   const handleUpload = async (file: File) => {
+    if (!redactionConfirmed) {
+      setDocError("Confirm PII redaction before uploading.");
+      return;
+    }
     setDocBusy(true);
     setDocError(null);
     try {
-      await uploadBoardDoc(userId, file);
+      // Stored name carries the document type so the list can label it.
+      const typed = new File([file], `${docType}__${file.name}`, {
+        type: file.type,
+      });
+      await uploadBoardDoc(userId, typed);
       setDocs(await listBoardDocs(userId));
     } catch (err: any) {
       setDocError(err?.message || "Upload failed.");
@@ -882,20 +910,78 @@ export default function RecordEntryForm({
         </span>
       </label>
 
-      {/* Attachments */}
-      <Section title="Attachments (optional)" hint="Attachments are stored for your reference only; they are never read or scored.">
-        <div className="space-y-2">
-          <input
-            ref={fileRef}
-            type="file"
-            className="text-xs"
-            aria-label="Upload a record attachment"
-            disabled={docBusy}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+      {/* Record documents (v1.3): ESR / PSR / OMPF FC 30-38 uploads */}
+      <Section
+        title="Record documents (optional)"
+        hint="Upload your ESR export, PSR, or OMPF documents (field codes 30–38) as reference copies. They are stored under your account only and are never read, parsed, or scored."
+      >
+        <div className="space-y-3">
+          <div
+            className="p-3 rounded-lg border text-xs leading-relaxed"
+            role="note"
+            aria-label="Redact PII before uploading"
+            style={{
+              borderColor: "var(--accent-gold)",
+              color: "var(--muted-foreground)",
             }}
-          />
+          >
+            <strong className="apex-heading block mb-1">
+              Redact PII before uploading.
+            </strong>
+            Remove or black out SSNs, DoD IDs, home addresses, and other
+            personally identifiable information from every document before you
+            upload it. Uploaded documents are session-ephemeral:{" "}
+            <strong>they are destroyed when you log out.</strong>
+          </div>
+
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={redactionConfirmed}
+              onChange={(e) => setRedactionConfirmed(e.target.checked)}
+              aria-label="I have redacted PII from the documents I upload"
+            />
+            <span style={{ color: "var(--foreground)" }}>
+              I have redacted PII from the document(s) I am uploading.
+            </span>
+          </label>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="apex-filter-label">Document type</span>
+              <select
+                className="apex-select text-xs"
+                value={docType}
+                onChange={(e) =>
+                  setDocType(e.target.value as keyof typeof DOC_TYPES)
+                }
+                aria-label="Document type"
+              >
+                {Object.entries(DOC_TYPES).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              className="text-xs"
+              aria-label="Upload a record document"
+              disabled={docBusy || !redactionConfirmed}
+              title={
+                redactionConfirmed
+                  ? undefined
+                  : "Confirm PII redaction to enable uploads."
+              }
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUpload(file);
+              }}
+            />
+          </div>
           {docError && (
             <p className="text-xs text-red-400" role="alert">
               {docError}
@@ -903,28 +989,36 @@ export default function RecordEntryForm({
           )}
           {docs.length === 0 ? (
             <p className="text-xs" style={{ color: "var(--subtle)" }}>
-              No attachments uploaded.
+              No documents uploaded.
             </p>
           ) : (
             <ul className="space-y-1">
-              {docs.map((d) => (
+              {docs.map((d) => {
+                const { label, file } = splitDocName(d.name);
+                return (
                 <li
                   key={d.name}
                   className="flex items-center justify-between gap-2 text-xs"
                   style={{ color: "var(--muted-foreground)" }}
                 >
-                  <span className="font-mono truncate">{d.name}</span>
+                  <span className="truncate">
+                    {label && (
+                      <span className="apex-badge mr-2">{label}</span>
+                    )}
+                    <span className="font-mono">{file}</span>
+                  </span>
                   <button
                     type="button"
                     className="apex-btn-secondary py-0.5 px-2 text-xs"
                     disabled={docBusy}
                     onClick={() => handleDeleteDoc(d.name)}
-                    aria-label={`Delete attachment ${d.name}`}
+                    aria-label={`Delete document ${d.name}`}
                   >
                     Delete
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

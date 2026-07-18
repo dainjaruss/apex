@@ -1,31 +1,27 @@
 // tests/unit/boardConfidenceNarrative.test.ts
 //
-// generateNarrative / fallbackNarrative (spec §4.3): keyless deterministic
-// fallback, the exact mocked Claude call shape (claude-opus-4-8 rejects
-// sampling params — none may ever be sent), failure → fallback, the §4.3.4
-// privacy floor (no PII in the model payload), and the parsed_output-null path.
-// NO live API calls: the Anthropic SDK is mocked; the key is set/deleted per test.
+// generateNarrative / fallbackNarrative (spec §4.3, v1.3 provider-agnostic):
+// keyless deterministic fallback, the mocked AI-SDK gateway call shape (model
+// string from BOARD_NARRATIVE_MODEL — Anthropic, xAI Grok, or any gateway
+// provider), failure → fallback, the §4.3.4 privacy floor (no PII in the model
+// payload), and the no-output path. NO live API calls: ai.generateText is
+// mocked; gateway credentials are set/deleted per test.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
-const h = vi.hoisted(() => {
-  const parseMock = vi.fn();
-  const anthropicCtor = vi.fn(function () {
-    return { messages: { parse: parseMock } };
-  });
-  return { parseMock, anthropicCtor };
-});
+const h = vi.hoisted(() => ({ generateText: vi.fn() }));
 
-vi.mock("@anthropic-ai/sdk", async (importOriginal) => {
+vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, default: h.anthropicCtor };
+  return { ...actual, generateText: h.generateText };
 });
 
 import {
   generateNarrative,
   fallbackNarrative,
   NarrativeSchema,
-  NARRATIVE_MODEL,
+  DEFAULT_NARRATIVE_MODEL,
+  narrativeModelId,
   type Narrative,
 } from "@/lib/boardConfidence/narrative";
 import type {
@@ -103,27 +99,37 @@ const validNarrative: Narrative = {
   },
 };
 
-const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
+const ENV_KEYS = [
+  "AI_GATEWAY_API_KEY",
+  "VERCEL_OIDC_TOKEN",
+  "BOARD_NARRATIVE_MODEL",
+  "BOARD_NARRATIVE_BASE_URL",
+  "BOARD_NARRATIVE_API_KEY",
+] as const;
+const ORIGINAL_ENV = Object.fromEntries(
+  ENV_KEYS.map((k) => [k, process.env[k]]),
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  delete process.env.ANTHROPIC_API_KEY;
+  for (const k of ENV_KEYS) delete process.env[k];
 });
 
 afterAll(() => {
-  if (ORIGINAL_KEY === undefined) delete process.env.ANTHROPIC_API_KEY;
-  else process.env.ANTHROPIC_API_KEY = ORIGINAL_KEY;
+  for (const k of ENV_KEYS) {
+    if (ORIGINAL_ENV[k] === undefined) delete process.env[k];
+    else process.env[k] = ORIGINAL_ENV[k];
+  }
 });
 
-describe("generateNarrative — keyless fallback (feature works without ANTHROPIC_API_KEY)", () => {
-  it("resolves the fallback outcome without constructing the SDK client", async () => {
+describe("generateNarrative — keyless fallback (feature works without gateway credentials)", () => {
+  it("resolves the fallback outcome without touching the AI SDK", async () => {
     const out = await generateNarrative(fixtureResult);
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
-    expect(out.fallbackReason).toBe("no_key"); // v1.1 review fix
+    expect(out.fallbackReason).toBe("no_key");
     expect(NarrativeSchema.safeParse(out.narrative).success).toBe(true);
-    expect(h.anthropicCtor).not.toHaveBeenCalled();
-    expect(h.parseMock).not.toHaveBeenCalled();
+    expect(h.generateText).not.toHaveBeenCalled();
   });
 
   it("is deterministic: same RubricResult twice → identical text", async () => {
@@ -141,41 +147,56 @@ describe("generateNarrative — keyless fallback (feature works without ANTHROPI
   });
 });
 
-describe("generateNarrative — mocked model path (spec §4.3.2 call shape)", () => {
+describe("generateNarrative — mocked gateway model path (spec §4.3.2, v1.3)", () => {
   beforeEach(() => {
-    process.env.ANTHROPIC_API_KEY = "test-dummy-key";
+    process.env.AI_GATEWAY_API_KEY = "test-dummy-key";
   });
 
-  it("calls messages.parse with the pinned shape and NO sampling parameters", async () => {
-    h.parseMock.mockResolvedValue({ parsed_output: validNarrative });
+  it("calls generateText with the default gateway model string and NO sampling parameters", async () => {
+    h.generateText.mockResolvedValue({ output: validNarrative });
 
     const out = await generateNarrative(fixtureResult);
 
-    expect(h.anthropicCtor).toHaveBeenCalled();
-    expect(h.parseMock).toHaveBeenCalledTimes(1);
-    const args = h.parseMock.mock.calls[0][0];
-    expect(args.model).toBe("claude-opus-4-8");
-    expect(args.model).toBe(NARRATIVE_MODEL);
-    expect(args.max_tokens).toBe(4096);
-    expect(args.thinking).toEqual({ type: "adaptive" });
-    expect(args.output_config?.format).toBeDefined();
-    // claude-opus-4-8 rejects sampling params with a 400 — never sent.
+    expect(h.generateText).toHaveBeenCalledTimes(1);
+    const args = h.generateText.mock.calls[0][0];
+    expect(args.model).toBe(DEFAULT_NARRATIVE_MODEL);
+    expect(args.model).toBe("anthropic/claude-opus-4.8");
+    expect(args.maxRetries).toBe(1);
+    expect(typeof args.system).toBe("string");
+    expect(args.output).toBeDefined();
+    // Sampling params are never sent — some gateway models reject them.
     expect(args).not.toHaveProperty("temperature");
-    expect(args).not.toHaveProperty("top_p");
-    expect(args).not.toHaveProperty("top_k");
+    expect(args).not.toHaveProperty("topP");
+    expect(args).not.toHaveProperty("topK");
 
     expect(out.source).toBe("model");
-    expect(out.model).toBe(NARRATIVE_MODEL);
-    expect(out.fallbackReason).toBeNull(); // v1.1 review fix
+    expect(out.model).toBe(DEFAULT_NARRATIVE_MODEL);
+    expect(out.fallbackReason).toBeNull();
     expect(out.narrative).toEqual(validNarrative);
   });
 
-  it("privacy: the user message contains none of the planted sentinels (§4.3.4)", async () => {
-    h.parseMock.mockResolvedValue({ parsed_output: validNarrative });
+  it("BOARD_NARRATIVE_MODEL selects any gateway provider (e.g. xAI Grok)", async () => {
+    process.env.BOARD_NARRATIVE_MODEL = "xai/grok-4.5";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+
+    expect(narrativeModelId()).toBe("xai/grok-4.5");
+    expect(h.generateText.mock.calls[0][0].model).toBe("xai/grok-4.5");
+    expect(out.source).toBe("model");
+    expect(out.model).toBe("xai/grok-4.5");
+  });
+
+  it("privacy: the prompt and system text contain none of the planted sentinels (§4.3.4)", async () => {
+    h.generateText.mockResolvedValue({ output: validNarrative });
 
     await generateNarrative(fixtureResult);
 
-    const serialized = JSON.stringify(h.parseMock.mock.calls[0][0].messages);
+    const args = h.generateText.mock.calls[0][0];
+    const serialized = JSON.stringify({
+      prompt: args.prompt,
+      system: args.system,
+    });
     for (const sentinel of SENTINELS) {
       expect(serialized).not.toContain(sentinel);
     }
@@ -183,25 +204,74 @@ describe("generateNarrative — mocked model path (spec §4.3.2 call shape)", ()
 
   it("model failure → fallback outcome, never a throw", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.parseMock.mockRejectedValue(new Error("429 rate limited"));
+    h.generateText.mockRejectedValue(new Error("429 rate limited"));
 
     const out = await generateNarrative(fixtureResult);
 
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
-    expect(out.fallbackReason).toBe("model_error"); // v1.1 review fix
+    expect(out.fallbackReason).toBe("model_error");
     expect(out.narrative).toEqual(fallbackNarrative(fixtureResult));
     errSpy.mockRestore();
   });
 
-  it("parsed_output: null → fallback outcome", async () => {
-    h.parseMock.mockResolvedValue({ parsed_output: null });
+  it("missing output → fallback outcome", async () => {
+    h.generateText.mockResolvedValue({ output: undefined });
 
     const out = await generateNarrative(fixtureResult);
 
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
-    expect(out.fallbackReason).toBe("model_error"); // v1.1 review fix
+    expect(out.fallbackReason).toBe("model_error");
     expect(NarrativeSchema.safeParse(out.narrative).success).toBe(true);
+  });
+
+  it("OIDC-only environments (Vercel deployments) also take the model path", async () => {
+    delete process.env.AI_GATEWAY_API_KEY;
+    process.env.VERCEL_OIDC_TOKEN = "oidc-token";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+    expect(out.source).toBe("model");
+  });
+});
+
+describe("generateNarrative — direct OpenAI-compatible mode (v1.3: zero Vercel services)", () => {
+  it("BOARD_NARRATIVE_BASE_URL alone enables the model path — no gateway credentials", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
+    process.env.BOARD_NARRATIVE_API_KEY = "xai-test-key";
+    process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+
+    const args = h.generateText.mock.calls[0][0];
+    // A provider model OBJECT, not a gateway string — nothing resolves
+    // through the Vercel gateway on this path.
+    expect(typeof args.model).toBe("object");
+    expect(args.model.modelId).toBe("grok-4-fast");
+    expect(out.source).toBe("model");
+    expect(out.model).toBe("grok-4-fast");
+  });
+
+  it("works for keyless local endpoints (e.g. Ollama on the self-hosted box)", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "http://localhost:11434/v1";
+    process.env.BOARD_NARRATIVE_MODEL = "llama3.3";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    const out = await generateNarrative(fixtureResult);
+    expect(out.source).toBe("model");
+    expect(h.generateText.mock.calls[0][0].model.modelId).toBe("llama3.3");
+  });
+
+  it("direct endpoint takes precedence over gateway credentials when both are set", async () => {
+    process.env.AI_GATEWAY_API_KEY = "gateway-key";
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
+    process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
+    h.generateText.mockResolvedValue({ output: validNarrative });
+
+    await generateNarrative(fixtureResult);
+    // Object model = direct path; a string would mean the gateway won.
+    expect(typeof h.generateText.mock.calls[0][0].model).toBe("object");
   });
 });

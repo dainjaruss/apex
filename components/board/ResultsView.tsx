@@ -25,6 +25,9 @@ interface ResultsViewProps {
   selected: BoardAnalysisRow | null;
   onSelect: (row: BoardAnalysisRow) => void;
   onRunComplete: (row: BoardAnalysisRow) => void;
+  /** Server-enforced first-use consent; Run is blocked until granted. */
+  consentGranted: boolean;
+  onRequestConsent: () => void;
 }
 
 const FACTOR_LABELS: Record<FactorKey, string> = {
@@ -74,6 +77,8 @@ export function ScoreDial({
         role="img"
         aria-label={`Overall score ${score.toFixed(1)} of 100 — vote ${band}, ${bandLabel}`}
       >
+        {/* Tooltip disclaimer layer — hover surfaces the modeled-bands caveat. */}
+        <title>{`Unofficial self-assessment. ${CAVEAT}`}</title>
         <path
           d="M 20 100 A 80 80 0 0 1 180 100"
           fill="none"
@@ -251,6 +256,8 @@ export default function ResultsView({
   selected,
   onSelect,
   onRunComplete,
+  consentGranted,
+  onRequestConsent,
 }: ResultsViewProps) {
   const [boardDate, setBoardDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
@@ -299,10 +306,24 @@ export default function ResultsView({
           type="button"
           className="apex-btn-primary disabled:opacity-50"
           onClick={run}
-          disabled={running}
+          disabled={running || !consentGranted}
+          title={
+            consentGranted
+              ? undefined
+              : "Consent required before running an analysis."
+          }
         >
           {running ? "Analyzing…" : "Run Analysis"}
         </button>
+        {!consentGranted && (
+          <button
+            type="button"
+            className="apex-btn-secondary text-xs"
+            onClick={onRequestConsent}
+          >
+            Review consent terms
+          </button>
+        )}
       </div>
 
       {runError && (

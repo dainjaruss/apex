@@ -18,6 +18,7 @@ import RecordEntryForm, {
 } from "@/components/board/RecordEntryForm";
 import LadrChecklist from "@/components/board/LadrChecklist";
 import ResultsView from "@/components/board/ResultsView";
+import BoardConsentModal from "@/components/board/BoardConsentModal";
 import { getSession } from "@/lib/auth";
 import { createBrowserClient } from "@/lib/supabaseClient";
 import {
@@ -169,6 +170,8 @@ export default function BoardConfidencePage() {
   const [selected, setSelected] = useState<BoardAnalysisRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentDismissed, setConsentDismissed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -266,6 +269,28 @@ export default function BoardConfidencePage() {
     setRuns((prev) => [row, ...prev]);
     setSelected(row);
   }, []);
+
+  const consented = !!record?.consented_at;
+
+  // First-use consent (server-enforced by the analyze route). Declining keeps
+  // the page browsable; Run Analysis stays blocked until consent is recorded.
+  const acceptConsent = useCallback(async () => {
+    if (!userId || !record) return;
+    setConsentSaving(true);
+    try {
+      const { id, user_id, created_at, updated_at, ...patch } = record;
+      const saved = await saveMemberBoardRecord(userId, {
+        ...patch,
+        consented_at: new Date().toISOString(),
+      });
+      setRecord(saved);
+    } catch (err: any) {
+      setSaveMsg(err?.message || "Could not record consent.");
+      setConsentDismissed(true);
+    } finally {
+      setConsentSaving(false);
+    }
+  }, [userId, record]);
 
   if (loading) {
     return (
@@ -408,9 +433,33 @@ export default function BoardConfidencePage() {
               selected={selected}
               onSelect={setSelected}
               onRunComplete={handleRunComplete}
+              consentGranted={consented}
+              onRequestConsent={() => setConsentDismissed(false)}
             />
           )}
+
+          {/* Persistent footer disclaimer — one of the required layers
+              (modal on first use + page banner + this footer + score tooltip). */}
+          <footer
+            className="border-t pt-4 text-[11px] leading-relaxed"
+            style={{
+              borderColor: "var(--border)",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            Unofficial educational tool — not affiliated with or endorsed by
+            the U.S. Navy, MyNavy HR, or any selection board. Scores come from
+            a fixed published rubric and do not predict board results.
+          </footer>
         </div>
+
+        {record && userId && !consented && !consentDismissed && (
+          <BoardConsentModal
+            onAccept={acceptConsent}
+            onDecline={() => setConsentDismissed(true)}
+            saving={consentSaving}
+          />
+        )}
       </RoleGuard>
     </AppShell>
   );
