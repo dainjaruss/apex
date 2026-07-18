@@ -23,21 +23,11 @@ import path from "path";
 import { Evaluation } from "@/types";
 import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
+import { formatNavpersDate } from "./navyDate";
 
 const BLACK = rgb(0, 0, 0);
 const FORM_RIGHT = 565.2;
 const FORM_LEFT = 17.3;
-
-function formatNavpersDate(dateStr?: string): string {
-  if (!dateStr) return "";
-  const months = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-  ];
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-  if (iso) return `${iso[1].slice(-2)}${months[Number(iso[2]) - 1]}${iso[3]}`;
-  return dateStr.toUpperCase();
-}
 
 function dutyIndex(s: string): number | null {
   const u = (s || "").toUpperCase();

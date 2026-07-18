@@ -31,6 +31,7 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/tests/e2e/**",
+      "**/tests/a11y/**", // Playwright specs (npm run a11y) — vitest must not collect them
       ...(runAll ? [] : RESERVED_AFTER_WEEK5),
     ],
     // Dummy Supabase creds so modules that construct a browser client at import time

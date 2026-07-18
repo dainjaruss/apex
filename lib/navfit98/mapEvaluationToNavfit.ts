@@ -44,32 +44,11 @@ const TRAIT_COLUMNS = [
 // "LAST, FI [MI]" initials shape (single-letter tokens after the comma).
 const COUNSELOR_SHAPE = /^[A-Za-z]+,\s*[A-Za-z](\s+[A-Za-z])?$/;
 
-// Mirrors formatNavpersDate (lib/pdfOverlay.ts:42-61) — ISO → YYMMMDD; YYMMMDD /
-// NOT REQ / NOT PERF pass through uppercased (§4.2). Mirrored rather than imported
-// so the mapper does not drag pdf-lib in.
-export function formatNavpersDate(dateStr?: string): string {
-  if (!dateStr) return "";
-  const months = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
-  ];
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-  // Out-of-range month falls through verbatim (then fails the ≤8-char export
-  // cap) instead of interpolating the string "undefined".
-  if (iso && months[Number(iso[2]) - 1])
-    return `${iso[1].slice(-2)}${months[Number(iso[2]) - 1]}${iso[3]}`;
-  return dateStr.toUpperCase();
-}
+// §4.2 ISO → YYMMMDD; YYMMMDD / NOT REQ / NOT PERF pass through uppercased.
+// Shared with the PDF overlays; re-exported for validateNavfitExport's
+// post-transform length cap.
+export { formatNavpersDate } from "@/lib/navyDate";
+import { formatNavpersDate } from "@/lib/navyDate";
 
 // §4.3 radio-index grade encoding: "1.0".."5.0" → 1..5, "NOB" → 0, absent → NULL
 function traitCode(grade?: string): number | null {

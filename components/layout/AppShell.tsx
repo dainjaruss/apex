@@ -258,6 +258,17 @@ export default function AppShell({
           <div className="flex items-center gap-2 ml-auto">
             <ThemeToggle compact />
             {headerActions}
+            {/* Below lg the sidebar (and its Sign out) doesn't exist — this is
+                the only sign-out path on mobile. */}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="apex-btn-ghost h-9 w-9 p-0 shrink-0 lg:hidden"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <IconLogOut className="h-4 w-4" aria-hidden />
+            </button>
           </div>
         </header>
 
