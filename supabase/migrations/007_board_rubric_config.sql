@@ -42,10 +42,12 @@ insert into public.board_rubric_config (label, active)
 select 'default', true
 where not exists (select 1 from public.board_rubric_config where active);
 
--- 007:3  Existing databases created before v1.5 carry 004's original category
--- check on ladr_milestones (created inside `create table if not exists`, so
--- editing 004 only helps fresh installs). Re-issue it with
--- 'advancement_consideration' included.
+-- 007:3  Reconcile databases whose board tables were created from an EARLIER
+-- 004 (the tables use `create table if not exists`, so later column/constraint
+-- additions never reach an existing table — editing 004 only helps fresh
+-- installs). Each statement below is idempotent.
+--
+-- (a) Re-issue the ladr_milestones category check with the v1.5 category.
 alter table public.ladr_milestones
     drop constraint if exists ladr_milestones_category_check;
 alter table public.ladr_milestones
@@ -54,3 +56,12 @@ alter table public.ladr_milestones
         'nec_opportunity','pme_required','pme_recommended','qual_watchstanding',
         'qual_warfare','qual_rate_specific','credential','education_degree',
         'billet_recommended','advancement_consideration'));
+
+-- (b) The v1.1/v1.2 informed-consent column. A DB created from the original
+-- 004 lacks it, and the analyze route + consent modal both require it — without
+-- this column PostgREST raises "Could not find the 'consented_at' column".
+alter table public.member_board_records
+    add column if not exists consented_at timestamptz;
+
+-- Nudge PostgREST to reload its schema cache after the DDL above.
+notify pgrst, 'reload schema';
