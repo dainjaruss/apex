@@ -13,7 +13,6 @@
 // but blocks non-browser agents, so a browser User-Agent is sent. The caller
 // supplies the URL, so the host is allow-listed (SSRF guard).
 
-import { fetch as undiciFetch } from "undici";
 import { extractLadrText } from "./ladrFetch";
 import type { PreceptFlag } from "./types";
 
@@ -46,6 +45,9 @@ export async function fetchPreceptText(url: string): Promise<PreceptFetchResult>
   if (!isAllowedPreceptHost(url))
     return { status: "error", message: "Only mynavyhr.navy.mil precept URLs are allowed." };
   try {
+    // Lazy import (see ladrFetch) — keeps undici out of the module graph for
+    // consumers of the pure suggestPreceptFlags/isAllowedPreceptHost helpers.
+    const { fetch: undiciFetch } = await import("undici");
     const res = await undiciFetch(url, {
       headers: { "User-Agent": BROWSER_UA },
       signal: AbortSignal.timeout(60_000),
