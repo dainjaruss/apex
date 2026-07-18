@@ -181,26 +181,80 @@ const MissingInfoFlagSchema = z.object({
   message: z.string(),
 });
 
+const AutofillModelOutputObject = z.object({
+  blocks: z.object({
+    comments: GeneratedBlockSchema,
+    primary_duty_abbrev: GeneratedBlockSchema,
+    primary_duties: GeneratedBlockSchema,
+    command_achievements: GeneratedBlockSchema,
+    qualifications: GeneratedBlockSchema.optional(),
+    career_recommendations: GeneratedBlockSchema.extend({
+      entries: z.array(z.string()),
+    }),
+    physical_readiness: GeneratedBlockSchema,
+  }),
+  missing_info: z.array(MissingInfoFlagSchema),
+  promotion_advisory: z.object({
+    advisory_only: z.literal(true),
+    recommendation: z.enum(PROMOTION_RECOMMENDATIONS),
+    rationale: z.string(),
+    sources: z.array(z.string()),
+  }),
+});
+
 export const AutofillModelOutputSchema: z.ZodType<AutofillModelOutput> =
-  z.object({
-    blocks: z.object({
-      comments: GeneratedBlockSchema,
-      primary_duty_abbrev: GeneratedBlockSchema,
-      primary_duties: GeneratedBlockSchema,
-      command_achievements: GeneratedBlockSchema,
-      qualifications: GeneratedBlockSchema.optional(),
-      career_recommendations: GeneratedBlockSchema.extend({
-        entries: z.array(z.string()),
+  AutofillModelOutputObject;
+
+// ── AutofillResponse mirror (v1.1 review fix) ────────────────────────────────
+// brag_sheets.last_autofill is untrusted JSONB — the /brag-sheet page safeParses
+// stored values against this schema before rendering AutofillReviewPanel; a
+// malformed/legacy value renders an "unreadable — run Generate again" card
+// instead of crashing the page (spec §6).
+
+const CommentFitResultSchema = z.object({
+  fit: z.boolean(),
+  linesUsed: z.number(),
+  maxLines: z.number(),
+  charsPerLine: z.number(),
+  wrappedLines: z.array(z.string()),
+});
+
+const BlockFitReportSchema = z.object({
+  fit: CommentFitResultSchema,
+  overflow: z.boolean(),
+  truncation_preview: z.string().nullable(),
+  dropped_lines: z.array(z.string()),
+});
+
+const ValidationIssueSchema = z.object({
+  field: z.string().optional(),
+  block: z.number().optional(),
+  message: z.string(),
+  severity: z.enum(["error", "warning"]).optional(),
+});
+
+export const AutofillResponseSchema: z.ZodType<AutofillResponse> =
+  AutofillModelOutputObject.extend({
+    fit_reports: z.object({
+      comments: BlockFitReportSchema,
+      primary_duty_abbrev: BlockFitReportSchema,
+      primary_duties: BlockFitReportSchema,
+      command_achievements: BlockFitReportSchema,
+      qualifications: BlockFitReportSchema.optional(),
+    }),
+    citation_failures: z.array(
+      z.object({
+        block: z.string(),
+        text: z.string(),
+        bad_sources: z.array(z.string()),
       }),
-      physical_readiness: GeneratedBlockSchema,
+    ),
+    dry_run: z.object({
+      success: z.boolean(),
+      errors: z.array(ValidationIssueSchema),
+      warnings: z.array(ValidationIssueSchema),
     }),
-    missing_info: z.array(MissingInfoFlagSchema),
-    promotion_advisory: z.object({
-      advisory_only: z.literal(true),
-      recommendation: z.enum(PROMOTION_RECOMMENDATIONS),
-      rationale: z.string(),
-      sources: z.array(z.string()),
-    }),
+    model: z.string().nullable(),
   });
 
 // ── Budgets (single source: lib/commentFit.ts constants) ─────────────────────
@@ -275,7 +329,7 @@ export function buildAutofillPayload(
   };
 }
 
-// ── Citation grammar (§4.6) ──────────────────────────────────────────────────
+// ── Citation grammar (§4.6, v1.1 review fix) ─────────────────────────────────
 
 const nonEmpty = (v: unknown): boolean =>
   v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
@@ -288,10 +342,33 @@ const PRIOR_EVAL_FIELDS: readonly string[] = [
   "trait_average",
 ];
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+/** v1.1 review fix — a resolved brag leaf is evidence ONLY when it is a
+ *  non-empty string, a non-empty array, or a plain object with at least one
+ *  non-empty own string field. Numbers, booleans, functions, null, undefined,
+ *  and everything else REJECT (an inherited method or an array's length can
+ *  never substantiate a claim). */
+function isEvidenceLeaf(v: unknown): boolean {
+  if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  if (isPlainObject(v))
+    return Object.values(v).some(
+      (f) => typeof f === "string" && f.trim().length > 0,
+    );
+  return false;
+}
+
 /** Resolve one citation path against the request. Resolvable forms:
- *  brag.<dotted path with [n] indices> (terminal value defined and non-empty;
- *  brag.admin.dod_id never resolves), prior_evals[<period_to>](.field)?, and
- *  ladr.<category>[<milestone_id>]. Anything else: unresolvable. */
+ *  brag.<dotted path with [n] indices> (walked over OWN-ENUMERABLE keys of
+ *  plain objects only; arrays accept index segments only, never names;
+ *  brag.admin.dod_id never resolves; the leaf must satisfy isEvidenceLeaf),
+ *  prior_evals[<period_to>](.field)? (field from the enumerated whitelist),
+ *  and ladr.<category>[<milestone_id>]. Anything else: unresolvable. */
 export function resolveCitation(path: string, req: AutofillRequest): boolean {
   if (path.startsWith("brag.")) {
     // Stripped from the payload — a citation to it can never be evidence.
@@ -301,14 +378,23 @@ export function resolveCitation(path: string, req: AutofillRequest): boolean {
     for (const seg of path.slice("brag.".length).split(".")) {
       const m = /^([A-Za-z_][A-Za-z0-9_]*)((?:\[\d+\])*)$/.exec(seg);
       if (!m) return false;
-      if (typeof cur !== "object" || cur === null) return false;
-      cur = (cur as Record<string, unknown>)[m[1]];
+      // v1.1 review fix: own-enumerable walk. Plain objects only take named
+      // segments; inherited/junk keys (constructor, toString, hasOwnProperty,
+      // __proto__) and array properties (.length) never resolve.
+      if (
+        !isPlainObject(cur) ||
+        !Object.prototype.propertyIsEnumerable.call(cur, m[1])
+      )
+        return false;
+      cur = cur[m[1]];
       for (const idxMatch of Array.from(m[2].matchAll(/\[(\d+)\]/g))) {
         if (!Array.isArray(cur)) return false;
-        cur = cur[Number(idxMatch[1])];
+        const i = Number(idxMatch[1]);
+        if (i >= cur.length) return false;
+        cur = cur[i];
       }
     }
-    return nonEmpty(cur);
+    return isEvidenceLeaf(cur);
   }
 
   const prior =
@@ -365,22 +451,18 @@ const BLOCK_NAMES = [
   "physical_readiness",
 ] as const;
 
-/** Exact-substring removal of a stripped item's text from its block text,
- *  collapsing the doubled whitespace/newline left behind (§7 step 2). */
-function removeSegment(text: string, segment: string): string {
-  const idx = segment ? text.indexOf(segment) : -1;
-  if (idx === -1) return text;
-  let before = text.slice(0, idx);
-  let after = text.slice(idx + segment.length);
-  const beforeWs = /\s+$/.exec(before)?.[0] ?? "";
-  const afterWs = /^\s+/.exec(after)?.[0] ?? "";
-  if (beforeWs && afterWs) {
-    before = before.slice(0, before.length - beforeWs.length);
-    after = after.slice(afterWs.length);
-    const joiner = (beforeWs + afterWs).includes("\n") ? "\n" : " ";
-    return (before + joiner + after).trim();
-  }
-  return (before + after).trim();
+/** v1.1 review fix — block.text is DERIVED OUTPUT: rebuilt exclusively from
+ *  the surviving cited items, never taken from the model's own text field
+ *  (which could smuggle uncited fabrications past the per-item gate). Join per
+ *  block shape (spec §4.2): comments is the bullet block (newline-joined);
+ *  every other block is flowed text (space-joined). "Removed before display"
+ *  is therefore true BY CONSTRUCTION. */
+function rebuildBlockText(
+  name: (typeof BLOCK_NAMES)[number],
+  items: GeneratedItem[],
+): string {
+  const parts = items.map((i) => i.text.trim()).filter(Boolean);
+  return parts.join(name === "comments" ? "\n" : " ");
 }
 
 interface PipelinePass {
@@ -397,6 +479,10 @@ function validatePass(
   req: AutofillRequest,
 ): PipelinePass {
   // Step 2 — citation resolution (anti-fabrication gate, citation-or-delete).
+  // v1.1 review fix: items are the atomic cited units; each block's released
+  // text is REBUILT from the surviving items (the model-authored block.text is
+  // never released and never applied), so uncited text cannot be laundered by
+  // one resolvable sibling item. Fit checks (step 4) run on the rebuilt text.
   const citation_failures: AutofillResponse["citation_failures"] = [];
   for (const name of BLOCK_NAMES) {
     const block = out.blocks[name];
@@ -406,7 +492,6 @@ function validatePass(
       if (item.sources.some((s) => resolveCitation(s, req))) {
         kept.push(item);
       } else {
-        block.text = removeSegment(block.text, item.text);
         citation_failures.push({
           block: name,
           text: item.text,
@@ -415,6 +500,7 @@ function validatePass(
       }
     }
     block.items = kept;
+    block.text = rebuildBlockText(name, kept);
   }
   const advisory = out.promotion_advisory;
   if (!advisory.sources.some((s) => resolveCitation(s, req))) {

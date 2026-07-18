@@ -10,13 +10,49 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const h = vi.hoisted(() => ({ getRouteUserId: vi.fn() }));
+const h = vi.hoisted(() => ({
+  getRouteUserId: vi.fn(),
+  createAdminClient: vi.fn(() => ({})),
+}));
 
 vi.mock("@/lib/supabaseClient", () => ({
   getRouteUserId: h.getRouteUserId,
-  createAdminClient: vi.fn(() => ({})),
+  createAdminClient: h.createAdminClient,
   createBrowserClient: vi.fn(() => ({})),
 }));
+
+// Never-persist enforcement (§1.2 item 1): wrap the fs WRITE APIs in
+// call-through spies via vi.mock so any route-side import — named or default,
+// "fs" or "node:fs" — hits the spy. (vi.spyOn on the module object misses ESM
+// named-import bindings, which is exactly how a /tmp-write mutant would slip
+// through.) Reads pass through untouched; nothing is stubbed out.
+const fsw = vi.hoisted(() => ({
+  writeFileSync: vi.fn(),
+  appendFileSync: vi.fn(),
+  createWriteStream: vi.fn(),
+  promisesWriteFile: vi.fn(),
+}));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  fsw.writeFileSync.mockImplementation(actual.writeFileSync as any);
+  fsw.appendFileSync.mockImplementation(actual.appendFileSync as any);
+  fsw.createWriteStream.mockImplementation(actual.createWriteStream as any);
+  const wrapped = {
+    ...actual,
+    writeFileSync: fsw.writeFileSync,
+    appendFileSync: fsw.appendFileSync,
+    createWriteStream: fsw.createWriteStream,
+  };
+  return { ...wrapped, default: wrapped };
+});
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  fsw.promisesWriteFile.mockImplementation(actual.writeFile as any);
+  const wrapped = { ...actual, writeFile: fsw.promisesWriteFile };
+  return { ...wrapped, default: wrapped };
+});
 
 import { PDFDocument } from "pdf-lib";
 import { extractPdfText, suggestFromText } from "@/lib/bragSheet/extract";
@@ -263,5 +299,26 @@ describe("POST /api/brag-sheet/extract — content outcomes", () => {
     expect(body.chars_extracted).toBeGreaterThan(0);
     expect(Array.isArray(body.bullets)).toBe(true);
     expect(Array.isArray(body.duties)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Never-persist invariant (§1.2 item 1) — a successful extraction must not
+// write the upload (or anything else) to disk, a log file, or Supabase
+// storage. Spies observe the real fs APIs; nothing is stubbed out.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/brag-sheet/extract — uploads are NEVER persisted (§1.2 item 1)", () => {
+  it("a successful extraction performs zero fs writes and never touches the admin client", async () => {
+    const bytes = await generateBragSheetPdf(fixtureSheet());
+    const res = await POST(makeReq(formWith(pdfFile(new Uint8Array(bytes)))));
+    expect(res.status).toBe(200); // the invariant is asserted on the SUCCESS path
+
+    expect(fsw.writeFileSync).not.toHaveBeenCalled();
+    expect(fsw.appendFileSync).not.toHaveBeenCalled();
+    expect(fsw.createWriteStream).not.toHaveBeenCalled();
+    expect(fsw.promisesWriteFile).not.toHaveBeenCalled();
+    // No storage upload either: the service-role client is never constructed.
+    expect(h.createAdminClient).not.toHaveBeenCalled();
   });
 });

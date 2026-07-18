@@ -33,6 +33,7 @@ import {
   AUTOFILL_SYSTEM_PROMPT,
   BRAG_AI_ENV,
   AutofillModelOutputSchema,
+  AutofillResponseSchema,
   AutofillModelError,
   computeBudgets,
   buildAutofillPayload,
@@ -316,6 +317,28 @@ describe("resolveCitation — citation grammar", () => {
     expect(resolveCitation("brag.admin.dod_id", req)).toBe(false);
   });
 
+  // v1.1 review fix: own-enumerable walk + evidence-leaf rule.
+  it("inherited/junk paths never resolve (own-enumerable walk)", () => {
+    expect(resolveCitation("brag.constructor", req)).toBe(false);
+    expect(resolveCitation("brag.toString", req)).toBe(false);
+    expect(resolveCitation("brag.hasOwnProperty", req)).toBe(false);
+    expect(resolveCitation("brag.__proto__", req)).toBe(false);
+    expect(resolveCitation("brag.admin.constructor", req)).toBe(false);
+    expect(resolveCitation("brag.admin.hasOwnProperty", req)).toBe(false);
+    // Arrays take index segments only — .length (even on an empty array) is junk.
+    expect(resolveCitation("brag.duties.length", req)).toBe(false);
+    expect(resolveCitation("brag.accomplishments.length", req)).toBe(false);
+  });
+
+  it("non-string leaves are not evidence: numbers, booleans, string-free objects reject", () => {
+    expect(resolveCitation("brag.duties[0].months_assigned", req)).toBe(false); // number
+    expect(resolveCitation("brag.leadership.supervised_military", req)).toBe(false); // number
+    expect(resolveCitation("brag.duties[0].is_most_significant", req)).toBe(false); // boolean
+    // Objects resolve only via ≥1 non-empty own string field.
+    expect(resolveCitation("brag.duties[0]", req)).toBe(true); // title is a non-empty string
+    expect(resolveCitation("brag.pfa[0]", req)).toBe(true); // cycle/result strings
+  });
+
   it("resolves prior_evals by exact period_to key, with optional field", () => {
     expect(resolveCitation("prior_evals[2025-03-15]", req)).toBe(true);
     expect(resolveCitation("prior_evals[2025-03-15].comments", req)).toBe(true);
@@ -328,9 +351,14 @@ describe("resolveCitation — citation grammar", () => {
     expect(resolveCitation("ladr.qual_warfare[m9]", req)).toBe(false);
   });
 
-  it("anything else is unresolvable", () => {
+  it("anything else is unresolvable — including non-payload roots", () => {
     expect(resolveCitation("totally bogus path", req)).toBe(false);
     expect(resolveCitation("prior_evals", req)).toBe(false);
+    // §4.6: the only roots are brag / prior_evals / ladr.
+    expect(resolveCitation("admin.member_name", req)).toBe(false);
+    expect(resolveCitation("duties[0].bullets[0]", req)).toBe(false);
+    expect(resolveCitation("window.location.href", req)).toBe(false);
+    expect(resolveCitation("process.env", req)).toBe(false);
   });
 });
 
@@ -352,8 +380,8 @@ describe("runAutofill — citation-or-delete (§7 step 2, invariant §1.2 item 4
 
     expect(res.blocks.comments.items).toHaveLength(1);
     expect(res.blocks.comments.items[0].text).toBe("GOOD LINE ALPHA");
-    expect(res.blocks.comments.text).toContain("GOOD LINE ALPHA");
-    expect(res.blocks.comments.text).not.toContain("BAD LINE BRAVO");
+    // v1.1 review fix: released text is REBUILT from surviving items only.
+    expect(res.blocks.comments.text).toBe("GOOD LINE ALPHA");
 
     expect(res.citation_failures).toHaveLength(1);
     expect(res.citation_failures[0]).toMatchObject({
@@ -370,6 +398,92 @@ describe("runAutofill — citation-or-delete (§7 step 2, invariant §1.2 item 4
     }
   });
 
+  // v1.1 review fix: block.text is derived output — the model's own text field
+  // is never released, so uncited fabrications cannot be laundered past the
+  // per-item gate by one resolvable sibling item, and whitespace drift between
+  // item text and block text can no longer leave removed text behind.
+  it("model-authored block.text is never released: uncited text absent from items is dropped by construction", async () => {
+    const out = baseOutput();
+    out.blocks.comments = {
+      text: "CITED LINE.  FABRICATED UNCITED SENTENCE THE ITEMS NEVER MENTION.",
+      items: [{ text: "CITED LINE.", sources: [CIT] }],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+    expect(res.blocks.comments.text).toBe("CITED LINE.");
+    expect(res.blocks.comments.text).not.toContain("FABRICATED");
+  });
+
+  // T2: an uncited item whose text is a SUBSTRING of a cited sibling. The old
+  // exact-indexOf surgery could excise "12 SAILORS" out of the middle of the
+  // legit sentence; the rebuild must keep the cited item byte-exact.
+  it("an uncited substring item never corrupts its cited sibling (exact rebuild)", async () => {
+    const out = baseOutput();
+    out.blocks.comments = {
+      text: "LED 12 SAILORS THROUGH INSURV WITH ZERO DISCREPANCIES",
+      items: [
+        {
+          text: "LED 12 SAILORS THROUGH INSURV WITH ZERO DISCREPANCIES",
+          sources: [CIT],
+        },
+        { text: "12 SAILORS", sources: ["brag.duties[9].bullets[0]"] },
+      ],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    expect(res.blocks.comments.text).toBe(
+      "LED 12 SAILORS THROUGH INSURV WITH ZERO DISCREPANCIES",
+    );
+    expect(res.blocks.comments.items).toHaveLength(1);
+    expect(res.citation_failures).toContainEqual(
+      expect.objectContaining({ block: "comments", text: "12 SAILORS" }),
+    );
+  });
+
+  // T2: whitespace drift between the uncited item and the model's block text.
+  // The old removeSegment indexOf would silently no-op and leave the drifted
+  // copy in the released text; the rebuild drops it by construction.
+  it("a whitespace-drifted uncited item is absent from the released text", async () => {
+    const out = baseOutput();
+    out.blocks.comments = {
+      // Model text carries the claim with drifted spacing vs. its item.
+      text: "GOOD LINE ALPHA\nBAD  LINE   BRAVO",
+      items: [
+        { text: "GOOD LINE ALPHA", sources: [CIT] },
+        { text: "BAD LINE BRAVO", sources: ["brag.duties[9].bullets[0]"] },
+      ],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    expect(res.blocks.comments.text).toBe("GOOD LINE ALPHA");
+    expect(res.blocks.comments.text).not.toMatch(/BAD\s+LINE/);
+    expect(res.citation_failures).toContainEqual(
+      expect.objectContaining({ block: "comments", text: "BAD LINE BRAVO" }),
+    );
+  });
+
+  it("comments rebuild newline-joins items; flowed blocks space-join (spec §4.2)", async () => {
+    const out = baseOutput();
+    out.blocks.comments = {
+      text: "ignored model text",
+      items: [
+        { text: "OPENER LINE", sources: [CIT] },
+        { text: "- BULLET LINE", sources: [CIT] },
+      ],
+    };
+    out.blocks.primary_duties = {
+      text: "ignored model text",
+      items: [
+        { text: "LEADING PETTY OFFICER-12;", sources: [CIT] },
+        { text: "25-1:P; 25-2:B/BAD DAY", sources: ["brag.pfa[0]"] },
+      ],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+    expect(res.blocks.comments.text).toBe("OPENER LINE\n- BULLET LINE");
+    expect(res.blocks.primary_duties.text).toBe(
+      "LEADING PETTY OFFICER-12; 25-1:P; 25-2:B/BAD DAY",
+    );
+  });
+
   it("advisory with zero resolvable sources keeps its recommendation but withholds the rationale", async () => {
     const out = baseOutput();
     out.promotion_advisory.sources = ["brag.duties[9].bullets[0]"];
@@ -380,6 +494,55 @@ describe("runAutofill — citation-or-delete (§7 step 2, invariant §1.2 item 4
     expect(res.promotion_advisory.rationale).toBe(
       "No cited evidence survived validation — advisory withheld.",
     );
+  });
+});
+
+// T1: hostile citation paths driven through the full pipeline — every one must
+// land in citation_failures and NEVER surface in any released block text.
+describe("runAutofill — hostile citation paths (§4.6, v1.1 review fix)", () => {
+  const HOSTILE: Array<[source: string, text: string]> = [
+    ["brag.constructor", "HOSTILE CONSTRUCTOR CLAIM"],
+    ["brag.__proto__", "HOSTILE PROTO CLAIM"],
+    ["brag.admin.hasOwnProperty", "HOSTILE INHERITED METHOD CLAIM"],
+    ["brag.duties.length", "HOSTILE ARRAY LENGTH CLAIM"],
+    ["brag.accomplishments.length", "HOSTILE EMPTY ARRAY LENGTH CLAIM"],
+    ["brag.duties[9].bullets[0]", "HOSTILE OUT OF RANGE CLAIM"],
+    ["admin.member_name", "HOSTILE NON PAYLOAD ROOT CLAIM"],
+    ["window.location.href", "HOSTILE BOGUS ROOT CLAIM"],
+  ];
+
+  it("all hostile paths fail citation and none of their text is released", async () => {
+    const req = makeReq();
+    // Fixture sanity: accomplishments really is the empty-array case.
+    expect(req.brag.accomplishments).toEqual([]);
+
+    const out = baseOutput();
+    out.blocks.comments = {
+      text: "model text is never released",
+      items: [
+        { text: "GOOD LINE ALPHA", sources: [CIT] },
+        ...HOSTILE.map(([source, text]) => ({ text, sources: [source] })),
+      ],
+    };
+    const res = await runAutofill(req, scriptedModel(out));
+
+    // Only the legitimately cited item survives — exact rebuilt text.
+    expect(res.blocks.comments.text).toBe("GOOD LINE ALPHA");
+    expect(res.blocks.comments.items).toHaveLength(1);
+
+    // Every hostile source is recorded as a citation failure.
+    const failed = res.citation_failures
+      .filter((f: any) => f.block === "comments")
+      .map((f: any) => f.bad_sources[0]);
+    expect(failed.sort()).toEqual(HOSTILE.map(([s]) => s).sort());
+
+    // No hostile text appears in ANY released block.
+    const released = (Object.values(res.blocks) as any[])
+      .map((b) => b.text)
+      .join("\n");
+    for (const [, text] of HOSTILE) {
+      expect(released).not.toContain(text);
+    }
   });
 });
 
@@ -543,6 +706,24 @@ describe("runAutofill — parse rule (§7 step 1, invariant §1.2 item 2)", () =
     const res = await runAutofill(makeReq(), cm);
     expect(cm).toHaveBeenCalledTimes(3);
     expect(res.fit_reports.comments.overflow).toBe(false);
+  });
+});
+
+// v1.1 review fix: brag_sheets.last_autofill is untrusted JSONB — the page
+// safeParses it against AutofillResponseSchema before rendering the review
+// panel; malformed/legacy values render an "unreadable" card, never a crash.
+describe("AutofillResponseSchema — stored last_autofill boundary", () => {
+  it("a real runAutofill result (plus model id) round-trips safeParse", async () => {
+    const result = await runAutofill(makeReq(), scriptedModel(baseOutput()));
+    const stored = { ...result, model: "anthropic/claude-opus-4.8" };
+    expect(AutofillResponseSchema.safeParse(stored).success).toBe(true);
+  });
+
+  it("malformed/legacy stored values fail safeParse instead of reaching the panel", () => {
+    expect(AutofillResponseSchema.safeParse(null).success).toBe(false);
+    expect(AutofillResponseSchema.safeParse({ legacy: true }).success).toBe(false);
+    // Model output alone (no fit_reports/dry_run/model) is not a response.
+    expect(AutofillResponseSchema.safeParse(baseOutput()).success).toBe(false);
   });
 });
 

@@ -1,6 +1,14 @@
 # APEX Brag Sheet + AI Auto-Fill — Implementation Specification
 
-Status: **APPROVED FOR BUILD** · Version 1.0 · 2026-07-18 · Branch `feat/brag-sheet`
+Status: **APPROVED FOR BUILD** · Version 1.1 · 2026-07-18 · Branch `feat/brag-sheet`
+
+v1.1 (adversarial-review fixes, normative changes marked "v1.1 review fix"):
+citation walk hardened to own-enumerable keys with an evidence-leaf rule (§4.6);
+released block text rebuilt from surviving cited items — model-authored
+`block.text` never released, exact-substring removal deleted (§4.2, §7 step 2);
+autosave debounce captures `{sheetId, data}` at edit time and flushes on
+switch/apply/unmount (§6); stored `last_autofill` safeParsed at the page
+boundary (§4.6 exports, §6).
 
 Companion spec style: `docs/specs/board-confidence-analyzer.md` (the file this spec
 is modeled on — module layout, migration style, route shape, fail-closed audit, and
@@ -86,6 +94,8 @@ draft is indistinguishable from a hand-typed draft — the audit log
 4. **Citation-or-delete.** Every generated item must carry ≥1 source citation that
    resolves against the actual request payload (§7 step 2). Unresolvable ⇒ the item
    is deleted before the user sees it and recorded in `citation_failures`.
+   (v1.1 review fix) Released block text is rebuilt exclusively from surviving
+   cited items — the model-authored `block.text` is never released or applied.
 5. **Block 20 is deterministic.** `physical_readiness` =
    `brag.pfa.map(c => c.result).join("")`, computed server-side, echoed by the
    model, and **overwritten** server-side after generation. The model can never
@@ -622,8 +632,16 @@ export interface GeneratedItem {
 }
 
 export interface GeneratedBlock {
-  text: string;                          // full block text, ready for the form field
-  items: GeneratedItem[];                // per-segment provenance; concatenation ≈ text
+  text: string;                          // DERIVED OUTPUT (v1.1 review fix): after citation
+                                         // validation the server REBUILDS this exclusively from
+                                         // the surviving cited items — the model-authored text
+                                         // field is never released and never applied. Join per
+                                         // block shape: comments (the bullet block) newline-joins
+                                         // its items; every other block (29A, 29B, 28, 44, 41
+                                         // text, 20) is flowed text and space-joins. Items are
+                                         // the atomic cited units, so "removed before display"
+                                         // is true by construction.
+  items: GeneratedItem[];                // per-segment provenance; text = join(items)
 }
 
 export interface MissingInfoFlag {
@@ -876,6 +894,9 @@ export const COMMENTS_TARGET_LINES = 17;
 
 export const BragSheetDataSchema: z.ZodType<BragSheetData>;     // JSON re-import + row validation
 export const AutofillModelOutputSchema: z.ZodType<AutofillModelOutput>;
+export const AutofillResponseSchema: z.ZodType<AutofillResponse>; // v1.1 review fix — the page
+                                        // safeParses stored brag_sheets.last_autofill against
+                                        // this before rendering the review panel (§6)
 
 export interface AutofillBudgets { /* the budgets object, shapes per §4.2 comment */ }
 export function computeBudgets(reportType: AutofillRequest["report_type"], pitch: "10" | "12"): AutofillBudgets;
@@ -913,12 +934,18 @@ in this spec means required keys, types, and enums are enforced
 grade loses it silently; a model that omits `blocks.comments` fails the parse and
 triggers the one retry.
 
-**Citation grammar** (resolved by `resolveCitation`):
+**Citation grammar** (resolved by `resolveCitation`; walk rules are v1.1 review
+fix — the original plain-property walk resolved inherited/junk paths like
+`brag.constructor` and array `.length`):
 
 - `brag.<dotted path with [n] indices>` — walked segment-by-segment against
-  `req.brag`; resolves iff the terminal value is defined and non-empty (`""`,
-  `[]`, `undefined` do not resolve). `brag.admin.dod_id` never resolves (stripped
-  from the payload).
+  `req.brag` over **own-enumerable keys of plain objects only**
+  (`Object.prototype.propertyIsEnumerable.call`); arrays accept `[n]` index
+  segments only, never named properties (`.length`, `.constructor` etc. never
+  resolve). The resolved leaf must be **evidence**: a non-empty string, a
+  non-empty array, or a plain object with at least one non-empty own string
+  field — numbers, booleans, functions, and everything else REJECT.
+  `brag.admin.dod_id` never resolves (stripped from the payload).
 - `prior_evals[<period_to>]` optionally followed by
   `.comments|.qualifications|.primary_duties|.promotion_recommendation|.trait_average`
   — resolves iff a summary with that exact `period_to` exists (and the field is
@@ -1486,6 +1513,11 @@ small ones in the page file is permitted):
   one). Every `BragBullet` row is text + optional metrics input; an empty metrics
   field shows a passive hint chip "no metric". Save is debounced
   (`saveBragSheet(id, { data })`) with the repo's save-message surface.
+  (v1.1 review fix) The debounce closure captures `{ sheetId, data }` **at edit
+  time** — never "whichever sheet is active when the timer fires" — and a
+  pending save is **flushed, not cancelled**, on sheet switch, on Apply
+  navigation, and on unmount. Editing sheet A then selecting sheet B within the
+  debounce window persists A's edits to A.
 - **Toolbar** — four actions:
   - **Download PDF**: fetch `/fonts/CourierPrime-Regular.ttf` →
     `generateBragSheetPdf(sheet, { courierPrime })` → Blob download named
@@ -1528,6 +1560,11 @@ small ones in the page file is permitted):
   + "Generate EVAL Draft" (`apex-btn-primary`; label swaps EVAL/CHIEFEVAL/FITREP
   by `report_type`), disabled in flight; 429 → retry toast; 502 → "Model output
   unusable — try again"; result (or `sheet.last_autofill` on load) opens:
+  (v1.1 review fix) a stored `last_autofill` is untrusted JSONB — the page
+  `safeParse`s it against `AutofillResponseSchema` before rendering the panel;
+  on failure it renders a "stored generation result is unreadable — run
+  Generate again" card instead (a malformed/legacy value must never crash the
+  page).
 - **`AutofillReviewPanel`** — side-by-side review, brag source left, generated
   right:
   - `BragDisclaimerBanner` on top (again).
@@ -1575,13 +1612,21 @@ Implemented in `runAutofill` (§4.6); this section is the single source of truth
    parse rule). Parse failure → **one** retry with the Zod error text appended as
    `retry_feedback`; second failure → throw `AutofillModelError` (route → 502, no
    partial apply).
-2. **CITATION RESOLUTION** (anti-fabrication gate) — `resolveCitation` on every
-   `GeneratedItem.sources` path against the actual `AutofillRequest`. An item with
-   zero resolvable sources is stripped from `items[]` AND its `text` is deleted
-   from `block.text` (exact-substring removal; collapse the doubled whitespace/
-   newline left behind); recorded in `citation_failures`. It never reaches the
-   user. `promotion_advisory.sources` are resolved the same way; if none resolve,
-   the advisory's `recommendation` is kept but `rationale` is replaced with
+2. **CITATION RESOLUTION** (anti-fabrication gate; v1.1 review fix) —
+   `resolveCitation` on every `GeneratedItem.sources` path against the actual
+   `AutofillRequest`. An item with zero resolvable sources is stripped from
+   `items[]` and recorded in `citation_failures`; it never reaches the user.
+   Then every block's released `text` is **REBUILT exclusively from the
+   surviving cited items** (join per the block's shape, §4.2: `comments`
+   newline-joined, all other blocks space-joined). The model-authored
+   `block.text` is never released and never applied — uncited text cannot be
+   laundered past the gate by one resolvable sibling item, and the UI claim
+   "removed before display" is true by construction. (The v1.0
+   exact-substring-removal surgery is DELETED — it silently no-op'd on
+   whitespace drift and could excise substrings from legitimate sentences.)
+   Fit checks (step 4) run on the rebuilt text. `promotion_advisory.sources`
+   are resolved the same way; if none resolve, the advisory's `recommendation`
+   is kept but `rationale` is replaced with
    `"No cited evidence survived validation — advisory withheld."`.
 3. **DETERMINISTIC BLOCK 20** — recompute `collapsePfa(req.brag)`; **overwrite**
    `blocks.physical_readiness.text` (server value always wins) and assert
@@ -1730,8 +1775,19 @@ pipeline-only behavior is under test.
   serialized prompt does not contain it.
 - **Citation coverage:** every item in every returned block has ≥1 source; a
   scripted output containing an item citing `brag.duties[9].bullets[0]`
-  (nonexistent) comes back with that item stripped from `items` and `text`, and
-  one `citation_failures` entry naming the bad path.
+  (nonexistent) comes back with that item stripped from `items` and the block
+  text rebuilt without it, plus one `citation_failures` entry naming the bad
+  path. (v1.1 review fix) Junk/inherited paths never resolve
+  (`brag.constructor`, `brag.toString`, `brag.hasOwnProperty`,
+  `brag.__proto__`, array `.length` even on empty arrays); non-string leaves
+  (numbers, booleans, string-free objects) are not evidence; released
+  `block.text` equals the join of surviving items (comments newline-joined,
+  flowed blocks space-joined) — model-authored text containing an uncited
+  sentence is dropped by construction even when a cited sibling item resolves.
+- **Stored-response boundary (v1.1 review fix):** a real `runAutofill` result
+  plus a model id round-trips `AutofillResponseSchema.safeParse`; `null`,
+  legacy shapes, and bare model output fail it (the page renders the
+  "unreadable" card instead of the panel).
 - **Missing-info passthrough:** flags emitted by the scripted model survive to the
   response; the Block-20 "B without 29B note" server-side flag is appended.
 - **Block 20 overwrite:** scripted model echoes `"XX"`; response carries the

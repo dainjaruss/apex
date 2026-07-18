@@ -35,7 +35,10 @@ import type {
   BragSheetData,
 } from "@/lib/bragSheet/types";
 import { generateBragSheetPdf } from "@/lib/bragSheet/pdf";
-import { BragSheetDataSchema } from "@/lib/bragSheet/autofill";
+import {
+  AutofillResponseSchema,
+  BragSheetDataSchema,
+} from "@/lib/bragSheet/autofill";
 import type { BragExtractSuggestions } from "@/lib/bragSheet/extract";
 import {
   applyBragDraft,
@@ -88,8 +91,12 @@ export default function BragSheetPage() {
   const activeRef = useRef<BragSheet | null>(null);
   activeRef.current = active;
 
-  const [saveTick, setSaveTick] = useState(0);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  // v1.1 review fix: the debounced autosave captures { sheetId, data } at edit
+  // time (never "whichever sheet is active when the timer fires") and pending
+  // saves are FLUSHED — not cancelled — on sheet switch, apply, and unmount.
+  const pendingSaveRef = useRef<{ id: string; data: BragSheetData } | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // New-sheet form
   const [showNew, setShowNew] = useState(false);
@@ -118,6 +125,7 @@ export default function BragSheetPage() {
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [review, setReview] = useState<AutofillResponse | null>(null);
+  const [reviewUnreadable, setReviewUnreadable] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [consentSaving, setConsentSaving] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -148,7 +156,7 @@ export default function BragSheetPage() {
         setSheets(mySheets);
         if (mySheets[0]?.id) {
           setActiveId(mySheets[0].id);
-          setReview(mySheets[0].last_autofill ?? null);
+          loadStoredReview(mySheets[0]);
         }
         setAvailability(avail);
       } catch (err: any) {
@@ -160,35 +168,68 @@ export default function BragSheetPage() {
     })();
   }, [router]);
 
-  // Debounced autosave of the active sheet's data (spec §6).
-  useEffect(() => {
-    if (saveTick === 0) return;
-    const t = setTimeout(async () => {
-      const s = activeRef.current;
-      if (!s?.id) return;
-      try {
-        await saveBragSheet(s.id, { data: s.data });
-        setSaveMsg("Saved.");
-      } catch (err: any) {
-        setSaveMsg(err?.message || "Save failed.");
-      }
-    }, 800);
-    return () => clearTimeout(t);
-  }, [saveTick]);
+  // Debounced autosave of the active sheet's data (spec §6, v1.1 review fix).
+  const flushSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const pending = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (!pending) return;
+    try {
+      await saveBragSheet(pending.id, { data: pending.data });
+      setSaveMsg("Saved.");
+    } catch (err: any) {
+      setSaveMsg(err?.message || "Save failed.");
+    }
+  }, []);
+
+  const scheduleSave = useCallback(
+    (id: string, data: BragSheetData) => {
+      pendingSaveRef.current = { id, data };
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null;
+        void flushSave();
+      }, 800);
+    },
+    [flushSave],
+  );
+
+  // Flush (never discard) a pending save on unmount/navigation.
+  useEffect(() => () => void flushSave(), [flushSave]);
+
+  // v1.1 review fix: brag_sheets.last_autofill is untrusted JSONB — safeParse
+  // it at the page boundary; a malformed/legacy value renders an "unreadable"
+  // card instead of crashing the review panel's initializers.
+  const loadStoredReview = (sheet: BragSheet | null | undefined) => {
+    const raw = sheet?.last_autofill;
+    if (raw == null) {
+      setReview(null);
+      setReviewUnreadable(false);
+      return;
+    }
+    const parsed = AutofillResponseSchema.safeParse(raw);
+    setReview(parsed.success ? parsed.data : null);
+    setReviewUnreadable(!parsed.success);
+  };
 
   const mutateData = useCallback(
     (next: BragSheetData) => {
+      if (!activeId) return;
       setSheets((prev) =>
         prev.map((s) => (s.id === activeId ? { ...s, data: next } : s)),
       );
-      setSaveTick((t) => t + 1);
+      scheduleSave(activeId, next);
     },
-    [activeId],
+    [activeId, scheduleSave],
   );
 
   const selectSheet = (sheet: BragSheet) => {
+    void flushSave(); // pending save carries its own captured { id, data }
     setActiveId(sheet.id!);
-    setReview(sheet.last_autofill ?? null);
+    loadStoredReview(sheet);
     setSuggestions(null);
     setGenMsg(null);
     setImportError(null);
@@ -209,6 +250,7 @@ export default function BragSheetPage() {
       setSheets((prev) => [created, ...prev]);
       setActiveId(created.id!);
       setReview(null);
+      setReviewUnreadable(false);
       setShowNew(false);
       setNewFrom("");
       setNewTo("");
@@ -361,6 +403,7 @@ export default function BragSheetPage() {
     try {
       const res = await runBragAutofillRequest({ bragSheetId: s.id, pitch });
       setReview(res);
+      setReviewUnreadable(false);
       setSheets((prev) =>
         prev.map((row) =>
           row.id === s.id ? { ...row, last_autofill: res } : row,
@@ -398,6 +441,9 @@ export default function BragSheetPage() {
     if (!userId || !active) return;
     setApplying(true);
     try {
+      // v1.1 review fix: persist any pending edit before the draft is created
+      // and the page navigates away.
+      await flushSave();
       const saved = await applyBragDraft(userId, active, accepted, pitch);
       router.push(`/evaluations/${saved.id}`);
     } catch (err: any) {
@@ -702,6 +748,17 @@ export default function BragSheetPage() {
               </div>
 
               {/* Review panel (result of this run, or last_autofill on load) */}
+              {reviewUnreadable && (
+                <div className="apex-card p-4">
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    The stored generation result is unreadable — run Generate
+                    again.
+                  </p>
+                </div>
+              )}
               {review && (
                 <AutofillReviewPanel
                   sheet={active}
