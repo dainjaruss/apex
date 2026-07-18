@@ -9,6 +9,8 @@ import {
   IconShield,
   IconUser,
   IconLogOut,
+  IconGauge,
+  IconClipboardList,
   NavIconComponent,
 } from "@/components/layout/NavIcons";
 import ApexLogo from "@/components/brand/ApexLogo";
@@ -95,6 +97,20 @@ export default function AppShell({
       label: "New evaluation",
       icon: IconFilePlus,
       match: (p) => p === "/evaluations/new",
+      group: "ops",
+    },
+    {
+      href: "/brag-sheet",
+      label: "Brag Sheet",
+      icon: IconClipboardList,
+      match: (p) => p.startsWith("/brag-sheet"),
+      group: "ops",
+    },
+    {
+      href: "/board-confidence",
+      label: "Board Confidence",
+      icon: IconGauge,
+      match: (p) => p.startsWith("/board-confidence"),
       group: "ops",
     },
   ];

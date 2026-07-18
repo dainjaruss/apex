@@ -213,6 +213,18 @@ function EvalQueueTable({
                   >
                     View
                   </button>
+                  {ev.status !== "completed" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(`/evaluations/${ev.id}?tab=review`)
+                      }
+                      className="apex-btn-secondary py-1.5 px-3 text-xs mr-1"
+                      title="Open the Review Workflow tab — route through the chain of command, recycle, or debrief"
+                    >
+                      Route
+                    </button>
+                  )}
                   {canEdit && (
                     <button
                       type="button"

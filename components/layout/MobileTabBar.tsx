@@ -8,6 +8,8 @@ import {
   IconFolder,
   IconShield,
   IconUser,
+  IconGauge,
+  IconClipboardList,
   NavIconComponent,
 } from "@/components/layout/NavIcons";
 import { cn } from "@/lib/utils";
@@ -73,6 +75,18 @@ export function defaultMobileTabs(options: {
       label: "New",
       icon: IconFilePlus,
       match: (p) => p === "/evaluations/new",
+    },
+    {
+      href: "/brag-sheet",
+      label: "Brag",
+      icon: IconClipboardList,
+      match: (p) => p.startsWith("/brag-sheet"),
+    },
+    {
+      href: "/board-confidence",
+      label: "Board",
+      icon: IconGauge,
+      match: (p) => p.startsWith("/board-confidence"),
     },
   ];
   if (options.canGroups) {

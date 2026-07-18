@@ -5,7 +5,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { loadById } from "@/lib/evaluationService";
 import { getProfile } from "@/lib/profileService";
@@ -29,17 +29,24 @@ import {
   ReportTab,
 } from "@/components/report/ReportChrome";
 
+const VALID_TABS: ReportTab[] = ["details", "review", "preview", "audit"];
+
 export default function ViewEvaluationPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  // Deep-linkable tabs (e.g. the dashboard's Route action → ?tab=review).
+  const requestedTab = searchParams?.get("tab") as ReportTab | null;
 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ReportTab>("details");
+  const [activeTab, setActiveTab] = useState<ReportTab>(
+    requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : "details",
+  );
   const [signing, setSigning] = useState<{
     block: number;
     label: string;
