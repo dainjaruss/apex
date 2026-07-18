@@ -285,6 +285,11 @@ export default function ResultsView({
 
   const warnings: string[] = selected?.input?.warnings ?? [];
 
+  // v1.5 continuity hard gate — read from the stored run's meta snapshot.
+  const meta = (selected?.input?.meta ?? {}) as Record<string, unknown>;
+  const gated = meta.not_selection_ready === true;
+  const underlying = Number(meta.underlying_final ?? NaN);
+
   return (
     <div className="space-y-6">
       {/* §1.1: disclaimer at the top of every results view */}
@@ -345,6 +350,31 @@ export default function ResultsView({
 
       {selected ? (
         <>
+          {gated && (
+            <div
+              role="alert"
+              className="p-4 rounded-lg border border-red-900/50 bg-red-950/30 text-red-200 text-sm space-y-1"
+            >
+              <p className="font-bold uppercase tracking-wider text-red-300">
+                Not selection ready — continuity gap
+              </p>
+              <p className="text-xs">
+                {String(
+                  meta.gate_reason ??
+                    "A gap in evaluation continuity was found in the 60-month window.",
+                )}{" "}
+                Boards expect unbroken evaluation continuity; the score is
+                gated to 0 until the gap is closed or explained.
+                {Number.isFinite(underlying) && (
+                  <>
+                    {" "}
+                    Underlying rubric score before the gate:{" "}
+                    <strong>{underlying.toFixed(1)}</strong>.
+                  </>
+                )}
+              </p>
+            </div>
+          )}
           <div className="apex-card p-6">
             <ScoreDial
               score={Number(selected.overall_score)}

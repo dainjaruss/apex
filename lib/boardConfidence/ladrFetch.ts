@@ -216,6 +216,54 @@ export function parseLadr(text: string, rating: string): ParsedLadr | null {
     }
   }
 
+  // 6. v1.5 board emphasis: "Considerations for advancement from E6 to E7 /
+  //    E7 to E8 / E8 to E9" — the sections where the LaDR states what the
+  //    selection board actually weighs. Each numbered item becomes an
+  //    advancement_consideration milestone flagged detail.board_emphasis, which
+  //    the rubric counts ×board_emphasis_multiplier.
+  const secRe = /Considerations for advancement from E([678]) to E([789])/g;
+  let sec: RegExpExecArray | null;
+  while ((sec = secRe.exec(text))) {
+    const target = Number(sec[2]);
+    const start = sec.index + sec[0].length;
+    // Region ends at the next considerations header (or a conservative cap).
+    const nextIdx = text
+      .slice(start)
+      .search(/Considerations for advancement from E[678]/);
+    const region = text.slice(
+      start,
+      nextIdx >= 0 ? start + Math.min(nextIdx, 6000) : start + 6000,
+    );
+    // Numbered narrative items: "1. Candidates eligible…", "2. Duty Assignments…"
+    const items = region
+      .split(/(?=\b[1-9]\.\s+[A-Z])/)
+      .map((s) =>
+        s
+          .replace(/^\s*[1-9]\.\s+/, "")
+          .replace(/\s+/g, " ")
+          .replace(/^[:\s–-]+/, "")
+          .trim(),
+      )
+      .filter((s) => s.length >= 60);
+    for (const full of items.slice(0, 6)) {
+      // Display name = first sentence, capped; full text kept in detail.notes.
+      const firstStop = full.indexOf(". ", 40);
+      const label =
+        firstStop > 0 && firstStop < 160 ? full.slice(0, firstStop + 1) : `${full.slice(0, 157)}…`;
+      push({
+        category: "advancement_consideration",
+        item: `E${target} board: ${label}`,
+        item_code: null,
+        applies_to_paygrades: [target],
+        detail: {
+          ...auto,
+          board_emphasis: true,
+          notes: full.replace(//g, "•").slice(0, 1500),
+        },
+      });
+    }
+  }
+
   return {
     rating_abbrev: abbrev,
     rating_name: ratingName(abbrev) ?? headMatch[1].trim(),

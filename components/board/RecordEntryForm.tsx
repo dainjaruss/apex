@@ -3,7 +3,9 @@
 // Structured PSR/ESR record entry for the Board Confidence Analyzer (spec §6,
 // tab 1). All data here is member-entered reference data persisted to
 // member_board_records. The free-form quals section is reference-only and is
-// never read by the rubric; attachments are stored but never parsed or scored.
+// never read by the rubric. v1.5: uploaded documents can be parsed on demand
+// ("Extract to record") into editable award/NEC/education/PFA rows so uploads
+// feed the board confidence determination; nothing is scored until saved.
 //
 
 "use client";
@@ -22,6 +24,7 @@ import type {
 } from "@/lib/boardConfidence/types";
 import {
   deleteBoardDoc,
+  extractBoardDoc,
   listBoardDocs,
   uploadBoardDoc,
 } from "@/lib/boardConfidenceService";
@@ -249,6 +252,43 @@ export default function RecordEntryForm({
     } finally {
       setDocBusy(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  // v1.5: parse a stored doc into record suggestions and merge the new ones
+  // into the editable form (dedup by title/code/cycle; nothing is saved or
+  // scored until the member reviews the rows and clicks Save record).
+  const [extractNote, setExtractNote] = useState<string | null>(null);
+  const handleExtractDoc = async (name: string) => {
+    setDocBusy(true);
+    setDocError(null);
+    setExtractNote(null);
+    try {
+      const s = await extractBoardDoc(userId, name);
+      const has = (list: { title?: string; code?: string; cycle?: string }[], v: string) =>
+        list.some(
+          (e) => (e.title ?? e.code ?? e.cycle ?? "").toLowerCase() === v.toLowerCase(),
+        );
+      const awards = s.awards.filter((a) => !has(record.awards, a.title));
+      const necs = s.necs.filter((n) => !record.necs.some((e) => e.code === n.code));
+      const education = s.education.filter((e) => !has(record.education, e.title));
+      const pfa = s.pfa.filter((p) => !record.pfa_history.some((e) => e.cycle === p.cycle));
+      onChange({
+        awards: [...record.awards, ...awards],
+        necs: [...record.necs, ...necs],
+        education: [...record.education, ...education],
+        pfa_history: [...record.pfa_history, ...pfa],
+      });
+      const total = awards.length + necs.length + education.length + pfa.length;
+      setExtractNote(
+        total === 0
+          ? "No new entries found in that document."
+          : `Added ${awards.length} award(s), ${necs.length} NEC(s), ${education.length} education, ${pfa.length} PFA cycle(s) — review the rows above, then Save record.`,
+      );
+    } catch (err: any) {
+      setDocError(err?.message || "Extraction failed.");
+    } finally {
+      setDocBusy(false);
     }
   };
 
@@ -917,7 +957,7 @@ export default function RecordEntryForm({
       {/* Record documents (v1.3): ESR / PSR / OMPF FC 30-38 uploads */}
       <Section
         title="Record documents (optional)"
-        hint="Upload your ESR export, PSR, or OMPF documents (field codes 30–38) as reference copies. They are stored under your account only and are never read, parsed, or scored."
+        hint="Upload your ESR export, PSR, or OMPF documents (field codes 30–38). Use 'Extract to record' to pull awards, NECs, education, and PFA cycles from a document into the form above — in lieu of manual entry — for the board confidence determination. Documents are stored under your account only and destroyed at logout."
       >
         <div className="space-y-3">
           <div
@@ -991,6 +1031,15 @@ export default function RecordEntryForm({
               {docError}
             </p>
           )}
+          {extractNote && (
+            <p
+              className="text-xs"
+              role="status"
+              style={{ color: "var(--accent-gold)" }}
+            >
+              {extractNote}
+            </p>
+          )}
           {docs.length === 0 ? (
             <p className="text-xs" style={{ color: "var(--subtle)" }}>
               No documents uploaded.
@@ -1011,15 +1060,26 @@ export default function RecordEntryForm({
                     )}
                     <span className="font-mono">{file}</span>
                   </span>
-                  <button
-                    type="button"
-                    className="apex-btn-secondary py-0.5 px-2 text-xs"
-                    disabled={docBusy}
-                    onClick={() => handleDeleteDoc(d.name)}
-                    aria-label={`Delete document ${d.name}`}
-                  >
-                    Delete
-                  </button>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      className="apex-btn-secondary py-0.5 px-2 text-xs"
+                      disabled={docBusy}
+                      onClick={() => handleExtractDoc(d.name)}
+                      aria-label={`Extract record entries from ${d.name}`}
+                    >
+                      Extract to record
+                    </button>
+                    <button
+                      type="button"
+                      className="apex-btn-secondary py-0.5 px-2 text-xs"
+                      disabled={docBusy}
+                      onClick={() => handleDeleteDoc(d.name)}
+                      aria-label={`Delete document ${d.name}`}
+                    >
+                      Delete
+                    </button>
+                  </span>
                 </li>
                 );
               })}

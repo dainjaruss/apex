@@ -2,8 +2,8 @@
 //
 // Browser service for the Board Confidence Analyzer: member board-record CRUD
 // (RLS owner-only), LaDR/precept reference reads, prior-run listing, the analyze
-// POST, and reference-only attachments in the private 'board-docs' bucket
-// (stored, listed, deleted — never parsed, spec §12). Spec §4.5.
+// POST, and attachments in the private 'board-docs' bucket (stored, listed,
+// deleted; v1.5 — parseable on demand into record suggestions). Spec §4.5.
 
 import { createBrowserClient } from "./supabaseClient";
 import type {
@@ -174,6 +174,33 @@ export const listBoardDocs = async (
     throw new Error(error.message);
   }
   return (data || []).map((f) => ({ name: f.name }));
+};
+
+/**
+ * v1.5: extract structured record suggestions from one of the caller's stored
+ * documents. Downloads the doc (RLS owner-scoped), posts it to the in-memory
+ * extraction route, returns suggestions for the member to review in the form.
+ */
+export const extractBoardDoc = async (
+  userId: string,
+  name: string,
+): Promise<import("@/lib/boardConfidence/recordExtract").RecordExtractSuggestions> => {
+  const { data, error } = await supabase.storage
+    .from("board-docs")
+    .download(`${userId}/${name}`);
+  if (error || !data) {
+    console.error(`extractBoardDoc download failed for ${userId}:`, error?.message);
+    throw new Error(error?.message || "Could not download that document.");
+  }
+  const form = new FormData();
+  form.append("file", new File([data], name, { type: "application/pdf" }));
+  const res = await fetch("/api/board-confidence/record-extract", {
+    method: "POST",
+    body: form,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Request failed");
+  return json;
 };
 
 /** Delete one of the caller's stored attachments. */

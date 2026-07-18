@@ -37,10 +37,22 @@ board_precepts (active cycle flags)─────────────┘   
   rubric's numeric output, with citation-style references to the payload fields
   it used. Spec §7 is the normative rubric; three worked examples are pinned by
   tests to the decimal.
-- **Six factors** (weights): Performance 40, Leadership/Impact 15,
+- **Six factors** (default weights): Performance 40, Leadership/Impact 15,
   Professional Development vs LaDR 15, Continuity 10, Record Completeness 10,
   Precept Alignment 10. Missing data shrinks a factor's confidence (and thus
   its contribution) rather than being fabricated.
+- **Board emphasis (v1.5):** the LaDR's "Considerations for advancement from
+  E6 to E7 / E7 to E8 / E8 to E9" sections are ingested as
+  `advancement_consideration` checklist items — the heaviest LaDR category —
+  and every board-emphasis item counts double (tunable) inside its category.
+- **Continuity hard gate (v1.5):** any gap in evaluation continuity longer
+  than 90 days (tunable) inside the 60-month window makes the record **NOT
+  SELECTION READY** — the score is gated to 0 and the results view shows the
+  underlying pre-gate score so you can see what closing the gap restores.
+- **Upload-driven entry (v1.5):** on the Record Entry tab, "Extract to
+  record" parses an uploaded ESR/PSR/OMPF document in memory and pre-fills
+  awards, NECs, education, and PFA cycles as editable, unverified rows — in
+  lieu of manual entry. Nothing is scored until you review and save.
 - **Identity model:** a run scores the caller's own finalized evaluations
   (`created_by` = subject, with a DoD-ID cross-check). Routes are owner-only.
 
@@ -131,11 +143,31 @@ A curated seed and a fetched document for the same LaDR issue share the same
 `(rating, version)` key, so whichever lands first wins and the other reports
 "already current".
 
+## Tuning the rubric (v1.5)
+
+The `board_rubric_config` table (migration 007) holds the tunable rubric
+parameters; the single `active` row is loaded for every run and snapshotted
+into that run's `input.meta.rubric_config`, so past scores stay reproducible
+after retuning. Columns:
+
+- `weights` — per-factor weights (jsonb); normalized to sum 100 at run time.
+- `continuity_hard_gate` (default `true`) — gap ⇒ score 0, "Not selection ready".
+- `continuity_gap_days` (default `90`) — what counts as a gap.
+- `board_emphasis_multiplier` (default `2.0`) — how much extra weight
+  board-emphasis LaDR items carry inside their category.
+
+Because in-app roles are self-asserted, there is **no in-app admin UI**:
+retune via the Supabase dashboard or service-role SQL — insert a new row with
+your values and move the `active` flag to it (a partial unique index enforces
+one active row). Defaults reproduce spec §7 exactly; the worked examples are
+pinned by tests under the default config.
+
 ## Manual steps & known limits (v1)
 
 - Migrations/seed must be applied to the hosted project (see Setup).
-- Officer boards, automated LaDR PDF scraping, ESR/PSR OCR, pgvector
-  embeddings, and leadership/multi-member views are out of scope (spec §12).
+- Officer boards, OCR of scanned/image-only ESR/PSR PDFs (v1.5 extraction
+  needs a text layer), pgvector embeddings, and leadership/multi-member views
+  are out of scope (spec §12).
 - Admin-on-behalf analysis is deferred: `profiles` roles are self-asserted in
   this app, so the server cannot trust them for cross-user access.
 - CPO boards vote slates by rating panel rather than per-record confidence

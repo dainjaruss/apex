@@ -44,7 +44,7 @@ create table if not exists public.ladr_milestones (
         'career_milestone','skill_training_required','skill_training_recommended',
         'nec_opportunity','pme_required','pme_recommended','qual_watchstanding',
         'qual_warfare','qual_rate_specific','credential','education_degree',
-        'billet_recommended')),
+        'billet_recommended','advancement_consideration')),
     item text not null,                          -- display name, e.g. 'CompTIA Security+'
     item_code text,                              -- CIN / NAVEDTRA PQS / NEC code / cert id, null if none
     applies_to_paygrades smallint[] not null,    -- paygrades where the LaDR lists it, e.g. '{4}' or '{1,2,3}'

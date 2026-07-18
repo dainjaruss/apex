@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import {
+  DEFAULT_RUBRIC_CONFIG,
   scoreBoardConfidence,
   bandFor,
   round1HalfAway,
@@ -458,18 +459,96 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(f.completeness.score).toBeCloseTo(8, 1);
   });
 
-  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); FINAL = 10.2 → vote 0 (exact)", () => {
+  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); underlying 10.2 → HARD-GATED to 0 (v1.5)", () => {
     expect(rawSum(r)).toBeCloseTo(20.23, 1);
     expect(r.adverseAdjustment).toBe(10);
-    expect(r.final).toBe(10.2);
+    // v1.5: 2 continuity gaps trip the hard gate — NOT SELECTION READY.
+    // The pre-gate arithmetic stays pinned via underlyingFinal.
+    expect(r.underlyingFinal).toBe(10.2);
+    expect(r.notSelectionReady).toBe(true);
+    expect(r.gateReason).toMatch(/[Cc]ontinuity gap/);
+    expect(r.final).toBe(0);
     expect(r.band).toBe(0);
-    expect(r.bandLabel).toBe("Drop-from-consideration risk");
+    expect(r.bandLabel).toBe("Not selection ready — continuity gap");
+  });
+
+  it("with the hard gate disabled, Ex3 reproduces the pre-v1.5 pinned final 10.2", () => {
+    const off = scoreBoardConfidence(ex3Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      continuity_hard_gate: false,
+    });
+    expect(off.final).toBe(10.2);
+    expect(off.notSelectionReady).toBe(false);
+    expect(off.band).toBe(0);
+    expect(off.bandLabel).toBe("Drop-from-consideration risk");
   });
 });
 
 // ---------------------------------------------------------------------------
-// §7.1 band boundaries + terminal rounding
+// v1.5 config tuning — weights, board-emphasis multiplier, gap threshold
 // ---------------------------------------------------------------------------
+
+describe("v1.5 RubricConfig tuning", () => {
+  it("weights are normalized to 100: doubling every weight changes nothing", () => {
+    const doubled = Object.fromEntries(
+      Object.entries(DEFAULT_RUBRIC_CONFIG.weights).map(([k, v]) => [k, v * 2]),
+    ) as Record<FactorKey, number>;
+    const a = scoreBoardConfidence(ex1Inputs);
+    const b = scoreBoardConfidence(ex1Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      weights: doubled,
+    });
+    expect(b.final).toBe(a.final);
+    expect(byKey(b).performance.weight).toBe(byKey(a).performance.weight);
+  });
+
+  it("skewed weights shift the final and show up as normalized factor weights", () => {
+    const skewed = scoreBoardConfidence(ex1Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      weights: {
+        performance: 70,
+        leadership: 10,
+        development: 5,
+        continuity: 5,
+        completeness: 5,
+        precept: 5,
+      },
+    });
+    expect(byKey(skewed).performance.weight).toBe(70);
+    expect(skewed.final).not.toBe(scoreBoardConfidence(ex1Inputs).final);
+  });
+
+  it("board_emphasis items count ×multiplier inside their category", () => {
+    const dev = (mult: number) =>
+      byKey(
+        scoreBoardConfidence(
+          {
+            boardDate: T,
+            evals: [],
+            psr: emptyPsr,
+            preceptFlags: [],
+            ladr: [
+              li("qual_warfare", "met"),
+              { ...li("qual_warfare", "not_met", false), board_emphasis: true },
+            ],
+          },
+          { ...DEFAULT_RUBRIC_CONFIG, board_emphasis_multiplier: mult },
+        ),
+      ).development.score;
+    // met=1 vs emphasized not_met: mult 1 → 1/2, default mult 2 → 1/3.
+    expect(dev(1)).toBeCloseTo(50, 1);
+    expect(dev(2)).toBeCloseTo(100 / 3, 1);
+  });
+
+  it("continuity_gap_days is the gate threshold: raising it past Ex3's gaps un-gates", () => {
+    const wide = scoreBoardConfidence(ex3Inputs, {
+      ...DEFAULT_RUBRIC_CONFIG,
+      continuity_gap_days: 1100, // both Ex3 gaps (~1002 and ~93 days) tolerated
+    });
+    expect(wide.notSelectionReady).toBe(false);
+    expect(wide.final).toBeGreaterThan(0);
+  });
+});
 
 describe("bands — §7.1 boundaries are ≥ on the lower bound", () => {
   const cases: Array<[number, number]> = [

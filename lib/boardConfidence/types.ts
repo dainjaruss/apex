@@ -67,7 +67,10 @@ export type LadrCategory =
   | "career_milestone" | "skill_training_required" | "skill_training_recommended"
   | "nec_opportunity" | "pme_required" | "pme_recommended" | "qual_watchstanding"
   | "qual_warfare" | "qual_rate_specific" | "credential" | "education_degree"
-  | "billet_recommended";
+  | "billet_recommended"
+  // v1.5: the LaDR's "Considerations for advancement from E6 to E7 / E7 to E8 /
+  // E8 to E9" sections — where the board's selection emphasis actually lives.
+  | "advancement_consideration";
 
 export type LadrStatus = "met" | "not_met" | "na" | "unanswered";
 
@@ -76,6 +79,11 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
   category: LadrCategory;
   status: LadrStatus;
   verified_in_ompf: boolean;           // meaningful only when status === "met"
+  // v1.5: true when the item carries the LaDR's board emphasis — a milestone
+  // from the "Considerations for advancement" E7+ sections, or any item whose
+  // applies_to_paygrades sits entirely at E7+ while the member targets E7+.
+  // Emphasized items count ×board_emphasis_multiplier inside their category.
+  board_emphasis?: boolean;
 }
 
 export type PreceptFlag =
@@ -114,6 +122,22 @@ export interface RubricResult {
                                         // detail.excluded = true
   adverseAdjustment: number;            // A
   warnings: string[];                   // e.g. dod_id-mismatch exclusions (§2)
+  // v1.5 continuity hard gate: any gap in the 60-month window makes the record
+  // NOT SELECTION READY — final/band are forced to 0 and the pre-gate score is
+  // preserved in underlyingFinal so the user can see what closing the gap recovers.
+  notSelectionReady: boolean;
+  gateReason: string | null;
+  underlyingFinal: number;              // pre-gate rounded final (== final when not gated)
+}
+
+// v1.5: operator-tunable rubric parameters (board_rubric_config table; the
+// active row is snapshotted into every analysis for reproducibility). Defaults
+// reproduce the spec §7 rubric with the continuity hard gate ON.
+export interface RubricConfig {
+  weights: Record<FactorKey, number>;   // normalized to sum 100 at run time
+  continuity_hard_gate: boolean;        // any gap > gap_days ⇒ confidence 0
+  continuity_gap_days: number;
+  board_emphasis_multiplier: number;    // ×weight for board-emphasis LaDR items
 }
 
 export interface BoardAnalysisRow {     // mirror of public.board_analyses
