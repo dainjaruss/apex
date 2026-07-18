@@ -41,3 +41,16 @@ create policy brc_select_authenticated on public.board_rubric_config
 insert into public.board_rubric_config (label, active)
 select 'default', true
 where not exists (select 1 from public.board_rubric_config where active);
+
+-- 007:3  Existing databases created before v1.5 carry 004's original category
+-- check on ladr_milestones (created inside `create table if not exists`, so
+-- editing 004 only helps fresh installs). Re-issue it with
+-- 'advancement_consideration' included.
+alter table public.ladr_milestones
+    drop constraint if exists ladr_milestones_category_check;
+alter table public.ladr_milestones
+    add constraint ladr_milestones_category_check check (category in (
+        'career_milestone','skill_training_required','skill_training_recommended',
+        'nec_opportunity','pme_required','pme_recommended','qual_watchstanding',
+        'qual_warfare','qual_rate_specific','credential','education_degree',
+        'billet_recommended','advancement_consideration'));
