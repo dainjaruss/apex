@@ -101,6 +101,12 @@ export default function LadrChecklist({
   const scored = categories.filter((c) => LADR_CATEGORY_WEIGHTS[c] > 0);
   const informational = categories.filter((c) => LADR_CATEGORY_WEIGHTS[c] === 0);
 
+  // v1.4: milestones ingested by the on-demand Navy COOL fetch are flagged
+  // auto_extracted — surface that they should be verified against the PDF.
+  const hasAutoExtracted = applicable.some(
+    (m) => m.detail?.source === "auto_extracted",
+  );
+
   const setStatus = (id: string, status: LadrStatus) => {
     const next = { ...checklist };
     if (status === "unanswered") delete next[id];
@@ -231,6 +237,20 @@ export default function LadrChecklist({
         · showing items applicable up to E-{targetPaygrade}. Unanswered items
         lower scoring confidence; they never count as not-met.
       </p>
+
+      {hasAutoExtracted && (
+        <p
+          role="note"
+          className="text-xs border-l-2 pl-3"
+          style={{
+            color: "var(--muted-foreground)",
+            borderColor: "var(--accent-gold)",
+          }}
+        >
+          Some items were auto-extracted from the official PDF — verify them
+          against the source document before relying on them.
+        </p>
+      )}
 
       {applicable.length === 0 ? (
         <EmptyCard message="No applicable LaDR items for this rating and target paygrade." />

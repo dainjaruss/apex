@@ -25,6 +25,7 @@ import {
   getActivePrecept,
   getMemberBoardRecord,
   getLatestLadr,
+  fetchLadr,
   listMyAnalyses,
   saveMemberBoardRecord,
 } from "@/lib/boardConfidenceService";
@@ -244,6 +245,32 @@ export default function BoardConfidencePage() {
     };
   }, [rating]);
 
+  // v1.4: on-demand LaDR ingestion from Navy COOL for ratings without a
+  // stored document (additive — curated seeds keep working unchanged).
+  const [ladrFetching, setLadrFetching] = useState(false);
+  const [ladrFetchMsg, setLadrFetchMsg] = useState<string | null>(null);
+  const fetchLadrForRating = useCallback(async () => {
+    if (!rating) return;
+    setLadrFetching(true);
+    setLadrFetchMsg(null);
+    try {
+      const res = await fetchLadr(rating);
+      setLadrFetchMsg(
+        res.status === "already_current"
+          ? `${res.rating} LaDR (${res.version}) is already stored.`
+          : `Stored ${res.rating} LaDR, ${res.version}, ${res.milestones} milestones.`,
+      );
+      setRatings((prev) =>
+        prev.includes(rating) ? prev : [...prev, rating].sort(),
+      );
+      setLadr(await getLatestLadr(rating));
+    } catch (err: any) {
+      setLadrFetchMsg(err?.message || "LaDR fetch failed.");
+    } finally {
+      setLadrFetching(false);
+    }
+  }, [rating]);
+
   const save = useCallback(async () => {
     if (!userId || !record) return;
     const badRows = dateErrors(record);
@@ -407,6 +434,37 @@ export default function BoardConfidencePage() {
               onSave={save}
               saving={saving}
             />
+          )}
+
+          {tab === "ladr" && record && rating && !ladr?.document && (
+            <div className="apex-card p-4 space-y-2">
+              <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                No LaDR is stored for <strong>{rating}</strong> yet. APEX can
+                fetch the official document from Navy COOL and extract its
+                milestones automatically.
+              </p>
+              <button
+                type="button"
+                className="apex-btn-primary text-sm disabled:opacity-50"
+                onClick={fetchLadrForRating}
+                disabled={ladrFetching}
+              >
+                {ladrFetching
+                  ? "Fetching from Navy COOL…"
+                  : "Fetch official LaDR from Navy COOL"}
+              </button>
+              {ladrFetchMsg && (
+                <p role="status" className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {ladrFetchMsg}
+                </p>
+              )}
+            </div>
+          )}
+
+          {tab === "ladr" && record && ladrFetchMsg && ladr?.document && (
+            <p role="status" className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {ladrFetchMsg}
+            </p>
           )}
 
           {tab === "ladr" && record && (

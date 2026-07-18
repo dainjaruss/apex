@@ -25,6 +25,7 @@ import {
   listBoardDocs,
   uploadBoardDoc,
 } from "@/lib/boardConfidenceService";
+import { NAVY_RATINGS } from "@/lib/boardConfidence/ratings";
 
 export interface FinalizedEvalRef {
   period_from: string;
@@ -276,9 +277,12 @@ export default function RecordEntryForm({
             onChange={(e) => onChange({ rating_abbrev: e.target.value || null })}
           >
             <option value="">Select rating…</option>
-            {ratings.map((r) => (
-              <option key={r} value={r}>
-                {r}
+            {/* v1.4: full static catalog — the dropdown works before any LaDR
+                is stored; DB-stored ratings are annotated. */}
+            {NAVY_RATINGS.map((r) => (
+              <option key={r.abbrev} value={r.abbrev}>
+                {r.abbrev} — {r.name}
+                {ratings.includes(r.abbrev) ? " · LaDR stored" : ""}
               </option>
             ))}
           </select>
