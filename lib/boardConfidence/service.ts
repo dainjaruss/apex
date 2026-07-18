@@ -339,7 +339,7 @@ export async function loadRubricConfig(
 ): Promise<RubricConfig> {
   const { data, error } = await admin
     .from("board_rubric_config")
-    .select("weights, continuity_hard_gate, continuity_gap_days, board_emphasis_multiplier")
+    .select("weights, continuity_gap_days, board_emphasis_multiplier")
     .eq("active", true)
     .maybeSingle();
   if (error || !data) return DEFAULT_RUBRIC_CONFIG;
@@ -355,10 +355,6 @@ export async function loadRubricConfig(
       completeness: num(w.completeness, DEFAULT_RUBRIC_CONFIG.weights.completeness),
       precept: num(w.precept, DEFAULT_RUBRIC_CONFIG.weights.precept),
     },
-    continuity_hard_gate:
-      typeof data.continuity_hard_gate === "boolean"
-        ? data.continuity_hard_gate
-        : DEFAULT_RUBRIC_CONFIG.continuity_hard_gate,
     continuity_gap_days: num(
       data.continuity_gap_days,
       DEFAULT_RUBRIC_CONFIG.continuity_gap_days,
@@ -400,11 +396,11 @@ export async function runBoardAnalysis(
           warnings: result.warnings.concat(assembled.warnings),
           meta: {
             ...assembled.meta,
-            // v1.5: snapshot the exact tuning + gate outcome used for this run.
+            // v1.5: snapshot the exact tuning used for this run (reproducibility)
+            // plus the continuity advisory outcome the results view surfaces.
             rubric_config: rubricConfig,
-            not_selection_ready: result.notSelectionReady,
-            gate_reason: result.gateReason,
-            underlying_final: result.underlyingFinal,
+            continuity_gap: result.continuityGap,
+            continuity_advisory: result.continuityAdvisory,
           },
         },
         factor_scores: result.factors,

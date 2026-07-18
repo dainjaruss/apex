@@ -20,14 +20,14 @@ export default function BoardConsentModal({
   saving: boolean;
 }) {
   return (
-    <div className="apex-modal-overlay" role="dialog" aria-modal="true" aria-label="Board Confidence Analyzer consent">
+    <div className="apex-modal-overlay" role="dialog" aria-modal="true" aria-label="Record Readiness Review consent">
       <div className="w-full max-w-2xl p-8 rounded-2xl apex-card space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div
           className="space-y-2 border-b pb-4"
           style={{ borderColor: "var(--border)" }}
         >
           <h2 className="text-xl font-bold apex-heading tracking-wide">
-            Board Confidence Analyzer — Consent
+            Record Readiness Review — Consent
           </h2>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
             Before your first analysis, please review what this tool is and how

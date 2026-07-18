@@ -48,9 +48,11 @@ describe("suggestRecordFromText", () => {
     });
   });
 
-  it("extracts PFA cycles with results, deduped by cycle, dates member-editable", () => {
+  it("extracts PFA cycles; a cycle listing BCA PASS before PRT FAIL scores FAIL (never inflate)", () => {
+    // "2023-1 BCA PASS PRT FAIL" is an official PFA FAILURE — the overall cycle
+    // result is the WORST token in the window, not the first (the old bug).
     expect(s.pfa.map((p) => `${p.cycle}:${p.result}`).sort()).toEqual([
-      "2023-1:pass",
+      "2023-1:fail",
       "2024-1:pass",
       "2024-2:pass",
     ]);
@@ -61,5 +63,50 @@ describe("suggestRecordFromText", () => {
   it("returns empty suggestions on unrelated text — never guesses", () => {
     const empty = suggestRecordFromText("lorem ipsum quarterly newsletter");
     expect(empty).toEqual({ awards: [], necs: [], education: [], pfa: [] });
+  });
+
+  // Regressions for the v1.5 adversarial-review parser findings (space-collapsed,
+  // often all-caps real OMPF/ESR text — no newlines survive extraction).
+  describe("real-extract robustness", () => {
+    it("keeps the last/only NEC when there is no newline terminator", () => {
+      const one = suggestRecordFromText(
+        "NEC UTILIZATION H04A - Information Systems Technician Journeyman advancement history follows",
+      );
+      expect(one.necs.map((n) => n.code)).toEqual(["H04A"]);
+    });
+
+    it("does not read 'Master Chief' as a degree, and finds the real degree instead", () => {
+      const e = suggestRecordFromText(
+        "Reporting Senior: Command Master Chief Petty Officer SMITH. Member earned Master of Science Information Technology.",
+      ).education;
+      expect(e).toHaveLength(1);
+      expect(e[0].title).toBe("Master of Science Information Technology");
+    });
+
+    it("extracts all-caps degrees (dominant style in these documents)", () => {
+      const e = suggestRecordFromText(
+        "EDUCATION: BACHELOR OF SCIENCE NURSING, EXCELSIOR COLLEGE",
+      ).education;
+      expect(e).toHaveLength(1);
+      expect(e[0].title).toBe("BACHELOR OF SCIENCE NURSING");
+    });
+
+    it("extracts the cycle-first PFA layout ('CYCLE 2 2023 FAIL')", () => {
+      const pfa = suggestRecordFromText(
+        "PFA HISTORY CYCLE 2 2023 FAIL CYCLE 1 2024 PASS",
+      ).pfa;
+      expect(pfa.map((p) => `${p.cycle}:${p.result}`).sort()).toEqual([
+        "2023-2:fail",
+        "2024-1:pass",
+      ]);
+    });
+
+    it("does not let one cycle's result bleed into the next", () => {
+      const pfa = suggestRecordFromText(
+        "2025-1 PRT PASS 2024-2 BCA PASS PRT FAIL",
+      ).pfa;
+      expect(pfa.find((p) => p.cycle === "2025-1")!.result).toBe("pass");
+      expect(pfa.find((p) => p.cycle === "2024-2")!.result).toBe("fail");
+    });
   });
 });

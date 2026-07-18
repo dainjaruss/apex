@@ -459,28 +459,24 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(f.completeness.score).toBeCloseTo(8, 1);
   });
 
-  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); underlying 10.2 → HARD-GATED to 0 (v1.5)", () => {
+  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); final pins the §7.2 value 10.2 (graded, NOT gated)", () => {
     expect(rawSum(r)).toBeCloseTo(20.23, 1);
     expect(r.adverseAdjustment).toBe(10);
-    // v1.5: 2 continuity gaps trip the hard gate — NOT SELECTION READY.
-    // The pre-gate arithmetic stays pinned via underlyingFinal.
-    expect(r.underlyingFinal).toBe(10.2);
-    expect(r.notSelectionReady).toBe(true);
-    expect(r.gateReason).toMatch(/[Cc]ontinuity gap/);
-    expect(r.final).toBe(0);
+    // v1.5 (corrected): continuity is graded, never a hard zero. The §7.2
+    // worked example stays pinned at 10.2 — the two graded gaps still cost
+    // −15 each in the continuity factor, but the score is no longer forced to 0.
+    expect(r.final).toBe(10.2);
     expect(r.band).toBe(0);
-    expect(r.bandLabel).toBe("Not selection ready — continuity gap");
+    expect(r.bandLabel).toBe("Drop-from-consideration risk");
   });
 
-  it("with the hard gate disabled, Ex3 reproduces the pre-v1.5 pinned final 10.2", () => {
-    const off = scoreBoardConfidence(ex3Inputs, {
-      ...DEFAULT_RUBRIC_CONFIG,
-      continuity_hard_gate: false,
-    });
-    expect(off.final).toBe(10.2);
-    expect(off.notSelectionReady).toBe(false);
-    expect(off.band).toBe(0);
-    expect(off.bandLabel).toBe("Drop-from-consideration risk");
+  it("raises the continuity advisory for the genuine trailing gap (leading span excluded)", () => {
+    // gapCount 2 (graded: leading + trailing) but only the trailing gap is a
+    // genuine reporting break, so recordGapCount 1 drives the advisory.
+    expect(num(f.continuity.detail.recordGapCount)).toBe(1);
+    expect(r.continuityGap).toBe(true);
+    expect(r.continuityAdvisory).toMatch(/reporting continuity/i);
+    expect(r.warnings.some((w) => /even a single day/i.test(w))).toBe(true);
   });
 });
 
@@ -540,13 +536,15 @@ describe("v1.5 RubricConfig tuning", () => {
     expect(dev(2)).toBeCloseTo(100 / 3, 1);
   });
 
-  it("continuity_gap_days is the gate threshold: raising it past Ex3's gaps un-gates", () => {
+  it("continuity_gap_days is the advisory threshold: raising it past Ex3's gaps clears the advisory and lifts the graded score", () => {
     const wide = scoreBoardConfidence(ex3Inputs, {
       ...DEFAULT_RUBRIC_CONFIG,
       continuity_gap_days: 1100, // both Ex3 gaps (~1002 and ~93 days) tolerated
     });
-    expect(wide.notSelectionReady).toBe(false);
-    expect(wide.final).toBeGreaterThan(0);
+    expect(wide.continuityGap).toBe(false);
+    expect(wide.continuityAdvisory).toBeNull();
+    // no gap penalty now → continuity factor rises → final above the gated case
+    expect(wide.final).toBeGreaterThan(10.2);
   });
 });
 

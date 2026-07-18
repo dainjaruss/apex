@@ -1,10 +1,14 @@
-# Board Confidence Analyzer
+# Record Readiness Review
+
+> Displayed in-app as **"Record Readiness Review"** (v1.5). Internal
+> identifiers — the `/board-confidence` route, `board_*` tables, and
+> `boardConfidence*` modules — keep the original name for stability.
 
 An **unofficial, educational** self-assessment tool that scores a Sailor's
-record the way a selection-board recorder reads one, for E-7+ (CPO and above)
-board preparation. Full implementation spec:
+record the way a selection-board recorder reads one, to help prepare for an
+advancement board at any paygrade. Full implementation spec:
 [`docs/specs/board-confidence-analyzer.md`](specs/board-confidence-analyzer.md)
-(v1.3 — the normative rubric, DDL, and API contracts live there).
+(the normative rubric, DDL, and API contracts live there).
 
 > **UNOFFICIAL TOOL — NOT A SELECTION BOARD.** Not affiliated with or endorsed
 > by the U.S. Navy, MyNavy HR, or any selection board. Scores are computed by a
@@ -45,10 +49,13 @@ board_precepts (active cycle flags)─────────────┘   
   E6 to E7 / E7 to E8 / E8 to E9" sections are ingested as
   `advancement_consideration` checklist items — the heaviest LaDR category —
   and every board-emphasis item counts double (tunable) inside its category.
-- **Continuity hard gate (v1.5):** any gap in evaluation continuity longer
-  than 90 days (tunable) inside the 60-month window makes the record **NOT
-  SELECTION READY** — the score is gated to 0 and the results view shows the
-  underlying pre-gate score so you can see what closing the gap restores.
+- **Continuity advisory (v1.5):** continuity is a *graded* factor, never a
+  hard zero — this tool does not decide selection. When a genuine reporting
+  break is found (a missing period inside your record; the time before your
+  first report is not counted, so a short but unbroken record is not flagged),
+  the results view shows a prominent advisory: a real selection board can treat
+  **any** gap in the record — even a single day — as disqualifying. Verify your
+  continuity on BOL and NSIPS.
 - **Upload-driven entry (v1.5):** on the Record Entry tab, "Extract to
   record" parses an uploaded ESR/PSR/OMPF document in memory and pre-fills
   awards, NECs, education, and PFA cycles as editable, unverified rows — in
@@ -151,8 +158,9 @@ into that run's `input.meta.rubric_config`, so past scores stay reproducible
 after retuning. Columns:
 
 - `weights` — per-factor weights (jsonb); normalized to sum 100 at run time.
-- `continuity_hard_gate` (default `true`) — gap ⇒ score 0, "Not selection ready".
-- `continuity_gap_days` (default `90`) — what counts as a gap.
+  A zero/blank sum falls back to the default weights with a warning.
+- `continuity_gap_days` (default `90`) — a missing reporting period longer than
+  this is graded as a gap and raises the continuity advisory.
 - `board_emphasis_multiplier` (default `2.0`) — how much extra weight
   board-emphasis LaDR items carry inside their category.
 

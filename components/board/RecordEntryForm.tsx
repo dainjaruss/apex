@@ -259,25 +259,33 @@ export default function RecordEntryForm({
   // into the editable form (dedup by title/code/cycle; nothing is saved or
   // scored until the member reviews the rows and clicks Save record).
   const [extractNote, setExtractNote] = useState<string | null>(null);
+  // Extraction is a slow await; the member may edit rows meanwhile. Merge into
+  // the LATEST record (via ref), not the click-time snapshot, so concurrent
+  // edits are not silently reverted.
+  const recordRef = useRef(record);
+  useEffect(() => {
+    recordRef.current = record;
+  }, [record]);
   const handleExtractDoc = async (name: string) => {
     setDocBusy(true);
     setDocError(null);
     setExtractNote(null);
     try {
       const s = await extractBoardDoc(userId, name);
+      const cur = recordRef.current; // latest, incl. edits made during the await
       const has = (list: { title?: string; code?: string; cycle?: string }[], v: string) =>
         list.some(
           (e) => (e.title ?? e.code ?? e.cycle ?? "").toLowerCase() === v.toLowerCase(),
         );
-      const awards = s.awards.filter((a) => !has(record.awards, a.title));
-      const necs = s.necs.filter((n) => !record.necs.some((e) => e.code === n.code));
-      const education = s.education.filter((e) => !has(record.education, e.title));
-      const pfa = s.pfa.filter((p) => !record.pfa_history.some((e) => e.cycle === p.cycle));
+      const awards = s.awards.filter((a) => !has(cur.awards, a.title));
+      const necs = s.necs.filter((n) => !cur.necs.some((e) => e.code === n.code));
+      const education = s.education.filter((e) => !has(cur.education, e.title));
+      const pfa = s.pfa.filter((p) => !cur.pfa_history.some((e) => e.cycle === p.cycle));
       onChange({
-        awards: [...record.awards, ...awards],
-        necs: [...record.necs, ...necs],
-        education: [...record.education, ...education],
-        pfa_history: [...record.pfa_history, ...pfa],
+        awards: [...cur.awards, ...awards],
+        necs: [...cur.necs, ...necs],
+        education: [...cur.education, ...education],
+        pfa_history: [...cur.pfa_history, ...pfa],
       });
       const total = awards.length + necs.length + education.length + pfa.length;
       setExtractNote(
@@ -957,7 +965,7 @@ export default function RecordEntryForm({
       {/* Record documents (v1.3): ESR / PSR / OMPF FC 30-38 uploads */}
       <Section
         title="Record documents (optional)"
-        hint="Upload your ESR export, PSR, or OMPF documents (field codes 30–38). Use 'Extract to record' to pull awards, NECs, education, and PFA cycles from a document into the form above — in lieu of manual entry — for the board confidence determination. Documents are stored under your account only and destroyed at logout."
+        hint="Upload your ESR export, PSR, or OMPF documents (field codes 30–38). Use 'Extract to record' to pull awards, NECs, education, and PFA cycles from a document into the form above — in lieu of manual entry — for the record readiness review. Documents are stored under your account only and destroyed at logout."
       >
         <div className="space-y-3">
           <div
@@ -1088,12 +1096,19 @@ export default function RecordEntryForm({
         </div>
       </Section>
 
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-1">
         <button
           type="button"
           className="apex-btn-primary disabled:opacity-50"
           onClick={onSave}
-          disabled={saving}
+          // Also blocked during docBusy: a save that lands mid-extraction would
+          // upsert the pre-merge record and wipe the just-added suggestions.
+          disabled={saving || docBusy}
+          title={
+            docBusy && !saving
+              ? "Finish the document action before saving."
+              : undefined
+          }
         >
           {saving ? "Saving…" : "Save record"}
         </button>

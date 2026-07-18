@@ -222,21 +222,27 @@ export function parseLadr(text: string, rating: string): ParsedLadr | null {
   //    advancement_consideration milestone flagged detail.board_emphasis, which
   //    the rubric counts ×board_emphasis_multiplier.
   const secRe = /Considerations for advancement from E([678]) to E([789])/g;
+  // Region ends at the next section boundary — the next considerations header,
+  // the COOL credential table, or the career-path block — capped conservatively.
+  const stopRe =
+    /Considerations for advancement from E[678]|Target Paygrade\s+Certifying Agency|The following certifications|CAREER MILESTONES/i;
   let sec: RegExpExecArray | null;
   while ((sec = secRe.exec(text))) {
     const target = Number(sec[2]);
     const start = sec.index + sec[0].length;
-    // Region ends at the next considerations header (or a conservative cap).
-    const nextIdx = text
-      .slice(start)
-      .search(/Considerations for advancement from E[678]/);
-    const region = text.slice(
-      start,
-      nextIdx >= 0 ? start + Math.min(nextIdx, 6000) : start + 6000,
-    );
-    // Numbered narrative items: "1. Candidates eligible…", "2. Duty Assignments…"
+    // A real section header is immediately followed by its first numbered item
+    // ("… E7 1. Candidates…"). A table-of-contents entry is followed by dot
+    // leaders + a page number ("… E8 to E9 ..... 14"). Require the "1." so TOC
+    // matches and bare mentions never harvest front-matter as milestones.
+    if (!/^[\s.]{0,10}1\.\s/.test(text.slice(start, start + 30))) continue;
+    const rest = text.slice(start);
+    const stopAt = rest.search(stopRe);
+    const region = rest.slice(0, stopAt >= 0 ? Math.min(stopAt, 2500) : 2500);
+    // Numbered narrative items: "1. Candidates eligible…", "2. Duty Assignments…".
+    // Split only at a number that follows a sentence boundary (. : •) — never a
+    // back-reference inside prose ("…per reference 1. Documented…").
     const items = region
-      .split(/(?=\b[1-9]\.\s+[A-Z])/)
+      .split(/(?<=[.:•])\s+(?=[1-9]\.\s+[A-Z])/)
       .map((s) =>
         s
           .replace(/^\s*[1-9]\.\s+/, "")

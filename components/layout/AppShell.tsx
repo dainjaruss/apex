@@ -108,7 +108,7 @@ export default function AppShell({
     },
     {
       href: "/board-confidence",
-      label: "Board Confidence",
+      label: "Record Readiness",
       icon: IconGauge,
       match: (p) => p.startsWith("/board-confidence"),
       group: "ops",

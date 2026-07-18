@@ -94,6 +94,30 @@ describe("parseLadr — conservative extraction from real LaDR structure", () =>
     expect(e8[0].item).toContain("YNCS");
   });
 
+  it("v1.5: a table-of-contents 'Considerations…' entry harvests no milestones", () => {
+    // TOC line (dot leaders + page number) followed by unrelated front-matter.
+    const toc =
+      "Yeoman (YN) July 2026 Table of Contents Considerations for advancement " +
+      "from E8 to E9 ..... 14 1. Purpose of this instruction is broad and applies " +
+      "to all hands. 2. Scope covers every Sailor in the community worldwide.";
+    const p = parseLadr(toc, "YN")!;
+    expect(
+      p.milestones.filter((m) => m.category === "advancement_consideration"),
+    ).toHaveLength(0);
+  });
+
+  it("v1.5: does not split a numbered item on a back-reference inside its prose", () => {
+    const prose =
+      "Yeoman (YN) July 2026 header. Considerations for advancement from E6 to E7 " +
+      "1. Sustained superior performance documented per reference 1. Documented " +
+      "leadership of junior Sailors is essential for every advancement candidate.";
+    const ac = parseLadr(prose, "YN")!.milestones.filter(
+      (m) => m.category === "advancement_consideration",
+    );
+    expect(ac).toHaveLength(1); // one item, not split at "reference 1."
+    expect(ac[0].item).toContain("Sustained superior performance");
+  });
+
   it("returns null on text with no LaDR head (never guesses)", () => {
     expect(parseLadr("random unrelated document text", "YN")).toBeNull();
     expect(parseLadr(YN_FIXTURE, "IT")).toBeNull(); // wrong-rating head

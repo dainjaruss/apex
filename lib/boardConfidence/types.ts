@@ -9,7 +9,7 @@
 import type { Narrative } from "@/lib/boardConfidence/narrative";
 
 export const BOARD_DISCLAIMER =
-  "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Board Confidence Analyzer is " +
+  "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Record Readiness Review is " +
   "a self-assessment aid. It is not affiliated with, endorsed by, or predictive of any " +
   "U.S. Navy selection board, Navy Personnel Command, or BUPERS process. Scores are " +
   "computed by a fixed, published rubric modeled on the officer-brief confidence vote " +
@@ -122,12 +122,12 @@ export interface RubricResult {
                                         // detail.excluded = true
   adverseAdjustment: number;            // A
   warnings: string[];                   // e.g. dod_id-mismatch exclusions (§2)
-  // v1.5 continuity hard gate: any gap in the 60-month window makes the record
-  // NOT SELECTION READY — final/band are forced to 0 and the pre-gate score is
-  // preserved in underlyingFinal so the user can see what closing the gap recovers.
-  notSelectionReady: boolean;
-  gateReason: string | null;
-  underlyingFinal: number;              // pre-gate rounded final (== final when not gated)
+  // v1.5: continuity is graded, not gated. A detected reporting gap (a missing
+  // period > continuity_gap_days, excluding the pre-first-report span) sets
+  // continuityGap and a paygrade-agnostic advisory — a real board can treat any
+  // break as disqualifying. Advisory only; the score is NOT forced to 0.
+  continuityGap: boolean;
+  continuityAdvisory: string | null;
 }
 
 // v1.5: operator-tunable rubric parameters (board_rubric_config table; the
@@ -135,8 +135,7 @@ export interface RubricResult {
 // reproduce the spec §7 rubric with the continuity hard gate ON.
 export interface RubricConfig {
   weights: Record<FactorKey, number>;   // normalized to sum 100 at run time
-  continuity_hard_gate: boolean;        // any gap > gap_days ⇒ confidence 0
-  continuity_gap_days: number;
+  continuity_gap_days: number;          // a missing period longer than this ⇒ advisory
   board_emphasis_multiplier: number;    // ×weight for board-emphasis LaDR items
 }
 
