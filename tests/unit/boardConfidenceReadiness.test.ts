@@ -240,9 +240,88 @@ describe("the two gates on emitting a number", () => {
       psr: { ...sailorB.psr, awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2025-01-01", verified_in_ompf: true }], tours: null },
     };
     const rep = report(thin);
-    expect(rep.areas.every((a) => a.detail.weight === 0 || a.detail.confidence > 0)).toBe(true);
+    // Every weighted factor clears the blind-spot gate, so it is the FLOOR doing
+    // the work here — not the gate.
+    expect(
+      rep.areas.every((a) => a.detail.weight === 0 || a.detail.confidence >= AREA_EVIDENCE_FLOOR),
+    ).toBe(true);
     expect(rep.coverage.measured).toBeLessThan(COVERAGE_FLOOR);
     expect(rep.score).toBeNull();
+  });
+
+  it("gates on conf < AREA_EVIDENCE_FLOOR, not conf === 0 — the PR #22 interaction", () => {
+    // A returning user who changes NOTHING while their rating's roadmap grows
+    // from 6 to 86 milestones (80 transcribed advancement_consideration rows).
+    // Their development S stays 100. Measured with a `=== 0` gate:
+    //   BEFORE  dev conf 1.000, contrib 15.00 -> 72.2 "Competitive"  (scored)
+    //   AFTER   dev conf 0.070, contrib  1.05 -> 57.2 "Crunch"       (scored!)
+    // -15 points and a full band drop because APEX learned more about their
+    // rating. conf 0.070 slips a zero test, and coverage lands at 0.80 — above
+    // COVERAGE_FLOOR — so the floor does not catch it either.
+    const answered6: LadrItemInput[] = [
+      { milestone_id: "a1", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "EIWS" },
+      { milestone_id: "a2", category: "pme_required", status: "met", verified_in_ompf: true, item: "PME" },
+      { milestone_id: "a3", category: "credential", status: "met", verified_in_ompf: true, item: "Security+" },
+      { milestone_id: "a4", category: "qual_watchstanding", status: "met", verified_in_ompf: true, item: "Watch" },
+      { milestone_id: "a5", category: "nec_opportunity", status: "met", verified_in_ompf: true, item: "NEC 742A" },
+      { milestone_id: "a6", category: "education_degree", status: "met", verified_in_ompf: true, item: "Associate degree" },
+    ];
+    const grown: LadrItemInput[] = [
+      ...answered6,
+      ...Array.from({ length: 80 }, (_, i) => ({
+        milestone_id: `ac-${i}`,
+        category: "advancement_consideration" as const,
+        status: "unanswered" as const,
+        verified_in_ompf: false,
+        item: `Consideration ${i}`,
+        board_emphasis: true,
+      })),
+    ];
+    const base: RubricInputs = {
+      boardDate: T,
+      evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.2)),
+      psr: {
+        entered: true,
+        awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: true }],
+        necs: [{ code: "742A", verified_in_ompf: true }],
+        education: [{ kind: "degree", title: "Associate of Science", verified_in_ompf: true }],
+        tours: [{ title: "Sea Tour", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+        pfa: [
+          { cycle: "a", date: "2024-04-01", result: "pass" },
+          { cycle: "b", date: "2024-10-01", result: "pass" },
+          { cycle: "c", date: "2025-04-01", result: "pass" },
+        ],
+        adverse: [],
+      },
+      ladr: answered6,
+      preceptFlags: ALL_FLAGS,
+    };
+    const after: RubricInputs = { ...base, ladr: grown };
+
+    const devOf = (i: RubricInputs) =>
+      scoreBoardConfidence(i, CFG).factors.find((f) => f.key === "development")!;
+    expect(devOf(base).confidence).toBe(1);
+    expect(devOf(after).score).toBe(100); // unchanged: the RECORD did not change
+    expect(devOf(after).confidence).toBeCloseTo(6 / 86, 6);
+    expect(devOf(after).confidence).toBeGreaterThan(0); // a `=== 0` gate would miss it
+    expect(devOf(after).confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
+
+    const before = report(base);
+    const grownRep = report(after);
+    expect(before.score).not.toBeNull();
+    expect(scoreBoardConfidence(after, CFG).final).toBeLessThan(before.score!.value - 10);
+
+    // The floor alone would NOT have caught it...
+    expect(grownRep.coverage.measured).toBeGreaterThan(COVERAGE_FLOOR);
+    // ...so the gate must, and the band never regresses in front of the Sailor.
+    expect(grownRep.score).toBeNull();
+
+    // And the sentence does not blame them for rows that did not exist before.
+    expect(grownRep.scoreNote).toMatch(/grows when APEX loads newer roadmap data/);
+    const dev = grownRep.areas.find((a) => a.key === "development")!;
+    expect(dev.summary).toContain("6 of 86 milestones");
+    expect(dev.summary).toMatch(/were not here before/);
+    expect(dev.summary).not.toMatch(/checklist is unanswered/);
   });
 
   it("the floor comparison is >= — a record exactly at the floor is scored", () => {
@@ -315,8 +394,18 @@ describe("BLOCKER B2 — a three-year Sailor must not be told their record has g
 
   it("continuity status keys on the gap count, never on the factor score", () => {
     const area = report(threeYear).areas.find((a) => a.key === "continuity")!;
+    // No break — but not "strong" either: `strong` is the token a UI paints
+    // green, and APEX holds 3 of the 5 window years.
+    expect(area.status).toBe("on_track");
+    expect(area.summary).toBe(
+      "APEX found no break between the reports you have entered, and does not yet hold a full five years of them.",
+    );
+  });
+
+  it("a record covering the full window with no break IS strong", () => {
+    const area = report(sailorB).areas.find((a) => a.key === "continuity")!;
+    expect(Number(area.detail.detail.coverage)).toBeGreaterThanOrEqual(0.95);
     expect(area.status).toBe("strong");
-    expect(area.summary).toBe("APEX found no break between the reports you have entered.");
   });
 
   it("a genuine break between two reports still reports needs_attention", () => {
@@ -681,6 +770,75 @@ describe("bandDeltas — true marginal points, hand-checked against a full re-sc
     expect(deltas.length).toBe(BAND_DELTA_CANDIDATE_CAP);
     expect(deltas[0].milestoneId).toBe("STAR");
     expect(deltas[0].delta).toBeGreaterThan(0);
+  });
+
+  it("the stake proxy accounts for DILUTION — a lone row in a light category outranks a crowded heavy one", () => {
+    // Ranking on the raw category weight reproduced the cap defect in another
+    // shape: a category's ratio is shared by every row in it, so one of 60
+    // `credential` rows (weight 10) barely moves it, while a LONE
+    // `skill_training_recommended` row (weight 2) moves its ratio 0 → 0.5
+    // outright. Measured: LONE is +1.05 and the ONLY positive candidate; the 60
+    // credential rows are −0.096 each. Weight-blind ranking shipped 0 actions.
+    const crowded: LadrItemInput[] = Array.from({ length: BAND_DELTA_CANDIDATE_CAP }, (_, i) => ({
+      milestone_id: `d-${i}`,
+      category: "credential" as const,
+      status: "not_met" as const,
+      verified_in_ompf: false,
+      item: `Credential ${i}`,
+    }));
+    const lone: LadrItemInput = {
+      milestone_id: "LONE",
+      category: "skill_training_recommended",
+      status: "not_met",
+      verified_in_ompf: false,
+      item: "Lone light-category row",
+    };
+    const inputs: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2026, "Promotable", 3.8)],
+      psr: {
+        ...emptyPsr,
+        entered: true,
+        awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: true }],
+        tours: [{ title: "Sea Tour", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+      },
+      ladr: [...crowded, lone], // LONE is LAST, and its category weight is the LOWEST
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(inputs, CFG);
+    const deltas = bandDeltas(r, inputs, CFG);
+
+    expect(deltas.length).toBe(BAND_DELTA_CANDIDATE_CAP);
+    expect(deltas[0].milestoneId).toBe("LONE");
+    expect(deltas[0].delta).toBeCloseTo(1.05, 6);
+    // It is the only improvement that exists, so the plan must contain exactly it.
+    expect(buildReadinessReport(r, inputs, CFG).actions.map((a) => a.source.id)).toEqual(["LONE"]);
+  });
+
+  it("pre-ranking is deterministic, and stable when every stake ties", () => {
+    const tied: LadrItemInput[] = Array.from({ length: BAND_DELTA_CANDIDATE_CAP + 1 }, (_, i) => ({
+      milestone_id: `t-${i}`,
+      category: "credential" as const,
+      status: "not_met" as const,
+      verified_in_ompf: false,
+      item: `Tied ${i}`,
+    }));
+    const inputs: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2026, "Promotable", 3.8)],
+      psr: { ...emptyPsr, entered: true },
+      ladr: tied,
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(inputs, CFG);
+    const orderings = new Set(
+      Array.from({ length: 20 }, () =>
+        bandDeltas(r, inputs, CFG)
+          .map((d) => d.milestoneId)
+          .join(","),
+      ),
+    );
+    expect(orderings.size).toBe(1);
   });
 
   it("respects an operator-tuned config — which is why config is required", () => {

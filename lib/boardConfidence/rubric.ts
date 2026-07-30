@@ -694,9 +694,13 @@ export type BandDeltaKind =
 export interface BandDelta {
   id: string;                  // stable within a run: "ladr:<uuid>:meet"
   kind: BandDeltaKind;
-  area: FactorKey;             // the factor the flip primarily lands in
+  // Both narrowed from the wider forward-looking contract: with the verification
+  // flips gone every candidate is a LaDR row, so `FactorKey` and `string | null`
+  // described ranges that cannot occur. Widen again when non-LaDR candidates
+  // return (P1b: record-field improvements).
+  area: "development";
   label: string;               // LaDR milestone text
-  milestoneId: string | null;
+  milestoneId: string;
   /**
    * TRUE marginal composite points: compositeRaw(re-scored with this ONE input
    * flipped) − compositeRaw(base). Recomputed, never estimated — answering an
@@ -729,9 +733,29 @@ export const BAND_DELTA_CANDIDATE_CAP = 60;
 /**
  * Cheap upper bound on what a row is worth, used ONLY to order candidates before
  * the cap. Never reported — `delta` is always the true re-score.
+ *
+ * The category weight alone is DILUTION-BLIND: a category's ratio is shared by
+ * every row in it, so one row among 60 barely moves it while a lone row in a
+ * light category moves its ratio 0 → 0.5 outright. Ranking on the raw weight
+ * reproduced the original defect in a different shape — 60 `credential` rows
+ * (weight 10) buried a lone `skill_training_recommended` row (weight 2) that was
+ * the ONLY positive candidate at +1.05, and the plan shipped empty. Dividing by
+ * the rows sharing the category tracks the real marginal closely enough to rank.
+ *
+ * ponytail: the ceiling is that this models dilution but not the numerator —
+ * verified/unverified mix, board_emphasis weighting inside c.answered, and the
+ * cross-factor completeness/precept terms are all ignored. It only has to order
+ * candidates well enough that the cap does not drop a winner; `delta` is exact
+ * for everything that survives. If a future shape defeats it, rank on
+ * scoreLadr's factor-local marginal_points instead — exact, but O(n²) up front.
  */
-const stakeOf = (it: LadrItemInput, emphasisMult: number): number =>
-  LADR_CATEGORY_WEIGHTS[it.category] * (it.board_emphasis ? emphasisMult : 1);
+const stakeOf = (
+  it: LadrItemInput,
+  emphasisMult: number,
+  rowsInCategory: number,
+): number =>
+  (LADR_CATEGORY_WEIGHTS[it.category] * (it.board_emphasis ? emphasisMult : 1)) /
+  Math.max(1, rowsInCategory);
 
 /**
  * Pure: the marginal composite value of each single-input improvement, ranked.
@@ -750,6 +774,13 @@ export function bandDeltas(
   type Candidate = Omit<BandDelta, "delta"> & { flipped: RubricInputs; stake: number };
   const candidates: Candidate[] = [];
 
+  // Rows sharing each category's ratio — the dilution denominator for stakeOf.
+  // 'na' rows are excluded exactly as the aggregation excludes them.
+  const rowsInCategory = new Map<string, number>();
+  for (const it of inputs.ladr)
+    if (it.status !== "na")
+      rowsInCategory.set(it.category, (rowsInCategory.get(it.category) ?? 0) + 1);
+
   inputs.ladr.forEach((it, i) => {
     if (it.status !== "unanswered" && it.status !== "not_met") return;
     candidates.push({
@@ -760,7 +791,11 @@ export function bandDeltas(
       area: "development",
       label: it.item || it.milestone_id,
       milestoneId: it.milestone_id,
-      stake: stakeOf(it, config.board_emphasis_multiplier),
+      stake: stakeOf(
+        it,
+        config.board_emphasis_multiplier,
+        rowsInCategory.get(it.category) ?? 1,
+      ),
       flipped: {
         ...inputs,
         ladr: inputs.ladr.map((x, j) => (j === i ? { ...x, status: "met" as const } : x)),

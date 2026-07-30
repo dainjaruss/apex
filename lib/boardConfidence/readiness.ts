@@ -66,17 +66,33 @@ import {
 export const COVERAGE_FLOOR = 0.75;
 
 /**
- * No score at all while any factor carrying weight has zero confidence. Zero
- * confidence is a blind spot, not low coverage: nothing about that factor was
- * measured, so its full weight enters the composite as points the Sailor is
- * charged for and cannot earn.
+ * No score at all while any factor carrying weight sits below
+ * AREA_EVIDENCE_FLOOR. A near-blind factor is a blind spot, not low coverage:
+ * almost its entire weight enters the composite as points the Sailor is charged
+ * for and cannot earn.
+ *
+ * The threshold is AREA_EVIDENCE_FLOOR rather than zero, and that is the point —
+ * the same constant that already decides an AREA is unassessable now also
+ * decides the COMPOSITE is. A `=== 0` test let this through, measured on a
+ * returning user who changed nothing while their rating's roadmap grew from 6 to
+ * 86 milestones (80 transcribed advancement_consideration rows):
+ *
+ *   BEFORE  dev S=100.00 conf=1.000 contrib=15.00 -> FINAL 74.9 "Competitive"
+ *   AFTER   dev S=100.00 conf=0.070 contrib= 1.05 -> FINAL 59.9 "Crunch"
+ *
+ * Their S is still 100 and their record did not change: −15 points and a full
+ * band drop because APEX learned more about their rating. conf 0.070 slipped the
+ * zero test, and coverage landed at 0.80 — above COVERAGE_FLOOR — so the band
+ * silently regressed. Missing data rendered as a deficiency is the exact class
+ * this layer exists to eliminate.
  */
 export const BLIND_SPOT_GATE = true;
 
 /**
  * A factor whose own confidence is below this is reported as `not_enough_entered`
- * rather than graded. Performance with a single report has conf ≈ 0.12–0.23;
- * calling that "needs attention" is noise, not a finding.
+ * rather than graded, and (per BLIND_SPOT_GATE) also suppresses the composite.
+ * Performance with a single report has conf ≈ 0.12–0.23; calling that "needs
+ * attention" is noise, not a finding.
  */
 export const AREA_EVIDENCE_FLOOR = 0.25;
 
@@ -128,11 +144,15 @@ export type HorizonBasis =
 export interface ReadinessAction {
   id: string;
   action: string;
-  area: FactorKey;
+  // Narrowed from the wider forward-looking contract (`FactorKey`, and a
+  // three-way source kind): with the verification flips removed every action is
+  // a LaDR row, so `record_field` and `eval` were unreachable. Widen both again
+  // when non-LaDR candidates return in P1b.
+  area: "development";
   worth: number;                 // marginal composite points, from bandDeltas()
   horizon: ActionHorizon;
   blockedBy: string | null;
-  source: { kind: "ladr_milestone" | "record_field" | "eval"; id: string };
+  source: { kind: "ladr_milestone"; id: string };
   horizonBasis: HorizonBasis;    // v2+
 }
 
@@ -251,8 +271,9 @@ const AREA_COPY: Record<FactorKey, AreaCopy> = {
       strong: "You have closed most of the milestones your rating's roadmap lists.",
       on_track: "You have closed some of your rating's milestones and several are still open.",
       needs_attention: "Most of the milestones your rating's roadmap lists are still open.",
-      not_enough_entered:
-        "Your rating's development checklist is unanswered, so APEX cannot assess it.",
+      // not_enough_entered is supplied by developmentNotEnough(): the honest
+      // sentence depends on whether APEX holds a roadmap at all, and a fixed
+      // string blamed returning users for rows that did not exist last time.
     },
   },
   continuity: {
@@ -267,6 +288,8 @@ const AREA_COPY: Record<FactorKey, AreaCopy> = {
       "Under Evaluations, finalize any report you have not entered yet. If a period is genuinely missing from your official record, your command's admin office files the correction — APEX cannot.",
     statuses: {
       strong: "APEX found no break between the reports you have entered.",
+      on_track:
+        "APEX found no break between the reports you have entered, and does not yet hold a full five years of them.",
       needs_attention:
         "There is a break between the reports you have entered. Check BOL and NSIPS, and be ready to explain it.",
       not_enough_entered: "APEX holds no reporting periods, so continuity cannot be checked.",
@@ -397,10 +420,15 @@ function statusOf(key: FactorKey, result: RubricResult, inputs: RubricInputs): A
   // three consecutive Must Promotes and nothing missing that their "reporting
   // periods leave gaps a board would ask about" — measured recordGapCount 0,
   // continuityGap false, advisory null, score 45.02.
-  if (key === "continuity")
-    return Number(f.detail.recordGapCount ?? 0) > 0 || result.continuityGap
-      ? "needs_attention"
-      : "strong";
+  if (key === "continuity") {
+    if (Number(f.detail.recordGapCount ?? 0) > 0 || result.continuityGap)
+      return "needs_attention";
+    // No break — but "strong" is the token a UI paints green, and APEX holding
+    // 3 of the 5 window years is not the same claim as holding all of them.
+    // 0.95 is the engine's own "continuity is complete" threshold
+    // (COMPLETENESS_POINTS.continuity95), reused rather than invented.
+    return Number(f.detail.coverage ?? 0) >= 0.95 ? "strong" : "on_track";
+  }
 
   if (f.confidence < AREA_EVIDENCE_FLOOR) return "not_enough_entered";
   if (f.score >= AREA_STATUS_THRESHOLDS.strong) return "strong";
@@ -464,6 +492,21 @@ function horizonFor(
   };
 }
 
+/**
+ * The development area's `not_enough_entered` sentence. A fixed string cannot be
+ * honest here: "your rating's development checklist is unanswered" blames the
+ * Sailor for rows that did not exist the last time they looked. APEX holds no
+ * history and cannot tell "the roadmap grew" from "you never answered it", so it
+ * states the counts and names both possibilities instead of picking one.
+ */
+function developmentNotEnough(f: FactorResult, inputs: RubricInputs): string {
+  if (inputs.ladr.length === 0)
+    return "APEX does not have your rating's development roadmap yet, so there is nothing to assess.";
+  const answered = Number(f.detail.answered ?? 0);
+  const applicable = Number(f.detail.applicable ?? 0);
+  return `${answered} of ${applicable} milestones on your rating's roadmap are answered — too few for APEX to assess this area. Answer the rest either way. This list grows when APEX loads newer roadmap data for your rating, so items can appear that were not here before.`;
+}
+
 /** Unscored: entries ticked met/earned but not yet confirmed in the OMPF. */
 function confirmList(inputs: RubricInputs): ReadinessReport["confirmInOmpf"] {
   const items = [
@@ -506,8 +549,12 @@ export function buildReadinessReport(
     const evidence = evidenceOf(f.key, status, inputs);
     const copy = AREA_COPY[f.key];
     // Non-null: every area supplies copy for every status it can actually reach
-    // (completeness omits not_enough_entered, which hasEvidence makes impossible).
-    const base = copy.statuses[status]!;
+    // (completeness omits not_enough_entered, which hasEvidence makes impossible;
+    // development's is computed because a fixed string cannot be honest there).
+    const base =
+      f.key === "development" && status === "not_enough_entered"
+        ? developmentNotEnough(f, inputs)
+        : copy.statuses[status]!;
     return {
       key: f.key,
       label: copy.label,
@@ -546,34 +593,39 @@ export function buildReadinessReport(
     // is entirely the warfighting precept indicator diluting as an unverified row
     // joins its category — and "do this, lose 0.24 points" is not advice.
     .filter((d) => d.delta > 0)
-    .map((d) => {
-      const item = d.milestoneId ? byMilestone.get(d.milestoneId) : undefined;
-      return {
-        id: d.id,
-        action: actionTextFor(d),
-        area: d.area,
-        worth: d.delta,
-        source: {
-          kind: d.milestoneId ? ("ladr_milestone" as const) : ("record_field" as const),
-          id: d.milestoneId ?? d.id,
-        },
-        ...horizonFor(d, item, monthsToBoard),
-      };
-    })
+    .map((d) => ({
+      id: d.id,
+      action: actionTextFor(d),
+      area: d.area,
+      worth: d.delta,
+      source: { kind: "ladr_milestone" as const, id: d.milestoneId },
+      ...horizonFor(d, byMilestone.get(d.milestoneId), monthsToBoard),
+    }))
     .sort((a, b) => b.worth - a.worth);
 
-  // The two gates on emitting a number at all.
-  const blind = counted.filter((a) => a.detail.confidence === 0);
+  // The two gates on emitting a number at all. The blind-spot test is
+  // `< AREA_EVIDENCE_FLOOR`, NOT `=== 0`: a factor at conf 0.07 carries almost
+  // its whole weight into the composite as unearned zeros, and `=== 0` let a
+  // returning user's band silently drop when their rating's roadmap grew.
+  const blind = counted.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
   let scoreNote: string | null = null;
   if (BLIND_SPOT_GATE && blind.length > 0) {
+    // The development-specific wording only applies when development is the ONLY
+    // thing missing; otherwise name every blind area rather than one of them.
+    const dev = blind.length === 1 && blind[0].key === "development";
     scoreNote =
-      blind.some((a) => a.key === "development") && inputs.ladr.length === 0
+      dev && inputs.ladr.length === 0
         ? // A first-run condition the Sailor fixes in one click — not a permanent
           // honesty-vs-coverage tradeoff. Tell them to pull their roadmap.
           "APEX does not have the development roadmap for your rating yet, so it cannot score your record. Fetch it from Navy COOL on the LaDR Checklist tab — it takes one click. Here is what APEX can see in the meantime:"
-        : `APEX cannot score your record yet: nothing has been entered for ${blind
-            .map((a) => a.label.toLowerCase())
-            .join(", ")}. Here is what APEX can see in the meantime:`;
+        : dev
+          ? // Rows exist but too few are answered. Never phrased as the Sailor
+            // falling behind: the list grows when APEX loads newer roadmap data,
+            // so items appear that were not there last time they looked.
+            "APEX cannot score your record until more of your rating's development roadmap is answered. Answer each row either way — the list grows when APEX loads newer roadmap data for your rating. Here is what APEX can see in the meantime:"
+          : `APEX cannot score your record yet: too little is entered for ${blind
+              .map((a) => a.label.toLowerCase())
+              .join(", ")}. Here is what APEX can see in the meantime:`;
   } else if (measured < floor) {
     scoreNote =
       "Not enough of your record is entered to assess. Here is what APEX can see in the meantime:";

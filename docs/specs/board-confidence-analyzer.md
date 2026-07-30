@@ -1476,10 +1476,33 @@ support, and ships a ranked plan in its place.
 `null` and `scoreNote` carries the plain-language reason.
 
 1. **Blind-spot gate (primary).** No score while any factor with `weight > 0` has
-   `confidence === 0`. Zero confidence is a blind spot, not low coverage: the
-   factor's full weight enters the composite as points the Sailor is charged for
-   and cannot earn. A weighted average cannot express this — the flawless record
-   above cleared the coverage floor at 0.79.
+   `confidence < AREA_EVIDENCE_FLOOR` (0.25). A near-blind factor is a blind
+   spot, not low coverage: nearly its whole weight enters the composite as points
+   the Sailor is charged for and cannot earn. A weighted average cannot express
+   this — the flawless record above cleared the coverage floor at 0.79.
+
+   **The threshold is `AREA_EVIDENCE_FLOOR`, not zero**, and the reuse is the
+   point: the same constant that decides an *area* is unassessable decides the
+   *composite* is. A `=== 0` test missed the roadmap-growth interaction — a
+   returning user who changes **nothing** while their rating's LaDR grows from 6
+   to 86 milestones (transcribed `advancement_consideration` rows):
+
+   | | dev S | dev conf | dev contrib | final | scored? |
+   |---|---|---|---|---|---|
+   | before | 100.00 | 1.000 | 15.00 | 74.9 *Competitive* | yes |
+   | after | 100.00 | **0.070** | 1.05 | 59.9 *Crunch* | **yes** ← the defect |
+
+   −15 points and a full band drop because APEX learned more about their rating.
+   `conf = 0.070` slips a zero test, and coverage lands at 0.80 — above
+   `COVERAGE_FLOOR` — so the floor does not catch it either. **Any change that
+   adds milestone rows to a seeded rating must land after this gate**, or every
+   returning user in a re-seeded rating sees an unexplained band drop.
+
+   The development area's `not_enough_entered` sentence is **computed, not
+   fixed**: APEX holds no history and cannot tell "the roadmap grew" from "you
+   never answered it", so it states the counts and names both possibilities. A
+   fixed string ("your rating's development checklist is unanswered") blames the
+   Sailor for rows that did not exist the last time they looked.
 2. **Coverage floor (backstop).** `coverage.measured = Σ(weight·conf)/100`, and
    `score` is null below `COVERAGE_FLOOR` (default **0.75**, exported and
    overridable per run). Coverage is **not 0** for an empty record: continuity,
@@ -1568,6 +1591,16 @@ precept indicators simultaneously.
   (`BAND_DELTA_CANDIDATE_CAP`, default 60 re-scores). Slicing in raw input order
   silently dropped a board-emphasis `advancement_consideration` row ranking #1 at
   +5.43 behind 60 filler rows worth −0.17 each.
+- **The stake proxy must account for DILUTION**, not just category weight. A
+  category's ratio is shared by every row in it, so `stake` is
+  `LADR_CATEGORY_WEIGHTS[category] × emphasisMult ÷ rows sharing the category`.
+  Weight alone reproduced the cap defect in another shape: 60 `credential` rows
+  (weight 10) buried a lone `skill_training_recommended` row (weight 2) that was
+  the **only** positive candidate at +1.05, and the plan shipped empty. The proxy
+  models dilution but not the numerator (verified/unverified mix, emphasis
+  weighting inside `c.answered`, cross-factor terms); it only has to order well
+  enough that the cap keeps every winner, and `delta` is exact for survivors.
+  Pre-ranking must stay deterministic and stable under tied stakes.
 - Deltas **may be negative**. Measured: −29/120 exactly, decomposing as
   development +0.625, completeness **+0.800**, precept **−1.667** — the negative
   is entirely the `warfighting` indicator diluting as an unverified row joins its
@@ -1606,3 +1639,73 @@ Action text must not quote the payout for a self-report answer.
   `typical_months`, no duration is guessed**: the item is `next_cycle` with
   `horizonBasis: "unknown_duration"`. `Number()` must not be used to read it —
   `Number(null) === 0`, which would claim the milestone is achievable today.
+
+### 14.9 Known defects deferred out of the readiness layer
+
+Recorded here because they are **scoring arithmetic**, which the readiness layer
+is forbidden to touch. Each was measured, not inferred.
+
+#### P2-BLOCKING — solo/small summary groups inflate Performance
+
+`scorePerformance`'s P4 breakout term is
+`s = 1 − (ep_count − 1) / max(1, group_size − 1)`, which **saturates at 1.0
+whenever `ep_count === 1`, at every group size**. Being the only Early Promote
+out of 30 scores identically to being the only Early Promote out of yourself.
+
+Two effects compound: P4 = 100 enters at sub-weight 0.15, **and** `a_P` rises
+0.85 → 1.00, un-discounting `conf_P` across the whole factor. Measured:
+performance contribution **24.00 → 30.00 — +6 of the 40 available points, 25% of
+the factor's realized value**, crossing the 70 band boundary.
+
+Severity **High, not Critical**: +6 against the +12–16 of the missing-flag hole,
+and low reachability — `summary_group_id` is set through `summary-group-attach`
+under `manage_summary_groups`, a reviewer action, so it misfires accidentally in
+a small install rather than being gamed.
+
+**Do not invent a threshold — the fix is already sourced in the repo.**
+`lib/forcedDistribution.ts:9-14` encodes BUPERSINST 1610.10H Enclosure (2)
+Table 1-2: *Early Promote ≤ ceil(0.20 · N)*, `N` = observed non-NOB group size,
+implemented at `lib/forcedDistribution.ts:87-88`. Breakout scarcity only means
+something where the EP quota actually rations; in a group of 1 or 2 it does not
+bind. **Gate P4 on that same computation** (extract the `earlyPromoteMax`
+expression into a shared exported helper rather than duplicating the 0.20).
+
+**P2 must fix this before any composite score renders.**
+
+Related, and NOT cured by the evidence-label gate: `group_size >= 2` fixes the
+*label* but not the *number*. A solo group still moves the composite **+6.0**
+(68.7 *Crunch* → 74.7 *Competitive*), because the pooled summary-group average
+equals the Sailor's own trait average and still feeds both P2 and P4.
+
+> **Not a defect:** the peer pool must NOT exclude the subject's own rows.
+> `lib/summaryGroupService.ts:78-82` cites EVALMAN — the Block 50 Summary Group
+> Average pools *all* evaluations in the group, and that pooled number is what
+> APEX prints in Block 50 via `pdfOverlay`. `excludeSelf` exists only so the live
+> draft form can merge in-progress grades without double-counting. Excluding the
+> subject would make the analyzer contradict APEX's own output on the same
+> Sailor's form.
+
+#### P1b — `bandDeltas` accepts a mismatched `result`
+
+`bandDeltas(result, inputs, config)` trusts that `result` is the run of `inputs`
+under `config`. A `result` from a **different record** is accepted silently:
+`bandDeltas(scoreBoardConfidence({...B, evals: []}), B, config)` reports every
+action as worth +26 to +27. No signature can catch this — the triple is three
+independent values. P1b must add a dev-mode assert:
+
+```ts
+compositeRaw(scoreBoardConfidence(inputs, config)) === compositeRaw(result)
+```
+
+#### P1b — smaller items
+
+- `areas[].detail.contribution` reconstructs the suppressed score and band
+  exactly via one `reduce`. The suppression is **honest, not secure**.
+- `LadrUnmet.marginal_points` (factor-local) and `ReadinessAction.worth`
+  (composite) differ by ~12× for the same milestone. Rename the former to
+  `factorLocalPoints`.
+- `horizon: "next_cycle"` is the wrong default while no seeded milestone carries
+  `typical_months`; transcribing durations is what makes the field real.
+- `BandDelta.area` / `ReadinessAction.area` are narrowed to `"development"` and
+  `source.kind` to `"ladr_milestone"`, because the verification flips were
+  removed. Widen them when non-LaDR candidates return.
