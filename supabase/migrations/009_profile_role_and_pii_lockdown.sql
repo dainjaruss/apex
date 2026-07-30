@@ -54,7 +54,12 @@
 -- After: ERROR 42501 permission denied for table profiles.
 
 revoke update on public.profiles from authenticated;
-revoke update on public.profiles from anon;
+
+-- `anon` still held table-level SELECT/INSERT/UPDATE/DELETE from Supabase's
+-- default grants (relacl `anon=ardDxtm`). Inert today because no RLS policy
+-- names `anon`, but that makes the safety of the table depend on RLS never
+-- regressing. Drop the privileges outright — `anon` has no business here.
+revoke all on public.profiles from anon;
 
 -- The safe set is exactly what lib/profileService.ts updateProfile() writes.
 -- Deliberately excluded: id (identity), email (set from auth.users by the
@@ -113,7 +118,30 @@ begin
     );
     return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public, pg_temp;
+
+
+-- ============================================================================
+-- PART A3 -- pin search_path on the remaining SECURITY DEFINER functions
+-- ============================================================================
+-- None of the five definer functions in the 001-008 chain set search_path, so
+-- each resolves unqualified names through whatever the caller's search_path is.
+-- Not exploitable today (`authenticated` has no CREATE on schema public, so it
+-- cannot shadow a table with a temp one), but it is standard hardening and it
+-- silences Supabase's `function_search_path_mutable` linter.
+--
+-- `alter function` rather than `create or replace`: it is one line each and does
+-- not duplicate five function bodies into this file, where they would silently
+-- drift from the definitions in 002/004/006.
+
+alter function public.has_oversight(uuid)
+    set search_path = public, pg_temp;
+alter function public.enforce_summary_group_fields()
+    set search_path = public, pg_temp;
+alter function public.touch_member_board_record()
+    set search_path = public, pg_temp;
+alter function public.touch_brag_sheet()
+    set search_path = public, pg_temp;
 
 
 -- ============================================================================
@@ -165,13 +193,25 @@ create policy "profiles_select_own"
 -- (measured: 2 rows -> 1 row), silently breaking every picker above.
 -- Supabase's linter flags this as `security_definer_view`; it is expected here
 -- and must not be "fixed".
--- The view is read-only in practice: `authenticated` is granted SELECT only,
--- so it cannot be used as a back door to write preferred_role
--- (measured: ERROR 42501 permission denied for view profiles_directory).
-
+-- ponytail: the trailing `offset 0` is LOAD-BEARING. Do not "clean it up".
+-- Without it this view is simple enough to be auto-updatable, and because it is
+-- security-definer an UPDATE through it runs as the owner — bypassing BOTH the
+-- column privileges of part A1 and the row filter of profiles_select_own. Today
+-- that is blocked only by the explicit `revoke all` below, which is one careless
+-- edit away from vanishing: Postgres forbids CREATE OR REPLACE VIEW from
+-- removing or renaming a column, so anyone changing the column list is forced
+-- into DROP + CREATE, and Supabase's `alter default privileges` then re-grants
+-- ALL on the freshly-created view. Demonstrated: after a drop/recreate with an
+-- identical definition, `authenticated` rewrote another user's preferred_role
+-- through the view — strictly worse than the original defect.
+-- `offset 0` makes the view non-auto-updatable permanently (writes fail with
+-- "cannot update view" even when granted ALL), and costs nothing on reads.
+-- Upgrade path if this ever needs to be writable: an explicit INSTEAD OF trigger,
+-- never auto-update.
 create or replace view public.profiles_directory as
     select id, first_name, last_name, preferred_role
-      from public.profiles;
+      from public.profiles
+     offset 0;
 
 revoke all on public.profiles_directory from anon, authenticated;
 grant select on public.profiles_directory to authenticated;

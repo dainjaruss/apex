@@ -92,10 +92,38 @@ export function authorizeSigner(
   evaluation: Evaluation,
 ): SignFailure | null {
   if (!canSignBlock(signer, blockNum, evaluation)) {
-    return {
-      error: `Your role (${signer.preferred_role}) is not permitted to sign Block ${blockNum}.`,
-      status: 403,
-    };
+    // The Sign button in components/report/DetailsTab.tsx is shown for every
+    // unsigned block to anyone who can view the report — this 403 is the only
+    // feedback the signer gets, and CredentialSignatureModal renders it
+    // verbatim. "Your role is not permitted" would be actively wrong for the
+    // two ownership denials, so name the real reason.
+    const isMemberBlock = blockNum === 32 || blockNum === 51;
+    const ownReport = evaluation.created_by === signer.id;
+    // Which condition failed? Re-ask canSignBlock with the ownership/chain
+    // requirements artificially satisfied, so only the role check can still
+    // fail. Probing the real function keeps the rule in exactly one place.
+    const roleAllows = canSignBlock(
+      signer,
+      blockNum,
+      isMemberBlock
+        ? ({ ...evaluation, created_by: signer.id } as Evaluation)
+        : ({
+            ...evaluation,
+            created_by: `not-${signer.id}`,
+            reviewer_id: signer.id,
+          } as Evaluation),
+    );
+    let error: string;
+    if (!roleAllows) {
+      error = `Your role (${signer.preferred_role}) is not permitted to sign Block ${blockNum}.`;
+    } else if (isMemberBlock) {
+      error = `Block ${blockNum} is the evaluated member's signature.`;
+    } else if (ownReport) {
+      error = `Block ${blockNum} is a reviewer signature and cannot be signed on your own report.`;
+    } else {
+      error = `You are not in this report's routing chain, so you cannot sign Block ${blockNum}.`;
+    }
+    return { error, status: 403 };
   }
   if (evaluation.status === "archived" || evaluation.signature_locked) {
     return {

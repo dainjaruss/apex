@@ -19,6 +19,10 @@ const mockEvaluation: Evaluation = {
   created_by: "sailor-1",
   current_holder_id: "sailor-1", // in draft, the creator holds custody
   reviewer_id: "reviewer-1",
+  // Accumulated custody set (migration 002). Every route/recycle/debrief appends
+  // to it, so by signing time the whole rating chain is in here — that is what
+  // canSignBlock now requires for the reviewer-chain blocks.
+  participants: ["sailor-1", "rater-1", "reviewer-1"],
   form_definition_id: "EVAL",
   report_type: "EVAL",
   member_name: "DOE, JOHN A",
@@ -214,7 +218,7 @@ describe("RBAC Permission Engine", () => {
 
   describe("canSignBlock (report-screen signing enforcement)", () => {
     // mockEvaluation.created_by === 'sailor-1'
-    it("gates reviewer-chain blocks by role possession", () => {
+    it("gates reviewer-chain blocks by role possession (chain members)", () => {
       // Rater may sign Block 42 but not 49/50/52
       expect(canSignBlock(rater, 42, mockEvaluation)).toBe(true);
       expect(canSignBlock(rater, 49, mockEvaluation)).toBe(false);
@@ -253,6 +257,93 @@ describe("RBAC Permission Engine", () => {
     it("rejects non-signature blocks", () => {
       expect(canSignBlock(admin, 48, mockEvaluation)).toBe(false); // Block 48 is an address
       expect(canSignBlock(admin, 99, mockEvaluation)).toBe(false);
+    });
+
+    // The forgery this whole PR exists to prevent, reached through a second door:
+    // role possession alone used to `return true` for blocks 42/49/50/52.
+    // canSignBlock is the ONLY authz on the server signing path — app/api/sign
+    // then writes with the service-role client, which bypasses RLS.
+    describe("reviewer-chain blocks are not authorized on role alone", () => {
+      it("denies signing a reviewer block on your own report", () => {
+        // "Reporting Senior" carries create_evaluation, so an RS can draft a
+        // report about themselves. Signing Block 50 sets signature_locked +
+        // routing_stage 'locked' — a self-signed, locked report with a CO block.
+        const ownReport: Evaluation = {
+          ...mockEvaluation,
+          created_by: reportingSenior.id,
+          current_holder_id: reportingSenior.id,
+          reviewer_id: reportingSenior.id,
+          participants: [reportingSenior.id],
+        };
+        expect(canSignBlock(reportingSenior, 50, ownReport)).toBe(false);
+        expect(canSignBlock(reportingSenior, 52, ownReport)).toBe(false);
+        expect(canSignBlock(reportingSenior, 49, ownReport)).toBe(false);
+        expect(canSignBlock(reportingSenior, 42, ownReport)).toBe(false);
+      });
+
+      it("gives an Admin no self-signing bypass on reviewer blocks", () => {
+        // Admin bypasses the member blocks (32/51) by design; that must not
+        // extend to signing off on their own report.
+        const adminOwnReport: Evaluation = {
+          ...mockEvaluation,
+          created_by: admin.id,
+          current_holder_id: admin.id,
+          participants: [admin.id],
+        };
+        expect(canSignBlock(admin, 50, adminOwnReport)).toBe(false);
+        expect(canSignBlock(admin, 51, adminOwnReport)).toBe(true); // still the member
+      });
+
+      it("denies a correctly-roled outsider with no tie to the report", () => {
+        const strangersReport: Evaluation = {
+          ...mockEvaluation,
+          created_by: "sailor-9",
+          current_holder_id: "sailor-9",
+          reviewer_id: "reviewer-9",
+          participants: ["sailor-9", "reviewer-9"],
+        };
+        expect(canSignBlock(reportingSenior, 50, strangersReport)).toBe(false);
+        expect(canSignBlock(rater, 42, strangersReport)).toBe(false);
+      });
+
+      it("fails closed on an evaluation carrying no chain at all", () => {
+        const noChain: Evaluation = {
+          ...mockEvaluation,
+          created_by: "sailor-9",
+          current_holder_id: undefined,
+          reviewer_id: undefined,
+          participants: undefined,
+        };
+        expect(canSignBlock(reportingSenior, 50, noChain)).toBe(false);
+      });
+
+      it("still allows each of the three chain memberships", () => {
+        const base: Evaluation = {
+          ...mockEvaluation,
+          created_by: "sailor-9",
+          current_holder_id: undefined,
+          reviewer_id: undefined,
+          participants: undefined,
+        };
+        expect(
+          canSignBlock(reportingSenior, 50, {
+            ...base,
+            reviewer_id: reportingSenior.id,
+          }),
+        ).toBe(true);
+        expect(
+          canSignBlock(reportingSenior, 50, {
+            ...base,
+            current_holder_id: reportingSenior.id,
+          }),
+        ).toBe(true);
+        expect(
+          canSignBlock(reportingSenior, 50, {
+            ...base,
+            participants: ["sailor-9", reportingSenior.id],
+          }),
+        ).toBe(true);
+      });
     });
   });
 

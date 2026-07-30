@@ -68,9 +68,31 @@ Profile reads are own-row only. Cross-user lookups go through
 `preferred_role`) granted `SELECT` to `authenticated`. It is intentionally a
 **security-definer view** (`security_invoker` left off) so it can see past the
 own-row policy; Supabase's linter flags this and the flag is expected. `dod_id`,
-`email`, `uic` and `command` must never be added to it.
+`email`, `uic` and `command` must never be added to it. The view definition ends in
+`offset 0`, which is load-bearing: it makes the view non-auto-updatable, so it can
+never become a write path around the column privileges even if someone re-grants
+`ALL` on it. Do not remove it.
 
 Applying 009 to a project is a manual step — see the migration header.
+
+`tests/integration/profilesRlsLockdown.test.ts` proves the above against a real
+`postgres:17` container (applies `001..009`, asserts privilege state). It **skips**
+when Docker is unavailable rather than failing — a green `npm run verify` on a
+machine without Docker does not mean those checks ran.
+
+### Signing authority
+
+`canSignBlock` (`lib/permissions.ts`) is the only authorization on the server
+signing path: `app/api/sign/route.ts` → `authorizeSigner` → `applySignature`, which
+writes with the **service-role** client and bypasses RLS. Reviewer-chain blocks
+(42/49/50/52) require **both** that the signer's role permits the block **and** that
+they belong to that report's chain (`reviewer_id`, `current_holder_id`, or
+`participants[]`), and they can never be signed by the report's `created_by` — with
+no Admin bypass. Member blocks (32/51) remain `created_by`-or-Admin.
+
+The Sign button in `components/report/DetailsTab.tsx` is rendered for every unsigned
+block to anyone who can view the report; the 403 from `/api/sign` is the real gate,
+and it names which condition failed.
 
 ## CI
 
