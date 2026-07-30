@@ -402,6 +402,36 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     }
   }
 
+  // 12. Three or more 2.0 trait grades bar Promotable outright.
+  //     BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, p. 1-16 ("EVAL BLOCK 45 /
+  //     [FITREP/CHIEFEVAL] BLOCK 48"), verbatim:
+  //       "A Promotable promotion recommendation allows up to two traits, excluding Character
+  //        or Equal Opportunity to be assessed as Progressing (2.0) and still maintain an
+  //        overall evaluation and promotion recommendation of Promotable. This means a member
+  //        who receives one or two 2.0 trait grades cannot receive a promotion recommendation
+  //        higher than Promotable."
+  //     "Up to two" therefore means a THIRD 2.0 removes Promotable itself — the case the Zod
+  //     refinement (`refinePromotionRecommendation`) never covered: it caps at Promotable for
+  //     any 2.0 but never bars Promotable on count. Para 6-3 states the same threshold as a
+  //     plain, unqualified count ("three 2.0 trait grades"), which is why every trait is
+  //     counted here; a 2.0 in Character or Climate/EO is separately barred at 1 by the Zod
+  //     gate, so the two readings of "excluding Character or Equal Opportunity" agree.
+  //     Same threshold and same `twoCount` already used by the Block 43 substantiation rule.
+  if (
+    twoCount >= 3 &&
+    !bv.not_observed &&
+    ["Promotable", "Must Promote", "Early Promote"].includes(
+      evalData.promotion_recommendation,
+    )
+  ) {
+    errors.push({
+      field: "promotion_recommendation",
+      block: 45,
+      message: `${twoCount} trait grades of 2.0 (${twoBlocks.join(", ")}) bar a promotion recommendation of Promotable or higher — a Promotable recommendation allows at most two 2.0 trait grades (BUPERSINST 1610.10H, Encl (2), ch. 1, p. 1-16).`,
+      severity: "error",
+    });
+  }
+
   // 11. Each trait must be graded (1.0-5.0 or NOB) on an observed report.
   //     Uses the active trait map for the current form type.
   if (!bv.not_observed) {

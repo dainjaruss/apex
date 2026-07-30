@@ -617,3 +617,85 @@ describe("APEX Validation Engine Unit Tests", () => {
     ).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block 45 promotion gates — the "three or more 2.0s" bar.
+// BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, p. 1-16: "A Promotable promotion
+// recommendation allows up to two traits, excluding Character or Equal Opportunity to be
+// assessed as Progressing (2.0) and still maintain an overall evaluation and promotion
+// recommendation of Promotable."
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Block 45 — 2.0 trait-grade gates", () => {
+  const withTraits = (t: Record<string, string>, rec: string): Evaluation =>
+    ({
+      ...mockValidEvaluation,
+      promotion_recommendation: rec,
+      trait_grades: { ...mockValidEvaluation.trait_grades, ...t },
+      comments: "SUBSTANTIATED: SPECIFIC VERIFIABLE PERFORMANCE SHORTFALLS NOTED.",
+    }) as Evaluation;
+
+  const barred = (r: ReturnType<typeof runFullValidation>) =>
+    r.errors.some(
+      (e) =>
+        e.field === "promotion_recommendation" &&
+        /bar a promotion recommendation of Promotable or higher/i.test(e.message),
+    );
+
+  it("allows Promotable with two 2.0s (the instruction's explicit allowance)", () => {
+    const res = runFullValidation(
+      withTraits({ knowledge: "2.0", work: "2.0" }, "Promotable"),
+    );
+    expect(barred(res)).toBe(false);
+  });
+
+  it("BARS Promotable with three 2.0s", () => {
+    const res = runFullValidation(
+      withTraits(
+        { knowledge: "2.0", work: "2.0", accomplishment: "2.0" },
+        "Promotable",
+      ),
+    );
+    expect(barred(res)).toBe(true);
+    expect(res.success).toBe(false);
+  });
+
+  it("BARS Must Promote and Early Promote with three 2.0s too", () => {
+    for (const rec of ["Must Promote", "Early Promote"]) {
+      const res = runFullValidation(
+        withTraits(
+          { knowledge: "2.0", work: "2.0", accomplishment: "2.0" },
+          rec,
+        ),
+      );
+      expect(barred(res), `${rec} with three 2.0s`).toBe(true);
+    }
+  });
+
+  it("does not bar Progressing or Significant Problems with three 2.0s", () => {
+    for (const rec of ["Progressing", "Significant Problems"]) {
+      const res = runFullValidation(
+        withTraits(
+          { knowledge: "2.0", work: "2.0", accomplishment: "2.0" },
+          rec,
+        ),
+      );
+      expect(barred(res), rec).toBe(false);
+    }
+  });
+
+  it("names the offending blocks in the message", () => {
+    const res = runFullValidation(
+      withTraits(
+        { knowledge: "2.0", work: "2.0", accomplishment: "2.0" },
+        "Promotable",
+      ),
+    );
+    const issue = res.errors.find(
+      (e) => e.field === "promotion_recommendation" && /bar a promotion/i.test(e.message),
+    );
+    expect(issue?.block).toBe(45);
+    expect(issue?.message).toContain("Block 33"); // knowledge
+    expect(issue?.message).toContain("Block 34"); // work
+    expect(issue?.message).toContain("Block 37"); // accomplishment
+  });
+});
