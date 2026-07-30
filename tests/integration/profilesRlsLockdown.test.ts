@@ -154,31 +154,41 @@ describe.skipIf(!hasDocker)("migration 009 — profiles privilege state", () => 
       );
     }
 
-    // Wait for readiness rather than sleeping a fixed amount. Generous, because
-    // this competes with the rest of the suite for CPU during `npm run verify`.
-    let ready = false;
+    // Wait for readiness by retrying the first real piece of work, rather than
+    // probing and then assuming. Generous, because this competes with the rest
+    // of the suite for CPU during `npm run verify`.
+    //
+    // No cheap probe is trustworthy here: the postgres entrypoint runs a
+    // TEMPORARY local server on the same PGDATA and unix socket to finish
+    // initdb, so both `pg_isready` and a plain `select 1` answer successfully on
+    // it — then the entrypoint stops that server and starts the real one.
+    // Winning either probe and moving straight to `create database` races that
+    // restart, failing as "the database system is starting up" or, once the
+    // socket is briefly gone, "No such file or directory". This suite's
+    // long-standing flake; it surfaces whenever another suite is heavy enough to
+    // slow the container down. Retrying the create until it sticks is immune to
+    // both, and the database persists either way — same PGDATA.
+    let created = false;
     let lastErr = "";
-    for (let i = 0; i < 120 && !ready; i++) {
+    for (let i = 0; i < 120 && !created; i++) {
       try {
-        docker(["exec", CONTAINER, "pg_isready", "-U", "postgres"]);
-        ready = true;
+        docker([
+          "exec",
+          CONTAINER,
+          "psql",
+          "-U",
+          "postgres",
+          "-c",
+          "create database apex",
+        ]);
+        created = true;
       } catch (err: any) {
         lastErr = `${err.stdout ?? ""}${err.stderr ?? err.message}`;
         execFileSync("sleep", ["1"]);
       }
     }
-    if (!ready)
+    if (!created)
       throw new Error(`postgres container never became ready: ${lastErr}`);
-
-    docker([
-      "exec",
-      CONTAINER,
-      "psql",
-      "-U",
-      "postgres",
-      "-c",
-      "create database apex",
-    ]);
     docker(["cp", MIGRATIONS, `${CONTAINER}:/migrations`]);
 
     const psql = (extra: string[], input?: string) =>
