@@ -1437,7 +1437,7 @@ stale column value); LaDR applicability `min(applies_to_paygrades) <= target`;
 | `app/api/board-confidence/runs/route.ts` | new |
 | `app/board-confidence/page.tsx` | new |
 | `components/boardConfidence/*` (BoardDisclaimer, RecordEntryForm, LadrChecklist, PreceptPanel, ResultsView, ScoreDial, FactorBar) | new (colocation permitted, §6) |
-| `scripts/seed-ladr.ts` + `scripts/ladr-data/{it_e1_e9,bm_e1_e9,precept_fy27}.ts` | new |
+| `scripts/seed-ladr.ts` + `scripts/ladr-data/{it_e1_e9,bm_e1_e9,hm_e1_e9}.ts` | new (v1.6: precepts moved to `scripts/set-precept.ts` + `ladr-data/precept_current.ts`) |
 | `tests/unit/boardConfidence{Rubric,Narrative,Route,Service}.test.ts` | new |
 | `package.json` | edit: add `"db:seed-ladr": "tsx scripts/seed-ladr.ts"` |
 

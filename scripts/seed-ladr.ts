@@ -1,5 +1,14 @@
 /**
- * LaDR seed script — versioned LaDR reference data + board precept (spec §10).
+ * LaDR seed script — versioned LaDR reference data (spec §10).
+ *
+ * Seeds LaDR documents and milestones ONLY. It used to activate the shipped
+ * MODELED FY27 precept as an unconditional side effect, so nobody could load
+ * the transcribed milestones without also publishing three fabricated emphasis
+ * flags to every user. Precepts have their own entry point —
+ * `npm run seed:precept` (scripts/set-precept.ts), which carries the identical
+ * upsert + one-active-row logic and refuses to run while the cycle is still
+ * the REPLACE_ME placeholder.
+ *
  * Usage: npx tsx scripts/seed-ladr.ts [--rating IT] [--reset] [--dry-run]
  *   --rating <ABBREV>  limit the run to one rating's dataset
  *   --reset            delete that rating's documents first (cascade removes
@@ -59,7 +68,6 @@ export interface PreceptSeed {
 import { itE1E9 } from "./ladr-data/it_e1_e9";
 import { bmE1E9 } from "./ladr-data/bm_e1_e9";
 import { hmE1E9 } from "./ladr-data/hm_e1_e9";
-import { fy27Precept } from "./ladr-data/precept_fy27";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -223,32 +231,6 @@ async function seedRating(seed: LadrSeed) {
   if (carried) console.log(`  carried forward ${carried} member checklist(s)`);
 }
 
-async function seedPrecept(p: PreceptSeed) {
-  const { cycle, title, emphasis_flags, source_url } = p;
-  const { error } = await admin
-    .from("board_precepts")
-    .upsert(
-      { cycle, title, emphasis_flags, source_url },
-      { onConflict: "cycle" },
-    );
-  if (error) throw new Error(`board_precepts upsert: ${error.message}`);
-
-  if (p.active) {
-    // idx_board_precepts_one_active allows one active row — clear others first
-    const { error: clearErr } = await admin
-      .from("board_precepts")
-      .update({ active: false })
-      .eq("active", true)
-      .neq("cycle", cycle);
-    if (clearErr) throw new Error(`board_precepts clear: ${clearErr.message}`);
-    const { error: actErr } = await admin
-      .from("board_precepts")
-      .update({ active: true })
-      .eq("cycle", cycle);
-    if (actErr) throw new Error(`board_precepts activate: ${actErr.message}`);
-  }
-  console.log(`  precept: ${cycle}${p.active ? " (active)" : ""}`);
-}
 
 /**
  * --dry-run: build the exact ladr_milestones payload seedRating() would insert
@@ -303,7 +285,6 @@ async function main() {
     return;
   }
   for (const seed of seeds) await seedRating(seed);
-  await seedPrecept(fy27Precept);
   console.log("LaDR seed complete.");
 }
 

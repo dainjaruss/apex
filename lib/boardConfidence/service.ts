@@ -18,6 +18,7 @@ import { paygradeOf } from "@/lib/paygrade";
 import {
   DEFAULT_RUBRIC_CONFIG,
   REC_POINTS,
+  isBoardEmphasis,
   scoreBoardConfidence,
 } from "@/lib/boardConfidence/rubric";
 import { generateNarrative } from "@/lib/boardConfidence/narrative";
@@ -289,16 +290,9 @@ export async function assembleRubricInputs(
             status: "unanswered" as LadrStatus,
             verified_in_ompf: false,
           };
-          // v1.5 board emphasis: explicit "Considerations for advancement"
-          // items (parser/seed flag), or milestones that exist only at E7+
-          // while the member is targeting E7+.
-          const board_emphasis =
-            m.detail?.board_emphasis === true ||
-            m.category === "advancement_consideration" ||
-            (targetPaygrade != null &&
-              targetPaygrade >= 7 &&
-              m.applies_to_paygrades.length > 0 && // Math.min() of [] is Infinity
-              Math.min(...m.applies_to_paygrades) >= 7);
+          // v1.5 board emphasis — shared with LadrChecklist.tsx, which badges
+          // exactly these rows (rubric.ts::isBoardEmphasis).
+          const board_emphasis = isBoardEmphasis(m, targetPaygrade);
           // v2: carry the milestone's identity and its (optional) timing hints
           // into the engine so the readiness plan can name the row and place it
           // against the board date. Both live on ladr_milestones.detail, which

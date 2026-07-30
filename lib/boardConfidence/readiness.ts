@@ -308,10 +308,12 @@ const AREA_COPY: Record<FactorKey, AreaCopy> = {
   },
   precept: {
     // "Alignment" overclaims: APEX maps five booleans to five crude indicators.
-    // No string here describes what the board emphasizes, because the shipped
-    // precept (scripts/ladr-data/precept_fy27.ts) is titled "modeled" and
-    // carries source_url: null — asserting its content would put invented
-    // doctrine in front of a Sailor. See PRECEPT_UNSOURCED_PREFIX.
+    // No string here describes what the board emphasizes, because a precept
+    // carrying source_url: null is modeled rather than transcribed, and
+    // asserting its content would put invented doctrine in front of a Sailor.
+    // (v1.6: the modeled FY27 seed row is deleted — scripts/set-precept.ts is
+    // now the only writer, and it refuses the placeholder cycle.) See
+    // PRECEPT_UNSOURCED_PREFIX.
     label: "Board emphasis areas",
     missingLabel: "the board emphasis areas",
     unlocks: "the board emphasis check",

@@ -99,11 +99,19 @@ board_precepts (active cycle flags)─────────────┘   
    (005 is the private storage bucket, split out because `storage.objects`
    ownership varies on hosted Supabase — the file header documents the
    dashboard fallback).
-2. Seed LaDR data and the example precept:
+2. Seed LaDR data:
    ```sh
    npx tsx scripts/seed-ladr.ts
    ```
    Ships IT (transcribed from the real July 2026 Navy COOL LaDR), BM and HM.
+   LaDR reference data only — see "Setting the board precept" for that. Note
+   `seedRating` is delete-and-reinsert per document, so every milestone UUID
+   changes and any document already stored under the same
+   `(rating_abbrev, paygrade_range, effective_date)` key — the 004 unique
+   constraint the upsert targets, `version` is **not** part of it — is
+   **replaced in place**, not merged (the document row keeps its own UUID).
+   Member checklists are remapped on `(category, item_code ?? item)`; entries
+   that no longer match fall back to unanswered.
 3. Optional AI narrative — provider-agnostic, two independent modes.
    **Neither requires hosting on Vercel** (the whole app runs self-hosted;
    only the NAVFIT `.accdb` export's JRE requirement drives hosting choice):
@@ -151,9 +159,61 @@ overwriting (spec §10.3):
    Datasets not transcribed from the source PDF must carry
    `source: 'representative'`.
 
-A curated seed and a fetched document for the same LaDR issue share the same
-`(rating, version)` key, so whichever lands first wins and the other reports
-"already current".
+A curated seed and a fetched document for the same LaDR issue collide on the
+same `(rating_abbrev, paygrade_range, effective_date)` unique key (004), so the
+fetch reports "already current" and the seed upsert replaces the stored row's
+milestones in place.
+
+### What the checklist renders (v1.6)
+
+`components/board/LadrChecklist.tsx` is presentation only — it changes no
+scoring input — but it renders everything a transcribed row carries, because a
+field stored and hidden is a field the Sailor cannot act on:
+
+- **Paygrade block first, category second.** A block is `min(applies_to_paygrades)`,
+  highest first, so the block that is the gate for the target leads and the
+  earlier blocks read as history. Categories inside a block keep the
+  `LADR_CATEGORY_WEIGHTS` order, informational (weight 0) last. Because the key
+  is the *minimum*, an earlier block can still hold rows the LaDR lists at the
+  target (IT's CANES PQS is `[4,5,6]` — block E-4, live at E-5), so the "behind
+  you" gloss prints **only** when every row in the block stops short of the
+  target. Getting that wrong tells a Sailor to stop working a current item.
+- **Per-row disclosure** (native `<details>`) with `detail.notes` verbatim and
+  untruncated, `detail.examples` as whole parentheticals (never split into
+  per-code chips — a comma split mangles "Combat System Watch Officer (CSWO)"),
+  and BM's `detail.group` assignment heading. A row whose `detail` carries none
+  of these gets no trigger at all.
+- **Tier headings** from `detail.tier`, in source order (Fully Qualified above
+  Best Qualified — pinned by test, an inversion would read as "BQ instead of
+  FQ"), with `detail.preamble` printed once under the first tier that carries
+  it. Best Qualified is labelled as additive to Fully Qualified, not an
+  alternative — IT prints that itself in its Best Qualified preamble, HM prints
+  "Must meet preceding E7 FULLY QUALIFIED criteria" as an E8 row. BM's
+  `unspecified` rows get **no** tier badge: its LaDR prints no split and one is
+  not inferred.
+- **Sea/shore once per card**, not once per row — it is a property of the step.
+  `sea_shore_scope: "rating"` is not step-specific at all, so it is hoisted
+  above the blocks and printed once for the whole checklist (HM's is 2,715
+  characters and would otherwise repeat three times for an E-9 candidate).
+- **Paygrade chip and board-emphasis badge per row**, the badge from
+  `rubric.ts::isBoardEmphasis` — the same function `service.ts` scores from, so
+  the UI cannot claim an emphasis the engine does not apply.
+
+**Editorial text in the checklist — the complete list.** Everything else on
+screen is the LaDR's own words. All three describe this page's layout, not Navy
+doctrine:
+
+1. The Best Qualified heading's "in addition to the Fully qualified list above
+   — not instead of it", shown only when an FQ group is rendered above it.
+2. The block glosses: "the gate for E-N", "first listed at E-N", and "first
+   listed at E-N — behind you at E-N" (conditions above).
+3. The subtitle's "grouped by the paygrade block the LaDR first lists them at".
+
+**Scope.** `advancement_consideration` is the only category the transcription
+gave `notes`, so disclosures exist for 22 of IT's 48 rows, 24 of BM's 39 and 34
+of HM's 71. Everything else still renders flat, and a member targeting E-6 or
+below sees no disclosure at all — that is the shape of the data, not a UI gap.
+This closes the 30-weight section of the checklist, not the whole of it.
 
 ## Tuning the rubric (v1.5)
 
@@ -192,8 +252,10 @@ rubric tuning):
    and `source_url` (the convening-order link, or `null` for a modeled precept).
 2. `npm run seed:precept` — upserts on `cycle` and makes it the single active
    row. The script refuses to run on the unedited template or with zero
-   emphasis flags. (`scripts/seed-ladr.ts` still seeds the shipped **modeled**
-   FY27 precept; `set-precept.ts` is the path for a real, version-controlled one.)
+   emphasis flags. **This is the only path that writes a precept.** `seed-ladr.ts`
+   used to activate the shipped **modeled** FY27 precept unconditionally, so
+   loading LaDR milestones also published three fabricated emphasis flags to
+   every user; that coupling is removed (v1.6).
 
 **Fetch-to-reference (v1.6).** Precepts are published PDFs on MyNavyHR
 ([Flag boards](https://www.mynavyhr.navy.mil/Career-Management/Boards/Flag/Precepts/),
