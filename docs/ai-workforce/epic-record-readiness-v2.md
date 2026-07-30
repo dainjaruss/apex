@@ -184,6 +184,65 @@ re-runs the affected sub-score with each input flipped — this answers "what wo
   while a curated 26-item rating must genuinely close warfare quals, PQS, PME, certs and a
   degree. Auto-extracted items become reference-only until curated.
 
+### 3.4b The output contract *(founder-approved layout: coverage first, then plan)*
+
+The Results screen leads with coverage, then the ranked plan. Per-area status is available but
+does not lead. Concretely, the engine gains a new return type alongside `RubricResult` — the
+rubric stays pure and deterministic, it just stops being asked to emit a verdict:
+
+```ts
+export interface ReadinessReport {
+  coverage: {
+    measured: number;        // Σ(w·conf)/100 in [0,1] — the honest "how much can we see"
+    areasKnown: number;      // factors above the evidence floor
+    areasTotal: number;
+    missing: Array<{         // drives "Missing: your tours, your awards"
+      area: FactorKey;
+      label: string;         // "your tours"
+      unlocks: string;       // "leadership assessment"
+      howTo: string;         // deep link to the section that fills it
+    }>;
+  };
+  actions: Array<{           // THE PRODUCT — ranked, dated, sourced
+    id: string;
+    action: string;          // "Verify your Navy Achievement Medal in OMPF via NDAWS"
+    area: FactorKey;
+    worth: number;           // marginal points, from bandDeltas() — not a guess
+    horizon: "before_board" | "next_cycle" | "blocked";
+    blockedBy: string | null;// "requires a sea billet"
+    source: { kind: "ladr_milestone" | "record_field" | "eval"; id: string };
+  }>;
+  areas: Array<{
+    key: FactorKey;
+    label: string;
+    status: "strong" | "adequate" | "needs_work" | "insufficient_data";
+    evidence: "corroborated" | "attested" | "unknown";
+    summary: string;         // plain language. NO engine internals (P1, aP, wSum) reach the UI
+    detail: FactorResult;    // behind "show the math"
+  }>;
+  boardDate: string;
+  monthsToBoard: number;
+  score: { value: number; band: BandVote; label: string } | null;
+}
+```
+
+Binding rules on that contract:
+
+- **`score` is `null` when `coverage.measured` is below the floor.** The UI then renders "Not
+  enough of your record is entered to assess" plus the missing list — never a number, never a
+  band. This is what kills the 1.0 "Drop-from-consideration risk" first impression.
+- **`status: "insufficient_data"` is visually distinct from `"needs_work"`**, never a low bar on
+  the same axis. Unknown is not a deficiency.
+- **`evidence` is rendered on every area.** `"attested"` says "you told us" on the surface, not
+  in a tooltip.
+- **`worth` comes from `bandDeltas(result, inputs)`** — a new pure function in `rubric.ts` that
+  re-runs the affected sub-score with each candidate input flipped and returns the true marginal
+  points. No model, no new data, no estimate.
+- **`horizon` is computed against `boardDate`** using `typical_months` / `blocked_unless` from
+  `ladr_milestones.detail` (already jsonb — no migration).
+- `scoreLadr` gains an `unmet: Array<{milestone_id, item, category, marginal_points,
+  board_emphasis}>` output. It already iterates every item; it simply stops discarding identity.
+
 ### 3.5 The LaDR splits in two
 
 - **Development plan** (unscored): item names, course codes, paygrade chips, the `detail.notes`
