@@ -397,7 +397,8 @@ export const bmE1E9: LadrSeed = {
     version: "July 2026",
     effective_date: "2026-07-01",
     source_url: "https://www.cool.osd.mil/usn/LaDR/bm_e1_e9.pdf",
-    source_hash: null,
+    source_hash:
+      "509d908591507dec715467e58d91356d948782952237f60c2cdb1cd9eebeed5f",
   },
   milestones: [
     // rate-specific placeholders

@@ -118,6 +118,28 @@ describe("transcribed advancement considerations", () => {
     },
   );
 
+  it("IT keeps the Best Qualified additivity sentence on BQ rows only", () => {
+    // The only place the IT LaDR states BQ ⊇ FQ; without it `tier:
+    // best_qualified` reads as an alternative to Fully Qualified.
+    const ADDITIVITY = "as well as those from the Fully Qualified list.";
+    const rows = advancementRows(itE1E9);
+    const bq = rows.filter((m) => (m.detail as any).tier === "best_qualified");
+    const fq = rows.filter((m) => (m.detail as any).tier === "fully_qualified");
+    expect(bq.length).toBeGreaterThan(0);
+    for (const m of bq)
+      expect((m.detail as any).preamble, m.item).toContain(ADDITIVITY);
+    // Never attached to a Fully Qualified row — that heading is not its source.
+    for (const m of fq)
+      expect((m.detail as any).preamble ?? "", m.item).not.toContain(
+        ADDITIVITY,
+      );
+  });
+
+  it("every document records the sha256 of the PDF it was transcribed from", () => {
+    for (const [, seed] of SEEDS)
+      expect(seed.document.source_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it("IT and HM preserve the source's Fully/Best Qualified split", () => {
     for (const seed of [itE1E9, hmE1E9]) {
       const tiers = new Set(

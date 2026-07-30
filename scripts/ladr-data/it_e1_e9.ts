@@ -25,6 +25,10 @@ const itAdvancement = [
       component: COMPONENT,
       seaShore:
         "Sea/Shore assignment considerations: Tours of duty aboard surface units (e.g., DDG/CVN, etc…); expeditionary units (e.g., JCU/NSW); Screened shore assignments (e.g., WHCA, IWTC); or Operational shore assignments (e.g., MOC, NCTAMS, IWTG, CPT, etc…).",
+      tierPreamble: {
+        best_qualified:
+          "Best Qualified Candidates: will have demonstrated sustained superior performance in one or more of the following categories, as well as those from the Fully Qualified list.",
+      },
       pageRevision: REVISION,
     },
     [
@@ -85,6 +89,10 @@ const itAdvancement = [
       component: COMPONENT,
       seaShore:
         "Sea/Shore assignment considerations: Tours of duty aboard surface units (e.g., LPD/LHA/CVN, etc…); expeditionary units (e.g., JCU/NSW); Screened shore assignments (e.g., WHCA, IWTC); or Operational shore assignments (e.g., MOC, NCTAMS, IWTG, CPT, etc…).",
+      tierPreamble: {
+        best_qualified:
+          "Best Qualified Candidates: will have demonstrated sustained superior performance in one or more of the following categories, as well as those from the Fully Qualified list.",
+      },
       pageRevision: REVISION,
     },
     [
@@ -150,6 +158,10 @@ const itAdvancement = [
       component: COMPONENT,
       seaShore:
         "Sea/Shore assignment considerations: Tours of duty aboard surface units (e.g., LPD/LHA/CVN, etc…); expeditionary units (e.g., JCU/NSW); Screened shore assignments (e.g., WHCA, CIWT, etc…); or Operational shore assignments (e.g., PACFLT, MOC, NCTAMS, IWTG, CPT, etc…).",
+      tierPreamble: {
+        best_qualified:
+          "Best Qualified Candidates: will have demonstrated sustained superior performance in one or more of the following categories, as well as those from the Fully Qualified list.",
+      },
       pageRevision: REVISION,
     },
     [
@@ -213,7 +225,8 @@ export const itE1E9: LadrSeed = {
     version: "July 2026",
     effective_date: "2026-07-01",
     source_url: "https://www.cool.osd.mil/usn/LaDR/it_e1_e9.pdf",
-    source_hash: null,
+    source_hash:
+      "6cffc40dae8afb617c951bf8e1ef588f3a6020efc311feb3a44e59f798564640",
   },
   milestones: [
     {

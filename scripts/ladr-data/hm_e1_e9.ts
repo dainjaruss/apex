@@ -17,13 +17,28 @@ import { considerations } from "./advancement";
 // different text; that is NOT transcribed — see advancement.ts.
 //
 // Unlike IT/BM, HM prints no per-step "Sea/Shore assignment considerations"
-// heading. Its sea/shore guidance is rating-level (Rating Notes 2 and 4,
-// transcribed below and flagged detail.sea_shore_scope = "rating"). Note 2's
-// accompanying table of no-sea-duty NECs is tabular and is not reproduced here.
+// heading. Its sea/shore guidance is rating-level, so detail.sea_shore carries
+// the source's own Rating Notes 2 and 4 plus the three "Special Note*"
+// paragraphs those notes point at — each kept verbatim under its own source
+// numbering rather than spliced together.
+//
+// NOT transcribed, disclosed here rather than left silent: Rating Note 2's
+// accompanying table of no-sea-duty NECs (tabular), and Rating Notes 1, 3 and
+// 5 — general board-emphasis doctrine rather than sea/shore guidance (Note 1:
+// "Performance in assigned duties should ALWAYS be the primary factor in
+// determining selection to the next higher paygrade in alignment with the
+// annual Convening Order and Board Precepts."; Note 3: NEC-driven limits on
+// career-enhancing opportunities and peer ranking; Note 5: mess/association
+// and collateral-duty involvement).
 const HM_COMPONENT = "HM CAREER PATH (active component)";
 const HM_REVISION = "May 2025";
-const HM_SEA_SHORE =
-  "HM is a shore-centric rate. The HM rating promotes by rate, not by NEC. Traditional sea shore flow for Hospital Corpsman is 36/36, however, assignment and distribution is typically dictated by billet availability. Many NEC’s within the rating have minimal or no sea duty opportunity while some are sea centric. Many NECs are closed looped which are distributable skillsets of personnel who are projected and assigned to consecutive tours within that NEC skill area. In lieu of traditional sea duty, sailors should refer to the Special Notes* at the end of this document for other opportunities. … In the absence of sea duty and OCONUS opportunities Sailors should pursue Sea/Shore special programs or commands that support the Navy and Navy Medicine mission. See Special Notes.";
+const HM_SEA_SHORE = [
+  "2. HM is a shore-centric rate. The HM rating promotes by rate, not by NEC. Traditional sea shore flow for Hospital Corpsman is 36/36, however, assignment and distribution is typically dictated by billet availability. Many NEC’s within the rating have minimal or no sea duty opportunity while some are sea centric. Many NECs are closed looped which are distributable skillsets of personnel who are projected and assigned to consecutive tours within that NEC skill area. In lieu of traditional sea duty, sailors should refer to the Special Notes* at the end of this document for other opportunities.",
+  "4. In the absence of sea duty and OCONUS opportunities Sailors should pursue Sea/Shore special programs or commands that support the Navy and Navy Medicine mission. See Special Notes.",
+  "Special Note* Sea Special Programs are considered duties in new ship construction, Fleet Decommissioning and Disestablishment, Naval Special Warfare Development Group, SSN-23, Specialized Research Diving Detachment (SRDD).",
+  "Special Note* Serving a tour in a Shore Special Program billet will provide a unique opportunity to serve in one of 26 programs, including Production Recruiter, Recruit Division Commander or Company Chief, serve on the crew of USS CONSTITUTION or on the USS ARIZONA memorial, Detailers, MEPS, on Brig or TPU staff duty, Embassy or Personnel Exchange Program (PEP) assignment, SERE Instructor, and Professional Development Instructor, to name a few. MILPERSMAN article 1306-900 contains a complete list of special programs available.",
+  "Special Note* Serving a successful tour in a Navy Medicine billet at training sites, remote sites (i.e., Diego Garcia, San Clemente Island, etc.), flag headquarters duty, White House Medical Unit (WHMO), or the Congressional Office of the Attending Physician provides valuable operational and strategic experience that may be considered favorably for career progression and competitive programs outside the traditional sea/shore rotation.",
+].join("\n");
 
 const hmAdvancement = [
   ...considerations(
@@ -93,7 +108,9 @@ const hmAdvancement = [
         item: "Instructor NEC with ATS or MTS qualification",
         tier: "best_qualified",
         notes:
-          "Consideration should be given for candidates with the instructor NEC who have qualified for Afloat Training Specialist or Master Training Specialist. Failure of enlisted personnel to obtain MTS qualification when a valid program does not exist shall not be interpreted as an indication of unsatisfactory or adverse leadership.",
+          // Parent bullet ends without punctuation in the source; the sub-bullet
+          // stays on its own line rather than being joined with an invented ".".
+          "Consideration should be given for candidates with the instructor NEC who have qualified for Afloat Training Specialist or Master Training Specialist\nFailure of enlisted personnel to obtain MTS qualification when a valid program does not exist shall not be interpreted as an indication of unsatisfactory or adverse leadership.",
       },
       {
         item: "Challenging duty or special program assignment",

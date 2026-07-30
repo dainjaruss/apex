@@ -63,6 +63,14 @@ export interface ConsiderationStep {
   seaShoreScope?: "step" | "rating" | "row";
   /** Verbatim lead-in sentence(s) the section prints above the tiers, if any. */
   preamble?: string;
+  /**
+   * Verbatim lead-in the source prints above ONE tier's bullets — IT's
+   * "Best Qualified Candidates: … as well as those from the Fully Qualified
+   * list.", the only place the LaDR states that BQ is a superset of FQ rather
+   * than an alternative to it. Resolved into detail.preamble, most specific
+   * first, so an FQ row never carries the BQ heading's text.
+   */
+  tierPreamble?: Partial<Record<ConsiderationTier, string>>;
   /** "Revised: <Month YYYY>" footer of the transcribed career-path pages. */
   pageRevision: string;
 }
@@ -97,6 +105,7 @@ export function considerations(
 ): LadrSeedMilestone[] {
   return rows.map((row) => {
     const tag = TIER_TAG[row.tier];
+    const preamble = step.tierPreamble?.[row.tier] ?? step.preamble;
     return {
       category: "advancement_consideration" as const,
       item: `${step.step} ${tag ? `${tag} ` : ""}— ${row.item}`,
@@ -115,7 +124,7 @@ export function considerations(
         ...(row.group ? { group: row.group } : {}),
         sea_shore: step.seaShore,
         sea_shore_scope: step.seaShoreScope ?? "step",
-        ...(step.preamble ? { preamble: step.preamble } : {}),
+        ...(preamble ? { preamble } : {}),
         source_page_revision: step.pageRevision,
       },
     };
