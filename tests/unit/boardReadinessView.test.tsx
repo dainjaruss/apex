@@ -307,6 +307,27 @@ describe("ResultsView — 'not entered' is a data state, not a deficiency", () =
     }
   });
 
+  it("renders continuity as a data state when nothing the rubric scored survives", () => {
+    // Reported live on this screen before PR #24: a record whose ONLY report was
+    // dated after the board date rendered "Reporting continuity — LOOKING
+    // STRONG, APEX found no break between the reports you have entered", while
+    // Performance correctly said it held too few reports. #24 gates evidence on
+    // what the engine actually scored, so continuity is now not_enough_entered.
+    const futureDated: RubricInputs = {
+      ...partlyEntered,
+      evals: [{ ...partlyEntered.evals[0], period_from: "2026-10-01", period_to: "2027-09-30" }],
+    };
+    const cont = buildClientReport(futureDated).areas.find((a) => a.key === "continuity")!;
+    expect(cont.status).toBe("not_enough_entered");
+
+    renderWith(rowFor(futureDated));
+    const card = screen.getByTestId("area-continuity");
+    expect(card.getAttribute("data-status")).toBe("not_enough_entered");
+    expect((card as HTMLElement).style.borderStyle).toBe("dashed");
+    expect(card.textContent).toContain("Not entered");
+    expect(card.textContent).not.toContain("found no break");
+  });
+
   it("a tool-configuration gap is not shown as something the Sailor failed to enter", () => {
     // No active precept ⇒ the rubric drops the factor to weight 0 and coverage
     // counts 5 areas. A sixth "Not entered" card would contradict the headline
@@ -466,6 +487,76 @@ describe("ResultsView — the continuity advisory states the rule, not its inver
       "2 gaps in reporting continuity (a missing period longer than 90 days) were detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6).";
     renderWith(gapRow(current, [current]));
     expect(screen.getByTestId("continuity-advisory").textContent).toBe(current);
+  });
+});
+
+describe("ResultsView — the AI narrative", () => {
+  const withNarrative = (
+    over: Partial<BoardAnalysisRow>,
+    narrative: Record<string, unknown>,
+  ) => {
+    const row = rowFor(partlyEntered, over);
+    row.narrative = narrative as any;
+    return row;
+  };
+
+  const FULL = {
+    strengths: ["Your reports are consistent. [areas.performance]"],
+    gaps: ["Your development checklist is empty. [areas.development]"],
+    recommendations: ["Do a thing. [actions.x]"],
+    factor_commentary: {
+      performance: "p",
+      leadership: "l",
+      development: "d",
+      continuity: "c",
+      completeness: "x",
+      precept: "b",
+    },
+  };
+
+  it("renders model output as synthesis, not as a second copy of the plan", () => {
+    renderWith(withNarrative({ narrative_source: "model", model: "m" }, FULL));
+    expect(document.body.textContent).toContain("Your reports are consistent.");
+    expect(document.body.textContent).toContain("Your development checklist is empty.");
+    // recommendations and factor_commentary are the plan and the area cards
+    // re-emitted; a second differently ordered list of what to do is the "two
+    // numbers for one item" failure in list form.
+    expect(document.body.textContent).not.toContain("Do a thing.");
+  });
+
+  it("does not render the deterministic fallback — it re-emits what is already on screen", () => {
+    // fallbackNarrative sets factor_commentary[key] = area.summary and builds
+    // recommendations from actions.action + missing.howTo + confirmInOmpf.note.
+    // Rendering it would show a Sailor the same sentences twice.
+    renderWith(withNarrative({ narrative_source: "fallback" }, FULL));
+    expect(document.body.textContent).not.toContain("Your reports are consistent.");
+    expect(screen.queryByText("In plain terms")).toBeNull();
+  });
+
+  it("strips path-shaped tokens the trailing-only citation gate leaves behind", () => {
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        { ...FULL, strengths: ["Solid [areas.bogus]. [areas.performance]"] },
+      ),
+    );
+    // The gate strips only the TRAILING group, so [areas.bogus] survives it.
+    expect(document.body.textContent).toContain("Solid.");
+    expect(document.body.textContent).not.toContain("areas.bogus");
+  });
+
+  it("keeps the bracketed NEC and CIN codes the gate deliberately preserves", () => {
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        {
+          ...FULL,
+          gaps: ['Complete "Advanced Network Analyst [NEC 742A]" and [CIN A-531-0009].'],
+        },
+      ),
+    );
+    expect(document.body.textContent).toContain("[NEC 742A]");
+    expect(document.body.textContent).toContain("[CIN A-531-0009]");
   });
 });
 

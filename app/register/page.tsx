@@ -268,14 +268,20 @@ function ProfessionalFields({
           public.handle_new_user() copied into profiles.preferred_role — i.e. a
           self-service Admin account. Migration 009 pins every new account to
           'Sailor' in the database; this notice states that honestly. */}
+      {/* Not a form control — there is nothing to read or write, only a value
+          to state. `aria-readonly` on a plain div is a CRITICAL axe violation
+          (aria-allowed-attr: the attribute needs a role that supports it), and
+          `<label for>` pointing at a non-labelable element does not associate.
+          A heading-free <span> + aria-describedby says the same thing in markup
+          a screen reader can actually follow. */}
       <div className="space-y-1.5 md:col-span-2">
-        <label className="apex-label" htmlFor="reg-role">
+        <span className="apex-label" id="reg-role-label">
           Evaluation Role
-        </label>
+        </span>
         <div
-          id="reg-role"
           className="apex-input opacity-70 cursor-not-allowed"
-          aria-readonly="true"
+          role="note"
+          aria-labelledby="reg-role-label"
         >
           {ROLE_LABELS.Sailor}
         </div>

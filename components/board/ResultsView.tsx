@@ -108,6 +108,28 @@ const STATUS_STYLE = {
 } as const;
 
 /**
+ * The narrative's citation gate parses only the TRAILING bracket group,
+ * deliberately, so that legitimate prose brackets survive: `Complete "Advanced
+ * Network Analyst [NEC 742A]"` keeps its NEC code, which matters because the
+ * transcribed roadmaps are full of bracketed NEC and CIN codes. The cost is
+ * that a path-shaped token in NON-final position now reaches the Sailor —
+ * `"Solid [areas.bogus]. [areas.performance]"` arrives as `"Solid
+ * [areas.bogus]."`. It cannot launder a claim (the trailing group still gates
+ * the whole item, so the anti-fabrication property holds) but it is ugly, so it
+ * is stripped at display time instead.
+ *
+ * Matches only a `word.word` shape INSIDE brackets, never all brackets: payload
+ * paths are dotted and space-free (`areas.performance`, `unmet.<uuid>`), while
+ * every bracketed token in the roadmap data carries a space or has no dot
+ * (`[NEC 742A]`, `[CIN A-531-0009]`, `["e.g., CSTT, 3MTT, etc…"]`). Verified
+ * against scripts/ladr-data: no milestone string matches this shape.
+ */
+const PATH_TOKEN = /\s*\[[\w-]+\.[\w.-]+\]/g;
+
+const stripPathTokens = (text: string): string =>
+  text.replace(PATH_TOKEN, "").replace(/\s+([.,;:])/g, "$1").trim();
+
+/**
  * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
  * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
  * selection board, but missing reports can make the work of the board more
@@ -424,6 +446,64 @@ function AreaCard({ area }: { area: Area }) {
   );
 }
 
+/**
+ * The AI narrative, and ONLY the AI narrative.
+ *
+ * PR #24 rebuilt narrative.ts from the ReadinessReport, so the reason this
+ * screen originally dropped it — the fallback printed "Contributed 33.5 of 40.0
+ * possible points" for all six factors, which sums back to the suppressed
+ * composite — is gone. What replaced it is a different problem: the
+ * DETERMINISTIC fallback is now assembled from the very strings this screen
+ * already renders. `factor_commentary[key] = area.summary` is the area cards
+ * verbatim; `recommendations` is roundRobin(actions.action, missing.howTo,
+ * confirmInOmpf.note) — the plan and the OMPF list, reordered. Rendering it
+ * would show a Sailor the same sentences twice in two different orders.
+ *
+ * So: model output only, and only the two lists that are a SYNTHESIS rather
+ * than a re-emission. `recommendations` stays out because a second, differently
+ * ordered list of what to do beside the ranked plan is the "two numbers for one
+ * item" failure in list form; `factor_commentary` stays out because the area
+ * cards are already exactly that, per area, with their evidence notes attached.
+ */
+function ModelNarrative({ narrative }: { narrative: BoardAnalysisRow["narrative"] }) {
+  const strengths = (narrative?.strengths ?? []).map(stripPathTokens).filter(Boolean);
+  const gaps = (narrative?.gaps ?? []).map(stripPathTokens).filter(Boolean);
+  if (strengths.length === 0 && gaps.length === 0) return null;
+  return (
+    <section className="apex-card p-4 space-y-3" aria-labelledby="readiness-narrative">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3
+          id="readiness-narrative"
+          className="text-sm font-bold gold-accent uppercase tracking-wider"
+        >
+          In plain terms
+        </h3>
+        <span className="apex-badge-draft px-2 py-0.5">Written by AI</span>
+      </div>
+      {([
+        ["What is working", strengths],
+        ["What a board would notice", gaps],
+      ] as const).map(([title, items]) =>
+        items.length === 0 ? null : (
+          <div key={title} className="space-y-1">
+            <h4
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {title}
+            </h4>
+            <ul className="text-sm list-disc pl-5 space-y-1" style={{ color: "var(--foreground)" }}>
+              {items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ),
+      )}
+    </section>
+  );
+}
+
 function LegacyRunPanel() {
   return (
     <div className="apex-card p-6 space-y-2">
@@ -603,6 +683,10 @@ export default function ResultsView({
                 ))}
               </ul>
             </section>
+          )}
+
+          {selected.narrative_source === "model" && (
+            <ModelNarrative narrative={selected.narrative} />
           )}
 
           {continuityGap && (

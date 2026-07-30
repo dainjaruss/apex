@@ -24,7 +24,6 @@ import {
 } from "@/lib/boardConfidence/rubric";
 import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
 import { generateNarrative } from "@/lib/boardConfidence/narrative";
-import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
 import {
   BOARD_DISCLAIMER,
   type BoardAnalysisRow,

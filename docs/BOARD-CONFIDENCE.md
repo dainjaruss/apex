@@ -107,9 +107,18 @@ The screen, top to bottom:
 6. **"Confirm in your OMPF"** — the unscored list of entries ticked met/earned
    but not yet confirmed. Deliberately carries no worth: `verified_in_ompf` is a
    self-ticked box, so pricing it would penalise honest disclosure.
-7. **Per-area detail** — status, plain-language summary, and `evidenceNote`
+7. **"In plain terms"** — the AI narrative's *strengths* and *gaps*, and **only
+   when it came from a model**. `recommendations` and `factor_commentary` are
+   not rendered: since PR #24 the deterministic fallback is assembled from the
+   strings this screen already shows (`factor_commentary[key] = area.summary`;
+   `recommendations = roundRobin(actions.action, missing.howTo,
+   confirmInOmpf.note)`), so rendering it would show a Sailor the same sentences
+   twice in two different orders. A second, differently ordered list of what to
+   do beside the ranked plan is the "two numbers for one item" failure in list
+   form.
+8. **Per-area detail** — status, plain-language summary, and `evidenceNote`
    inline (never a tooltip). It does not lead.
-8. **Prior reviews** — run date, board date, coverage. No score or band column.
+9. **Prior reviews** — run date, board date, coverage. No score or band column.
 
 For a rating with no curated LaDR — **80 of 82 ratings**, the common case — the
 screen leads with the one-click *Fetch official LaDR from Navy COOL* control and
@@ -136,6 +145,15 @@ says plainly that this is normal.
 - **A tool-configuration gap is not the Sailor's gap.** With no active precept
   the rubric drops the factor to weight 0 and coverage counts five areas; the
   screen drops the card rather than showing a sixth "Not entered".
+- **Path-shaped tokens are stripped at display time.** The narrative's citation
+  gate parses only the *trailing* bracket group, deliberately, so prose brackets
+  survive — `Complete "Advanced Network Analyst [NEC 742A]"` keeps its NEC code,
+  which matters now that 80 transcribed milestones carry bracketed NEC and CIN
+  codes. The cost is that a path-shaped token in non-final position reaches the
+  reader. It cannot launder a claim (the trailing group still gates the whole
+  item), but it is ugly, so the display strips a `word.word` shape *inside*
+  brackets — never all brackets, which would eat the codes the gate just worked
+  to preserve.
 - **`board_analyses.input.readiness`** (additive, jsonb, no migration) holds the
   run's report, snapshotted like the rest of the run so a prior review renders
   what it said at the time. Runs written before v2 show *"predates the readiness
