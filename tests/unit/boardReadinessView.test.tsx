@@ -234,10 +234,13 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
     expect(headers).toEqual(["Run date", "Board date", "Coverage"]);
   });
 
-  it("still shows the number and band when the engine DOES emit one", () => {
-    // The converse of the rule: suppression must be the gate's decision, not a
-    // blanket deletion of score rendering. Synthesised, because both gates
-    // passing is rare by design (and getting rarer).
+  it("renders no number and no band even when the engine DOES emit one", () => {
+    // Founder ruling, replacing the earlier "suppression must be the gate's
+    // decision" reading of this case. The gates catch the thin record; what
+    // survives them is the record where the number is confidently WRONG — four
+    // straight Must Promote above the summary group, PSR entered, LaDR fully
+    // answered, coverage 6 of 6 at 1.000, "44.5 / 100 — vote 25, Not
+    // competitive this cycle". Nothing is missing there, so no gate can help.
     const scored = buildClientReport(partlyEntered);
     const row = rowFor(partlyEntered);
     row.input.readiness = {
@@ -247,10 +250,13 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
     };
 
     renderWith(row);
-    const line = screen.getByTestId("score-line");
-    expect(line.textContent).toContain("78.4 / 100");
-    expect(line.textContent).toContain("Competitive");
-    expect(screen.queryByTestId("score-note")).toBeNull();
+    const text = document.body.textContent ?? "";
+    expect(screen.queryByTestId("score-line")).toBeNull();
+    expect(text).not.toContain("78.4");
+    expect(text).not.toContain("Competitive");
+    expect(text).not.toMatch(/\/\s*100\b/);
+    // Still computed and still persisted — a render decision, not an engine one.
+    expect(row.input.readiness.score).not.toBeNull();
   });
 
   it("a run stored before v2 shows no score at all, not its stored one", () => {
@@ -342,11 +348,12 @@ describe("ResultsView — 'not entered' is a data state, not a deficiency", () =
   });
 });
 
+// Extends the ban PR #21 applies to engine strings: here it covers everything
+// this component renders, including anything React might stringify by accident.
+const BANNED =
+  /\b(P1|P2|P3|P4|aP|wSum|S_f|coveredDays|availableSubweight|nObserved|declinePenalty|contribution|excluded|ratio_[a-z_]+)\b/;
+
 describe("ResultsView — no engine internal reaches the DOM", () => {
-  // Extends the ban PR #21 applies to engine strings: here it covers everything
-  // this component adds, including anything React might stringify by accident.
-  const BANNED =
-    /\b(P1|P2|P3|P4|aP|wSum|S_f|coveredDays|availableSubweight|nObserved|declinePenalty|contribution|excluded|ratio_[a-z_]+)\b/;
 
   for (const [name, inputs] of [
     ["an empty record", nothingEntered],
@@ -359,10 +366,33 @@ describe("ResultsView — no engine internal reaches the DOM", () => {
     });
   }
 
-  it("the server strips detail before the report ever leaves, so no toggle can reach it", () => {
+  it("the server strips detail from the report before it leaves", () => {
     const report = buildClientReport(partlyEntered);
     for (const area of report.areas)
       expect(area).not.toHaveProperty("detail");
+  });
+
+  it("keeps engine internals off the SCREEN even when the row carries them", () => {
+    // The guard above only covers readiness.areas[].detail. Production rows also
+    // carry factor_scores, overall_score and band — .select("*") returns them and
+    // the analyze route hands the row back wholesale — so a fixture with
+    // factor_scores: [] would pass this suite while the real screen leaked.
+    // Give the row what production gives it.
+    const scored = scoreBoardConfidence(partlyEntered, CFG);
+    const row = rowFor(partlyEntered, {
+      factor_scores: scored.factors,
+      overall_score: scored.final,
+      band: scored.band,
+    });
+    expect(row.factor_scores.length).toBe(6);
+    expect(row.factor_scores[0]).toHaveProperty("contribution");
+
+    renderWith(row);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(BANNED);
+    for (const f of row.factor_scores)
+      expect(text).not.toContain(f.contribution.toFixed(1));
+    expect(text).not.toContain(String(scored.final));
   });
 });
 
@@ -524,6 +554,17 @@ describe("ResultsView — the AI narrative", () => {
     expect(document.body.textContent).not.toContain("Do a thing.");
   });
 
+  it("fails closed on an unexpected narrative_source", () => {
+    // `=== "model"` is not interchangeable with `!== "fallback"`. The union says
+    // they are; the DATABASE does not — narrative_source is a text column, and a
+    // NULL or unrecognised value must not open the model-only path. That
+    // refactor reads as a harmless simplification and passes every other test
+    // here, so pin the direction explicitly.
+    renderWith(withNarrative({ narrative_source: null as any }, FULL));
+    expect(screen.queryByText("In plain terms")).toBeNull();
+    expect(document.body.textContent).not.toContain("Your reports are consistent.");
+  });
+
   it("does not render the deterministic fallback — it re-emits what is already on screen", () => {
     // fallbackNarrative sets factor_commentary[key] = area.summary and builds
     // recommendations from actions.action + missing.howTo + confirmInOmpf.note.
@@ -543,6 +584,19 @@ describe("ResultsView — the AI narrative", () => {
     // The gate strips only the TRAILING group, so [areas.bogus] survives it.
     expect(document.body.textContent).toContain("Solid.");
     expect(document.body.textContent).not.toContain("areas.bogus");
+  });
+
+  it("leaves a non-citation bracket alone instead of mangling the sentence", () => {
+    // A shape-only strip turned "…per [1610.10H]. [actions.a1]" into "…per."
+    // Anchoring to the closed prefix set citationPaths() enumerates removes the
+    // citation and nothing else.
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        { ...FULL, gaps: ["Recover the report per [1610.10H]. [actions.a1]"] },
+      ),
+    );
+    expect(document.body.textContent).toContain("Recover the report per [1610.10H].");
   });
 
   it("keeps the bracketed NEC and CIN codes the gate deliberately preserves", () => {

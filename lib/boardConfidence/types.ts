@@ -205,16 +205,25 @@ export interface RubricConfig {
 }
 
 /**
- * The readiness report AS IT LEAVES THE SERVER. `ReadinessArea.detail` is the
- * whole FactorResult, and Σ detail.contribution reconstructs the suppressed
- * score AND its band exactly (measured: 43.2 on a `score: null` report). The
- * engine keeps `detail` by design; containment is the boundary's job, so the
- * field is dropped here rather than shipped to a browser where a future
- * "show the math" toggle could reach it.
+ * The readiness report as it leaves the server, with `ReadinessArea.detail`
+ * dropped. `detail` is the whole FactorResult, and Σ detail.contribution
+ * reconstructs the suppressed score AND its band exactly (measured: 43.2 on a
+ * `score: null` report), so the report itself does not carry it.
  *
- * (`board_analyses.factor_scores` still carries the same numbers — it is a
- * historical column and predates this layer. Nothing in the Results screen
- * renders it.)
+ * THIS IS NOT A DATA BOUNDARY, and an earlier version of this comment claimed it
+ * was. The browser already holds the same numbers by other routes:
+ * `listMyAnalyses` selects `*` (boardConfidenceService.ts), the analyze route
+ * returns the row wholesale, and the row persists `factor_scores`,
+ * `overall_score` and `band` (service.ts). For the six-Early-Promote record
+ * whose score the Results screen refuses to show, the client holds
+ * overall_score 55.6 and band 50 regardless of this type.
+ *
+ * That is not a leak — it is the user's own data about their own record. What
+ * this type provides is RENDER-LEVEL containment: it keeps `detail` out of the
+ * object the Results screen is written against, so a future "show the math"
+ * disclosure cannot reach for it by accident. Keeping the numbers off the SCREEN
+ * is the property that matters, and it is enforced by the component and its
+ * tests, not by this shape.
  */
 export type ClientReadinessReport = Omit<ReadinessReport, "areas"> & {
   areas: Array<Omit<ReadinessArea, "detail">>;

@@ -97,10 +97,17 @@ The screen, top to bottom:
 3. **Coverage.** *"APEX can see 4 of 6 areas of your record"*, a bar for
    `Σ(weight·conf)/100`, and the missing list. The bar is explicitly labelled as
    how much APEX can *see*, not how strong the record is.
-4. **The score, only when the engine emits one.** When `score` is `null` the
-   screen renders **no number and no band** — just `scoreNote`, the engine's own
-   plain-language reason, verbatim (so a new gate branch reaches the Sailor
-   without the component paraphrasing it).
+4. **No score. Ever.** The 0–100 composite and its band **do not render**, and
+   `scoreNote` — the engine's own plain-language reason, verbatim — renders in
+   their place when the gates suppress. The gates catch the *thin* record, which
+   is the case the epic set out to fix; what survives them is the case where the
+   number is confidently **wrong**. A record with four straight *Must Promote*,
+   trait averages above the summary group in every period, PSR entered and the
+   LaDR fully answered cleared every gate at coverage 6 of 6, `measured = 1.000`
+   and read *"44.5 / 100 — vote 25, Not competitive this cycle"* directly above
+   two cards saying **On track**. Suppression cannot catch that, because nothing
+   is missing. The composite stays computed and persisted — this is a render
+   decision, not an engine change.
 5. **"Do this next"** — the ranked plan. Missing areas come first as unlock
    steps ("Add your tours — unlocks leadership assessment"), then the scored
    actions from `bandDeltas`. Point values are never printed.
@@ -142,6 +149,15 @@ says plainly that this is normal.
   with basis `unknown_duration`. That renders as one honest bucket — *"APEX does
   not know how long these take — start now"* — rather than telling a Sailor five
   months out that everything is next cycle. Buckets render only when non-empty.
+- **An unsourced precept is treated as an absent one.** `assembleRubricInputs`
+  populates `preceptFlags` only when the active precept carries a `source_url`.
+  Otherwise the rubric excludes the factor and redistributes its weight ×100/90 —
+  the path that already existed for "no precept at all". Without this, five
+  hand-set booleans produced a **full-confidence zero over 10 weighted points**
+  (`scorePrecept` emits 0 for an indicator whose inputs are absent, and
+  `conf_precept` is 1 unconditionally), scoring a Sailor against doctrine this
+  tool's own screen disclaims as *"entered by an APEX Admin and not taken from
+  the board's convening order"*. Coverage cannot catch it: nothing is missing.
 - **A tool-configuration gap is not the Sailor's gap.** With no active precept
   the rubric drops the factor to weight 0 and coverage counts five areas; the
   screen drops the card rather than showing a sixth "Not entered".

@@ -118,13 +118,15 @@ const STATUS_STYLE = {
  * the whole item, so the anti-fabrication property holds) but it is ugly, so it
  * is stripped at display time instead.
  *
- * Matches only a `word.word` shape INSIDE brackets, never all brackets: payload
- * paths are dotted and space-free (`areas.performance`, `unmet.<uuid>`), while
- * every bracketed token in the roadmap data carries a space or has no dot
- * (`[NEC 742A]`, `[CIN A-531-0009]`, `["e.g., CSTT, 3MTT, etc…"]`). Verified
- * against scripts/ladr-data: no milestone string matches this shape.
+ * ANCHORED TO THE LEGAL PREFIXES, not to a generic `word.word` shape. The set is
+ * closed and enumerated by `citationPaths()` — coverage. / areas. / actions. /
+ * unmet. — so anything else in brackets is left alone. A shape-only match
+ * degraded by MANGLING rather than removing: `"…per [1610.10H]. [actions.a1]"`
+ * became `"…per."`, which reads as broken software. No data path produces such a
+ * token today (warnings are not in the payload and the prompt discourages it),
+ * but "reachable but harmless" is not a reason to render garbage.
  */
-const PATH_TOKEN = /\s*\[[\w-]+\.[\w.-]+\]/g;
+const PATH_TOKEN = /\s*\[(?:coverage|areas|actions|unmet)\.[\w.-]+\]/g;
 
 const stripPathTokens = (text: string): string =>
   text.replace(PATH_TOKEN, "").replace(/\s+([.,;:])/g, "$1").trim();
@@ -231,7 +233,7 @@ function PlanStep({
 }
 
 function CoverageCard({ report }: { report: Report }) {
-  const { coverage, score, scoreNote } = report;
+  const { coverage, scoreNote } = report;
   const pct = Math.round(coverage.measured * 100);
   return (
     <section className="apex-card p-6 space-y-4" aria-labelledby="readiness-coverage">
@@ -280,21 +282,22 @@ function CoverageCard({ report }: { report: Report }) {
         </p>
       )}
 
-      {score && (
-        <div
-          className="p-3 rounded-lg border"
-          style={{ borderColor: "var(--border)" }}
-          data-testid="score-line"
-        >
-          <p className="text-sm apex-heading">
-            <span className="font-bold">{score.value.toFixed(1)} / 100</span> —
-            vote {score.band}, {score.label}
-          </p>
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            A modeled number from a published rubric, not a board result.
-          </p>
-        </div>
-      )}
+      {/* THE 0-100 COMPOSITE DOES NOT RENDER. Founder ruling, and `report.score`
+          is destructured above only so this file states that on purpose rather
+          than by omission.
+
+          The gates suppress the number when the record is thin, which is the
+          case the epic set out to fix. What survives the gates is the case where
+          the number is confidently WRONG: a record with four straight Must
+          Promote, trait averages above the summary group in every period, PSR
+          entered and the LaDR fully answered cleared every gate at coverage
+          6 of 6, 1.000, and read "44.5 / 100 — vote 25, Not competitive this
+          cycle" directly above two cards saying On track. Suppression cannot
+          catch that, because nothing is missing.
+
+          The composite is still computed and still persisted — this is a render
+          decision, not an engine change. `board_analyses.overall_score` and
+          `.band` are unchanged historical columns. */}
     </section>
   );
 }
@@ -459,11 +462,23 @@ function AreaCard({ area }: { area: Area }) {
  * confirmInOmpf.note) — the plan and the OMPF list, reordered. Rendering it
  * would show a Sailor the same sentences twice in two different orders.
  *
- * So: model output only, and only the two lists that are a SYNTHESIS rather
- * than a re-emission. `recommendations` stays out because a second, differently
- * ordered list of what to do beside the ranked plan is the "two numbers for one
- * item" failure in list form; `factor_commentary` stays out because the area
- * cards are already exactly that, per area, with their evidence notes attached.
+ * That reasoning is right about the fallback and does NOT reach the path this
+ * component actually renders, which is model-only — where `recommendations` is
+ * model-written, citation-gated prose, not those strings. Re-decided on the
+ * correct grounds, and still excluded:
+ *
+ *   The payload hands the model `actions` — the same rows the ranked plan is
+ *   built from — so model `recommendations` are prose OVER the plan's contents.
+ *   At best they restate it in different words; at worst they imply a different
+ *   order. The plan is ranked by measured marginal composite value and is the
+ *   product's core promise; a second, unranked to-do list beside it leaves a
+ *   Sailor asking which to do first. That is the "two numbers for one item"
+ *   failure in list form, and it is a real cost against a speculative gain.
+ *
+ * `factor_commentary` stays out for a firmer reason than "it duplicates the
+ * cards": `applyCitationGate` substitutes `deterministic.factor_commentary[key]`
+ * for any entry it cannot cite (narrative.ts:216), so model output really can
+ * arrive carrying the area summaries verbatim.
  */
 function ModelNarrative({ narrative }: { narrative: BoardAnalysisRow["narrative"] }) {
   const strengths = (narrative?.strengths ?? []).map(stripPathTokens).filter(Boolean);

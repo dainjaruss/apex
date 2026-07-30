@@ -333,9 +333,31 @@ export async function assembleRubricInputs(
     .eq("active", true)
     .maybeSingle();
   if (preceptError) throw new Error(preceptError.message);
-  const preceptFlags: PreceptFlag[] = precept
-    ? PRECEPT_FLAGS.filter((f) => precept.emphasis_flags?.[f] === true)
-    : [];
+  // An UNSOURCED precept is treated exactly like an absent one.
+  //
+  // WHY (v2 review blocker). The readiness gates suppress a verdict when data is
+  // MISSING; they did nothing when data was present but UNSOURCED. A record with
+  // four straight Must Promote, trait averages above the summary group in every
+  // period, PSR fully entered and the LaDR fully answered measured coverage
+  // 6 of 6 at 1.000 — clear of every gate — while `precept` contributed a
+  // FULL-CONFIDENCE ZERO over 10 weighted points: scorePrecept emits 0 for an
+  // indicator whose inputs are absent, and conf_precept is 1 unconditionally.
+  //
+  // That zero is not a measurement. It comes from five hand-set booleans that
+  // this tool's own Results screen disclaims two cards further down as "entered
+  // by an APEX Admin and not taken from the board's convening order". Scoring a
+  // Sailor against invented doctrine is the same defect class the readiness epic
+  // exists to kill, one layer down — and coverage cannot catch it, because
+  // nothing is missing.
+  //
+  // `source_url` is the honest discriminator: a precept read from a published
+  // convening order carries one, and the shipped seed is titled "(modeled)" with
+  // source_url null. No new mechanism — [] is the path the rubric already
+  // handles, excluding the factor and redistributing its weight ×100/90.
+  const preceptFlags: PreceptFlag[] =
+    precept?.source_url
+      ? PRECEPT_FLAGS.filter((f) => precept.emphasis_flags?.[f] === true)
+      : [];
 
   return {
     inputs: { boardDate, evals, psr, ladr, preceptFlags },

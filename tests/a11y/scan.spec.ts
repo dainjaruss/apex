@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import {
@@ -77,9 +77,15 @@ test.describe("authenticated routes", () => {
     }
   }
 
-  // /board-confidence opens on Record Entry, so the scan above never reached the
-  // Results screen — where the coverage bar, the status pills and the plan live.
-  // Contrast on those is a shipped gate, so click through to it.
+  // /board-confidence opens on Record Entry, so the scan above never reaches the
+  // Results screen — where the coverage bar, the status pills, the plan buckets
+  // and the narrative card live. Contrast on those is a shipped gate.
+  //
+  // This scan asserts the POPULATED screen is on the page before running axe.
+  // Without that it passed vacuously: with no seeded board_analyses row the view
+  // takes its `!selected` branch and renders "No review yet.", so none of those
+  // elements were ever in the scanned DOM. `npm run db:seed` now seeds one
+  // completed run for this account (scripts/seed-e2e.ts, seedReadinessRun).
   for (const theme of THEMES) {
     test(`a11y auth · Record Readiness results · ${theme}`, async ({ page }) => {
       await preparePage(page, theme);
@@ -90,7 +96,15 @@ test.describe("authenticated routes", () => {
         .click({ timeout: 5_000 })
         .catch(() => null);
       await page.getByRole("button", { name: "Results" }).click();
-      await page.waitForTimeout(500);
+
+      // Real selectors, not a sleep — and they FAIL the scan rather than
+      // silently scanning an empty state.
+      await expect(
+        page.getByRole("heading", { name: /APEX can see \d+ of \d+ areas/ }),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole("heading", { name: "Do this next" })).toBeVisible();
+      await expect(page.locator("[data-status]").first()).toBeVisible();
+
       await scanAccessibility(
         page,
         "/board-confidence",
