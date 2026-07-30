@@ -391,6 +391,14 @@ describe("NAVPERS 1616/27 averages and recommendations", () => {
   const B43: Bounds = { x0: 236.9, y0: 222.5, x1: 273.6, y1: 244.3 };
   const B45: Bounds = { x0: 364.3, y0: 223.2, x1: 393.8, y1: 235.7 };
   const B44_RSCA: Bounds = { x0: 364.3, y0: 241.2, x1: 393.8, y1: 253.7 };
+  const B42_RANK: Bounds = { x0: 108.7, y0: 223.2, x1: 138.2, y1: 235.7 };
+  const B42_OF: Bounds = { x0: 177.1, y0: 223.2, x1: 206.6, y1: 235.7 };
+  // Ink extents of the defaults these cells are pre-printed with, measured at 300 dpi.
+  const PREPRINTED_B44_INK: Bounds = { x0: 369.6, y0: 245.0, x1: 391.7, y1: 251.5 };
+  const PREPRINTED_B42_INK: Record<string, Bounds> = {
+    "0 (rank)": { x0: 114.0, y0: 227.0, x1: 117.6, y1: 233.5 },
+    "0 (of)": { x0: 182.4, y0: 227.0, x1: 186.0, y1: 233.5 },
+  };
 
   it("writes the member trait average in Block 43, not into a trait row", async () => {
     const { text } = await render();
@@ -399,11 +407,13 @@ describe("NAVPERS 1616/27 averages and recommendations", () => {
     expect(hits.map((d) => d.str)).toEqual(["3.33"]);
   });
 
-  it("writes the individual promotion recommendation in Block 41", async () => {
+  it("writes the individual promotion recommendation in Block 41, set left", async () => {
     const { text } = await render();
-    expect(text[2].filter((d) => within(d, B41)).map((d) => d.str)).toEqual([
-      "EARLY PROMOTE",
-    ]);
+    const hits = text[2].filter((d) => within(d, B41));
+    expect(hits.map((d) => d.str)).toEqual(["EARLY PROMOTE"]);
+    // Set left, where the form sets its own pre-printed NOB (ink starts at x 96.2),
+    // not centred in a 118pt cell.
+    expect(hits[0].x0).toBeLessThan(100);
   });
 
   it("writes the summary group average in Block 45", async () => {
@@ -411,10 +421,29 @@ describe("NAVPERS 1616/27 averages and recommendations", () => {
     expect(text[2].filter((d) => within(d, B45)).map((d) => d.str)).toEqual(["4.32"]);
   });
 
-  it("leaves Block 44 RSCA showing the form's own 0.00 — APEX has no such figure", async () => {
+  it("blanks Block 44 RSCA rather than leaving the form's 0.00 to read as a figure", async () => {
+    // RSCA is the reporting senior's cumulative average. APEX holds no such number, and
+    // the cell sits in the AVERAGES panel between Block 43 (3.33) and Block 45 (4.32) —
+    // nothing marks it as un-computed, and 0.00 is a damaging number to a board.
     const { text, rects } = await render({ summary_group_average: 4.32 });
     expect(text[2].filter((d) => within(d, B44_RSCA))).toEqual([]);
-    expect(rects[2].filter((r) => within(r, B44_RSCA))).toEqual([]);
+    expect(
+      rects[2].filter((r) => within(PREPRINTED_B44_INK, r)),
+      "Block 44's pre-printed 0.00 must be covered, leaving the cell blank",
+    ).toHaveLength(1);
+  });
+
+  it("blanks Block 42's pre-printed '0 of 0' ranking", async () => {
+    // grep finds no summary-ranking field anywhere in APEX. Left alone, every generated
+    // CHIEFEVAL tells a board the Sailor ranked 0 of 0.
+    const { text, rects } = await render();
+    for (const [name, ink] of Object.entries(PREPRINTED_B42_INK)) {
+      expect(
+        rects[2].filter((r) => within(ink, r)),
+        `Block 42's pre-printed "${name}" must be covered`,
+      ).toHaveLength(1);
+    }
+    expect(text[2].filter((d) => within(d, B42_RANK) || within(d, B42_OF))).toEqual([]);
   });
 
   it("breaks the summary group down across Block 48's five printed columns", async () => {
@@ -435,5 +464,124 @@ describe("NAVPERS 1616/27 averages and recommendations", () => {
     expect(
       cells.map((c) => text[2].filter((d) => within(d, c)).map((d) => d.str)),
     ).toEqual([["0"], ["1"], ["3"], ["2"], ["4"]]);
+  });
+});
+
+describe("NAVPERS 1616/27 page-2 body geometry", () => {
+  // Block 40 REPORTING SENIOR COMMENTS — cell y[277.2, 380.6], 103pt, label bottom
+  // 370.9. Text is drawn from the cell's left origin, so every comment line is exactly
+  // the page-2 text at x 34.2 below the trait table; anything the renderer spills past
+  // the cell shows up in this same set.
+  const B40: Bounds = { x0: 31.4, y0: 277.2, x1: 579.1, y1: 380.6 };
+  const B40_TEXT_X = 34.2;
+  const commentLines = (drawn: Drawn[]) =>
+    drawn.filter((d) => Math.abs(d.x0 - B40_TEXT_X) < 0.01 && d.y0 < 381);
+
+  const LONG_COMMENT = Array.from(
+    { length: 30 },
+    (_, i) => `Line ${i} substantiating the marks with verifiable specifics and results.`,
+  ).join(" ");
+
+  it("clamps Block 40 to the eight lines the box physically holds at 10-pitch", async () => {
+    // The box is 103pt; at 10-pitch Courier (~11.75pt lead) that is EIGHT lines, not the
+    // eighteen lib/commentFit.checkCommentFit still allows — 18 is the 1616/26 Block 43
+    // number. Nine lines would put ink through the PROMOTION RECOMMENDATION panel.
+    const { text } = await render({
+      comments: LONG_COMMENT,
+      block_values: { comment_pitch: "10" } as Evaluation["block_values"],
+    });
+    const lines = commentLines(text[2]);
+    expect(lines).toHaveLength(8);
+    lines.forEach((l, i) =>
+      expect(within(l, B40), `Block 40 line ${i + 1} spills outside the box`).toBe(true),
+    );
+  });
+
+  it("clamps Block 40 to seven lines at 12-pitch", async () => {
+    const { text } = await render({
+      comments: LONG_COMMENT,
+      block_values: { comment_pitch: "12" } as Evaluation["block_values"],
+    });
+    const lines = commentLines(text[2]);
+    expect(lines).toHaveLength(7);
+    lines.forEach((l) => expect(within(l, B40)).toBe(true));
+  });
+
+  it("writes each career recommendation on its own Block 46 / 47 line", async () => {
+    // Cells x[396.5, 579.1]; the wrapped "46. First / Recommendation" label ends at
+    // x 444.3, so a value has to start clear of it and stay inside the right rule.
+    const B46: Bounds = { x0: 444.3, y0: 237.6, x1: 579.1, y1: 255.4 };
+    const B47: Bounds = { x0: 444.3, y0: 219.6, x1: 579.1, y1: 237.4 };
+    const { text } = await render({
+      career_recommendations: ["COMMAND SENIOR CHIEF", "RECRUIT DIV CMDR"],
+    });
+    expect(text[2].filter((d) => within(d, B46)).map((d) => d.str)).toEqual([
+      "COMMAND SENIOR CHIEF",
+    ]);
+    expect(text[2].filter((d) => within(d, B47)).map((d) => d.str)).toEqual([
+      "RECRUIT DIV CMDR",
+    ]);
+  });
+
+  it("puts the reporting senior address in Block 51, above the printed Phone:/DSN:", async () => {
+    // Cell x[373.4, 579.1]; "51. Reporting Senior Address" label bottom 144.8 and the
+    // printed "Phone:" top 90.0 bound the writable band.
+    const B51: Bounds = { x0: 373.4, y0: 90.0, x1: 579.1, y1: 144.8 };
+    const { text } = await render({
+      block_values: {
+        reporting_senior_address: "USS FRANKLYN DDG 999\nFPO AP 96601-1234\nUNITED STATES",
+      } as Evaluation["block_values"],
+    });
+    const lines = text[2].filter((d) => d.x0 > 300 && d.y0 > 60 && d.y0 < 160);
+    expect(lines.map((d) => d.str)).toEqual([
+      "USS FRANKLYN DDG 999",
+      "FPO AP 96601-1234",
+      "UNITED STATES",
+    ]);
+    lines.forEach((l) => expect(within(l, B51)).toBe(true));
+  });
+
+  it("puts each signature date in its own Block 49 / 50 / 52 box", async () => {
+    const CELLS: Array<[number, Bounds, string]> = [
+      [49, { x0: 518.2, y0: 156.2, x1: 575.5, y1: 174.0 }, "25NOV20"],
+      [50, { x0: 302.2, y0: 113.8, x1: 370.3, y1: 131.5 }, "25NOV21"],
+      [52, { x0: 302.2, y0: 50.4, x1: 370.3, y1: 68.2 }, "25NOV22"],
+    ];
+    const { text } = await render({
+      block_values: {
+        member_signature_date: "2025-11-20",
+        reporting_senior_signature_date: "2025-11-21",
+        concurrent_rs_signature_date: "2025-11-22",
+      } as Evaluation["block_values"],
+    });
+    for (const [block, cell, expected] of CELLS) {
+      expect(
+        text[2].filter((d) => within(d, cell)).map((d) => d.str),
+        `Block ${block}'s date must land in x[${cell.x0}, ${cell.x1}] y[${cell.y0}, ${cell.y1}]`,
+      ).toEqual([expected]);
+    }
+  });
+});
+
+describe("NAVPERS 1616/27 Block 12 is not APEX's Block 12", () => {
+  it("never stamps Block 12 from promotion_frocking", async () => {
+    // 1616/27 Block 12 is "Detachment of Reporting Senior". APEX's only key for that
+    // slot is bv.promotion_frocking, which the UI labels "12: Promotion/Frocking" —
+    // EVAL 1616/26's Block 12. Stamping it puts an occasion on a signed record that the
+    // rater never selected. This stays unmarked until the UI carries a per-form label.
+    const { text } = await render({
+      block_values: {
+        promotion_frocking: true,
+        periodic: true,
+      } as Evaluation["block_values"],
+    });
+    expect(
+      text[1].filter((d) => d.str === "X" && within(d, CHECKBOX["12_DET_RS"].cell)),
+      "Block 12 must stay unmarked — blank is recoverable, a false occasion is not",
+    ).toEqual([]);
+    // …and the assertion is not vacuous: a sibling occasion box does get marked.
+    expect(
+      text[1].filter((d) => d.str === "X" && within(d, CHECKBOX["10_PERIODIC"].cell)),
+    ).toHaveLength(1);
   });
 });

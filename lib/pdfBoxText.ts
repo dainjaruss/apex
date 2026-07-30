@@ -48,10 +48,34 @@ const CAP_HEIGHT = 0.583;
 const PAD = 2;
 
 /**
+ * Blank a cell: cover its pre-printed default and write nothing in its place.
+ *
+ * Needed wherever APEX holds no value for a cell the form pre-fills, because a
+ * pre-filled default is not neutral. 1616/27 prints "0.00" in Block 44 (RSCA) and
+ * "0 of 0" in Block 42 (Summary Ranking), both sitting beside averages APEX does
+ * compute — nothing distinguishes them from computed figures, and a board reads them
+ * as such. An empty cell says "not provided"; "0.00" says the reporting senior's
+ * cumulative average is zero, and "0 of 0" says the Sailor ranked last of nobody.
+ *
+ * 1610/2 needs the same call for Block 42's pre-printed "X" when the report does not
+ * select that column.
+ */
+export function coverBox(page: PDFPage, box: Box, inset = 1): void {
+  page.drawRectangle({
+    x: box.x0 + inset,
+    y: box.y0 + inset,
+    width: box.x1 - box.x0 - inset * 2,
+    height: box.y1 - box.y0 - inset * 2,
+    color: WHITE,
+  });
+}
+
+/**
  * Cover a cell's pre-printed default with white, then draw `value` inside it.
  *
- * An empty value draws nothing at all — the blank's own default stays visible, which is
- * the correct rendering for a cell APEX holds no data for (e.g. Block 44 RSCA).
+ * An empty value draws nothing at all and leaves the form's default showing. When the
+ * cell should end up blank instead, call coverBox() — see its note on why "no data" and
+ * "the form's default" are different statements.
  */
 export function drawInBox(
   page: PDFPage,
@@ -65,13 +89,7 @@ export function drawInBox(
 
   const boxW = box.x1 - box.x0;
   const boxH = box.y1 - box.y0;
-  page.drawRectangle({
-    x: box.x0 + inset,
-    y: box.y0 + inset,
-    width: boxW - inset * 2,
-    height: boxH - inset * 2,
-    color: WHITE,
-  });
+  coverBox(page, box, inset);
 
   const room = boxW - inset * 2 - PAD * 2;
   const natural = font.widthOfTextAtSize(str, size);

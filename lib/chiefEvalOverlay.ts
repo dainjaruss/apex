@@ -49,7 +49,7 @@ import { Evaluation } from "@/types";
 import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
-import { Box, drawInBox } from "./pdfBoxText";
+import { Box, coverBox, drawInBox } from "./pdfBoxText";
 
 const BLACK = rgb(0, 0, 0);
 
@@ -214,11 +214,17 @@ const C = {
     // Block 41 Individual — one bordered cell, pre-printed "NOB", value set left.
     b41_cell: { x0: 92.6, y0: 239.0, x1: 211.2, y1: 253.2 } as Box,
 
-    // Blocks 43/45 averages — pre-printed "0.00". Block 44 (RSCA) is the reporting
-    // senior's cumulative average, which APEX does not hold; its cell is left showing
-    // the form's own 0.00 rather than a fabricated figure.
+    // Blocks 43/45 averages — pre-printed "0.00".
     b43_memberTraitCell: { x0: 236.9, y0: 222.5, x1: 273.6, y1: 244.3 } as Box,
     b45_groupSummaryCell: { x0: 364.3, y0: 223.2, x1: 393.8, y1: 235.7 } as Box,
+
+    // Cells APEX holds no value for. Their pre-printed defaults are BLANKED, not left
+    // standing: Block 44 (RSCA, "0.00") sits in the AVERAGES panel between two averages
+    // APEX does compute, and Block 42 ("0 of 0") is the Sailor's hard-breakout ranking.
+    // Neither figure exists anywhere in APEX, and both read as real to a board.
+    b44_rscaCell: { x0: 364.3, y0: 241.2, x1: 393.8, y1: 253.7 } as Box,
+    b42_rankCell: { x0: 108.7, y0: 223.2, x1: 138.2, y1: 235.7 } as Box,
+    b42_ofCell: { x0: 177.1, y0: 223.2, x1: 206.6, y1: 235.7 } as Box,
 
     // Blocks 46-47 Career Milestone Recommendations — one line each, right of the
     // wrapped "46. First / Recommendation" label which ends at x 444.3.
@@ -473,6 +479,12 @@ export async function generateChiefEvalOverlayPdf(
 
   // ───────────────── PAGE 2 ─────────────────
   const p2 = C.p2;
+
+  // Blank the cells APEX has no figure for, so the form's defaults cannot be read as
+  // computed values. Unconditional: no APEX field feeds either block.
+  coverBox(page2, p2.b44_rscaCell);
+  coverBox(page2, p2.b42_rankCell);
+  coverBox(page2, p2.b42_ofCell);
 
   // Block 43 — the member's trait average, over the pre-printed 0.00.
   const indivAvg = computeTraitAverage(evaluation.trait_grades).average;
