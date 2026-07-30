@@ -79,10 +79,14 @@ import {
  * for every existing no-precept user — the exact population this floor protects,
  * and a change nobody asked for.
  *
- * What moved is narrower than it looks: with the composite no longer rendered
- * (ResultsView), the only user-visible effect of this floor is whether
- * `scoreNote` appears. Lowering it would suppress an explanation, not reveal a
- * number.
+ * The deterministic screen barely moves — with the composite no longer rendered
+ * (ResultsView), the visible difference is whether `scoreNote` appears. But this
+ * floor is NOT display-only: `report.score` feeds `narrativePayload.scored`
+ * (narrative.ts), and prompt rule 3 changes what the model is allowed to say
+ * about it. Sweeping the floor across a record's measured value leaves the
+ * deterministic output byte-identical on both sides and the MODEL narrative
+ * different. Treat a change here as changing what the tool says, not how it
+ * looks.
  */
 export const COVERAGE_FLOOR = 0.75;
 
@@ -250,8 +254,7 @@ type AreaCopy = {
   missingLabel: string;
   unlocks: string;
   howTo: string;
-  // Partial by design: completeness can never be not_enough_entered (see
-  // hasEvidence), and the domain review flagged the unreachable string.
+  // Partial by design: not every area can reach every status.
   statuses: Partial<Record<AreaStatus, string>>;
 };
 
@@ -317,6 +320,20 @@ const AREA_COPY: Record<FactorKey, AreaCopy> = {
     },
   },
   completeness: {
+    // NEVER `needs_attention`. This is the one area whose every string is a
+    // statement about ENTRY VOLUME rather than about a record — and the Results
+    // screen's coverage card promises, directly above these cards, that "nothing
+    // below is a grade on what you have not entered." A NEEDS ATTENTION pill
+    // reading "Large parts of your record are not entered yet" three cards down
+    // is exactly that grade, printed under its own contradiction.
+    //
+    // The asymmetry was structural, not accidental: this factor reports conf = 1
+    // whether or not anything is behind it (scoreCompleteness), so the ONE area
+    // that is purely a data-entry measure was the one guaranteed to be graded
+    // rather than excluded. Development's absence renders "Not entered";
+    // completeness's absence rendered "Needs attention". Same cause, opposite
+    // treatment. Below the on_track cut it is now a data state, and it joins
+    // coverage.missing so the plan asks for the sections instead.
     label: "Record completeness",
     missingLabel: "your record sections",
     unlocks: "the record completeness check",
@@ -324,7 +341,8 @@ const AREA_COPY: Record<FactorKey, AreaCopy> = {
     statuses: {
       strong: "Almost everything APEX asks for is entered.",
       on_track: "Most of your record is entered; some sections are still empty.",
-      needs_attention: "Large parts of your record are not entered yet.",
+      not_enough_entered:
+        "You have not entered enough of your record yet for APEX to check it against what a board looks at.",
     },
   },
   precept: {
@@ -446,8 +464,9 @@ function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs)
       // filtered out, or dated entirely outside the five-year window.
       return Number(f.detail.coveredDays ?? 0) > 0;
     case "completeness":
-      // The honest exception: an empty record genuinely IS incomplete, so that
-      // is a real finding rather than an absence of one.
+      // An empty record genuinely IS incomplete, so there is always something to
+      // report — but see statusOf: what gets reported is a DATA STATE, never a
+      // grade. Every completeness string is a statement about entry volume.
       return true;
     case "precept":
       return preceptFullyComputable(result, inputs);
@@ -476,7 +495,9 @@ function statusOf(key: FactorKey, result: RubricResult, inputs: RubricInputs): A
   if (f.confidence < AREA_EVIDENCE_FLOOR) return "not_enough_entered";
   if (f.score >= AREA_STATUS_THRESHOLDS.strong) return "strong";
   if (f.score >= AREA_STATUS_THRESHOLDS.on_track) return "on_track";
-  return "needs_attention";
+  // Completeness measures data entry and nothing else, so its bottom rung is a
+  // data state rather than a finding — see AREA_COPY.completeness.
+  return key === "completeness" ? "not_enough_entered" : "needs_attention";
 }
 
 function evidenceOf(key: FactorKey, status: AreaStatus, inputs: RubricInputs): EvidenceTier {

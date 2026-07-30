@@ -187,9 +187,13 @@ describe("the band inversion the layer exists to fix", () => {
   it("names what is missing instead of scoring it as zero, and still reports the strong areas", () => {
     const a = report(sailorA);
 
-    expect(a.coverage.areasKnown).toBe(3);
+    expect(a.coverage.areasKnown).toBe(2);
     expect(a.coverage.areasTotal).toBe(6);
+    // Completeness joins the missing list rather than being graded: with the PSR
+    // and LaDR tabs untouched, "large parts are not entered" is a statement about
+    // entry, and the Results screen promises not to grade non-entry.
     expect(a.coverage.missing.map((m) => m.area).sort()).toEqual([
+      "completeness",
       "development",
       "leadership",
       "precept",
@@ -367,8 +371,12 @@ describe("the empty record — the first thing a new user sees", () => {
     expect(s.development).toBe("not_enough_entered");
     expect(s.continuity).toBe("not_enough_entered");
     expect(s.precept).toBe("not_enough_entered");
-    // Completeness is the honest exception: an empty record really IS incomplete.
-    expect(s.completeness).toBe("needs_attention");
+    // Completeness too. It used to be the "honest exception" — an empty record
+    // really IS incomplete — but the finding it produced was "Large parts of your
+    // record are not entered yet" under a NEEDS ATTENTION pill, three cards below
+    // a banner promising "nothing below is a grade on what you have not entered".
+    // Its every string is about entry volume, so its bottom rung is a data state.
+    expect(s.completeness).toBe("not_enough_entered");
   });
 });
 
@@ -1074,5 +1082,45 @@ describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
     expect(before).toBeGreaterThan(COVERAGE_FLOOR); // a number was emitted
     expect(after).toBeCloseTo(0.7417, 4);
     expect(after).toBeLessThan(COVERAGE_FLOOR); // now suppressed, same Sailor
+  });
+});
+
+describe("completeness never grades a Sailor on what they have not entered", () => {
+  // The screen prints "Nothing below is a grade on what you have not entered."
+  // This is the area that made that false: it reports conf = 1 whether or not
+  // anything is behind it, so the ONE purely-data-entry measure was the one
+  // guaranteed to be graded rather than excluded.
+  const partial: RubricInputs = {
+    boardDate: T,
+    evals: [2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.2)),
+    psr: { ...emptyPsr, entered: true },
+    ladr: [],
+    preceptFlags: [],
+  };
+
+  it("never reports needs_attention, on any record", () => {
+    for (const inputs of [emptyRecord, partial, sailorA, sailorB])
+      expect(
+        report(inputs).areas.find((a) => a.key === "completeness")!.status,
+      ).not.toBe("needs_attention");
+  });
+
+  it("has no needs_attention string left to reach", () => {
+    // A future edit that re-adds the copy would resurrect the contradiction.
+    for (const inputs of [emptyRecord, partial, sailorA])
+      expect(
+        report(inputs).areas.find((a) => a.key === "completeness")!.summary,
+      ).not.toContain("Large parts of your record are not entered");
+  });
+
+  it("routes the sections into the plan instead, with a how-to", () => {
+    const missing = report(partial).coverage.missing.find((m) => m.area === "completeness");
+    expect(missing).toBeDefined();
+    expect(missing!.howTo).toContain("Record Entry tab");
+  });
+
+  it("still says so plainly when the record IS well entered", () => {
+    const full = report(sailorB).areas.find((a) => a.key === "completeness")!;
+    expect(["strong", "on_track"]).toContain(full.status);
   });
 });

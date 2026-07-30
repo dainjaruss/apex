@@ -144,6 +144,16 @@ says plainly that this is normal.
 - **"Not entered" is a data state, never a deficiency.** `not_entered` is a
   dashed, muted, unranked card; `needs_attention` is a solid amber one. Never
   the same bar at different lengths, never one colour ramp at two saturations.
+- **Record completeness is never graded.** Every one of its strings is a
+  statement about entry volume, and the coverage card promises three cards above
+  that "nothing below is a grade on what you have not entered" — so
+  *"Record completeness — Needs attention — Large parts of your record are not
+  entered yet"* printed the screen's own contradiction. The asymmetry was
+  structural: the factor reports `conf = 1` whether or not anything is behind it,
+  so the one purely data-entry measure was the one guaranteed to be graded rather
+  than excluded, while development's absence rendered "Not entered". Below the
+  `on_track` cut it is now `not_enough_entered` and joins `coverage.missing`, so
+  the plan asks for the sections instead of marking the Sailor down for them.
 - **Horizon groups on `horizonBasis`, not on `horizon`.** No seeded milestone
   carries `typical_months`, so today every meet-action lands in `next_cycle`
   with basis `unknown_duration`. That renders as one honest bucket — *"APEX does

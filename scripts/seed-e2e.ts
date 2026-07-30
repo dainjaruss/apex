@@ -650,19 +650,25 @@ async function seedReadinessRun(users: Record<string, string>) {
       overall_score: result.final,
       band: result.band,
       adverse_adjustment: result.adverseAdjustment,
-      // Hand-authored and labelled "model" ON PURPOSE: the seed cannot call a
-      // model, and without a model-sourced row the "In plain terms" card (which
-      // renders only for narrative_source === "model") is never scanned. Text is
-      // written to the same rules the real model prompt enforces — no scores, no
-      // weights, no contributions, nothing summable.
+      // Labelled "model" ON PURPOSE — the seed cannot call one, and the "In plain
+      // terms" card renders only for narrative_source === "model", so without
+      // this the card is never scanned. `model: "seed-fixture"` says what it is.
+      //
+      // DERIVED FROM THE REPORT, never hand-written prose. An earlier version of
+      // this fixture invented "You have held a leading petty officer billet
+      // continuously since 2022, most of it on sea duty" — true of the seeded
+      // INPUTS, and printed one viewport above the rubric's own "Leadership and
+      // impact — Needs attention — few leadership billets and little sea time".
+      // A reviewer reasonably read that as the model contradicting the rubric.
+      // It was the fixture. Building the text from the areas makes the seed
+      // incapable of staging a contradiction it did not find.
       narrative: {
-        strengths: [
-          "Your last three reports are all Must Promote, and your trait averages sit above your summary group in every period.",
-          "You have held a leading petty officer billet continuously since 2022, most of it on sea duty.",
-        ],
-        gaps: [
-          "APEX has no development roadmap for your rating yet, so it cannot see any of your professional development.",
-        ],
+        strengths: readiness.areas
+          .filter((a) => a.status === "strong")
+          .map((a) => `${a.label}: ${a.summary}`),
+        gaps: readiness.areas
+          .filter((a) => a.status === "needs_attention")
+          .map((a) => `${a.label}: ${a.summary}`),
         recommendations: [],
         factor_commentary: {
           performance: readiness.areas.find((a) => a.key === "performance")!.summary,

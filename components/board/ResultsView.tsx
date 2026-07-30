@@ -832,9 +832,13 @@ export default function ResultsView({
                           onSelect(r);
                         }
                       }}
+                      // toLocaleString, matching the cell below: two runs on the
+                      // same day are the normal case while iterating, and a
+                      // date-only label makes them indistinguishable to a screen
+                      // reader while sighted users can tell them apart.
                       aria-label={`Load review from ${
                         r.created_at
-                          ? new Date(r.created_at).toLocaleDateString()
+                          ? new Date(r.created_at).toLocaleString()
                           : r.board_date
                       }`}
                       className="cursor-pointer"

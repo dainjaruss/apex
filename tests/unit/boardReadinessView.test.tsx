@@ -137,6 +137,33 @@ const noDurationLadr: LadrItemInput[] = [
   },
 ];
 
+/**
+ * A record with a REAL finding beside genuinely unknown areas. Performance is
+ * graded low from three finalized Progressing reports — a statement about the
+ * record, not about what was typed in — while tours/awards and the roadmap are
+ * simply absent. Completeness no longer supplies the needs_attention half: every
+ * one of its strings is about entry volume, which the coverage banner promises
+ * not to grade.
+ */
+const weakButPresent: RubricInputs = {
+  boardDate: T,
+  evals: [2023, 2024, 2025, 2026].map((y) => ({
+    period_from: `${y - 1}-03-16`,
+    period_to: `${y}-03-15`,
+    report_type: "EVAL" as const,
+    promotion_recommendation: "Progressing" as const,
+    trait_average: 2.9,
+    summary_group_average: 3.8,
+    rsca: 3.8,
+    sea_duty: false,
+    ep_count: 0,
+    group_size: 6,
+  })),
+  psr: { ...emptyPsr, entered: true },
+  ladr: [],
+  preceptFlags: [],
+};
+
 const partlyEntered: RubricInputs = {
   boardDate: T,
   evals: [
@@ -200,13 +227,17 @@ const renderWith = (row: BoardAnalysisRow | null, over: Partial<typeof baseProps
  *    invisible to every guard here. The old ScoreDial put it in exactly those
  *    two places.
  */
+const NOT_PERCEIVABLE = new Set(["class", "style", "src", "href", "id", "for"]);
+
 const perceivable = (): string => {
   const parts: string[] = [];
   document.body.querySelectorAll("*").forEach((el) => {
-    for (const attr of ["aria-label", "aria-description", "title", "alt", "aria-valuetext"]) {
-      const v = el.getAttribute(attr);
-      if (v) parts.push(v);
-    }
+    // DENYLIST, not an allowlist. An allowlist always misses attribute n+1, and
+    // three that escaped the first version were real: `value` (visible text on
+    // screen, not AT-only), `placeholder`, and `data-*`.
+    for (const attr of Array.from(el.attributes))
+      if (!NOT_PERCEIVABLE.has(attr.name) && attr.value.trim())
+        parts.push(attr.value);
     for (const n of Array.from(el.childNodes))
       if (n.nodeType === 3 && n.textContent?.trim()) parts.push(n.textContent);
   });
@@ -299,11 +330,10 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
 
 describe("ResultsView — 'not entered' is a data state, not a deficiency", () => {
   it("not_entered and needs_attention get different treatment, not the same bar", () => {
-    renderWith(rowFor(nothingEntered));
+    // Four Progressing reports below the summary group is a real finding;
+    // tours, awards and the roadmap are simply absent. Both on one render.
+    renderWith(rowFor(weakButPresent));
 
-    // An empty record produces both statuses at once: completeness is a REAL
-    // finding (an empty record genuinely is incomplete) while everything else is
-    // simply unknown to APEX.
     const notEntered = document.querySelectorAll('[data-status="not_enough_entered"]');
     const attention = document.querySelectorAll('[data-status="needs_attention"]');
     expect(notEntered.length).toBeGreaterThan(0);
@@ -321,6 +351,23 @@ describe("ResultsView — 'not entered' is a data state, not a deficiency", () =
     // And a neutral word, never a grade.
     expect(a.textContent).toContain("Not entered");
     expect(a.textContent).not.toContain("Needs attention");
+  });
+
+  it("the banner's promise holds against every card below it", () => {
+    // The coverage card printed "Nothing below is a grade on what you have not
+    // entered" three cards above "Record completeness — Needs attention — Large
+    // parts of your record are not entered yet." Same screen, one viewport.
+    for (const inputs of [nothingEntered, partlyEntered, weakButPresent]) {
+      const { unmount } = renderWith(rowFor(inputs));
+      expect(document.body.textContent).toContain(
+        "Nothing below is a grade on what you have not entered",
+      );
+      const card = screen.getByTestId("area-completeness");
+      expect(card.getAttribute("data-status")).not.toBe("needs_attention");
+      expect(card.textContent).not.toContain("Needs attention");
+      expect(card.textContent).not.toContain("Large parts of your record are not entered");
+      unmount();
+    }
   });
 
   it("no area renders a progress bar that would rank the two on one scale", () => {
@@ -423,9 +470,13 @@ describe("ResultsView — no engine internal reaches the DOM", () => {
     renderWith(row);
     const text = perceivable();
     expect(text).not.toMatch(BANNED);
-    // Non-zero only: "0.0" is unavoidably common (it lives inside any ISO
-    // timestamp) and a zero contribution reconstructs nothing anyway.
-    for (const f of row.factor_scores.filter((x) => x.contribution > 0))
+    // EVERY contribution, including the zeros. The filter that used to sit here
+    // was justified by "0.0 lives inside any ISO timestamp" — which stopped
+    // being true in the same commit that replaced the raw ISO row aria-label.
+    // Controlled runs: without the filter the aria-label regression FAILS this
+    // test; with it, reverting the label passes all 54 files. The filter removed
+    // the only assertion catching the regression it shipped beside.
+    for (const f of row.factor_scores)
       expect(text).not.toContain(f.contribution.toFixed(1));
     expect(text).not.toContain(String(scored.final));
     expect(text).not.toMatch(/vote\s+(0|25|50|75|100)\b/);
