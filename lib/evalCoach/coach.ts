@@ -186,12 +186,19 @@ export function coachPayload(req: CoachRequest): CoachPayload {
   for (const [key, grade] of Object.entries(req.trait_grades)) {
     const std = TRAIT_STANDARDS_LOOKUP[key];
     if (!std || !grade || grade === "NOB") continue;
+    // A trait this form does not print is not coached. There is deliberately NO
+    // fallback to std.block: that field comes from the merged lookup this
+    // function just refused to trust, and falling back to it reintroduces the
+    // exact collision — a stale client can still send `work` on a FITREP (the
+    // route's z.record accepts any key), and the EVAL entry's block 34 would
+    // then sit beside `eo`, also 34. No block number, no card.
+    if (blocks[key] === undefined) continue;
     // A trait with neither anchors nor standards has nothing to judge against;
     // coaching it would be the model inventing the yardstick.
     if (!std.anchors && !std.standards?.length) continue;
     traits.push({
       key,
-      block: blocks[key] ?? std.block,
+      block: blocks[key],
       title: std.title,
       definition: std.definition,
       grade,
@@ -398,7 +405,11 @@ export function applyCoachGate(
       suggestionText && !suggestsGradeOrRecommendation(suggestionText)
         ? suggestionText
         : null;
-    if (!suggestion) dropped++;
+    // `dropped` is what the footer reports as removed, so it must count only
+    // what was actually there to remove. z.string() accepts "", and an absent
+    // suggestion used to be counted as a removal — three clean findings with
+    // empty suggestions read as "3 uncited or duplicate items removed".
+    if (!suggestion && f.suggestion.trim()) dropped++;
 
     seen.add(f.trait);
     findings.push({

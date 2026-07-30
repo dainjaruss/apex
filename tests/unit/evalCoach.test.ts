@@ -46,6 +46,7 @@ import {
   suggestsGradeOrRecommendation,
   type CoachRequest,
 } from "@/lib/evalCoach/coach";
+import { TRAIT_STANDARDS_LOOKUP } from "@/lib/traitStandards";
 import { GET, POST } from "@/app/api/eval-coach/route";
 
 const REQ: CoachRequest = {
@@ -429,6 +430,36 @@ describe("form differences the standards table models", () => {
     const blocks = p.traits.map((t) => t.block);
     expect(new Set(blocks).size).toBe(blocks.length);
   });
+
+  it("skips a trait the form does not print rather than falling back to a block number", () => {
+    // `work` is an EVAL trait (block 34) with no row on the 1610/2. The route
+    // accepts any key, so a stale client can still send it; falling back to the
+    // merged lookup's 34 would collide with `eo`, which really is Block 34 on
+    // this form. Two cards headed "34" is the bug this whole seam exists to
+    // prevent, so an unprintable trait yields no card at all.
+    const p = coachPayload({
+      report_type: "FITREP",
+      pitch: "10",
+      comments: "COMMANDED THE WATCH.",
+      trait_grades: { eo: "4.0", work: "4.0" },
+    });
+    expect(p.traits.map((t) => [t.key, t.block])).toEqual([["eo", 34]]);
+    // …and every graded trait that IS coached keeps a unique block on all three
+    // forms, which is the invariant that matters.
+    for (const report_type of ["EVAL", "CHIEFEVAL", "FITREP"] as const) {
+      const all = coachPayload({
+        report_type,
+        pitch: "10",
+        comments: "X.",
+        trait_grades: Object.fromEntries(
+          Object.keys(TRAIT_STANDARDS_LOOKUP).map((k) => [k, "4.0"]),
+        ),
+      });
+      const bs = all.traits.map((t) => t.block);
+      expect(new Set(bs).size, `${report_type} block collision`).toBe(bs.length);
+      expect(bs.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 // ── provider schema compatibility ───────────────────────────────────────────
@@ -441,6 +472,38 @@ describe("CoachOutputSchema survives conversion to JSON Schema", () => {
     // against the real endpoint. This catches that class with no network.
     const json = JSON.stringify(z.toJSONSchema(CoachOutputSchema));
     expect(json).not.toMatch(/"(?:minimum|maximum|exclusiveMinimum|exclusiveMaximum)"/);
+  });
+});
+
+// ── the removal counter ─────────────────────────────────────────────────────
+
+describe("dropped counts removals, not absences", () => {
+  it("does not count an empty suggestion the model never wrote", () => {
+    // z.string() accepts "". Three clean findings with empty suggestions used to
+    // report "3 uncited or duplicate items removed" when nothing was removed.
+    const p = coachPayload(REQ);
+    const gated = applyCoachGate(
+      {
+        findings: [
+          finding({ suggestion: "" }),
+          finding({ trait: "work", suggestion: "   " }),
+        ],
+        narrative_notes: [],
+      },
+      p,
+    );
+    expect(gated.findings.map((f) => f.suggestion)).toEqual([null, null]);
+    expect(gated.dropped).toBe(0);
+  });
+
+  it("still counts a suggestion that was written and then removed", () => {
+    const p = coachPayload(REQ);
+    const gated = applyCoachGate(
+      { findings: [finding({ suggestion: "Cite nothing at all." })], narrative_notes: [] },
+      p,
+    );
+    expect(gated.findings[0].suggestion).toBeNull();
+    expect(gated.dropped).toBe(1);
   });
 });
 

@@ -56,7 +56,11 @@ export const GRADE_SCALE_NOTE: Record<string, string> = {
   NOB: "Not Observed — insufficient opportunity to observe; this trait is not graded.",
 };
 
-// The Block 43 substantiation footnote, as printed. It says nothing about 5.0.
+// The Block 43 substantiation footnote, LIGHTLY GLOSSED — not verbatim. The
+// printed footnote reads "three 2.0 marks"; this says "three or more", adds
+// "any" before the Block 35 clause, and appends the instruction citation. Each
+// gloss matches para 13-4, and the file's do-NOT-paraphrase rule governs the
+// anchor text above, not this summary line. It says nothing about 5.0.
 //
 // This string used to open "Marks of 1.0 and 5.0 require a written explanation in
 // Block 43 (Comments)" — an obligation the printed footnote does not create, and one
