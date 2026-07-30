@@ -70,7 +70,6 @@ const mockFitrep: Evaluation = {
   promotion_status: "Regular",
   trait_grades: {
     knowledge: "4.0",
-    work: "4.0",
     eo: "4.0",
     bearing: "4.0",
     accomplishment: "4.0",

@@ -223,6 +223,9 @@ describe.skipIf(!hasDocker)("migration 009 — profiles privilege state", () => 
       "008_summary_group_report_type_parity",
       "009_profile_role_and_pii_lockdown",
       "009_profile_role_and_pii_lockdown", // twice: 009 must be idempotent
+      "010_chiefeval_trait_correction",
+      "011_fitrep_trait_correction",
+      "011_fitrep_trait_correction", // twice: 011 must be idempotent
     ]) {
       psql(["-f", `/migrations/${f}.sql`]);
     }

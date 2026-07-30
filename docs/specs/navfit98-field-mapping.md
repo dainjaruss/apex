@@ -214,7 +214,7 @@ APEX stores ISO `YYYY-MM-DD` strings (columns `period_from`/`period_to` are Post
 
 ⚠ **CHIEFEVAL caveat**: the column-per-block map comes from navfit99-js's Chief form, whose trait *labels* (Deckplate Leadership, Institutional/Technical Expertise, Professionalism, Loyalty, Character, Active Communication, Sense of Heritage) are an older 1616/27 revision than APEX's trait set. The positional mapping (block 33 stored in `LEAD`, 34 in `TAC`, 35 in `PROF`, 36 in `MIS`, 37 in `EO`, 38 in `TEAM`, 39 in `MIL`) is the best available evidence but **must be verified against a real NAVFIT 98A v30+ Chief report before shipping** (Open Question 2). EVAL and FITREP maps carry no such caveat — FITREP's map aligns column semantics and APEX keys exactly.
 
-FITREP note: ignore the legacy `work` → 34 alias in `fitrepTraitBlockMap` (`validationEngine.ts:86-87`); export only the 8 canonical `FITREP_TRAIT_KEYS` (block 34 comes from `eo`).
+FITREP note: NAVPERS 1610/2 prints seven traits and has no Quality of Work, so `QUAL` stays NULL and block 34 comes from `eo` (COMMAND OR ORGANIZATIONAL CLIMATE). The `work` → 34 alias that used to sit in `fitrepTraitBlockMap` was removed with the trait-table correction (migration `011_fitrep_trait_correction.sql`); export exactly the seven `FITREP_TRAIT_KEYS`.
 
 ### 4.4 Promotion recommendation codes
 Radio-index encoding confirmed via navfit99-js (labels `["NOB","Significant Problems","Progressing","Promotable","Must Promote","Early Promote"]`):

@@ -71,7 +71,6 @@ async function verify() {
     ship_station: "USS FRANKLYN",
     trait_grades: {
       knowledge: "5.0",
-      work: "4.0",
       eo: "5.0",
       bearing: "5.0",
       accomplishment: "4.0",

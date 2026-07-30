@@ -79,17 +79,16 @@ const chiefEvalTraitBlockMap: Record<string, number> = {
   team_effectiveness: 39,
 };
 
-// Officer trait block map — NAVPERS 1610/2 (FITREP, REV 05-2025 layout)
+// Officer trait block map — the seven traits printed at Blocks 33–39 of
+// NAVPERS 1610/2 (REV 05-2025). Source: public/fitrepBlank.pdf.
 const fitrepTraitBlockMap: Record<string, number> = {
-  knowledge: 33,
-  eo: 34, // Command or Organizational Climate / EO (substantiation footnote Block 34)
-  bearing: 35,
-  teamwork: 36,
-  accomplishment: 37,
-  leadership: 38,
-  tactical_performance: 39,
-  // Legacy key used by overlay slot between knowledge and eo on page 1
-  work: 34,
+  knowledge: 33, // PROFESSIONAL EXPERTISE
+  eo: 34, // COMMAND OR ORGANIZATIONAL CLIMATE (substantiation footnote Block 34)
+  bearing: 35, // MILITARY BEARING/CHARACTER
+  teamwork: 36, // TEAMWORK
+  accomplishment: 37, // MISSION ACCOMPLISHMENT AND INITIATIVE
+  leadership: 38, // LEADERSHIP
+  tactical_performance: 39, // TACTICAL PERFORMANCE (warfare qualified officers only)
 };
 
 /**

@@ -305,8 +305,9 @@ const fitrepFixture: Evaluation = {
   uic: "34567",
   ship_station: "USS EXAMPLE",
   promotion_status: "Regular",
-  // `work` is the legacy block-34 alias — spec §4.3 says FITREP block 34 comes
-  // from `eo`; the mapper must ignore `work` (given a decoy value here).
+  // `work` is an EVAL-only trait that NAVPERS 1610/2 does not have (migration 011
+  // strips it from officer records). Kept here as a decoy: a stray `work` key must
+  // never reach a FITREP export — block 34 comes from `eo`.
   trait_grades: {
     knowledge: "5.0",
     work: "1.0",

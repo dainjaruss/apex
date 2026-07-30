@@ -57,7 +57,15 @@ export default function AuditTab({ auditLogs }: { auditLogs: AuditLog[] }) {
                   <td>
                     <span className="apex-audit-action-badge">{log.action}</span>
                   </td>
-                  <td className="font-mono text-[10px] apex-text-secondary max-w-xs truncate">
+                  {/* ponytail: `title` so the truncated details are readable on hover.
+                      A row can carry facts the ~50 visible characters cut off (migration
+                      011's DOCTRINE_CORRECTION rows put the removed grade and previous
+                      average behind the ellipsis). Upgrade to a click-to-expand cell if
+                      audit details ever need to be readable without a pointer. */}
+                  <td
+                    className="font-mono text-[10px] apex-text-secondary max-w-xs truncate"
+                    title={JSON.stringify(log.details, null, 2)}
+                  >
                     {JSON.stringify(log.details)}
                   </td>
                 </tr>

@@ -5,6 +5,7 @@ import {
   GRADE_SCALE_NOTE,
   ANCHOR_GRADES,
   getSubstantiationNote,
+  getCommentsBlock,
   TraitKey,
   AnchorGrade,
 } from "@/lib/traitStandards";
@@ -58,7 +59,7 @@ export default function TraitStandardPanel({
               borderColor: "var(--trait-anchor-amber-border)",
             }}
           >
-            Requires written justification (Block 43)
+            Requires written justification (Block {getCommentsBlock(reportType)})
           </span>
         )}
       </div>

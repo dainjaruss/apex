@@ -33,14 +33,27 @@ export const CHIEFEVAL_TRAIT_KEYS = [
   "team_effectiveness", // 39
 ] as const;
 
-// Officer trait keys — NAVPERS 1610/2 Block 33–39 + tactical_performance (officer-only).
+// Officer trait keys — the SEVEN traits printed at Blocks 33–39 of NAVPERS 1610/2
+// (REV 05-2025), in form order. Source: public/fitrepBlank.pdf, transcribed with
+// `pdftotext -layout`.
+//
+//   33 PROFESSIONAL EXPERTISE                  knowledge
+//   34 COMMAND OR ORGANIZATIONAL CLIMATE       eo
+//   35 MILITARY BEARING/CHARACTER              bearing
+//   36 TEAMWORK                                teamwork
+//   37 MISSION ACCOMPLISHMENT AND INITIATIVE   accomplishment
+//   38 LEADERSHIP                              leadership
+//   39 TACTICAL PERFORMANCE                    tactical_performance
+//      (Warfare qualified officers only — graded NOB when it does not apply)
+//
+// There is no eighth trait and no "Quality of Work" on 1610/2 — `work` is an EVAL
+// (1616/26) trait at Block 34 and never belonged here.
 export const FITREP_TRAIT_KEYS = [
   "knowledge",
-  "work",
   "eo",
   "bearing",
-  "accomplishment",
   "teamwork",
+  "accomplishment",
   "leadership",
   "tactical_performance",
 ] as const;
@@ -713,7 +726,8 @@ export const ChiefEvalSchema = z
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FitrepSchema — NAVPERS 1610/2 (W2–O6)
-// 8 performance traits (adds tactical_performance); no retention block.
+// 7 performance traits at Blocks 33–39 (Block 39 Tactical Performance replaces the
+// EVAL's Quality of Work slot, it is not an extra row); no retention block.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const FitrepSchema = z
@@ -840,13 +854,13 @@ export const FitrepSchema = z
         COUNSELOR_MAX,
         `Counselor must be ${COUNSELOR_MAX} characters or fewer to fit the form (Block 31)`,
       ),
+    // Blocks 33–39 in form order — see FITREP_TRAIT_KEYS.
     trait_grades: z.object({
       knowledge: TRAIT_GRADE.optional(),
-      work: TRAIT_GRADE.optional(),
       eo: TRAIT_GRADE.optional(),
       bearing: TRAIT_GRADE.optional(),
-      accomplishment: TRAIT_GRADE.optional(),
       teamwork: TRAIT_GRADE.optional(),
+      accomplishment: TRAIT_GRADE.optional(),
       leadership: TRAIT_GRADE.optional(),
       tactical_performance: TRAIT_GRADE.optional(),
     }),
