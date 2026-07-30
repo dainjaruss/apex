@@ -201,7 +201,16 @@ export function canPerformAction(
       case "sign_block_49":
       case "sign_block_50":
       case "sign_block_52":
-        // Rater / Senior Rater / Reporting Senior signatures — must be the assigned reviewer
+        // Rater / Senior Rater / Reporting Senior signatures — must be the assigned reviewer.
+        // ponytail: LOOSER THAN THE SERVER, deliberately not unified yet. The
+        // `view_all_evaluations` arm returns true for a Reporting Senior on a
+        // report they have no relation to, and there is no self-signing ban
+        // here. canSignBlock() is the authority (app/api/sign → authorizeSigner
+        // → service-role write) and refuses both, so this cannot authorize
+        // anything; it only decides whether some UI affordance renders.
+        // Two authz functions that disagree is a maintenance trap — collapsing
+        // this case onto canSignBlock is a follow-up, kept out of a P0 security
+        // PR because it changes what several screens display.
         return (
           evaluation.reviewer_id === user.id ||
           hasPermission(role, "view_all_evaluations")
@@ -258,12 +267,35 @@ const SIGN_ACTION_BY_BLOCK: Record<number, Action> = {
 
 /**
  * Server- and client-safe (React-free) check for whether a user may sign a given
- * signature block. Single source of truth for the report-screen signing flow.
+ * signature block. Single source of truth for the report-screen signing flow, and
+ * the ONLY authorization on the server signing path — app/api/sign/route.ts calls
+ * it through authorizeSigner() (lib/signing.ts:94) and then writes with the
+ * service-role client, which bypasses RLS. Nothing downstream re-checks.
  *
  * Member blocks (32 Individual Counseled, 51 Individual Evaluated) require the
- * evaluated member (created_by) or an Admin. Reviewer-chain blocks (42/49/50/52)
- * require only that the signer holds the role — the schema carries a single
- * reviewer_id, so role possession (not reviewer assignment) gates the chain.
+ * evaluated member (created_by) or an Admin.
+ *
+ * Reviewer-chain blocks (42/49/50/52) used to `return true` on role possession
+ * alone. That was a forgery hole: "Reporting Senior" carries create_evaluation, so
+ * an RS could draft a report about themselves, sign Block 50, and applySignature()
+ * would set signature_locked + routing_stage 'locked' — a self-signed, locked
+ * report bearing a CO's signature block. The old docstring justified this by
+ * saying the schema carries only a single reviewer_id; migration 002 added
+ * participants[], current_holder_id and routing_stage, so that is no longer true.
+ *
+ * Two conditions now, both necessary:
+ *   1. You may never sign a reviewer block on a report about you (created_by).
+ *      No Admin bypass — an Admin signing their own report is the same forgery.
+ *   2. You must belong to THIS report's chain. participants[] is the accumulated
+ *      custody set (route / recycle / debrief all append to it), which is the same
+ *      membership test app/api/eval-correct/route.ts:36 already uses.
+ *
+ * Deliberately NOT gated on routing_stage matching the block. In the real flow the
+ * Reporting Senior begins the debrief before anyone signs, so at signing time
+ * routing_stage is 'debrief' for all four signatures (see
+ * tests/e2e/full-eval-workflow.spec.ts) — a stage-matching gate would deny every
+ * legitimate signature. It would also break small commands where one person holds
+ * two rating roles, and Block 52 (Concurrent Report) has no stage in the chain.
  */
 export function canSignBlock(
   user: Profile,
@@ -277,7 +309,14 @@ export function canSignBlock(
   if (block === 32 || block === 51) {
     return evaluation.created_by === user.id || role === "Admin";
   }
-  return true;
+  // Never sign a reviewer-chain block on your own report.
+  if (evaluation.created_by === user.id) return false;
+  // Fails closed: an evaluation with no chain at all is signable by nobody.
+  return (
+    evaluation.reviewer_id === user.id ||
+    evaluation.current_holder_id === user.id ||
+    (evaluation.participants ?? []).includes(user.id)
+  );
 }
 
 /**

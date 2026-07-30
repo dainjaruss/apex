@@ -203,7 +203,9 @@ function RouteForward({
   useEffect(() => {
     if (!role) return;
     createBrowserClient()
-      .from("profiles")
+      // profiles_directory, not profiles: migration 009 narrows base-table reads
+      // to the caller's own row. The view exposes exactly these four columns.
+      .from("profiles_directory")
       .select("id,first_name,last_name,preferred_role")
       .eq("preferred_role", role)
       .then(({ data }) => {

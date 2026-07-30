@@ -9,6 +9,16 @@ import { SIGNATURE_BLOCKS, SignatureBlockMeta } from "@/lib/signatures";
 
 export type OnSign = (block: number, label: string, signer: string) => void;
 
+/**
+ * Whether the viewer may sign a block. Purely an affordance — app/api/sign is the
+ * authority (canSignBlock via authorizeSigner, then a service-role write). Without
+ * it every denial cost a full credential-modal round trip to learn "no".
+ * Optional and permissive by default: a missing predicate must never hide a
+ * button the server would have accepted.
+ */
+export type CanSign = (block: number) => boolean;
+const ALLOW_ALL: CanSign = () => true;
+
 const PANEL = "apex-report-panel";
 const H3 = "apex-report-section-title";
 const LBL = "apex-report-field-label";
@@ -74,6 +84,7 @@ function SignField({
   label,
   signer,
   onSign,
+  canSign,
 }: {
   e: Evaluation;
   block: number;
@@ -81,6 +92,7 @@ function SignField({
   label: string;
   signer: string;
   onSign: OnSign;
+  canSign: CanSign;
 }) {
   const bv = e.block_values || {};
   const signed = bv[keyName];
@@ -92,7 +104,7 @@ function SignField({
         {date ? ` · ${date}` : ""}
       </div>
     );
-  if (e.status === "archived" || e.signature_locked)
+  if (e.status === "archived" || e.signature_locked || !canSign(block))
     return <div className="font-semibold apex-heading mt-0.5">— (blank)</div>;
   return (
     <button
@@ -108,9 +120,11 @@ function SignField({
 function CommandContextSection({
   e,
   onSign,
+  canSign,
 }: {
   e: Evaluation;
   onSign: OnSign;
+  canSign: CanSign;
 }) {
   const bv = e.block_values || {};
   return (
@@ -153,6 +167,7 @@ function CommandContextSection({
             label="Signature of Individual Counseled"
             signer="evaluated member"
             onSign={onSign}
+            canSign={canSign}
           />
         </div>
       </div>
@@ -229,10 +244,12 @@ function SignatureRow({
   e,
   s,
   onSign,
+  canSign,
 }: {
   e: Evaluation;
   s: SignatureBlockMeta;
   onSign: OnSign;
+  canSign: CanSign;
 }) {
   const bv = e.block_values || {};
   const signedName = bv[s.key];
@@ -252,15 +269,18 @@ function SignatureRow({
           <div className="apex-report-faint mt-0.5 italic">Unsigned</div>
         )}
       </div>
-      {!signedName && e.status !== "archived" && !e.signature_locked && (
-        <button
-          type="button"
-          onClick={() => onSign(s.block, s.label, s.signer)}
-          className="apex-btn-primary shrink-0"
-        >
-          ✍ Sign
-        </button>
-      )}
+      {!signedName &&
+        e.status !== "archived" &&
+        !e.signature_locked &&
+        canSign(s.block) && (
+          <button
+            type="button"
+            onClick={() => onSign(s.block, s.label, s.signer)}
+            className="apex-btn-primary shrink-0"
+          >
+            ✍ Sign
+          </button>
+        )}
     </div>
   );
 }
@@ -268,9 +288,11 @@ function SignatureRow({
 function RecommendationsSection({
   e,
   onSign,
+  canSign,
 }: {
   e: Evaluation;
   onSign: OnSign;
+  canSign: CanSign;
 }) {
   const bv = e.block_values || {};
   const recs = (e.career_recommendations || []).filter(Boolean).slice(0, 2);
@@ -344,7 +366,13 @@ function RecommendationsSection({
       </p>
       <div className="border-t apex-report-divider pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         {SIGNATURE_BLOCKS.filter((s) => s.block !== 32).map((s) => (
-          <SignatureRow key={s.key} e={e} s={s} onSign={onSign} />
+          <SignatureRow
+            key={s.key}
+            e={e}
+            s={s}
+            onSign={onSign}
+            canSign={canSign}
+          />
         ))}
       </div>
     </div>
@@ -354,17 +382,23 @@ function RecommendationsSection({
 export default function DetailsTab({
   evaluation,
   onSign,
+  canSign = ALLOW_ALL,
 }: {
   evaluation: Evaluation;
   onSign: OnSign;
+  canSign?: CanSign;
 }) {
   return (
     <div className="space-y-6">
       <IdentitySection e={evaluation} />
-      <CommandContextSection e={evaluation} onSign={onSign} />
+      <CommandContextSection e={evaluation} onSign={onSign} canSign={canSign} />
       <TraitRatingsSection e={evaluation} />
       <NarrativeSection e={evaluation} />
-      <RecommendationsSection e={evaluation} onSign={onSign} />
+      <RecommendationsSection
+        e={evaluation}
+        onSign={onSign}
+        canSign={canSign}
+      />
     </div>
   );
 }

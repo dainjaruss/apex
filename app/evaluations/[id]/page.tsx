@@ -13,7 +13,11 @@ import {
   fetchGroupAveragePool,
   fetchGroupDistribution,
 } from "@/lib/summaryGroupService";
-import { canPerformAction, canViewSummaryAverage } from "@/lib/permissions";
+import {
+  canPerformAction,
+  canSignBlock,
+  canViewSummaryAverage,
+} from "@/lib/permissions";
 import { fetchAuditLogs, AuditLog } from "@/lib/auditService";
 import { Evaluation, Profile } from "@/types";
 import AppShell from "@/components/layout/AppShell";
@@ -45,7 +49,9 @@ export default function ViewEvaluationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ReportTab>(
-    requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : "details",
+    requestedTab && VALID_TABS.includes(requestedTab)
+      ? requestedTab
+      : "details",
   );
   const [signing, setSigning] = useState<{
     block: number;
@@ -151,7 +157,16 @@ export default function ViewEvaluationPage() {
         <ReportTabs active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "details" && (
-          <DetailsTab evaluation={evaluation} onSign={onSign} />
+          <DetailsTab
+            evaluation={evaluation}
+            onSign={onSign}
+            // Affordance only — app/api/sign re-checks this server-side and is
+            // the authority. Hides Sign buttons the server would reject rather
+            // than making the signer fill in the credential modal to find out.
+            canSign={(block) =>
+              !!profile && canSignBlock(profile, block, evaluation)
+            }
+          />
         )}
         {activeTab === "preview" && (
           <PDFPreview evaluation={evaluation} allowDownload={false} />

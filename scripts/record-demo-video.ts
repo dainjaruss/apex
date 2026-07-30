@@ -558,8 +558,25 @@ async function main() {
   const routeEval = sailorEval;
   const raterEval = evals.find((e) => e.routing_stage === "rater") ||
     evals[2] || { id: "" };
-  const coEval = evals.find((e) => e.routing_stage === "reporting_senior") ||
+  // Scenes 5a/5b sign Block 50 and read the audit trail as co.enterprise, so the
+  // eval has to be one THAT CO actually holds. Taking the first reporting_senior
+  // row by insert order was a coin flip: the stress seed spreads evals across
+  // co.enterprise / co.neversail / co.hospital, and canSignBlock now (correctly)
+  // 403s a CO who is not in that report's chain — mid-recording. Select on
+  // holder_email, which seed-stress records for exactly this reason.
+  const CO_EMAIL = "co.enterprise@franklyn.dev";
+  const coEval = evals.find(
+    (e) =>
+      e.routing_stage === "reporting_senior" && e.holder_email === CO_EMAIL,
+  ) ||
+    evals.find((e) => e.routing_stage === "reporting_senior") ||
     evals[0] || { id: "" };
+  if (coEval.id && coEval.holder_email !== CO_EMAIL) {
+    console.warn(
+      `Warning: no reporting_senior eval is held by ${CO_EMAIL} — scenes 5a/5b will 403 on signing. ` +
+        `Reseed with: npm run db:seed-stress:reset`,
+    );
+  }
   // The finalize beat reuses coEval AFTER 5a locks it: /api/eval-finalize
   // requires signature_locked AND the report owner (the sailor) as caller.
   const exportEval = coEval;

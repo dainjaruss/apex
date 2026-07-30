@@ -53,8 +53,10 @@ export const signUpWithEmail = async (
     uic?: string;
     navyRank: string;
     command: string;
-    preferredRole:
-      "Sailor" | "Rater" | "Senior Rater" | "Reporting Senior" | "Admin";
+    // No role here on purpose. signUp metadata is whatever the browser posted,
+    // and public.handle_new_user() (migration 009) hard-codes 'Sailor' rather
+    // than trusting it — otherwise "a user cannot escalate their own role"
+    // would just mean "register a second account as Admin instead".
   },
 ) => {
   const { data, error } = await getSupabase().auth.signUp({
@@ -69,7 +71,6 @@ export const signUpWithEmail = async (
         uic: profileMeta.uic || "",
         navy_rank: profileMeta.navyRank,
         command: profileMeta.command,
-        preferred_role: profileMeta.preferredRole,
       },
     },
   });

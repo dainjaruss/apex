@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   storageList: vi.fn(),
   storageRemove: vi.fn(),
   authSignOut: vi.fn(),
+  authSignUp: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -28,10 +29,7 @@ vi.mock("@/lib/supabaseClient", () => {
           data: { user: { id: "mock-user-id" } },
           error: null,
         }),
-        signUp: vi.fn().mockResolvedValue({
-          data: { user: { id: "mock-user-id" } },
-          error: null,
-        }),
+        signUp: h.authSignUp,
         signOut: h.authSignOut,
         getSession: h.getSession,
       },
@@ -52,6 +50,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.storageList.mockResolvedValue({ data: [], error: null });
   h.storageRemove.mockResolvedValue({ error: null });
+  h.authSignUp.mockResolvedValue({
+    data: { user: { id: "mock-user-id" } },
+    error: null,
+  });
   h.authSignOut.mockResolvedValue({ error: null });
   h.getSession.mockResolvedValue({
     data: { session: { user: { id: "mock-user-id" } } },
@@ -73,9 +75,26 @@ describe("APEX Auth Unit Tests", () => {
       uic: "12345",
       navyRank: "SN",
       command: "USS NEVERSAIL",
-      preferredRole: "Sailor",
     });
     expect(res?.user?.id).toBe("mock-user-id");
+  });
+
+  // Regression guard for the signup escalation path (migration 009 part A2).
+  // signUp metadata is attacker-controlled; public.handle_new_user() used to
+  // copy preferred_role straight out of it into public.profiles, so an account
+  // could be born an Admin. The client must not even claim a role.
+  it("never sends a role in the signup metadata", async () => {
+    await signUpWithEmail("test@navy.mil", "password123", {
+      firstName: "Franklyn",
+      lastName: "Dain",
+      navyRank: "SN",
+      command: "USS NEVERSAIL",
+    });
+
+    const meta = h.authSignUp.mock.calls[0][0].options.data;
+    expect(Object.keys(meta)).not.toContain("preferred_role");
+    expect(Object.keys(meta)).not.toContain("assigned_roles");
+    expect(JSON.stringify(meta)).not.toMatch(/Admin|Reporting Senior/);
   });
 });
 

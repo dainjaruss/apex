@@ -69,8 +69,11 @@ export const fetchAuditLogs = async (evaluationId: string) => {
   const userIds = Array.from(
     new Set(logs.map((l) => l.user_id).filter(Boolean)),
   );
+  // profiles_directory, not profiles: migration 009 narrows base-table reads to
+  // the caller's own row, which would leave every other actor in the audit trail
+  // unnamed. The view exposes exactly these four columns to any signed-in user.
   const { data: profiles } = await supabase
-    .from("profiles")
+    .from("profiles_directory")
     .select("id, first_name, last_name, preferred_role")
     .in("id", userIds);
 

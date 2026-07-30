@@ -19,18 +19,9 @@ interface ProfileData {
   role: "Sailor" | "Rater" | "Senior Rater" | "Reporting Senior" | "Admin";
 }
 
-const fieldMapping: Record<keyof ProfileData, string> = {
-  firstName: "first_name",
-  lastName: "last_name",
-  mi: "middle_initial",
-  dodId: "dod_id",
-  email: "email",
-  rank: "navy_rank",
-  uic: "uic",
-  command: "command",
-  role: "preferred_role",
-};
-
+// `role` is intentionally absent from the update payload: migration 009 revokes
+// UPDATE on profiles.preferred_role from `authenticated`, and sending the column
+// at all — even unchanged — fails the whole statement with 42501.
 function getCleanProfileUpdates(form: ProfileData) {
   const cleaned = Object.fromEntries(
     Object.entries(form).map(([k, v]) => [k, v || undefined]),
@@ -44,7 +35,6 @@ function getCleanProfileUpdates(form: ProfileData) {
     uic: cleaned.uic,
     navyRank: cleaned.rank,
     command: cleaned.command,
-    preferredRole: cleaned.role,
   };
 }
 
@@ -197,23 +187,22 @@ function ProfileProfessionalFields({
         />
       </div>
 
+      {/* Read-only. The role decides who may sign a Reporting Senior block and
+          lock a report, so it is assigned, not chosen — enforced in the database
+          by migration 009, not just by hiding this control. */}
       <div className="space-y-1.5">
-        <label className="apex-label">Preferred Evaluation Role</label>
-        <select
-          value={formData.role}
-          onChange={(e) => onChange("role", e.target.value as any)}
-          className="apex-input"
+        <label className="apex-label">Evaluation Role</label>
+        <div
+          className="apex-input opacity-70 cursor-not-allowed"
+          aria-readonly="true"
+          data-testid="profile-role-readonly"
         >
-          <option value="Sailor">Sailor (Self-Drafting)</option>
-          <option value="Rater">Rater (E-7 / Supervisor)</option>
-          <option value="Senior Rater">
-            Senior Rater (Division Officer / Chief)
-          </option>
-          <option value="Reporting Senior">
-            Reporting Senior (Commanding Officer)
-          </option>
-          <option value="Admin">Admin</option>
-        </select>
+          {formData.role}
+        </div>
+        <p className="text-xs apex-text-subtle">
+          Role assignment is not self-service. Contact your command&apos;s APEX
+          administrator to change it.
+        </p>
       </div>
     </>
   );
