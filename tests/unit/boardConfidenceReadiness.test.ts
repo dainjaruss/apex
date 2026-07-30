@@ -408,6 +408,84 @@ describe("BLOCKER B2 — a three-year Sailor must not be told their record has g
     expect(area.status).toBe("strong");
   });
 
+  it("a record whose ONLY report was excluded is not told its continuity looks strong", () => {
+    // Observed live by P1b: the sole eval was dated after the board date, so
+    // scoreBoardConfidence dropped it from every factor — yet hasEvidence read
+    // the RAW inputs.evals array, found length 1, and rendered "Reporting
+    // continuity — LOOKING STRONG · APEX found no break between the reports you
+    // have entered" on the same screen where Performance correctly reported
+    // holding too few reports. A confident claim from zero usable data.
+    const futureOnly: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2027, "Must Promote", 4.2)], // period_to is AFTER the board date
+      psr: { ...emptyPsr, entered: true },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(futureOnly, CFG);
+    expect(r.warnings.join(" ")).toMatch(/dated after the board date/);
+    expect(futureOnly.evals.length).toBe(1); // the raw input still says "we have one"
+    expect(Number(r.factors.find((f) => f.key === "continuity")!.detail.coveredDays)).toBe(0);
+
+    const rep = report(futureOnly);
+    const areas = Object.fromEntries(rep.areas.map((a) => [a.key, a.status]));
+    expect(areas.continuity).toBe("not_enough_entered");
+    expect(areas.performance).toBe("not_enough_entered");
+    expect(rep.areas.find((a) => a.key === "continuity")!.summary).not.toMatch(/no break/);
+  });
+
+  it("a report dated entirely outside the five-year window is also not evidence", () => {
+    const stale: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2015, "Must Promote", 4.2)],
+      psr: { ...emptyPsr, entered: true },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    expect(report(stale).areas.find((a) => a.key === "continuity")!.status).toBe(
+      "not_enough_entered",
+    );
+  });
+
+  it("the leadership and precept evidence gates are real gates, not `true`", () => {
+    // The same fix was extended to leadership (and to the precept check that
+    // shares it), so both need their own guard — mutating either arm to `true`
+    // must fail here.
+    const noSections: RubricInputs = {
+      boardDate: T,
+      evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.2)),
+      psr: { ...emptyPsr, entered: true }, // tours AND awards both null
+      ladr: [],
+      preceptFlags: ["warfighting", "leadership_positions"],
+    };
+    const r = scoreBoardConfidence(noSections, CFG);
+    expect(r.factors.find((f) => f.key === "leadership")!.confidence).toBe(0);
+
+    const areas = Object.fromEntries(
+      report(noSections).areas.map((a) => [a.key, a.status]),
+    );
+    expect(areas.leadership).toBe("not_enough_entered");
+    // precept: `warfighting` reads a LaDR ratio that does not exist and
+    // `leadership_positions` reads the leadership section, which is empty.
+    expect(areas.precept).toBe("not_enough_entered");
+
+    // ...and both DO report evidence once the sections are entered.
+    const withSections: RubricInputs = {
+      ...noSections,
+      psr: {
+        ...noSections.psr,
+        tours: [{ title: "Sea Tour", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+        awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: true }],
+      },
+      preceptFlags: ["leadership_positions", "sea_duty"],
+    };
+    const filled = Object.fromEntries(
+      report(withSections).areas.map((a) => [a.key, a.status]),
+    );
+    expect(filled.leadership).not.toBe("not_enough_entered");
+    expect(filled.precept).not.toBe("not_enough_entered");
+  });
+
   it("a genuine break between two reports still reports needs_attention", () => {
     // Both reports sit inside the 1826-day window, with three uncovered years
     // between them — an INTERNAL break, not the pre-first-report leading span.

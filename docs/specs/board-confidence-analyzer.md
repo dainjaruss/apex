@@ -14,7 +14,7 @@ Status: **APPROVED FOR BUILD** · Version 1.5 · 2026-07-18
 
 > **v1.3.1 (no Vercel service required):** the narrative additionally supports a DIRECT OpenAI-compatible mode — `BOARD_NARRATIVE_BASE_URL` (+ optional `BOARD_NARRATIVE_API_KEY`, `BOARD_NARRATIVE_MODEL` = native id) via `@ai-sdk/openai-compatible`, taking precedence over the gateway. Covers xAI/Grok directly, OpenRouter, Groq, and local Ollama — zero Vercel involvement, fit for the self-hosted deployments the NAVFIT export's JRE requirement implies. Gateway mode remains available from any host.
 >
-> **v1.3 (provider-agnostic AI + ephemeral uploads):** narrative generation moved from the Anthropic SDK to the **Vercel AI SDK via the AI Gateway** — `generateText` + `Output.object(NarrativeSchema)`, model chosen by `BOARD_NARRATIVE_MODEL` (any gateway `provider/model` string, e.g. `anthropic/claude-opus-4.8` (default) or `xai/grok-4.5`), credentials `AI_GATEWAY_API_KEY` or Vercel OIDC; keyless/fallback semantics and the §4.3.4 no-PII payload unchanged. Record-document uploads (ESR / PSR / OMPF field codes 30–38) added to the Record Entry tab: PII-redaction advisory with a confirmation checkbox gating the upload, typed filenames (`TYPE__name`), reference-only (never parsed/scored), and **session-ephemeral** — `lib/auth.ts` destroys the caller's `board-docs` objects at logout (before `auth.signOut()`, RLS requires the session) and sweeps leftovers at the next login; purge failures never block auth.
+> **v1.3 (provider-agnostic AI + ephemeral uploads):** narrative generation moved from the Anthropic SDK to the **Vercel AI SDK via the AI Gateway** — `generateText` + `Output.object(NarrativeSchema)`, model chosen by `BOARD_NARRATIVE_MODEL` (any gateway `provider/model` string, e.g. `anthropic/claude-opus-5` (default) or `xai/grok-4.5`), credentials `AI_GATEWAY_API_KEY` or Vercel OIDC; keyless/fallback semantics and the §4.3.4 no-PII payload unchanged. Record-document uploads (ESR / PSR / OMPF field codes 30–38) added to the Record Entry tab: PII-redaction advisory with a confirmation checkbox gating the upload, typed filenames (`TYPE__name`), reference-only (never parsed/scored), and **session-ephemeral** — `lib/auth.ts` destroys the caller's `board-docs` objects at logout (before `auth.signOut()`, RLS requires the session) and sweeps leftovers at the next login; purge failures never block auth.
 
 > **v1.2 (full-requirements reconciliation):** explicit informed consent — `member_board_records.consented_at`, first-use modal (`components/board/BoardConsentModal.tsx`), server-enforced 403 on `POST /analyze` until recorded; two additional disclaimer layers (persistent page footer + score-dial tooltip carrying the modeled-bands caveat); citation-style grounding added to `NARRATIVE_SYSTEM_PROMPT` (every narrative item cites the payload path it derives from; development commentary must name each LaDR category below 1.0); HM added as a third seed rating, transcribed from the real July 2026 Navy COOL PDF; docs/BOARD-CONFIDENCE.md + README entry added.
 Companion spec style: `docs/specs/navfit98-field-mapping.md`
@@ -1547,6 +1547,16 @@ selected". `not_enough_entered` is a separate axis, never the bottom rung.
 
 ### 14.5 String gating — every sentence must be supported by its data
 
+- **Evidence tests read what the engine SCORED, never the raw `inputs` arrays.**
+  `scoreBoardConfidence` scores a *filtered copy* of the inputs that the readiness
+  layer never sees — future-dated reports are dropped from every factor, dateless
+  awards and tours from theirs — so the two counts diverge. Reading
+  `inputs.evals.length` told a Sailor whose only report was excluded as "dated
+  after the board date" that APEX had found no break between the reports they had
+  entered, on the same screen where Performance correctly reported holding too few
+  reports. Fabricating confidence is a worse failure than the pessimism this layer
+  exists to remove. Continuity keys on `detail.coveredDays`; leadership and
+  development on their own factor confidence; performance on `detail.nObserved`.
 - **Continuity status keys on `recordGapCount` / `continuityGap`, never on
   `f.score`.** The score carries the pre-first-report leading-span penalty, which
   §7 (v1.5) deliberately stopped treating as a real break. Reading it told a
@@ -1697,6 +1707,22 @@ independent values. P1b must add a dev-mode assert:
 compositeRaw(scoreBoardConfidence(inputs, config)) === compositeRaw(result)
 ```
 
+#### P2 — `scoreLeadership` treats section PRESENCE as scored rows
+
+`keepDated` (scoreBoardConfidence) drops dateless tours and awards but returns an
+**empty array, not null**, and `scoreLeadership` gates on `if (psr.tours)` — `[]`
+is truthy. So a record whose tours are all dateless pushes the L1/L3 subweights
+anyway and scores `conf 0.7, score 0`, which the readiness layer renders as
+**"needs_attention"**: a deficiency verdict derived from zero usable rows.
+
+This means §14.5's "read what the engine scored" substitution for `leadership`
+(and the `precept` check that shares it) is **equivalent to the old raw-input
+guard, not better** — both report evidence in this case. Continuity's
+substitution *is* strictly better, because `detail.coveredDays` is computed from
+the filtered set. The root fix is arithmetic — `scoreLeadership` must distinguish
+"section absent" from "section present but nothing datable" — and belongs in P2
+alongside the other scoring corrections.
+
 #### P1b — smaller items
 
 - `areas[].detail.contribution` reconstructs the suppressed score and band
@@ -1709,3 +1735,56 @@ compositeRaw(scoreBoardConfidence(inputs, config)) === compositeRaw(result)
 - `BandDelta.area` / `ReadinessAction.area` are narrowed to `"development"` and
   `source.kind` to `"ladr_milestone"`, because the verification flips were
   removed. Widen them when non-LaDR candidates return.
+
+### 14.10 The narrative speaks readiness, not rubric
+
+Added after P1b found the narrative unrenderable. Normative for
+`lib/boardConfidence/narrative.ts`.
+
+**The narrative is built from `ReadinessReport`, not `RubricResult`.** It may not
+emit — or let a reader reconstruct — any composite the readiness gates suppress.
+Concretely, no contributions, weights, factor scores, confidences, point totals,
+or band labels appear in the fallback text or in the model payload:
+`areas[].detail` and `actions[].worth` are stripped, and `score` is sent as a
+bare `scored` boolean. The previous fallback printed
+`"Contributed 33.5 of 40.0 possible points"` for **all six** factors, which sums
+straight back to the number §14.2 suppresses; that is why the narrative could not
+be rendered at all.
+
+**`not_enough_entered` is never a gap.** The deterministic fallback puts it in
+recommendations (enter the data), matching §14.4.
+
+**Milestone names are in the payload.** Unmet LaDR items are sent by name — public
+Navy COOL roadmap text with no PII delta — because that is what makes the output
+specific rather than the nine hardcoded generic strings it replaced. Their
+`marginal_points` is NOT sent: the model must not see point values.
+
+**Citation-or-delete.** Every strengths/gaps/recommendations item must cite a
+payload path in brackets; the valid set is generated from the payload actually
+sent (`coverage.*`, `monthsToBoard`, `areas.<key>`, `coverage.missing.<key>`,
+`actions.<id>`, `unmet.<milestone_id>`). Items are deleted unless **every** path in the
+trailing citation group resolves — accepting an item because *some* path
+resolved let one valid citation launder every fabricated claim beside it, and
+enforced strictly less than the prompt promises the model. Only the **trailing**
+group is treated as a citation (the prompt requires the citation to end the
+item), so bracketed NEC and CIN codes in Navy roadmap prose are neither counted
+nor stripped; a `factor_commentary` entry that cannot be cited falls back to the
+deterministic text (the schema requires all six keys, so it cannot be dropped).
+Surviving brackets are stripped before display — the citation proves grounding,
+it is not copy. The prior prompt demanded citations to paths such as
+`[performance.detail.P1]` that were never in the serialized payload, and ordered
+the model to name LaDR categories the rubric deletes before serialization, so
+every citation was unresolvable and the mechanism was decorative. A bracket
+pointing at nothing reads as provenance and is worse than no bracket.
+
+**Model id.** `DEFAULT_NARRATIVE_MODEL` is the **gateway** form
+`anthropic/claude-opus-5`, because that is the only path where a default can be
+meaningful (direct mode requires `BOARD_NARRATIVE_BASE_URL`, and a caller
+pointing that at xAI or a local Ollama needs their own native id). Direct-mode
+callers on Anthropic set `BOARD_NARRATIVE_MODEL=claude-opus-5` — the native id,
+no provider prefix. **Anthropic model ids are hyphenated and never contain a
+dot**, so the previous `anthropic/claude-opus-4.8` was malformed in both modes
+and could never resolve: it silently guaranteed the keyless fallback. The same
+constant is imported by brag-sheet autofill (`lib/bragSheet/service.ts`,
+`app/api/brag-sheet/autofill/route.ts`), so that surface carried the identical
+defect and is fixed by the same change.

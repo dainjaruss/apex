@@ -370,9 +370,6 @@ const PRECEPT_RATIO_SOURCES: Record<PreceptFlag, string[]> = {
 const byKey = (result: RubricResult): Record<FactorKey, FactorResult> =>
   Object.fromEntries(result.factors.map((f) => [f.key, f])) as Record<FactorKey, FactorResult>;
 
-const hasTourOrAward = (inputs: RubricInputs): boolean =>
-  inputs.psr.tours != null || inputs.psr.awards != null;
-
 /** True when EVERY active precept flag has data behind its indicator. */
 function preceptFullyComputable(result: RubricResult, inputs: RubricInputs): boolean {
   if (inputs.preceptFlags.length === 0) return false;
@@ -380,8 +377,8 @@ function preceptFullyComputable(result: RubricResult, inputs: RubricInputs): boo
   return inputs.preceptFlags.every((flag) => {
     const ratios = PRECEPT_RATIO_SOURCES[flag] ?? [];
     // leadership_positions reads L1 and sea_duty reads seaMonths72; both come
-    // from the tours/awards section rather than from any LaDR ratio.
-    if (ratios.length === 0) return hasTourOrAward(inputs);
+    // from the tours/awards section — i.e. whatever the leadership factor scored.
+    if (ratios.length === 0) return byKey(result).leadership.confidence > 0;
     return ratios.some((k) => devDetail[k] != null);
   });
 }
@@ -390,18 +387,41 @@ function preceptFullyComputable(result: RubricResult, inputs: RubricInputs): boo
  * Does this area rest on ANY underlying row? Confidence alone cannot answer it:
  * continuity, completeness and precept all report conf = 1 whether or not there
  * is anything behind them, which is the miniature of the bug this file contains.
+ *
+ * EVERY arm reads what the engine ACTUALLY SCORED — a factor's own confidence, or
+ * a value from its own detail — and never the raw `inputs` arrays. That is not a
+ * style rule: scoreBoardConfidence scores a FILTERED copy of the inputs that this
+ * layer never sees (future-dated reports are dropped from every factor, dateless
+ * awards and tours from theirs), so the two counts diverge. Reading
+ * `inputs.evals.length` told a Sailor whose ONLY report was excluded as "dated
+ * after the board date" that APEX had found no break between the reports they had
+ * entered — a confident claim from zero usable data, on the same screen where
+ * Performance correctly reported holding too few reports. Fabricating confidence
+ * is a worse failure than the pessimism this layer exists to remove.
+ *
+ * `inputs` is still read for preceptFlags, which the engine does not filter.
  */
 function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs): boolean {
   const f = byKey(result)[key];
   switch (key) {
     case "performance":
       return Number(f.detail.nObserved ?? 0) > 0;
+    // leadership and development test their OWN confidence, which makes these
+    // two arms provably unable to change any output at the default
+    // AREA_EVIDENCE_FLOOR: hasEvidence is consulted only by statusOf, whose very
+    // next non-continuity check is `confidence < AREA_EVIDENCE_FLOOR`, and
+    // conf === 0 implies conf < 0.25. A mutation of either arm to `true` is an
+    // EQUIVALENT mutant — no test can kill it, and none should be written to try.
+    // They are kept because AREA_EVIDENCE_FLOOR is an exported tunable: set it to
+    // 0 and these arms become the only thing separating "no data" from "graded".
     case "leadership":
-      return hasTourOrAward(inputs);
+      return f.confidence > 0;
     case "development":
       return f.confidence > 0;
     case "continuity":
-      return inputs.evals.length > 0;
+      // Days actually covered by in-window reports — 0 when every report was
+      // filtered out, or dated entirely outside the five-year window.
+      return Number(f.detail.coveredDays ?? 0) > 0;
     case "completeness":
       // The honest exception: an empty record genuinely IS incomplete, so that
       // is a real finding rather than an absence of one.

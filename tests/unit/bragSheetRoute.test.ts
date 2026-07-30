@@ -94,7 +94,7 @@ const fakeResponse = {
   fit_reports: {},
   citation_failures: [],
   dry_run: { success: true, errors: [], warnings: [] },
-  model: "anthropic/claude-opus-4.8",
+  model: "anthropic/claude-opus-5",
 };
 
 beforeEach(() => {
@@ -301,13 +301,13 @@ describe("GET /api/brag-sheet/autofill — availability probe (spec §5.2)", () 
     expect(await res.json()).toEqual({ available: false, model: null });
   });
 
-  it("gateway auth ⇒ { available: true, model: 'anthropic/claude-opus-4.8' }", async () => {
+  it("gateway auth ⇒ { available: true, model: 'anthropic/claude-opus-5' }", async () => {
     withGateway();
     const res = await GET();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       available: true,
-      model: "anthropic/claude-opus-4.8",
+      model: "anthropic/claude-opus-5",
     });
   });
 });

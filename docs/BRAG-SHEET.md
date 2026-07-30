@@ -113,7 +113,7 @@ modes):
 |---|---|---|
 | `BOARD_NARRATIVE_BASE_URL` | optional | direct mode: any OpenAI-compatible endpoint (takes precedence) |
 | `BOARD_NARRATIVE_API_KEY` | optional | direct-mode key (omit for keyless local endpoints, e.g. Ollama) |
-| `BOARD_NARRATIVE_MODEL` | optional | native id (direct) or `provider/model` (gateway); default `anthropic/claude-opus-4.8` |
+| `BOARD_NARRATIVE_MODEL` | optional | native id (direct) or `provider/model` (gateway); default `anthropic/claude-opus-5` |
 | `AI_GATEWAY_API_KEY` / `VERCEL_OIDC_TOKEN` | optional | gateway-mode auth |
 
 With no AI configuration, the brag sheet, PDF, JSON, and PDF extraction all

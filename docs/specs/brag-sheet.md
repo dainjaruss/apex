@@ -391,7 +391,7 @@ export const BRAG_AI_ENV: AiEnvConfig = {
   name: "brag-autofill",
 };
 // default model: DEFAULT_NARRATIVE_MODEL from lib/boardConfidence/narrative.ts
-// ("anthropic/claude-opus-4.8") — imported, not duplicated.
+// ("anthropic/claude-opus-5") — imported, not duplicated.
 ```
 
 ### 4.2 `lib/bragSheet/types.ts` — template v1.0 + autofill contract (verbatim)
@@ -1689,7 +1689,7 @@ a proposal object, never a direct write to the evaluation row.
 | `SUPABASE_SERVICE_ROLE_KEY` | existing | admin client in the autofill route |
 | `BOARD_NARRATIVE_BASE_URL` | optional | DIRECT mode: any OpenAI-compatible endpoint (shared with board-confidence — one config surface, §4.1) |
 | `BOARD_NARRATIVE_API_KEY` | optional | DIRECT mode key (omit for keyless local endpoints) |
-| `BOARD_NARRATIVE_MODEL` | optional | native id (direct) or `provider/model` (gateway); default `anthropic/claude-opus-4.8` |
+| `BOARD_NARRATIVE_MODEL` | optional | native id (direct) or `provider/model` (gateway); default `anthropic/claude-opus-5` |
 | `AI_GATEWAY_API_KEY` / `VERCEL_OIDC_TOKEN` | optional | GATEWAY mode auth |
 
 No AI configuration ⇒ brag sheet, PDF, JSON, and extraction all work; only
@@ -1818,7 +1818,7 @@ Mock `@/lib/supabaseClient` (`getRouteUserId`, `createAdminClient`) and
   third rejected, counter releases); 502 on `AutofillModelError`; 500 generic on
   the fail-closed audit throw; 200 returns the service response.
 - Autofill GET: 401; `{ available: false, model: null }` keyless;
-  `{ available: true, model: "anthropic/claude-opus-4.8" }` with gateway auth.
+  `{ available: true, model: "anthropic/claude-opus-5" }` with gateway auth.
 - Fail-closed audit (service-level): audit insert error ⇒ `last_autofill` nulled
   and throw; compensating update also failing ⇒ CRITICAL log + throw.
 

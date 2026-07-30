@@ -118,7 +118,7 @@ board_precepts (active cycle flags)─────────────┘   
      AI Gateway is a plain HTTPS API callable from any host:
      ```env
      AI_GATEWAY_API_KEY=...                          # or OIDC on Vercel deploys
-     BOARD_NARRATIVE_MODEL=anthropic/claude-opus-4.8 # or xai/grok-4.5, etc.
+     BOARD_NARRATIVE_MODEL=anthropic/claude-opus-5   # or xai/grok-4.5, etc.
      ```
      List models: `curl -s https://ai-gateway.vercel.sh/v1/models`.
    Without either configuration the analyzer produces a deterministic

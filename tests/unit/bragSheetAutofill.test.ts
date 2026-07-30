@@ -715,7 +715,7 @@ describe("runAutofill — parse rule (§7 step 1, invariant §1.2 item 2)", () =
 describe("AutofillResponseSchema — stored last_autofill boundary", () => {
   it("a real runAutofill result (plus model id) round-trips safeParse", async () => {
     const result = await runAutofill(makeReq(), scriptedModel(baseOutput()));
-    const stored = { ...result, model: "anthropic/claude-opus-4.8" };
+    const stored = { ...result, model: "anthropic/claude-opus-5" };
     expect(AutofillResponseSchema.safeParse(stored).success).toBe(true);
   });
 
