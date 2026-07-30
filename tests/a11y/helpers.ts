@@ -27,7 +27,10 @@ export async function scanAccessibility(
   page: Page,
   path: string,
   label: string,
-  options?: { skipNavigation?: boolean },
+  /** `include` scopes the scan to one CSS selector — use it only to gate a
+   *  newly added surface on a screen that already has unrelated violations, and
+   *  say so at the call site. Omitted ⇒ whole page, which stays the default. */
+  options?: { skipNavigation?: boolean; include?: string },
 ) {
   const url = path.startsWith("http") ? path : path;
   if (!options?.skipNavigation) {
@@ -61,7 +64,9 @@ export async function scanAccessibility(
     await page.waitForTimeout(400);
   }
 
-  const results = await new AxeBuilder({ page })
+  const builder = new AxeBuilder({ page });
+  if (options?.include) builder.include(options.include);
+  const results = await builder
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
 

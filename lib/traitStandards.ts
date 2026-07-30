@@ -56,10 +56,22 @@ export const GRADE_SCALE_NOTE: Record<string, string> = {
   NOB: "Not Observed — insufficient opportunity to observe; this trait is not graded.",
 };
 
-// Block 43 footnote + Rater/Senior-Rater certifications: 1.0 and 5.0 marks require a
-// written explanation, and 1.0 marks (plus any 2.0 in Block 35) must be substantiated.
+// The Block 43 substantiation footnote, LIGHTLY GLOSSED — not verbatim. The
+// printed footnote reads "three 2.0 marks"; this says "three or more", adds
+// "any" before the Block 35 clause, and appends the instruction citation. Each
+// gloss matches para 13-4, and the file's do-NOT-paraphrase rule governs the
+// anchor text above, not this summary line. It says nothing about 5.0.
+//
+// This string used to open "Marks of 1.0 and 5.0 require a written explanation in
+// Block 43 (Comments)" — an obligation the printed footnote does not create, and one
+// that reached a user: the narrative coach repeated it back as "the form's
+// substantiation wording calls for a written explanation behind each 5.0 mark".
+// Written explanations of 1.0 AND 5.0 marks belong to the Block 42 / 49 Rater and
+// Senior Rater CERTIFICATIONS forwarded with the report, not to Block 43. Para 13-4
+// never mentions 5.0, and APEX must not raise a Block 43 finding on an unexplained
+// 5.0 (docs/navy-reference.md §3.11).
 export const SUBSTANTIATION_NOTE_EVAL =
-  "Marks of 1.0 and 5.0 require a written explanation in Block 43 (Comments). All 1.0 marks, three or more 2.0 marks, and any 2.0 in Block 35 (Command Climate/EO) must be specifically substantiated and verifiable (BUPERSINST 1610.10H).";
+  "All 1.0 marks, three or more 2.0 marks, and any 2.0 in Block 35 (Command Climate/EO) must be specifically substantiated in Block 43 comments. Comments must be verifiable (BUPERSINST 1610.10H).";
 
 export const SUBSTANTIATION_NOTE_CHIEFEVAL =
   "NAVPERS 1616/27: All 1.0 marks and all 2.0 marks in Blocks 33–39 must be specifically substantiated in Block 40 (Reporting Senior comments). Comments must be verifiable.";
