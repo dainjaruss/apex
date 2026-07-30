@@ -57,7 +57,7 @@ describe("samePaygrade (the gate)", () => {
   });
 
   // BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 2 GRADE/RATE" (p. 1-1) and
-  // "BLOCK 23 GRADE" (p. 1-11) both spell the warrant grades CWO5, CWO4, CWO3, CWO2, WO1.
+  // "BLOCK 23 GRADE" (p. 1-10) both spell the warrant grades CWO5, CWO4, CWO3, CWO2, WO1.
   // Without an explicit rule these fall through to the rating-suffix heuristic and decode as
   // enlisted paygrades ("CWO2" -> E-5, "WO1" -> E-6), which then applies the wrong forced-
   // distribution band: a false 60% cap where the instruction says "No limit", and no cap at
@@ -72,7 +72,14 @@ describe("samePaygrade (the gate)", () => {
     expect(paygradeOf("WO3")).toBe("W-3");
     expect(samePaygrade("CWO3", "WO3")).toBe(true);
     expect(samePaygrade("CWO2", "W-2")).toBe(true);
-    // Not warrant officers — the enlisted/officer paths must be untouched.
+    // Spaced and O/0-typo'd free text (summary_groups.grade_rate is not validated) must not
+    // silently decode as an enlisted paygrade — that picks the wrong forced-distribution band.
+    expect(paygradeOf("CWO 3")).toBe("W-3");
+    expect(paygradeOf("WO 1")).toBe("W-1");
+    expect(paygradeOf("CW03")).toBe("W-3");
+    // Not warrant officers — the enlisted/officer paths must be untouched. The match stays
+    // anchored so AWO1 (Naval Aircrewman Operator) keeps resolving as a petty officer.
+    expect(paygradeOf("AWO1")).toBe("E-6");
     expect(paygradeOf("PO1")).toBe("E-6");
     expect(paygradeOf("IT2")).toBe("E-5");
   });

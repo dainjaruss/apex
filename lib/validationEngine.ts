@@ -410,6 +410,22 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     }
   }
 
+  // 11. Each trait must be graded (1.0-5.0 or NOB) on an observed report.
+  //     Uses the active trait map for the current form type.
+  if (!bv.not_observed) {
+    const tg = (evalData.trait_grades || {}) as Record<string, string | undefined>;
+    Object.keys(activeTraitMap).forEach((key) => {
+      if (!tg[key]) {
+        errors.push({
+          field: `trait_grades.${key}`,
+          block: activeTraitMap[key],
+          message: `Trait must be graded 1.0–5.0 or NOB (Block ${activeTraitMap[key]}).`,
+          severity: "error",
+        });
+      }
+    });
+  }
+
   // 12. Three or more 2.0 trait grades bar Promotable outright.
   //     BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, p. 1-16 ("EVAL BLOCK 45 /
   //     [FITREP/CHIEFEVAL] BLOCK 48"), verbatim:
@@ -421,11 +437,13 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //     "Up to two" therefore means a THIRD 2.0 removes Promotable itself — the case the Zod
   //     refinement (`refinePromotionRecommendation`) never covered: it caps at Promotable for
   //     any 2.0 but never bars Promotable on count.
-  //     Encl (1), para 13a, p. 9 states the same threshold as a plain, unqualified count —
-  //     "substantiate all 1.0 grades, three 2.0 grades, and any grade below 3.0 in character,
-  //     or command or organizational climate/equal opportunity" — which is why every trait is
-  //     counted here; a 2.0 in Character or Climate/EO is separately barred at 1 by the Zod
-  //     gate, so the two readings of "excluding Character or Equal Opportunity" agree.
+  //     Every trait is counted, i.e. "excluding Character or Equal Opportunity" is read as
+  //     naming which traits the two-mark allowance covers, not as removing them from the tally.
+  //     The other reading gives the same verdict on every input, because a 2.0 in Character or
+  //     Climate/EO is already barred at ONE mark by the Zod gate — so nothing turns on it.
+  //     (Weak support, not proof: Encl (1), para 13a, p. 9 writes the threshold as a bare
+  //     "three 2.0 grades". That is a substantiation requirement rather than a promotion bar,
+  //     and it lists Character/Climate-EO separately, which arguably cuts the other way.)
   //     (Not cited: Encl (2) para 6-3 uses the same "three 2.0 trait grades" wording but is
   //     scoped to Observed reports carrying an NOB promotion recommendation — a case this
   //     rule excludes via `!bv.not_observed`.)
@@ -442,22 +460,6 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
       block: 45,
       message: `${twoCount} trait grades of 2.0 (${twoBlocks.join(", ")}) bar a promotion recommendation of Promotable or higher — a Promotable recommendation allows at most two 2.0 trait grades (BUPERSINST 1610.10H, Encl (2), ch. 1, p. 1-16).`,
       severity: "error",
-    });
-  }
-
-  // 11. Each trait must be graded (1.0-5.0 or NOB) on an observed report.
-  //     Uses the active trait map for the current form type.
-  if (!bv.not_observed) {
-    const tg = (evalData.trait_grades || {}) as Record<string, string | undefined>;
-    Object.keys(activeTraitMap).forEach((key) => {
-      if (!tg[key]) {
-        errors.push({
-          field: `trait_grades.${key}`,
-          block: activeTraitMap[key],
-          message: `Trait must be graded 1.0–5.0 or NOB (Block ${activeTraitMap[key]}).`,
-          severity: "error",
-        });
-      }
     });
   }
 
