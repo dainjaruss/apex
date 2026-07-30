@@ -10,7 +10,7 @@
 // recommendation is advisory-only and never written to a form value.
 // Spec: docs/specs/brag-sheet.md §4.6, §7
 
-import { generateText, Output } from "ai";
+import { generateText, Output, zodSchema } from "ai";
 import { z } from "zod";
 import type { AiEnvConfig, ResolvedAiModel } from "@/lib/aiProvider";
 import { collapsePfa } from "@/lib/bragSheet/template";
@@ -48,7 +48,25 @@ export const BRAG_AI_ENV: AiEnvConfig = {
   name: "brag-autofill",
 };
 
-export const AUTOFILL_TIMEOUT_MS = 60_000;
+// Budget for the WHOLE run, not per call: runAutofill starts one AbortSignal and
+// shares it across all ≤3 calls (§7). Per call this was unbounded in practice —
+// 3 × 240s = 720s, past Vercel's 300s ceiling, so the retry path returned the
+// platform's 504 with no abort and no audit row rather than our 500.
+//
+// A full autofill is a ~12k-output-token generation: measured 105.2 / 115.0 /
+// 119.7 / 126.4 / 134.3 / 143.5 / 155.8 / 184.1 s (n=8) against the configured
+// direct endpoint (claude-opus-5). The old 60_000 could never complete one —
+// once the grammar rejection below was fixed, every call failed on timeout
+// instead. 240s is 1.30× the slowest observed single call: enough that the
+// common one-call path always fits, while a run that has already spent most of
+// the budget aborts instead of running the request past the platform ceiling.
+// The route pins `maxDuration = 300`, leaving 60s for our 500 + audit row.
+//
+// ponytail: MAX_CONCURRENT_AUTOFILLS = 2 now holds a slot ~4× longer than at
+// 60s, so two users can saturate an instance for minutes. That counter is also
+// per-instance, so on serverless it caps nothing globally — a shared limiter or
+// a job queue is the fix if this ever gets real traffic.
+export const AUTOFILL_TIMEOUT_MS = 240_000;
 export const COMMENTS_MAX_LINES = 18; // = checkCommentFit cap
 export const COMMENTS_TARGET_LINES = 17;
 
@@ -204,6 +222,35 @@ const AutofillModelOutputObject = z.object({
 
 export const AutofillModelOutputSchema: z.ZodType<AutofillModelOutput> =
   AutofillModelOutputObject;
+
+/** The schema as the PROVIDER sees it (§4.6 grammar budget).
+ *
+ *  Output.object() would call asSchema() for us, but asSchema defaults to
+ *  useReferences:false → zod emits `reused: "inline"`, which stamps a full copy
+ *  of GeneratedBlock (and GeneratedItem inside it) into all SEVEN block keys.
+ *  The endpoint compiles every inlined copy into its own grammar productions
+ *  and 400s with "The compiled grammar is too large" before the model sees the
+ *  request — i.e. autofill was dead in direct mode for every call.
+ *
+ *  useReferences:true emits one shared `definitions` entry per reused subtree
+ *  (draft-07 spelling of $defs): 3778B → 2358B of JSON Schema, and — measured
+ *  against the live endpoint — the difference between rejected and accepted.
+ *  Nothing about the schema itself changes, so `sources` and the citation
+ *  architecture are untouched; this is purely how the same shape is serialised.
+ *
+ *  PORTABILITY CAVEAT — verified only against the configured direct endpoint
+ *  (api.anthropic.com's OpenAI-compatible surface). lib/aiProvider.ts advertises
+ *  *any* OpenAI-compatible endpoint, and zod targets draft-07, so this emits
+ *  `definitions` rather than `$defs`; a strict-mode implementation that honours
+ *  only `$defs`, or refuses `$ref` outright, would break where the old inlined
+ *  form worked. Untested against the gateway (no AI_GATEWAY_API_KEY available).
+ *  If another provider rejects this, the fix is to inline and shrink the schema
+ *  instead — not to give `sources` up.
+ *  Guarded by tests/unit/aiSchemaGrammarBudget.test.ts (offline structure +
+ *  a key-gated live call). */
+export const AutofillProviderSchema = zodSchema(AutofillModelOutputObject, {
+  useReferences: true,
+});
 
 // ── AutofillResponse mirror (v1.1 review fix) ────────────────────────────────
 // brag_sheets.last_autofill is untrusted JSONB — the /brag-sheet page safeParses
@@ -425,15 +472,18 @@ export function resolveCitation(path: string, req: AutofillRequest): boolean {
  *  No sampling parameters are ever sent (repo convention, tested). */
 export function buildCallModel(
   resolved: ResolvedAiModel,
-): (prompt: string) => Promise<unknown> {
-  return async (prompt: string) => {
+): (prompt: string, deadline?: AbortSignal) => Promise<unknown> {
+  return async (prompt: string, deadline?: AbortSignal) => {
     const { output } = await generateText({
       model: resolved.model,
       maxRetries: 1,
-      abortSignal: AbortSignal.timeout(AUTOFILL_TIMEOUT_MS),
+      // runAutofill owns the clock and passes ONE signal shared by all ≤3 calls
+      // (see AUTOFILL_TIMEOUT_MS). The fallback only covers a standalone caller
+      // driving buildCallModel outside the pipeline.
+      abortSignal: deadline ?? AbortSignal.timeout(AUTOFILL_TIMEOUT_MS),
       system: AUTOFILL_SYSTEM_PROMPT,
       prompt,
-      output: Output.object({ schema: AutofillModelOutputSchema }),
+      output: Output.object({ schema: AutofillProviderSchema }),
     });
     return output;
   };
@@ -676,14 +726,20 @@ function buildMergedDraft(
  *  calls per run ≤ 3 (initial + parse retry + overflow retry). */
 export async function runAutofill(
   req: AutofillRequest,
-  callModel: (prompt: string) => Promise<unknown>, // injected — unit-testable without "ai" mocks
+  callModel: (prompt: string, deadline?: AbortSignal) => Promise<unknown>, // injected — unit-testable without "ai" mocks
 ): Promise<Omit<AutofillResponse, "model">> {
   const payload = buildAutofillPayload(req);
+  // ONE deadline for the whole run, started here and shared by every call. Per
+  // call it would bound each hop and nothing at all: §7 permits 3 calls, so a
+  // 240s per-call signal is a 720s request — past any platform ceiling, and the
+  // user gets the host's 504 (no abort, no audit row) instead of our 500.
+  const deadline = AbortSignal.timeout(AUTOFILL_TIMEOUT_MS);
   let calls = 0;
   const call = (feedback: string[] | null): Promise<unknown> => {
     calls += 1;
     return callModel(
       JSON.stringify(feedback ? { ...payload, retry_feedback: feedback } : payload),
+      deadline,
     );
   };
 
