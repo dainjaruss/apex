@@ -17,6 +17,10 @@ export const getProfile = async (uId: string) => {
   return data;
 };
 
+// preferred_role and assigned_roles are deliberately absent. Migration 009
+// revokes UPDATE on those columns from `authenticated`, so including either one
+// in the payload makes Postgres reject the ENTIRE statement with 42501 — even
+// when the value is unchanged. Roles are granted server-side, never self-served.
 const keyMap: Record<string, string> = {
   firstName: "first_name",
   lastName: "last_name",
@@ -25,10 +29,9 @@ const keyMap: Record<string, string> = {
   uic: "uic",
   navyRank: "navy_rank",
   command: "command",
-  preferredRole: "preferred_role",
 };
 
-// Updates preferred role or command for the profile
+// Updates the self-service identity fields on a profile. Role is not one of them.
 export const updateProfile = async (
   uId: string,
   updates: {
@@ -39,8 +42,6 @@ export const updateProfile = async (
     uic?: string; // 5-char UIC from commands lookup
     navyRank?: string;
     command?: string;
-    preferredRole?:
-      "Sailor" | "Rater" | "Senior Rater" | "Reporting Senior" | "Admin";
   },
 ) => {
   // Map JS camelCase back to postgres snake_case dynamically

@@ -17,6 +17,15 @@ async function queryEvaluations(userId: string) {
   return data || [];
 }
 
+// ponytail: DEAD PATH — do not wire this up as-is. Unlike
+// lib/evaluationService.ts saveDraft(), the insert branch sets no custody
+// (current_holder_id / participants / routing_stage), and participants defaults
+// to '{}' with no INSERT trigger (migration 002). canSignBlock requires the
+// signer to be in the evaluation's chain, so an eval minted here would be
+// permanently unsignable by anyone and unroutable — a stuck record.
+// Only { evaluations, loading, error } is destructured today
+// (app/dashboard/page.tsx), so nothing calls this. If you need it, copy the
+// custody block from saveDraft() rather than reimplementing it here.
 async function mutateEvaluation(userId: string, evalData: any) {
   const payload = {
     ...evalData,

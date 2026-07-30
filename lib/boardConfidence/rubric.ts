@@ -21,6 +21,7 @@ import type {
   FactorResult,
   LadrCategory,
   LadrItemInput,
+  LadrUnmet,
   PreceptFlag,
   PromotionRec,
   PsrSection,
@@ -293,11 +294,22 @@ function scoreLeadership(
 // (not applicable ≠ unknown); 'unanswered' rows lower conf_D only; unverified
 // met items count at 0.5. Also returns per-category ratios (precept) and the
 // answered/applicable counts (completeness).
-function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & {
+//
+// v2: the aggregation is lifted verbatim into aggregateLadr so it can be re-run
+// with one row flipped — that is how unmet[].marginal_points is a recompute
+// rather than an estimate. The arithmetic is unchanged.
+type LadrAgg = {
+  S: number;
+  conf: number;
   ratios: Partial<Record<LadrCategory, number>>;
+  ratioDetail: Detail;
   answered: number;
   applicable: number;
-} {
+  wSum: number;
+  noData: boolean;
+};
+
+function aggregateLadr(items: LadrItemInput[], emphasisMult: number): LadrAgg {
   const perCat: Partial<Record<LadrCategory, { met: number; answered: number }>> = {};
   let applicable = 0;
   let answered = 0;
@@ -327,14 +339,54 @@ function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & 
     sSum += LADR_CATEGORY_WEIGHTS[cat] * ratio;
   }
   if (wSum === 0) {
-    return {
-      S: 0, conf: 0, ratios, answered, applicable,
-      detail: { no_data: true, answered, applicable, wSum: 0 },
-    };
+    return { S: 0, conf: 0, ratios, ratioDetail, answered, applicable, wSum: 0, noData: true };
   }
-  const S = (100 * sSum) / wSum;
-  const conf = answered / applicable;
-  return { S, conf, ratios, answered, applicable, detail: { ...ratioDetail, answered, applicable, wSum } };
+  return {
+    S: (100 * sSum) / wSum,
+    conf: answered / applicable,
+    ratios, ratioDetail, answered, applicable, wSum, noData: false,
+  };
+}
+
+function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & {
+  ratios: Partial<Record<LadrCategory, number>>;
+  answered: number;
+  applicable: number;
+  unmet: LadrUnmet[];
+} {
+  const base = aggregateLadr(items, emphasisMult);
+
+  // v2: stop discarding identity. marginal_points is the exact change to THIS
+  // factor's 0–100 score when the row alone flips to met+verified.
+  // ponytail: O(n²) — one re-aggregation per unmet row, n = applicable rows
+  // (curated ratings run 20–30, so ~900 trivial iterations). If a rating ever
+  // ships hundreds of rows, memoize per category instead of re-walking all.
+  const unmet: LadrUnmet[] = [];
+  items.forEach((it, i) => {
+    if (it.status !== "not_met" && it.status !== "unanswered") return;
+    const flipped = items.slice();
+    flipped[i] = { ...it, status: "met", verified_in_ompf: true };
+    unmet.push({
+      milestone_id: it.milestone_id,
+      item: it.item ?? "",
+      category: it.category,
+      marginal_points: aggregateLadr(flipped, emphasisMult).S - base.S,
+      board_emphasis: it.board_emphasis === true,
+    });
+  });
+
+  const detail: Detail = base.noData
+    ? { no_data: true, answered: base.answered, applicable: base.applicable, wSum: 0 }
+    : { ...base.ratioDetail, answered: base.answered, applicable: base.applicable, wSum: base.wSum };
+  return {
+    S: base.S,
+    conf: base.conf,
+    ratios: base.ratios,
+    answered: base.answered,
+    applicable: base.applicable,
+    unmet,
+    detail,
+  };
 }
 
 // FACTOR 4 — Continuity (§7). Window is the half-open day interval
@@ -601,5 +653,162 @@ export function scoreBoardConfidence(
     warnings,
     continuityGap,
     continuityAdvisory,
+    ladrUnmet: dev.unmet,
   };
+}
+
+// ---------------------------------------------------------------------------
+// v2 — marginal value of a single input flip (pure, additive; the composite
+// arithmetic above is untouched)
+// ---------------------------------------------------------------------------
+
+/**
+ * The composite on its full-float scale: Σcontribution − A, UNCLAMPED.
+ * This is `RubricResult.final` before the [0,100] clamp and the terminal
+ * 1-decimal rounding, and it is the scale bandDeltas measures on.
+ *
+ * Neither the clamp nor the rounding may be applied first. Rounding quantizes
+ * away the ranking between small candidates. Clamping is worse: with a large
+ * adverse adjustment (2 adverse items + a PFA failure gives A = 40) the base
+ * AND every candidate all clamp to 0, so every delta is 0 and the Sailor in the
+ * most trouble gets an empty action plan. Clamp only for display.
+ */
+export function compositeRaw(r: RubricResult): number {
+  return r.factors.reduce((a, f) => a + f.contribution, 0) - r.adverseAdjustment;
+}
+
+/**
+ * Only real improvements. There is deliberately NO `award_verify` / `ladr_verify`
+ * candidate: `verified_in_ompf` is a self-ticked box (RecordEntryForm), so it is
+ * an HONESTY axis, not a verification axis. Scoring it inverts correct doctrine
+ * (a board sees only your OMPF) into an integrity penalty — ticking every box and
+ * changing nothing else is worth double-digit points, while disclosing honestly
+ * ("met, not yet in OMPF") can cost points. Confirming an OMPF entry belongs in
+ * the plan as an unscored reminder; see ReadinessReport.confirmInOmpf. Taking
+ * UNVERIFIED_MULT and the esrFlags term out of the score itself is P2 arithmetic.
+ */
+export type BandDeltaKind =
+  | "ladr_answer"    // an unanswered LaDR row → answered "met"
+  | "ladr_meet";     // a not_met LaDR row → met
+
+export interface BandDelta {
+  id: string;                  // stable within a run: "ladr:<uuid>:meet"
+  kind: BandDeltaKind;
+  // Both narrowed from the wider forward-looking contract: with the verification
+  // flips gone every candidate is a LaDR row, so `FactorKey` and `string | null`
+  // described ranges that cannot occur. Widen again when non-LaDR candidates
+  // return (P1b: record-field improvements).
+  area: "development";
+  label: string;               // LaDR milestone text
+  milestoneId: string;
+  /**
+   * TRUE marginal composite points: compositeRaw(re-scored with this ONE input
+   * flipped) − compositeRaw(base). Recomputed, never estimated — answering an
+   * unanswered LaDR row moves the numerator, the answered/applicable confidence
+   * denominator, record completeness (ladr90, esrFlags) AND the precept
+   * indicators at once, so nothing short of a full re-score is right.
+   *
+   * May be NEGATIVE. Measured example: −29/120 exactly, decomposing as
+   * development +0.625, completeness +0.800, precept −1.667 — the negative is
+   * entirely the `warfighting` precept indicator falling 1.0 → 0.833 as an
+   * unverified row dilutes ratios.qual_warfare. (An earlier note in this repo
+   * blamed the esrFlags unverified-count term; that term is real but contributes
+   * −0.2 and is swamped — completeness nets POSITIVE on this flip.)
+   */
+  delta: number;
+}
+
+/**
+ * ponytail: hard ceiling of 60 full re-scores per call. A curated LaDR is 20–30
+ * rows, so 60 covers every real record with headroom; the cap exists so a
+ * pathological auto-extracted LaDR cannot turn one page render into thousands of
+ * re-scores — and each re-score is itself O(n) in LaDR rows, so this is the
+ * difference between O(n²) and unbounded. Candidates are PRE-RANKED by points at
+ * stake before slicing (see stakeOf): slicing in raw input order silently dropped
+ * the single highest-value candidate — a board-emphasis advancement_consideration
+ * row ranking #1 at +5.43 vanished behind 60 filler rows worth −0.17 each.
+ */
+export const BAND_DELTA_CANDIDATE_CAP = 60;
+
+/**
+ * Cheap upper bound on what a row is worth, used ONLY to order candidates before
+ * the cap. Never reported — `delta` is always the true re-score.
+ *
+ * The category weight alone is DILUTION-BLIND: a category's ratio is shared by
+ * every row in it, so one row among 60 barely moves it while a lone row in a
+ * light category moves its ratio 0 → 0.5 outright. Ranking on the raw weight
+ * reproduced the original defect in a different shape — 60 `credential` rows
+ * (weight 10) buried a lone `skill_training_recommended` row (weight 2) that was
+ * the ONLY positive candidate at +1.05, and the plan shipped empty. Dividing by
+ * the rows sharing the category tracks the real marginal closely enough to rank.
+ *
+ * ponytail: the ceiling is that this models dilution but not the numerator —
+ * verified/unverified mix, board_emphasis weighting inside c.answered, and the
+ * cross-factor completeness/precept terms are all ignored. It only has to order
+ * candidates well enough that the cap does not drop a winner; `delta` is exact
+ * for everything that survives. If a future shape defeats it, rank on
+ * scoreLadr's factor-local marginal_points instead — exact, but O(n²) up front.
+ */
+const stakeOf = (
+  it: LadrItemInput,
+  emphasisMult: number,
+  rowsInCategory: number,
+): number =>
+  (LADR_CATEGORY_WEIGHTS[it.category] * (it.board_emphasis ? emphasisMult : 1)) /
+  Math.max(1, rowsInCategory);
+
+/**
+ * Pure: the marginal composite value of each single-input improvement, ranked.
+ *
+ * `config` is REQUIRED and must be the config `result` was scored under. Running
+ * it against the defaults while the operator has tuned `board_rubric_config`
+ * produces deltas that are wrong by multiples and can invert the ranking.
+ */
+export function bandDeltas(
+  result: RubricResult,
+  inputs: RubricInputs,
+  config: RubricConfig,
+): BandDelta[] {
+  const base = compositeRaw(result);
+
+  type Candidate = Omit<BandDelta, "delta"> & { flipped: RubricInputs; stake: number };
+  const candidates: Candidate[] = [];
+
+  // Rows sharing each category's ratio — the dilution denominator for stakeOf.
+  // 'na' rows are excluded exactly as the aggregation excludes them.
+  const rowsInCategory = new Map<string, number>();
+  for (const it of inputs.ladr)
+    if (it.status !== "na")
+      rowsInCategory.set(it.category, (rowsInCategory.get(it.category) ?? 0) + 1);
+
+  inputs.ladr.forEach((it, i) => {
+    if (it.status !== "unanswered" && it.status !== "not_met") return;
+    candidates.push({
+      // "answer" is a checklist row that has never been touched; "meet" is one
+      // the Sailor has explicitly marked not met. Same flip, different advice.
+      id: `ladr:${it.milestone_id}:${it.status === "unanswered" ? "answer" : "meet"}`,
+      kind: it.status === "unanswered" ? "ladr_answer" : "ladr_meet",
+      area: "development",
+      label: it.item || it.milestone_id,
+      milestoneId: it.milestone_id,
+      stake: stakeOf(
+        it,
+        config.board_emphasis_multiplier,
+        rowsInCategory.get(it.category) ?? 1,
+      ),
+      flipped: {
+        ...inputs,
+        ladr: inputs.ladr.map((x, j) => (j === i ? { ...x, status: "met" as const } : x)),
+      },
+    });
+  });
+
+  return candidates
+    .sort((a, b) => b.stake - a.stake)
+    .slice(0, BAND_DELTA_CANDIDATE_CAP)
+    .map(({ flipped, stake: _stake, ...rest }) => ({
+      ...rest,
+      delta: compositeRaw(scoreBoardConfidence(flipped, config)) - base,
+    }))
+    .sort((a, b) => b.delta - a.delta);
 }

@@ -59,8 +59,10 @@ export default function SummaryGroupsPage() {
         return;
       }
       setProfile(await getProfile(session.user.id));
+      // profiles_directory, not profiles: migration 009 narrows base-table reads
+      // to the caller's own row, which would empty this picker.
       const { data } = await createBrowserClient()
-        .from("profiles")
+        .from("profiles_directory")
         .select("id,first_name,last_name")
         .eq("preferred_role", "Reporting Senior");
       setSeniors(data || []);
