@@ -1,10 +1,12 @@
 /**
  * LaDR seed script — versioned LaDR reference data + board precept (spec §10).
- * Usage: npx tsx scripts/seed-ladr.ts [--rating IT] [--reset]
+ * Usage: npx tsx scripts/seed-ladr.ts [--rating IT] [--reset] [--dry-run]
  *   --rating <ABBREV>  limit the run to one rating's dataset
  *   --reset            delete that rating's documents first (cascade removes
  *                      milestones) before re-import; without it, re-runs are
  *                      idempotent upserts
+ *   --dry-run          build and validate the insert payload without touching
+ *                      (or requiring credentials for) a database
  *
  * Versioning / annual-refresh procedure (spec §10.3):
  * - LaDRs are reviewed annually; the cover month+year is the version key. A
@@ -73,22 +75,29 @@ function loadEnv() {
 
 loadEnv();
 
+const args = process.argv.slice(2);
+const reset = args.includes("--reset");
+// --dry-run builds and validates the exact insert payload without a database,
+// so a dataset change is reviewable where no local/dev Supabase is configured.
+const dryRun = args.includes("--dry-run");
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!url || !serviceKey) {
+if (!dryRun && (!url || !serviceKey)) {
   console.error(
     "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local",
   );
   process.exit(1);
 }
 
-const admin = createClient(url, serviceKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+// Never contacted under --dry-run; the placeholders only keep createClient happy.
+const admin = createClient(
+  url ?? "http://dry-run.invalid",
+  serviceKey ?? "dry-run",
+  { auth: { autoRefreshToken: false, persistSession: false } },
+);
 
-const args = process.argv.slice(2);
-const reset = args.includes("--reset");
 const ratingIdx = args.indexOf("--rating");
 const onlyRating =
   ratingIdx >= 0 ? args[ratingIdx + 1]?.toUpperCase() : undefined;
@@ -241,7 +250,58 @@ async function seedPrecept(p: PreceptSeed) {
   console.log(`  precept: ${cycle}${p.active ? " (active)" : ""}`);
 }
 
+/**
+ * --dry-run: build the exact ladr_milestones payload seedRating() would insert
+ * and assert the 004 NOT NULL / smallint[] / jsonb constraints plus the §10.3
+ * carry-forward key uniqueness. Throws on the first violation.
+ */
+function dryRunRating(seed: LadrSeed) {
+  const rows = seed.milestones.map((m, i) => ({
+    category: m.category,
+    item: m.item,
+    item_code: m.item_code,
+    applies_to_paygrades: m.applies_to_paygrades,
+    detail: m.detail ?? {},
+    sort_order: i,
+  }));
+  const keys = new Set<string>();
+  for (const r of rows) {
+    const where = `${seed.document.rating_abbrev} "${r.item}"`;
+    if (!r.item.trim()) throw new Error(`${where}: empty item`);
+    if (!r.applies_to_paygrades.length)
+      throw new Error(`${where}: empty applies_to_paygrades`);
+    if (
+      r.applies_to_paygrades.some((p) => !Number.isInteger(p) || p < 1 || p > 9)
+    )
+      throw new Error(`${where}: paygrade outside E1-E9`);
+    JSON.stringify(r.detail); // jsonb round-trip (throws on cycles/BigInt)
+    const key = milestoneKey(r);
+    if (keys.has(key))
+      throw new Error(`${where}: duplicate carry-forward key '${key}'`);
+    keys.add(key);
+  }
+  const byCategory = new Map<string, number>();
+  for (const r of rows)
+    byCategory.set(r.category, (byCategory.get(r.category) ?? 0) + 1);
+  console.log(
+    `  ${rows.length} milestone(s) valid — ` +
+      Array.from(byCategory)
+        .map(([c, n]) => `${c}:${n}`)
+        .join(", "),
+  );
+}
+
 async function main() {
+  if (dryRun) {
+    for (const seed of seeds) {
+      console.log(
+        `Dry run ${seed.document.rating_abbrev} — ${seed.document.version}`,
+      );
+      dryRunRating(seed);
+    }
+    console.log("LaDR dry run complete — no database contacted.");
+    return;
+  }
   for (const seed of seeds) await seedRating(seed);
   await seedPrecept(fy27Precept);
   console.log("LaDR seed complete.");

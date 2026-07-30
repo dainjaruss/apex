@@ -100,7 +100,9 @@ export default function LadrChecklist({
       LADR_CATEGORY_WEIGHTS[b] - LADR_CATEGORY_WEIGHTS[a] || a.localeCompare(b),
   );
   const scored = categories.filter((c) => LADR_CATEGORY_WEIGHTS[c] > 0);
-  const informational = categories.filter((c) => LADR_CATEGORY_WEIGHTS[c] === 0);
+  const informational = categories.filter(
+    (c) => LADR_CATEGORY_WEIGHTS[c] === 0,
+  );
 
   // v1.4: milestones ingested by the on-demand Navy COOL fetch are flagged
   // auto_extracted — surface that they should be verified against the PDF.
@@ -128,6 +130,18 @@ export default function LadrChecklist({
 
   const renderCategory = (cat: LadrCategory) => {
     const weight = LADR_CATEGORY_WEIGHTS[cat];
+    // The LaDR prints its "Considerations for advancement" section once per
+    // service component (Active / TAR / SELRES) with materially different
+    // criteria, and only one is seeded. Name the transcribed component here:
+    // these rows carry the heaviest weight in the table, so a Reserve Sailor
+    // must not be scored against Active criteria without knowing it.
+    const sourceComponents = Array.from(
+      new Set(
+        (byCategory.get(cat) ?? [])
+          .map((m) => m.detail?.component)
+          .filter((c): c is string => typeof c === "string" && c.length > 0),
+      ),
+    );
     return (
       <section key={cat} className="apex-card p-4 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -144,6 +158,14 @@ export default function LadrChecklist({
             </span>
           )}
         </div>
+        {sourceComponents.length > 0 && (
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            Transcribed from <strong>{sourceComponents.join("; ")}</strong>. The
+            LaDR prints different criteria for other service components — if you
+            are TAR or SELRES, verify these against your own career path in the
+            source LaDR before answering.
+          </p>
+        )}
         <ul className="space-y-3">
           {(byCategory.get(cat) ?? []).map((m) => {
             const id = m.id as string;
