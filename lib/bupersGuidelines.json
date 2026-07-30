@@ -384,49 +384,69 @@
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
     ]
   },
-  "trait_grades.deckplate_leadership": {
-    "title": "Deckplate Leadership",
-    "block": "Block 33 (CHIEFEVAL)",
-    "excerpt": "NAVPERS 1616/27 (E7–E9): Evaluate the CPO's visible deckplate presence, mentorship, and direct impact on Sailor performance and team culture (BUPERSINST 1610.10H, Ch. 10).",
+  "trait_grades.technical_mastery": {
+    "title": "Technical Mastery",
+    "block": "Block 33 (CHIEFEVAL — Competency)",
+    "excerpt": "NAVPERS 1616/27 (E7–E9), as printed on the form: technical expert in rating and community; uses technical knowledge and experience to produce well trained teams able to execute the command mission with excellence; applies knowledge, skills, and abilities to meet any mission.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
+    ]
+  },
+  "trait_grades.institutional_expertise": {
+    "title": "Institutional Expertise",
+    "block": "Block 34 (CHIEFEVAL — Competency)",
+    "excerpt": "As printed on NAVPERS 1616/27: understands how unit mission supports the naval mission and the National Military Strategy; recognizes when to engage to ensure mission success; knows and teaches customs and traditions, understands naval history.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
     ]
   },
   "trait_grades.professionalism": {
-    "title": "Professionalism (incl. PFA)",
-    "block": "Block 34 (CHIEFEVAL)",
-    "excerpt": "Evaluate military bearing, conduct, uniform standards, and Physical Fitness Assessment performance incorporated into this trait (BUPERSINST 1610.10H, Ch. 10).",
+    "title": "Professionalism",
+    "block": "Block 35 (CHIEFEVAL — Character)",
+    "excerpt": "As printed on NAVPERS 1616/27: promotes the attributes that define the Profession of Arms; success measured by Sailors' achievements; conduct in alignment with Core Values; actively teaches, upholds, and enforces standards; role model for GOAD.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
-      "PFA results in Block 20 should be reflected in Block 29 and this trait where applicable."
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
     ]
   },
-  "trait_grades.mission_accomplishment": {
-    "title": "Mission Accomplishment and Initiative",
-    "block": "Block 35 (CHIEFEVAL)",
-    "excerpt": "Evaluate the CPO's contribution to departmental and command mission readiness, initiative, and accountability for outcomes.",
+  "trait_grades.integrity": {
+    "title": "Integrity",
+    "block": "Block 36 (CHIEFEVAL — Character)",
+    "excerpt": "As printed on NAVPERS 1616/27: abides by an uncompromising code of integrity; takes full responsibility for actions; sets a positive tone and builds trust.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
-      "Marks of 1.0 or 5.0 require explanation in comments."
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
     ]
   },
-  "trait_grades.human_development": {
-    "title": "Human Development",
-    "block": "Block 36 (CHIEFEVAL)",
-    "excerpt": "Evaluate commitment to developing subordinates' professional and personal growth (BUPERSINST 1610.10H, Ch. 10).",
-    "rules": [
-      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed)."
-    ]
-  },
-  "trait_grades.eo_climate": {
-    "title": "Equal Opportunity / Command Climate",
-    "block": "Block 37 (CHIEFEVAL)",
-    "excerpt": "On CHIEFEVAL the EO/Command Climate gate applies to Block 37 (not Blocks 35/36 as on enlisted EVAL). 3.0 or higher is required for Promotable, Must Promote, or Early Promote.",
+  "trait_grades.accountability": {
+    "title": "Accountability",
+    "block": "Block 37 (CHIEFEVAL — Character)",
+    "excerpt": "As printed on NAVPERS 1616/27: mission-focused, accountable for outcomes; learning mindset, providing command solutions; holds self and peers accountable; actively self-assesses and has a strong commitment to self correction. BUPERSINST 1610.10H Encl (2) ch. 1 (p. 1-16) makes this the CHIEFEVAL advancement gate: Accountability must be evaluated as 3.0 or higher to maintain eligibility for advancement and receive a recommendation of Promotable.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "A 2.0 or lower limits promotion recommendation to Progressing or Significant Problems.",
-      "EO/Climate must be 3.0+ for any Promotable-or-higher recommendation."
+      "Accountability must be 3.0+ for any Promotable-or-higher recommendation.",
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
+    ]
+  },
+  "trait_grades.deckplate_leadership": {
+    "title": "Deckplate Leadership",
+    "block": "Block 38 (CHIEFEVAL — Culture)",
+    "excerpt": "As printed on NAVPERS 1616/27: visible, sets the tone; understands personnel programs and policies; builds credible combat teams; honors and rewards team members; drives Sailors to be better.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
+    ]
+  },
+  "trait_grades.team_effectiveness": {
+    "title": "Team Effectiveness",
+    "block": "Block 39 (CHIEFEVAL — Culture)",
+    "excerpt": "As printed on NAVPERS 1616/27: proactive leader invested in all Sailors; anticipates problems, overcomes challenges, delivers best outcomes; innovates at the lowest level possible; behavior and performance are key factors in the attainment of team successes, the personal development of all team members.",
+    "rules": [
+      "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
+      "On CHIEFEVAL, every 1.0 and every 2.0 mark in Blocks 33–39 must be substantiated in Block 40 (Reporting Senior comments)."
     ]
   },
   "trait_grades.tactical_performance": {

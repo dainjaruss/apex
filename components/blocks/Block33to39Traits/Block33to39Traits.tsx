@@ -61,17 +61,18 @@ export default function Block33to39Traits({
 
   const traitList = useMemo(() => {
     if (isChiefEval) {
+      // NAVPERS 1616/27 (REV 05-2025), Blocks 33–39 as printed on
+      // public/chiefEvalBlank.pdf. Categories: COMPETENCY 33–34, CHARACTER 35–37,
+      // CULTURE 38–39. Block 37 is ACCOUNTABILITY (the 3.0 advancement gate) — the
+      // CHIEFEVAL prints no Equal Opportunity or Command Climate trait.
       return [
-        { key: "deckplate_leadership", label: "Deckplate Leadership (33)" },
-        { key: "professionalism", label: "Professionalism (34)" },
-        { key: "mission_accomplishment", label: "Mission Accomplishment (35)" },
-        { key: "human_development", label: "Human Development (36)" },
-        {
-          key: "eo_climate",
-          label: "Command Climate / Equal Opportunity (37)",
-        },
-        { key: "teamwork", label: "Teamwork (38)" },
-        { key: "leadership", label: "Leadership (39)" },
+        { key: "technical_mastery", label: "Technical Mastery (33)" },
+        { key: "institutional_expertise", label: "Institutional Expertise (34)" },
+        { key: "professionalism", label: "Professionalism (35)" },
+        { key: "integrity", label: "Integrity (36)" },
+        { key: "accountability", label: "Accountability (37)" },
+        { key: "deckplate_leadership", label: "Deckplate Leadership (38)" },
+        { key: "team_effectiveness", label: "Team Effectiveness (39)" },
       ];
     }
 

@@ -8,13 +8,27 @@
 
 import type { Narrative } from "@/lib/boardConfidence/narrative";
 
+// NORMATIVE TEXT — founder-gated. Rendered on the page banner, every results view,
+// the score-dial tooltip and the footer, and stored verbatim in every board_analyses
+// row. Historical rows keep whatever text they were shown; they are never rewritten.
+//
+// The board-procedure clause is sourced, not paraphrased. PERS-803 Enlisted Selection
+// Board Brief, "Board Process": "Members conduct initial independent review of each
+// record. All records are then brought to tank for INDIVIDUAL briefing and voting.
+// Records are then scattergrammed until selects and non-selects are determined."
+// The word "slate" appears nowhere in the PERS-803 brief, the FY-27 enlisted precept,
+// or either FY-27 convening order. The 100/75/50/25/0 confidence scale is published
+// in the PERS-80 OFFICER brief only — no numeric vote scale is published for enlisted
+// boards. See docs/navy-reference.md §1.3 and §1.4.
 export const BOARD_DISCLAIMER =
   "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Record Readiness Review is " +
   "a self-assessment aid. It is not affiliated with, endorsed by, or predictive of any " +
   "U.S. Navy selection board, Navy Personnel Command, or BUPERS process. Scores are " +
   "computed by a fixed, published rubric modeled on the officer-brief confidence vote " +
-  "bands (100/75/50/25/0); enlisted (CPO) selection boards score records by rating " +
-  "panel and vote slates, so this model is an approximation, not actual board " +
+  "bands (100/75/50/25/0), which the Navy publishes for officer boards only; enlisted " +
+  "(CPO) selection boards brief and vote each record individually within a rating " +
+  "panel and scattergram the results, and no numeric vote scale is published for " +
+  "enlisted boards — so this model is an approximation, not actual board " +
   "procedure. Only your official record (OMPF, PSR, and a Letter to the Board) exists " +
   "to a real board. Verify your record on BOL and NSIPS, and consult your command " +
   "career counselor, before any board.";
@@ -148,8 +162,10 @@ export interface RubricResult {
   warnings: string[];                   // e.g. dod_id-mismatch exclusions (§2)
   // v1.5: continuity is graded, not gated. A detected reporting gap (a missing
   // period > continuity_gap_days, excluding the pre-first-report span) sets
-  // continuityGap and a paygrade-agnostic advisory — a real board can treat any
-  // break as disqualifying. Advisory only; the score is NOT forced to 0.
+  // continuityGap and an advisory. The advisory states what BUPERSINST 1610.10H
+  // para 17-6 actually says — missing reports DO NOT disqualify a member before a
+  // selection board — and names the 17-6a/17-6b remedy. Advisory only; the score
+  // is NOT forced to 0. See docs/navy-reference.md §3.7.
   continuityGap: boolean;
   continuityAdvisory: string | null;
   // v2 (ADDITIVE): scoreLadr already iterates every row and knows exactly which

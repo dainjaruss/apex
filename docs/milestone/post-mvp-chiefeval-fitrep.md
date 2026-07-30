@@ -38,15 +38,17 @@ Extending APEX to cover these forms completes the enlisted-to-officer continuum 
 
 | Block | EVAL Label | CHIEFEVAL Label |
 |---|---|---|
-| 33 | Professional Knowledge | Deckplate Leadership |
-| 34 | Quality of Work | Professionalism (incl. PFA) |
-| 35 | Command Climate/EO | Mission Accomplishment |
-| 36 | Military Bearing/Character | Human Development |
-| 37 | Job Accomplishment/Initiative | Equal Opportunity / Command Climate |
-| 38 | Teamwork | Teamwork |
-| 39 | Leadership | Leadership |
+| 33 | Professional Knowledge | Technical Mastery |
+| 34 | Quality of Work | Institutional Expertise |
+| 35 | Command Climate/EO | Professionalism |
+| 36 | Military Bearing/Character | Integrity |
+| 37 | Job Accomplishment/Initiative | **Accountability** |
+| 38 | Teamwork | Deckplate Leadership |
+| 39 | Leadership | Team Effectiveness |
 
-- **EO gate** applies to Block 37 (`eo_climate`) instead of Blocks 35/36.
+> ⚠️ **Corrected.** The CHIEFEVAL column above originally listed five fabricated traits with no block matching the real form. The labels are now transcribed from `public/chiefEvalBlank.pdf` (NAVPERS 1616/27 REV 05-2025).
+
+- **3.0 advancement gate** applies to Block 37 `accountability` instead of Blocks 35/36.
 - **No Block 47 Retention** — E7–E9 are career Sailors; retention is not evaluated.
 - Summary group rules (Table 1-2 quotas) are identical to EVAL.
 
@@ -81,7 +83,7 @@ Extending APEX to cover these forms completes the enlisted-to-officer continuum 
 **`types/navpers.ts`**
 
 - Adds `CHIEFEVAL_TRAIT_KEYS` and `FITREP_TRAIT_KEYS` const arrays.
-- Adds `ChiefEvalSchema` (Zod): CPO trait keys, EO gate on `eo_climate`, no `retention` field.
+- Adds `ChiefEvalSchema` (Zod): CPO trait keys, 3.0 gate on `accountability` (Block 37), no `retention` field.
 - Adds `FitrepSchema` (Zod): 8 officer trait keys including `tactical_performance`, no `retention` field.
 
 ### Phase 3 — Validation Engine ✅

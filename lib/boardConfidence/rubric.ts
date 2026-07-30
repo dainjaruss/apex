@@ -549,7 +549,9 @@ export function scoreBoardConfidence(
   const evals = inputs.evals.filter((e) => monthsBefore(e.period_to, T) >= 0);
   const futureCount = inputs.evals.length - evals.length;
   if (futureCount > 0)
-    warnings.push(`Excluded ${futureCount} reports dated after the board date.`);
+    warnings.push(
+      `Excluded ${futureCount} report${futureCount === 1 ? "" : "s"} dated after the board date.`,
+    );
 
   // v1.1 review fix: dateless awards/tours cannot be placed in any lookback
   // window — exclude them from scoring rather than let NaN comparisons decide.
@@ -570,7 +572,7 @@ export function scoreBoardConfidence(
   };
   if (dateless > 0)
     warnings.push(
-      `${dateless} entries with missing dates were excluded from scoring — add dates in Record Entry.`,
+      `${dateless} ${dateless === 1 ? "entry" : "entries"} with missing dates ${dateless === 1 ? "was" : "were"} excluded from scoring — add dates in Record Entry.`,
     );
 
   const perf = scorePerformance(evals, T);
@@ -632,14 +634,24 @@ export function scoreBoardConfidence(
   const final = round1HalfAway(clamp(raw - adverseAdjustment, 0, 100));
 
   // v1.5: continuity is GRADED (already reflected in the continuity factor),
-  // never a hard zero — this tool does not decide selection. But a detected
-  // reporting gap is surfaced as a prominent, paygrade-agnostic advisory,
-  // because a real selection board can treat ANY break in reporting continuity
-  // as disqualifying. This is advisory only; it does not alter the score.
+  // never a hard zero — this tool does not decide selection. A detected reporting
+  // gap raises an advisory that states the governing rule rather than inverting it.
+  //
+  // BUPERSINST 1610.10H para 17-6, verbatim: "Missing FITREPs, CHIEFEVALs, or EVALs
+  // do not disqualify a member before a selection board, but missing reports can
+  // make the work of the board more difficult. As a minimum, a member should attempt
+  // to obtain any missing report covering significant duty in the grades of E-5 or
+  // above within the past 5 years."
+  // The FY-27 precept agrees from the board's side (App A 7.a): a gap is "a period of
+  // undocumented performance", and "if there is missing information in the record,
+  // board members shall evaluate the record with what is available" (App A 7).
+  // Remedies are 17-6a (duplicate to PERS-32) and 17-6b (letter in lieu, Exhibit
+  // 17-4), which is accepted only to fill a gap in REGULAR report continuity.
+  // See docs/navy-reference.md §3.7. Advisory only; it does not alter the score.
   const recordGapCount = Number(cont.detail.recordGapCount ?? 0);
   const continuityGap = recordGapCount > 0;
   const continuityAdvisory = continuityGap
-    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. A selection board can treat ANY gap in the record — even a single day — as enough to disqualify a candidate. Verify your reporting continuity on BOL and NSIPS and be prepared to explain any break.`
+    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of undocumented performance, and the board evaluates the record with what is available. At a minimum, try to recover any missing report covering significant duty in the grades of E-5 or above within the past 5 years: send a signed copy of the original to PERS-32 (para 17-6a), or, if it cannot be obtained, submit a one-page letter in lieu of the report to PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular report continuity, and it may not evaluate your own performance or recommend you for promotion). Verify your reporting continuity on BOL and NSIPS.`
     : null;
   if (continuityAdvisory) warnings.push(continuityAdvisory);
 

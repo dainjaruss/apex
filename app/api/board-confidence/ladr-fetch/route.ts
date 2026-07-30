@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
     const fetched = await fetchLadrPdf(rating);
     if (fetched.status === "not_found")
       return fail(
-        `Navy COOL has no combined E1-E9 LaDR file for ${rating.toUpperCase()}.`,
+        `Navy COOL publishes no E7 LaDR for ${rating.toUpperCase()}. Nuclear ratings ` +
+          `(EMN, ETN, MMN) are split by platform on COOL and cannot be fetched by ` +
+          `rating alone; ETR, ITS and MMW have no published LaDR at all. You can ` +
+          `still run the analysis without LaDR milestones.`,
         404,
       );
     if (fetched.status === "error") {

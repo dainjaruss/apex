@@ -253,13 +253,13 @@ const chiefFixture: Evaluation = {
   // Grades chosen so each CHIEFEVAL block lands a distinct-enough value to
   // catch a name-based (rather than positional §4.3) column assignment.
   trait_grades: {
-    deckplate_leadership: "5.0",
-    professionalism: "1.0",
-    mission_accomplishment: "2.0",
-    human_development: "3.0",
-    eo_climate: "4.0",
-    teamwork: "NOB",
-    leadership: "3.0",
+    technical_mastery: "5.0",
+    institutional_expertise: "1.0",
+    professionalism: "2.0",
+    integrity: "3.0",
+    accountability: "4.0",
+    deckplate_leadership: "NOB",
+    team_effectiveness: "3.0",
   },
   comments: "CHIEF OSBORNE LED THE RESERVE CENTER THROUGH A DEMANDING YEAR.",
   career_recommendations: ["SEA DUTY", ""],
@@ -495,13 +495,13 @@ describe("mapEvaluationToNavfit — trait grades (§4.3)", () => {
 
   it("maps CHIEFEVAL traits positionally (blocks 33-39) and leaves QUAL/PA null", () => {
     const row = mapEvaluationToNavfit(chiefFixture);
-    expect(row.LEAD).toBe(5); // block 33 deckplate_leadership
-    expect(row.TAC).toBe(1); // block 34 professionalism
-    expect(row.PROF).toBe(2); // block 35 mission_accomplishment
-    expect(row.MIS).toBe(3); // block 36 human_development
-    expect(row.EO).toBe(4); // block 37 eo_climate
-    expect(row.TEAM).toBe(0); // block 38 teamwork = NOB
-    expect(row.MIL).toBe(3); // block 39 leadership
+    expect(row.LEAD).toBe(5); // block 33 technical_mastery
+    expect(row.TAC).toBe(1); // block 34 institutional_expertise
+    expect(row.PROF).toBe(2); // block 35 professionalism
+    expect(row.MIS).toBe(3); // block 36 integrity
+    expect(row.EO).toBe(4); // block 37 accountability
+    expect(row.TEAM).toBe(0); // block 38 deckplate_leadership = NOB
+    expect(row.MIL).toBe(3); // block 39 team_effectiveness
     expect(row.QUAL).toBeNull();
     expect(row.PA).toBeNull();
   });

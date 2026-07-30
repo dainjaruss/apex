@@ -3,9 +3,20 @@
 // High-fidelity PDF generation by OVERLAYING our data onto the official
 // NAVPERS 1616/27 (CHIEFEVAL, REV 05-2025) blank.
 //
-// Structurally identical to 1616/26 (same coordinate grid and block boxes 1-51),
-// but maps CPO-specific trait keys (Deckplate Leadership, Professionalism, etc.)
-// and omits Block 47 (Retention — N/A for career E7-E9 Sailors).
+// Trait rows carry the real 1616/27 Blocks 33-39 (Technical Mastery, Institutional
+// Expertise, Professionalism, Integrity, Accountability, Deckplate Leadership, Team
+// Effectiveness), split 4/3 across pages as the form prints them, and Block 47
+// (Retention) is omitted — N/A for career E7-E9 Sailors.
+//
+// ponytail: the non-trait coordinate grid below is INHERITED FROM 1616/26 and is NOT
+// verified against 1616/27. It is measurably wrong on at least the grade columns:
+// 1616/27 carries an extra left rail printing the COMPETENCY/CHARACTER/CULTURE trait
+// categories, which shifts the grade grid ~80pt right (the "NOB" label sits at x≈150.7
+// on 1616/27 vs x≈70.6 on 1616/26). Only GRADE_COLS_*[0] can be derived from the text
+// layer; columns 1-5 are graphic boxes with no text to measure, so the whole grid needs
+// calibrating against a rendered page. Trait Y centres and the 4/3 page split ARE
+// derived from the form (see p1.traitCy). Upgrade path: render both pages and re-measure
+// GRADE_COLS_P1/P2 and the block boxes before this output is treated as filing-ready.
 //
 
 import {
@@ -127,12 +138,17 @@ const C = {
     counselor_width: 145.0,
     counselBaseline: 400.0,
 
+    // NAVPERS 1616/27 prints FOUR traits on page 1 (Blocks 33-36) and three on
+    // page 2 (Blocks 37-39) — unlike 1616/26, which splits 5/2. These y centres are
+    // derived from the blank form's own text layer: the "NOB" label of each trait
+    // row, measured with `pdftotext -bbox-layout public/chiefEvalBlank.pdf`,
+    // converted to pdf-lib's bottom-left origin (792 - y) and offset +10.7pt, the
+    // NOB-label-to-grade-box delta calibrated on 1616/26 in lib/pdfOverlay.ts.
     traitCy: {
-      deckplate_leadership: 339.8,
-      professionalism: 271.8,
-      mission_accomplishment: 204.8,
-      human_development: 136.8,
-      eo_climate: 68.8,
+      technical_mastery: 492.1, // Block 33
+      institutional_expertise: 381.2, // Block 34
+      professionalism: 270.3, // Block 35
+      integrity: 159.4, // Block 36
     } as Record<string, number>,
   },
 
@@ -144,8 +160,9 @@ const C = {
     identityBaseline: 755.3,
 
     traitCy: {
-      teamwork: 663.8,
-      leadership: 594.8,
+      accountability: 722.5, // Block 37 — 3.0 advancement gate
+      deckplate_leadership: 611.6, // Block 38
+      team_effectiveness: 500.7, // Block 39
     } as Record<string, number>,
 
     traitAvg_x: 528.0,
@@ -192,6 +209,17 @@ const C = {
     date52_y: 47.0,
   },
 };
+
+/**
+ * Trait keys this overlay has grade-box coordinates for, derived from the coordinate
+ * map itself (page 1 then page 2, in block order). Pinned against
+ * CHIEFEVAL_TRAIT_KEYS in tests so a future trait rename cannot silently stop
+ * stamping grades onto the PDF.
+ */
+export const OVERLAY_TRAIT_KEYS: readonly string[] = Object.freeze([
+  ...Object.keys(C.p1.traitCy),
+  ...Object.keys(C.p2.traitCy),
+]);
 
 export async function generateChiefEvalOverlayPdf(
   evaluation: Evaluation,
@@ -364,16 +392,15 @@ export async function generateChiefEvalOverlayPdf(
   text(page1, formatNavpersDate(bv.date_counseled), p1.dateCounseled_x, p1.counselBaseline);
   text(page1, up(bv.counselor), p1.counselor_x, p1.counselBaseline, 12, courier, p1.counselor_width);
 
-  // CPO Trait grades 33-37
+  // CPO trait grades, Blocks 33-36 (page 1) — COMPETENCY 33-34, CHARACTER 35-36.
   const p1Trait = (key: string, grade?: string) => {
     const gi = gradeIndex(grade);
     if (gi != null && p1.traitCy[key] != null) mark(page1, C.GRADE_COLS_P1[gi], p1.traitCy[key]);
   };
-  p1Trait("deckplate_leadership", tg.deckplate_leadership);
+  p1Trait("technical_mastery", tg.technical_mastery);
+  p1Trait("institutional_expertise", tg.institutional_expertise);
   p1Trait("professionalism", tg.professionalism);
-  p1Trait("mission_accomplishment", tg.mission_accomplishment);
-  p1Trait("human_development", tg.human_development);
-  p1Trait("eo_climate", tg.eo_climate);
+  p1Trait("integrity", tg.integrity);
 
   // ───────────────── PAGE 2 ─────────────────
   const p2 = C.p2;
@@ -381,8 +408,10 @@ export async function generateChiefEvalOverlayPdf(
     const gi = gradeIndex(grade);
     if (gi != null && p2.traitCy[key] != null) mark(page2, C.GRADE_COLS_P2[gi], p2.traitCy[key]);
   };
-  p2Trait("teamwork", tg.teamwork);
-  p2Trait("leadership", tg.leadership);
+  // Blocks 37-39 (page 2) — CHARACTER 37, CULTURE 38-39.
+  p2Trait("accountability", tg.accountability);
+  p2Trait("deckplate_leadership", tg.deckplate_leadership);
+  p2Trait("team_effectiveness", tg.team_effectiveness);
 
   const indivAvg = computeTraitAverage(evaluation.trait_grades).average;
   text(page2, indivAvg != null ? indivAvg.toFixed(2) : "", p2.traitAvg_x, p2.traitAvg_y);

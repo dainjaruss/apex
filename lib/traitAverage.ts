@@ -14,11 +14,14 @@ export const TRAIT_KEYS = [
   "teamwork",
   "leadership",
   "tactical_performance",
-  "deckplate_leadership",
+  // NAVPERS 1616/27 (CHIEFEVAL) Blocks 33-39 — see lib/traitStandards.ts.
+  "technical_mastery",
+  "institutional_expertise",
   "professionalism",
-  "mission_accomplishment",
-  "human_development",
-  "eo_climate",
+  "integrity",
+  "accountability",
+  "deckplate_leadership",
+  "team_effectiveness",
 ] as const;
 
 export interface TraitAverageResult {

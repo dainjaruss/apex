@@ -28,16 +28,19 @@ export const NAVFIT_TRAIT_MAP: Record<
     { block: 38, key: "teamwork", column: "TEAM" },
     { block: 39, key: "leadership", column: "LEAD" },
   ],
-  // Positional map inferred from navfit99-js's older Chief form — verify against
-  // a real NAVFIT 98A v30+ Chief report before shipping (spec §8, open question 2).
+  // Trait keys are the real NAVPERS 1616/27 (REV 05-2025) ones, transcribed from
+  // public/chiefEvalBlank.pdf (see lib/traitStandards.ts). The block→column pairing
+  // is unchanged and still a POSITIONAL map inferred from navfit99-js's older Chief
+  // form — verify against a real NAVFIT 98A v30+ Chief report before shipping
+  // (spec §8, open question 2).
   CHIEFEVAL: [
-    { block: 33, key: "deckplate_leadership", column: "LEAD" },
-    { block: 34, key: "professionalism", column: "TAC" },
-    { block: 35, key: "mission_accomplishment", column: "PROF" },
-    { block: 36, key: "human_development", column: "MIS" },
-    { block: 37, key: "eo_climate", column: "EO" },
-    { block: 38, key: "teamwork", column: "TEAM" },
-    { block: 39, key: "leadership", column: "MIL" },
+    { block: 33, key: "technical_mastery", column: "LEAD" },
+    { block: 34, key: "institutional_expertise", column: "TAC" },
+    { block: 35, key: "professionalism", column: "PROF" },
+    { block: 36, key: "integrity", column: "MIS" },
+    { block: 37, key: "accountability", column: "EO" },
+    { block: 38, key: "deckplate_leadership", column: "TEAM" },
+    { block: 39, key: "team_effectiveness", column: "MIL" },
   ],
   // Excludes the legacy `work` → 34 alias in fitrepTraitBlockMap — block 34 is `eo`.
   FITREP: [

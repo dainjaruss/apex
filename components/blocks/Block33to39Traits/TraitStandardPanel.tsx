@@ -27,7 +27,13 @@ export default function TraitStandardPanel({
   const std = TRAIT_STANDARDS_LOOKUP[traitKey];
   if (!std) return null;
 
-  const isAnchor = (ANCHOR_GRADES as readonly string[]).includes(grade);
+  // NAVPERS 1616/27 (CHIEFEVAL) prints one bullet list per trait and no 1.0/3.0/5.0
+  // anchor columns, so those traits carry `standards` instead of `anchors`. Show the
+  // printed standards at every grade rather than inventing per-grade text.
+  const bullets = std.anchors ? std.anchors[grade as AnchorGrade] : std.standards;
+  const isAnchor = std.anchors
+    ? (ANCHOR_GRADES as readonly string[]).includes(grade)
+    : true;
   const needsJustification = grade === "1.0" || grade === "5.0";
   const headingColor = ANCHOR_HEADING[grade] ?? "var(--muted-foreground)";
 
@@ -57,9 +63,9 @@ export default function TraitStandardPanel({
         )}
       </div>
 
-      {isAnchor ? (
+      {isAnchor && bullets?.length ? (
         <ul className="space-y-1">
-          {std.anchors[grade as AnchorGrade].map((bullet, i) => (
+          {bullets.map((bullet, i) => (
             <li
               key={i}
               className="flex gap-2 text-xs leading-snug"

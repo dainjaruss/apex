@@ -37,13 +37,13 @@ const mockChiefEval: Evaluation = {
   ship_station: "NIOC NORFOLK",
   promotion_status: "Regular",
   trait_grades: {
-    deckplate_leadership: "4.0",
+    technical_mastery: "4.0",
+    institutional_expertise: "4.0",
     professionalism: "4.0",
-    mission_accomplishment: "4.0",
-    human_development: "4.0",
-    eo_climate: "4.0",
-    teamwork: "4.0",
-    leadership: "4.0",
+    integrity: "4.0",
+    accountability: "4.0",
+    deckplate_leadership: "4.0",
+    team_effectiveness: "4.0",
   },
   comments: "ITCS RODRIGUEZ LED THE DIVISION WITH STRONG DECKPLATE PRESENCE.",
   career_recommendations: ["CMDCM", "NA"],
@@ -108,10 +108,10 @@ describe("CHIEFEVAL validation (NAVPERS 1616/27)", () => {
     ).toBe(true);
   });
 
-  it("gates promotion on EO/Climate Block 37 below 3.0", () => {
+  it("gates promotion on Accountability (Block 37) below 3.0", () => {
     const bad = {
       ...mockChiefEval,
-      trait_grades: { ...mockChiefEval.trait_grades, eo_climate: "2.0" },
+      trait_grades: { ...mockChiefEval.trait_grades, accountability: "2.0" },
       promotion_recommendation: "Promotable" as const,
     };
     expect(
@@ -127,7 +127,7 @@ describe("CHIEFEVAL validation (NAVPERS 1616/27)", () => {
       promotion_recommendation: "Promotable" as const,
       trait_grades: {
         ...mockChiefEval.trait_grades,
-        teamwork: "2.0",
+        team_effectiveness: "2.0",
       },
       comments:
         "ITCS RODRIGUEZ PERFORMED ADEQUATELY WITH ONE AREA FOR IMPROVEMENT.",

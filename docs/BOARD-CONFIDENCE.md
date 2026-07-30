@@ -53,9 +53,14 @@ board_precepts (active cycle flags)─────────────┘   
   hard zero — this tool does not decide selection. When a genuine reporting
   break is found (a missing period inside your record; the time before your
   first report is not counted, so a short but unbroken record is not flagged),
-  the results view shows a prominent advisory: a real selection board can treat
-  **any** gap in the record — even a single day — as disqualifying. Verify your
-  continuity on BOL and NSIPS.
+  the results view shows a prominent advisory stating **BUPERSINST 1610.10H
+  para 17-6**: missing FITREPs, CHIEFEVALs, or EVALs **do not disqualify** a
+  member before a selection board — but they make the board's work harder, and a
+  gap reads as a period of *undocumented performance*. The advisory names the
+  remedy: recover any missing report covering significant duty at **E-5 or above
+  within the past 5 years**, either by sending a signed copy to PERS-32 (17-6a)
+  or by submitting a one-page letter in lieu (17-6b). Verify your continuity on
+  BOL and NSIPS.
 - **Upload-driven entry (v1.5):** on the Record Entry tab, "Extract to
   record" parses an uploaded ESR/PSR/OMPF document in memory and pre-fills
   awards, NECs, education, and PFA cycles as editable, unverified rows — in
@@ -197,15 +202,17 @@ The precept tab's **"Reference a published precept"** panel takes the PDF one of
 two ways, both extracting text in memory (never persisted) and suggesting which
 of the five flags the precept names — with the triggering quote:
 
-- **Upload (primary, v1.6.1)** — download the precept from MyNavyHR and upload
-  it (`POST /api/board-confidence/precept-extract`, same in-memory/no-persist
-  invariants as record-extract). The browser already has the file, so the
-  **server needs no outbound access** — this works when server egress to
-  `mynavyhr.navy.mil` is blocked (proxy/firewall/DoD IP filtering), which is the
-  common case ("Could not download the precept" from the URL fetch).
-- **Fetch by URL (fallback)** — `POST /api/board-confidence/precept-fetch`
+- **Fetch by URL (primary)** — `POST /api/board-confidence/precept-fetch`
   downloads it server-side (host allow-listed to `mynavyhr.navy.mil` as an SSRF
-  guard). Only works where the runtime can reach MyNavyHR.
+  guard). **MyNavyHR is not blocked and never was.** It sits behind AkamaiGHost,
+  which rejects requests that do not look like a browser navigation; the fetcher
+  sends the full `BROWSER_HEADERS` set. Verified 2026-07-29 against the live
+  FY-27 precept: 200, 235,468 bytes, 24,950 characters extracted.
+- **Upload (fallback, v1.6.1)** — download the precept yourself and upload it
+  (`POST /api/board-confidence/precept-extract`, same in-memory/no-persist
+  invariants as record-extract). The browser already has the file, so the
+  **server needs no outbound access** — for genuinely restricted networks
+  (proxy/firewall/DoD IP filtering) where the runtime cannot reach MyNavyHR.
 
 Because a precept is broad prose (not a clean checklist like the LaDR
 "Considerations for advancement"), the suggestions are a **starting point you
@@ -241,5 +248,7 @@ update public.board_precepts set active = false where cycle <> 'FY27 Active-Duty
   are out of scope (spec §12).
 - Admin-on-behalf analysis is deferred: `profiles` roles are self-asserted in
   this app, so the server cannot trust them for cross-user access.
-- CPO boards vote slates by rating panel rather than per-record confidence
-  scores — the banding is an explicitly labeled approximation.
+- CPO boards brief and vote each record individually within a rating panel and
+  scattergram the results; the Navy publishes no numeric vote scale for enlisted
+  boards, so the banding is an explicitly labeled approximation borrowed from the
+  officer brief.
