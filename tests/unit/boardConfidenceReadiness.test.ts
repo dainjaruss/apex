@@ -408,6 +408,45 @@ describe("BLOCKER B2 — a three-year Sailor must not be told their record has g
     expect(area.status).toBe("strong");
   });
 
+  it("a record whose ONLY report was excluded is not told its continuity looks strong", () => {
+    // Observed live by P1b: the sole eval was dated after the board date, so
+    // scoreBoardConfidence dropped it from every factor — yet hasEvidence read
+    // the RAW inputs.evals array, found length 1, and rendered "Reporting
+    // continuity — LOOKING STRONG · APEX found no break between the reports you
+    // have entered" on the same screen where Performance correctly reported
+    // holding too few reports. A confident claim from zero usable data.
+    const futureOnly: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2027, "Must Promote", 4.2)], // period_to is AFTER the board date
+      psr: { ...emptyPsr, entered: true },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(futureOnly, CFG);
+    expect(r.warnings.join(" ")).toMatch(/dated after the board date/);
+    expect(futureOnly.evals.length).toBe(1); // the raw input still says "we have one"
+    expect(Number(r.factors.find((f) => f.key === "continuity")!.detail.coveredDays)).toBe(0);
+
+    const rep = report(futureOnly);
+    const areas = Object.fromEntries(rep.areas.map((a) => [a.key, a.status]));
+    expect(areas.continuity).toBe("not_enough_entered");
+    expect(areas.performance).toBe("not_enough_entered");
+    expect(rep.areas.find((a) => a.key === "continuity")!.summary).not.toMatch(/no break/);
+  });
+
+  it("a report dated entirely outside the five-year window is also not evidence", () => {
+    const stale: RubricInputs = {
+      boardDate: T,
+      evals: [annual(2015, "Must Promote", 4.2)],
+      psr: { ...emptyPsr, entered: true },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    expect(report(stale).areas.find((a) => a.key === "continuity")!.status).toBe(
+      "not_enough_entered",
+    );
+  });
+
   it("a genuine break between two reports still reports needs_attention", () => {
     // Both reports sit inside the 1826-day window, with three uncovered years
     // between them — an INTERNAL break, not the pre-first-report leading span.

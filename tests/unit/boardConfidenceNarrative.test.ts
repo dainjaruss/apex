@@ -1,11 +1,12 @@
 // tests/unit/boardConfidenceNarrative.test.ts
 //
-// generateNarrative / fallbackNarrative (spec §4.3, v1.3 provider-agnostic):
-// keyless deterministic fallback, the mocked AI-SDK gateway call shape (model
-// string from BOARD_NARRATIVE_MODEL — Anthropic, xAI Grok, or any gateway
-// provider), failure → fallback, the §4.3.4 privacy floor (no PII in the model
-// payload), and the no-output path. NO live API calls: ai.generateText is
-// mocked; gateway credentials are set/deleted per test.
+// generateNarrative / fallbackNarrative (spec §4.3, §14): the keyless
+// deterministic fallback, the mocked AI-SDK call shape (gateway string and
+// direct provider object), failure → fallback, the §4.3.4 privacy floor, and
+// the two v2 gates — NO score leakage (the narrative may not print or let a
+// reader reconstruct a composite the readiness layer suppressed) and
+// citation-or-delete (a bracket that resolves to nothing is deleted, not shown).
+// NO live API calls: ai.generateText is mocked; credentials are set per test.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 
@@ -19,87 +20,100 @@ vi.mock("ai", async (importOriginal) => {
 import {
   generateNarrative,
   fallbackNarrative,
+  narrativePayload,
+  applyCitationGate,
+  citationPaths,
   NarrativeSchema,
+  NARRATIVE_SYSTEM_PROMPT,
   DEFAULT_NARRATIVE_MODEL,
   narrativeModelId,
   type Narrative,
 } from "@/lib/boardConfidence/narrative";
-import type {
-  FactorKey,
-  FactorResult,
-  RubricResult,
-} from "@/lib/boardConfidence/types";
+import {
+  DEFAULT_RUBRIC_CONFIG as CFG,
+  scoreBoardConfidence,
+} from "@/lib/boardConfidence/rubric";
+import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
+import type { RubricInputs } from "@/lib/boardConfidence/types";
 
 // Sentinel strings planted in the fixture: none may ever reach the model.
 const SENTINEL_MEMBER_NAME = "SAILOR, SENTINEL Q";
 const SENTINEL_DOD_ID = "9876543210";
 const SENTINEL_AWARD_TITLE = "SENTINEL ACHIEVEMENT MEDAL";
-const SENTINEL_ADVERSE_NOTE = "SENTINEL NJP NOTE ALPHA";
+const SENTINEL_TOUR_TITLE = "SENTINEL TOUR BRAVO";
 const SENTINELS = [
   SENTINEL_MEMBER_NAME,
   SENTINEL_DOD_ID,
   SENTINEL_AWARD_TITLE,
-  SENTINEL_ADVERSE_NOTE,
+  SENTINEL_TOUR_TITLE,
 ];
 
-const f = (
-  key: FactorKey,
-  weight: number,
-  score: number,
-  confidence: number,
-  detail: FactorResult["detail"] = {},
-): FactorResult => ({
-  key,
-  weight,
-  score,
-  confidence,
-  contribution: (weight / 100) * score * confidence,
-  detail,
+const annual = (endYear: number, rec: any, ita: number) => ({
+  period_from: `${endYear - 1}-03-16`,
+  period_to: `${endYear}-03-15`,
+  report_type: "EVAL" as const,
+  promotion_recommendation: rec,
+  trait_average: ita,
+  summary_group_average: null,
+  rsca: null,
+  sea_duty: false,
+  ep_count: null,
+  group_size: null,
 });
 
-const fixtureResult: RubricResult = {
-  final: 62.4,
-  band: 50,
-  bandLabel: "Crunch — middle band",
-  adverseAdjustment: 15,
-  continuityGap: false,
-  continuityAdvisory: null,
-  factors: [
-    f("performance", 40, 82, 1, {
-      P1: 80,
-      P2: 76,
-      P3: 55,
-      P4: 40,
-      declinePenalty: 0,
-      nObserved: 5,
-      availableSubweight: 1,
-    }),
-    f("leadership", 15, 45, 0.7, { L1: 50, L2: 18 }),
-    f("development", 15, 60, 0.5, {}),
-    f("continuity", 10, 85, 1, { coverage: 0.9, gapCount: 1 }),
-    f("completeness", 10, 55, 1, {}),
-    f("precept", 10, 50, 1, {}),
+const fixtureInputs: RubricInputs = {
+  boardDate: "2026-09-01",
+  evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Promotable", 3.8)),
+  psr: {
+    entered: true,
+    awards: [
+      { title: SENTINEL_AWARD_TITLE, level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: false },
+    ],
+    necs: [{ code: "742A", verified_in_ompf: true }],
+    education: [{ kind: "degree", title: "Associate of Science", verified_in_ompf: true }],
+    tours: [{ title: SENTINEL_TOUR_TITLE, start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+    pfa: [
+      { cycle: "a", date: "2024-04-01", result: "pass" },
+      { cycle: "b", date: "2024-10-01", result: "pass" },
+      { cycle: "c", date: "2025-04-01", result: "pass" },
+    ],
+    adverse: [],
+  },
+  ladr: [
+    { milestone_id: "m-warfare", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "Information Warfare (EIWS)" },
+    { milestone_id: "m-pme", category: "pme_required", status: "met", verified_in_ompf: true, item: "PO1 Selectee Leadership Course" },
+    { milestone_id: "m-cert", category: "credential", status: "not_met", verified_in_ompf: false, item: "CompTIA Security+", typical_months: 2 },
+    { milestone_id: "m-deg", category: "education_degree", status: "not_met", verified_in_ompf: false, item: "Occupational-related Associate degree", typical_months: 18 },
   ],
-  warnings: [
-    `Excluded 1 report for ${SENTINEL_MEMBER_NAME} (dod_id ${SENTINEL_DOD_ID}).`,
-    `Award not verified in OMPF: ${SENTINEL_AWARD_TITLE}.`,
-    `Adverse entry on file: ${SENTINEL_ADVERSE_NOTE}.`,
-  ],
+  preceptFlags: ["warfighting", "leadership_positions", "education", "sea_duty", "technical_expertise"],
 };
 
-const validNarrative: Narrative = {
-  strengths: ["Sustained performance above the summary group average."],
-  gaps: ["Warfare qualification is incomplete."],
-  recommendations: ["Verify the award in OMPF via NDAWS."],
+const fixtureResult = scoreBoardConfidence(fixtureInputs, CFG);
+const fixtureReport = buildReadinessReport(fixtureResult, fixtureInputs, CFG, {
+  asOf: "2026-04-01",
+});
+
+// Warnings are server-composed strings shown only to the record owner; they
+// carry the sentinels and must never be forwarded to the model.
+const fixtureWarnings = [
+  `Excluded 1 report for ${SENTINEL_MEMBER_NAME} (dod_id ${SENTINEL_DOD_ID}).`,
+];
+const resultWithWarnings = { ...fixtureResult, warnings: fixtureWarnings };
+
+/** A model reply whose every item cites a path that really is in the payload. */
+const citedNarrative = (): Narrative => ({
+  strengths: ["Your reporting periods run without a break. [areas.continuity]"],
+  gaps: ["Most of your rating's roadmap is still open. [areas.development]"],
+  recommendations: ["Complete CompTIA Security+. [actions.ladr:m-cert:meet]"],
   factor_commentary: {
-    performance: "Strong recent recommendations.",
-    leadership: "One leadership tour on record.",
-    development: "LaDR checklist partially answered.",
-    continuity: "One gap over 90 days in the window.",
-    completeness: "Several record sections are unentered.",
-    precept: "Partial alignment with the active precept.",
+    performance: "Solid recent reports. [areas.performance]",
+    leadership: "Sea time and a leadership billet. [areas.leadership]",
+    development: "Two milestones still open. [unmet.m-cert]",
+    continuity: "No break between reports. [areas.continuity]",
+    completeness: "Most sections entered. [areas.completeness]",
+    precept: "Emphasis areas partly covered. [areas.precept]",
   },
-};
+});
 
 const ENV_KEYS = [
   "AI_GATEWAY_API_KEY",
@@ -108,9 +122,7 @@ const ENV_KEYS = [
   "BOARD_NARRATIVE_BASE_URL",
   "BOARD_NARRATIVE_API_KEY",
 ] as const;
-const ORIGINAL_ENV = Object.fromEntries(
-  ENV_KEYS.map((k) => [k, process.env[k]]),
-);
+const ORIGINAL_ENV = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -124,9 +136,21 @@ afterAll(() => {
   }
 });
 
-describe("generateNarrative — keyless fallback (feature works without gateway credentials)", () => {
+const run = (r = fixtureResult) => generateNarrative(fixtureReport, r);
+
+describe("the model id must actually resolve", () => {
+  it("is a hyphenated gateway id — Anthropic model ids never contain a dot", () => {
+    // "anthropic/claude-opus-4.8" was malformed in BOTH modes and could never
+    // resolve, so the default silently guaranteed the keyless fallback.
+    expect(DEFAULT_NARRATIVE_MODEL).toBe("anthropic/claude-opus-5");
+    expect(DEFAULT_NARRATIVE_MODEL).not.toMatch(/\d\.\d/);
+    expect(DEFAULT_NARRATIVE_MODEL.split("/")).toHaveLength(2);
+  });
+});
+
+describe("generateNarrative — keyless fallback (feature works without credentials)", () => {
   it("resolves the fallback outcome without touching the AI SDK", async () => {
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
     expect(out.fallbackReason).toBe("no_key");
@@ -134,39 +158,173 @@ describe("generateNarrative — keyless fallback (feature works without gateway 
     expect(h.generateText).not.toHaveBeenCalled();
   });
 
-  it("is deterministic: same RubricResult twice → identical text", async () => {
-    const a = await generateNarrative(fixtureResult);
-    const b = await generateNarrative(fixtureResult);
+  it("is deterministic and pure", async () => {
+    const a = await run();
+    const b = await run();
     expect(a.narrative).toEqual(b.narrative);
-    expect(a.narrative).toEqual(fallbackNarrative(fixtureResult));
-  });
-
-  it("fallbackNarrative is schema-valid and pure", () => {
-    const n1 = fallbackNarrative(fixtureResult);
-    const n2 = fallbackNarrative(fixtureResult);
-    expect(NarrativeSchema.safeParse(n1).success).toBe(true);
-    expect(n1).toEqual(n2);
+    expect(a.narrative).toEqual(fallbackNarrative(fixtureReport, fixtureResult.warnings));
+    expect(NarrativeSchema.safeParse(fallbackNarrative(fixtureReport)).success).toBe(true);
   });
 });
 
-describe("generateNarrative — mocked gateway model path (spec §4.3.2, v1.3)", () => {
+describe("no score leakage — the narrative may not reconstruct the suppressed composite", () => {
+  // What leaks is NUMBERS and rubric vocabulary — not the English verb "score".
+  // "Your recent reports score low against this rubric's scales" is an honest
+  // qualitative sentence with nothing to add up; "Contributed 33.5 of 40.0
+  // possible points" is the composite in disguise.
+  const NUMBERS_THAT_LEAK =
+    /\d+\.\d|\bcontribut|possible points|\bweighted?\b|\bconfidence\b|\bpoints\b|out of \d/i;
+
+  it("the fallback prints no contributions, weights, or point totals", () => {
+    // The old fallback emitted "Contributed 33.5 of 40.0 possible points" for
+    // ALL SIX factors, which sums straight back to the suppressed number.
+    const text = JSON.stringify(fallbackNarrative(fixtureReport, fixtureResult.warnings));
+    expect(text).not.toMatch(NUMBERS_THAT_LEAK);
+    expect(text).not.toContain(String(fixtureResult.final));
+  });
+
+  it("the fallback stays clean on a record whose score is suppressed", () => {
+    const empty: RubricInputs = {
+      boardDate: "2026-09-01",
+      evals: [],
+      psr: { entered: false, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(empty, CFG);
+    const rep = buildReadinessReport(r, empty, CFG);
+    expect(rep.score).toBeNull();
+
+    const text = JSON.stringify(fallbackNarrative(rep, r.warnings));
+    expect(text).not.toMatch(NUMBERS_THAT_LEAK);
+    expect(text).not.toContain("Drop-from-consideration risk");
+  });
+
+  it("the model payload carries no per-factor numbers, no worth, and no score", () => {
+    const payload = narrativePayload(fixtureReport, fixtureResult);
+    const text = JSON.stringify(payload);
+
+    expect(text).not.toContain('"contribution"');
+    expect(text).not.toContain('"weight"');
+    expect(text).not.toContain('"worth"');
+    expect(text).not.toContain('"detail"');
+    expect(text).not.toContain('"bandLabel"');
+    // `scored` is a bare boolean — the number itself never leaves the server.
+    expect(payload.scored).toBe(fixtureReport.score !== null);
+    expect(text).not.toContain(String(fixtureResult.final));
+    for (const a of payload.areas) expect(a).not.toHaveProperty("detail");
+    for (const a of payload.actions) expect(a).not.toHaveProperty("worth");
+  });
+
+  it("the system prompt forbids stating or implying a score", () => {
+    const out = fallbackNarrative(fixtureReport);
+    expect(NarrativeSchema.safeParse(out).success).toBe(true);
+    // The instruction itself is pinned so it cannot be quietly dropped.
+    expect(NARRATIVE_SYSTEM_PROMPT).toMatch(/NEVER state, estimate, imply or reconstruct an overall score/);
+    expect(NARRATIVE_SYSTEM_PROMPT).toMatch(/not_enough_entered/);
+  });
+});
+
+describe("the payload names unmet milestones — this is what makes output specific", () => {
+  it("carries public Navy COOL milestone names, and no point values", () => {
+    const payload = narrativePayload(fixtureReport, fixtureResult);
+    expect(payload.unmet.map((u) => u.item).sort()).toEqual([
+      "CompTIA Security+",
+      "Occupational-related Associate degree",
+    ]);
+    for (const u of payload.unmet) expect(u).not.toHaveProperty("marginal_points");
+  });
+
+  it("action text quotes the milestone by name", () => {
+    const payload = narrativePayload(fixtureReport, fixtureResult);
+    expect(payload.actions.some((a) => a.action.includes("CompTIA Security+"))).toBe(true);
+  });
+});
+
+describe("citation-or-delete — a bracket pointing at nothing is worse than no bracket", () => {
+  const payload = () => narrativePayload(fixtureReport, fixtureResult);
+
+  it("the valid path set is built from the payload actually sent", () => {
+    const paths = citationPaths(payload());
+    expect(paths.has("areas.performance")).toBe(true);
+    expect(paths.has("unmet.m-cert")).toBe(true);
+    expect(paths.has("actions.ladr:m-cert:meet")).toBe(true);
+    // The old prompt's exemplars — never in any payload.
+    expect(paths.has("performance.detail.P1")).toBe(false);
+    expect(paths.has("development.detail.categories.qual_warfare")).toBe(false);
+  });
+
+  it("keeps cited items, strips the brackets, and deletes unciteable ones", () => {
+    const deterministic = fallbackNarrative(fixtureReport);
+    const gated = applyCitationGate(
+      {
+        ...citedNarrative(),
+        strengths: [
+          "Your reporting periods run without a break. [areas.continuity]",
+          "Invented claim about a medal. [performance.detail.P1]",
+          "No citation at all here.",
+        ],
+      },
+      payload(),
+      deterministic,
+    );
+
+    expect(gated.strengths).toEqual(["Your reporting periods run without a break."]);
+    // No surviving item still shows a bracketed path to the Sailor.
+    const items = [
+      ...gated.strengths,
+      ...gated.gaps,
+      ...gated.recommendations,
+      ...Object.values(gated.factor_commentary),
+    ];
+    for (const t of items) expect(t).not.toMatch(/\[|\]/);
+    expect(items.join(" ")).not.toContain("Invented claim");
+  });
+
+  it("falls back to deterministic text for an unciteable factor_commentary entry", () => {
+    // The schema requires all six keys, so they cannot be deleted — but an
+    // unsupported one must not be rendered either.
+    const deterministic = fallbackNarrative(fixtureReport);
+    const bad = citedNarrative();
+    bad.factor_commentary.performance = "Ungrounded claim. [performance.detail.P1]";
+
+    const gated = applyCitationGate(bad, payload(), deterministic);
+    expect(gated.factor_commentary.performance).toBe(
+      deterministic.factor_commentary.performance,
+    );
+    expect(gated.factor_commentary.continuity).toBe("No break between reports.");
+  });
+
+  it("the model path runs the gate on real output", async () => {
+    process.env.AI_GATEWAY_API_KEY = "test-dummy-key";
+    h.generateText.mockResolvedValue({
+      output: { ...citedNarrative(), gaps: ["Fabricated. [nonsense.path]"] },
+    });
+
+    const out = await run();
+    expect(out.source).toBe("model");
+    expect(out.narrative.gaps).toEqual([]);
+    expect(out.narrative.strengths[0]).toBe("Your reporting periods run without a break.");
+  });
+});
+
+describe("generateNarrative — mocked gateway model path", () => {
   beforeEach(() => {
     process.env.AI_GATEWAY_API_KEY = "test-dummy-key";
   });
 
   it("calls generateText with the default gateway model string and NO sampling parameters", async () => {
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
 
     expect(h.generateText).toHaveBeenCalledTimes(1);
     const args = h.generateText.mock.calls[0][0];
     expect(args.model).toBe(DEFAULT_NARRATIVE_MODEL);
-    expect(args.model).toBe("anthropic/claude-opus-4.8");
     expect(args.maxRetries).toBe(1);
     expect(typeof args.system).toBe("string");
     expect(args.output).toBeDefined();
-    // Sampling params are never sent — some gateway models reject them.
+    // Sampling params are never sent — current Anthropic models reject them.
     expect(args).not.toHaveProperty("temperature");
     expect(args).not.toHaveProperty("topP");
     expect(args).not.toHaveProperty("topK");
@@ -174,56 +332,48 @@ describe("generateNarrative — mocked gateway model path (spec §4.3.2, v1.3)",
     expect(out.source).toBe("model");
     expect(out.model).toBe(DEFAULT_NARRATIVE_MODEL);
     expect(out.fallbackReason).toBeNull();
-    expect(out.narrative).toEqual(validNarrative);
   });
 
   it("BOARD_NARRATIVE_MODEL selects any gateway provider (e.g. xAI Grok)", async () => {
     process.env.BOARD_NARRATIVE_MODEL = "xai/grok-4.5";
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
 
     expect(narrativeModelId()).toBe("xai/grok-4.5");
     expect(h.generateText.mock.calls[0][0].model).toBe("xai/grok-4.5");
-    expect(out.source).toBe("model");
     expect(out.model).toBe("xai/grok-4.5");
   });
 
   it("privacy: the prompt and system text contain none of the planted sentinels (§4.3.4)", async () => {
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    await generateNarrative(fixtureResult);
+    await generateNarrative(fixtureReport, resultWithWarnings);
 
     const args = h.generateText.mock.calls[0][0];
-    const serialized = JSON.stringify({
-      prompt: args.prompt,
-      system: args.system,
-    });
-    for (const sentinel of SENTINELS) {
-      expect(serialized).not.toContain(sentinel);
-    }
+    const serialized = JSON.stringify({ prompt: args.prompt, system: args.system });
+    for (const sentinel of SENTINELS) expect(serialized).not.toContain(sentinel);
   });
 
   it("model failure → fallback outcome, never a throw", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     h.generateText.mockRejectedValue(new Error("429 rate limited"));
 
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
 
     expect(out.source).toBe("fallback");
     expect(out.model).toBeNull();
     expect(out.fallbackReason).toBe("model_error");
-    expect(out.narrative).toEqual(fallbackNarrative(fixtureResult));
+    expect(out.narrative).toEqual(fallbackNarrative(fixtureReport, fixtureResult.warnings));
     errSpy.mockRestore();
   });
 
   it("missing output → fallback outcome", async () => {
     h.generateText.mockResolvedValue({ output: undefined });
 
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
 
     expect(out.source).toBe("fallback");
-    expect(out.model).toBeNull();
     expect(out.fallbackReason).toBe("model_error");
     expect(NarrativeSchema.safeParse(out.narrative).success).toBe(true);
   });
@@ -231,38 +381,45 @@ describe("generateNarrative — mocked gateway model path (spec §4.3.2, v1.3)",
   it("OIDC-only environments (Vercel deployments) also take the model path", async () => {
     delete process.env.AI_GATEWAY_API_KEY;
     process.env.VERCEL_OIDC_TOKEN = "oidc-token";
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    const out = await generateNarrative(fixtureResult);
-    expect(out.source).toBe("model");
+    expect((await run()).source).toBe("model");
   });
 });
 
-describe("generateNarrative — direct OpenAI-compatible mode (v1.3: zero Vercel services)", () => {
+describe("generateNarrative — direct OpenAI-compatible mode (zero Vercel services)", () => {
   it("BOARD_NARRATIVE_BASE_URL alone enables the model path — no gateway credentials", async () => {
     process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
     process.env.BOARD_NARRATIVE_API_KEY = "xai-test-key";
     process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    const out = await generateNarrative(fixtureResult);
+    const out = await run();
 
     const args = h.generateText.mock.calls[0][0];
-    // A provider model OBJECT, not a gateway string — nothing resolves
-    // through the Vercel gateway on this path.
+    // A provider model OBJECT, not a gateway string.
     expect(typeof args.model).toBe("object");
     expect(args.model.modelId).toBe("grok-4-fast");
-    expect(out.source).toBe("model");
     expect(out.model).toBe("grok-4-fast");
+  });
+
+  it("direct mode on Anthropic takes the NATIVE id, with no provider prefix", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://api.anthropic.com/v1";
+    process.env.BOARD_NARRATIVE_API_KEY = "sk-test";
+    process.env.BOARD_NARRATIVE_MODEL = "claude-opus-5";
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
+
+    const out = await run();
+    expect(h.generateText.mock.calls[0][0].model.modelId).toBe("claude-opus-5");
+    expect(out.model).toBe("claude-opus-5");
   });
 
   it("works for keyless local endpoints (e.g. Ollama on the self-hosted box)", async () => {
     process.env.BOARD_NARRATIVE_BASE_URL = "http://localhost:11434/v1";
     process.env.BOARD_NARRATIVE_MODEL = "llama3.3";
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    const out = await generateNarrative(fixtureResult);
-    expect(out.source).toBe("model");
+    expect((await run()).source).toBe("model");
     expect(h.generateText.mock.calls[0][0].model.modelId).toBe("llama3.3");
   });
 
@@ -270,10 +427,9 @@ describe("generateNarrative — direct OpenAI-compatible mode (v1.3: zero Vercel
     process.env.AI_GATEWAY_API_KEY = "gateway-key";
     process.env.BOARD_NARRATIVE_BASE_URL = "https://api.x.ai/v1";
     process.env.BOARD_NARRATIVE_MODEL = "grok-4-fast";
-    h.generateText.mockResolvedValue({ output: validNarrative });
+    h.generateText.mockResolvedValue({ output: citedNarrative() });
 
-    await generateNarrative(fixtureResult);
-    // Object model = direct path; a string would mean the gateway won.
+    await run();
     expect(typeof h.generateText.mock.calls[0][0].model).toBe("object");
   });
 });

@@ -1547,6 +1547,16 @@ selected". `not_enough_entered` is a separate axis, never the bottom rung.
 
 ### 14.5 String gating — every sentence must be supported by its data
 
+- **Evidence tests read what the engine SCORED, never the raw `inputs` arrays.**
+  `scoreBoardConfidence` scores a *filtered copy* of the inputs that the readiness
+  layer never sees — future-dated reports are dropped from every factor, dateless
+  awards and tours from theirs — so the two counts diverge. Reading
+  `inputs.evals.length` told a Sailor whose only report was excluded as "dated
+  after the board date" that APEX had found no break between the reports they had
+  entered, on the same screen where Performance correctly reported holding too few
+  reports. Fabricating confidence is a worse failure than the pessimism this layer
+  exists to remove. Continuity keys on `detail.coveredDays`; leadership and
+  development on their own factor confidence; performance on `detail.nObserved`.
 - **Continuity status keys on `recordGapCount` / `continuityGap`, never on
   `f.score`.** The score carries the pre-first-report leading-span penalty, which
   §7 (v1.5) deliberately stopped treating as a real break. Reading it told a
@@ -1709,3 +1719,51 @@ compositeRaw(scoreBoardConfidence(inputs, config)) === compositeRaw(result)
 - `BandDelta.area` / `ReadinessAction.area` are narrowed to `"development"` and
   `source.kind` to `"ladr_milestone"`, because the verification flips were
   removed. Widen them when non-LaDR candidates return.
+
+### 14.10 The narrative speaks readiness, not rubric
+
+Added after P1b found the narrative unrenderable. Normative for
+`lib/boardConfidence/narrative.ts`.
+
+**The narrative is built from `ReadinessReport`, not `RubricResult`.** It may not
+emit — or let a reader reconstruct — any composite the readiness gates suppress.
+Concretely, no contributions, weights, factor scores, confidences, point totals,
+or band labels appear in the fallback text or in the model payload:
+`areas[].detail` and `actions[].worth` are stripped, and `score` is sent as a
+bare `scored` boolean. The previous fallback printed
+`"Contributed 33.5 of 40.0 possible points"` for **all six** factors, which sums
+straight back to the number §14.2 suppresses; that is why the narrative could not
+be rendered at all.
+
+**`not_enough_entered` is never a gap.** The deterministic fallback puts it in
+recommendations (enter the data), matching §14.4.
+
+**Milestone names are in the payload.** Unmet LaDR items are sent by name — public
+Navy COOL roadmap text with no PII delta — because that is what makes the output
+specific rather than the nine hardcoded generic strings it replaced. Their
+`marginal_points` is NOT sent: the model must not see point values.
+
+**Citation-or-delete.** Every strengths/gaps/recommendations item must cite a
+payload path in brackets; the valid set is generated from the payload actually
+sent (`coverage.*`, `monthsToBoard`, `areas.<key>`, `coverage.missing.<key>`,
+`actions.<id>`, `unmet.<milestone_id>`). Items citing nothing that resolves are
+**deleted**; a `factor_commentary` entry that cannot be cited falls back to the
+deterministic text (the schema requires all six keys, so it cannot be dropped).
+Surviving brackets are stripped before display — the citation proves grounding,
+it is not copy. The prior prompt demanded citations to paths such as
+`[performance.detail.P1]` that were never in the serialized payload, and ordered
+the model to name LaDR categories the rubric deletes before serialization, so
+every citation was unresolvable and the mechanism was decorative. A bracket
+pointing at nothing reads as provenance and is worse than no bracket.
+
+**Model id.** `DEFAULT_NARRATIVE_MODEL` is the **gateway** form
+`anthropic/claude-opus-5`, because that is the only path where a default can be
+meaningful (direct mode requires `BOARD_NARRATIVE_BASE_URL`, and a caller
+pointing that at xAI or a local Ollama needs their own native id). Direct-mode
+callers on Anthropic set `BOARD_NARRATIVE_MODEL=claude-opus-5` — the native id,
+no provider prefix. **Anthropic model ids are hyphenated and never contain a
+dot**, so the previous `anthropic/claude-opus-4.8` was malformed in both modes
+and could never resolve: it silently guaranteed the keyless fallback. The same
+constant is imported by brag-sheet autofill (`lib/bragSheet/service.ts`,
+`app/api/brag-sheet/autofill/route.ts`), so that surface carried the identical
+defect and is fixed by the same change.
