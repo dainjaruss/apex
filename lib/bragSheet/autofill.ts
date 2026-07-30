@@ -10,6 +10,7 @@
 // recommendation is advisory-only and never written to a form value.
 // Spec: docs/specs/brag-sheet.md §4.6, §7
 
+import { zodSchema } from "@ai-sdk/provider-utils";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { AiEnvConfig, ResolvedAiModel } from "@/lib/aiProvider";
@@ -48,7 +49,15 @@ export const BRAG_AI_ENV: AiEnvConfig = {
   name: "brag-autofill",
 };
 
-export const AUTOFILL_TIMEOUT_MS = 60_000;
+// A full autofill is a ~12k-output-token generation: measured 119.7s / 126.4s /
+// 143.5s against the configured direct endpoint (claude-opus-5). The old 60_000
+// could never complete one — once the grammar rejection below was fixed, every
+// call simply failed on timeout instead. 240s ≈ 1.7× the slowest observed run,
+// which the 120–144s spread across three samples says is the margin needed.
+// ponytail: per-CALL budget, and §7 allows ≤3 calls — worst case ~9min. Fine for
+// a node/long-running host; a serverless deploy must set the route's maxDuration
+// (or move autofill to a job queue) before this is reachable.
+export const AUTOFILL_TIMEOUT_MS = 240_000;
 export const COMMENTS_MAX_LINES = 18; // = checkCommentFit cap
 export const COMMENTS_TARGET_LINES = 17;
 
@@ -204,6 +213,25 @@ const AutofillModelOutputObject = z.object({
 
 export const AutofillModelOutputSchema: z.ZodType<AutofillModelOutput> =
   AutofillModelOutputObject;
+
+/** The schema as the PROVIDER sees it (§4.6 grammar budget).
+ *
+ *  Output.object() would call asSchema() for us, but asSchema defaults to
+ *  useReferences:false → zod emits `reused: "inline"`, which stamps a full copy
+ *  of GeneratedBlock (and GeneratedItem inside it) into all SEVEN block keys.
+ *  The endpoint compiles every inlined copy into its own grammar productions
+ *  and 400s with "The compiled grammar is too large" before the model sees the
+ *  request — i.e. autofill was dead in direct mode for every call.
+ *
+ *  useReferences:true emits one shared `definitions` entry per reused subtree
+ *  (draft-7 spelling of $defs): 3778B → 2358B of JSON Schema, and — measured
+ *  against the live endpoint — the difference between rejected and accepted.
+ *  Nothing about the schema itself changes, so `sources` and the citation
+ *  architecture are untouched; this is purely how the same shape is serialised.
+ *  Guarded offline by tests/unit/aiSchemaGrammarBudget.test.ts. */
+export const AutofillProviderSchema = zodSchema(AutofillModelOutputObject, {
+  useReferences: true,
+});
 
 // ── AutofillResponse mirror (v1.1 review fix) ────────────────────────────────
 // brag_sheets.last_autofill is untrusted JSONB — the /brag-sheet page safeParses
@@ -433,7 +461,7 @@ export function buildCallModel(
       abortSignal: AbortSignal.timeout(AUTOFILL_TIMEOUT_MS),
       system: AUTOFILL_SYSTEM_PROMPT,
       prompt,
-      output: Output.object({ schema: AutofillModelOutputSchema }),
+      output: Output.object({ schema: AutofillProviderSchema }),
     });
     return output;
   };
