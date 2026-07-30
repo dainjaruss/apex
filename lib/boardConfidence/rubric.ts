@@ -29,6 +29,7 @@ import type {
   RubricInputs,
   RubricResult,
 } from "@/lib/boardConfidence/types";
+import { earlyPromoteMax } from "@/lib/forcedDistribution";
 
 // ---------------------------------------------------------------------------
 // Constants (spec §4.2, exact values)
@@ -37,7 +38,6 @@ import type {
 export const HALF_LIFE_MONTHS = 24;
 export const SEA_MULT = 1.25;
 export const LOOKBACK_MONTHS = 72;
-export const UNVERIFIED_MULT = 0.5;
 export const REC_POINTS: Record<Exclude<PromotionRec, "NOB">, number> = {
   "Early Promote": 100, "Must Promote": 80, "Promotable": 50,
   "Progressing": 25, "Significant Problems": 0,
@@ -46,6 +46,46 @@ export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
   performance: 40, leadership: 15, development: 15,
   continuity: 10, completeness: 10, precept: 10,
 };
+
+/**
+ * The factors that carry weight in the READINESS VERDICT.
+ *
+ * The test every factor has to pass is: CAN A BOARD MEMBER SEE IT? A selection
+ * board reads the OMPF — the reports, the PSR, the awards and quals in the
+ * official record. Anything else may be measured, reported and acted on, but it
+ * may not move a number that claims to model how a board would read the record.
+ *
+ * `development` FAILS it. The LaDR is a Navy COOL career-planning roadmap; no
+ * board member has ever seen one. Four separate problems, all measured:
+ *   - Its denominator is the RATING's roadmap, not the Sailor. The same record
+ *     scored S_D 63.5 against a 34-row roadmap and 21.2 against the same roadmap
+ *     re-transcribed to 80 rows. Roadmap size is an APEX ingestion artifact.
+ *   - Only 2 of 82 ratings ship a verified LaDR seed (readiness.ts COVERAGE_FLOOR
+ *     note), so for 80 ratings this was 15 weighted points of representative data.
+ *   - The board-relevant SUBSET of the LaDR is already in the verdict: every
+ *     `precept` indicator but `sea_duty` is computed from these same category
+ *     ratios. Weighting development too scored those rows twice, and scored the
+ *     `pme_recommended` / `credential` / `nec_opportunity` rows a board never sees
+ *     on top.
+ *   - It is a PLAN. Every unmet row is an action item, and it is the sole source
+ *     of the action plan (see bandDeltas). Charging the Sailor a verdict penalty
+ *     for the length of their own to-do list inverts what the list is for.
+ *
+ * `completeness` fails it more plainly: every one of its items asks whether the
+ * Sailor filled in an APEX FORM (psr_entered, the awards/NEC/education sections,
+ * three PFA rows, 90% of the checklist). None of it exists in the OMPF. It is
+ * the coverage axis wearing a score, and coverage is already reported separately
+ * and honestly by ReadinessReport.coverage — where "we cannot see this" reads as
+ * a data state instead of a deficiency.
+ *
+ * Both factors are still computed in full, still returned in `factors`, still
+ * rendered as areas, and development still drives the entire action plan. They
+ * carry weight 0; the remaining weights redistribute through the one
+ * redistribution mechanism in scoreBoardConfidence.
+ */
+export const VERDICT_FACTORS: ReadonlySet<FactorKey> = new Set<FactorKey>([
+  "performance", "leadership", "continuity", "precept",
+]);
 // v1.5: operator-tunable parameters. Defaults reproduce spec §7. Continuity is
 // GRADED, never a hard zero (a real board decides selection, not this tool);
 // a detected reporting gap raises a prominent advisory instead — see
@@ -115,10 +155,17 @@ export const CONTINUITY_WINDOW_DAYS = 1826;    // 60 months
 export const CONTINUITY_GRACE_DAYS = 365;
 export const CONTINUITY_GAP_DAYS_DEFAULT = 90;
 export const CONTINUITY_GAP_PENALTY = 15;
-export const COMPLETENESS_POINTS = {           // sum = 100 (§7 Factor 5)
+// `esrFlags` is GONE: it scaled 10 points by the count of entries the Sailor had
+// NOT ticked `verified_in_ompf`, which is a self-ticked box (RecordEntryForm), so
+// it charged points for disclosing honestly. `awards` is presence now, not the
+// verified/total ratio, for the same reason and to match `necs`/`education`,
+// which have always tested presence. S_R is normalized over the table's own sum,
+// so the remaining items keep their relative sizes without a hand-edited total.
+export const COMPLETENESS_POINTS = {
   continuity95: 20, psrEntered: 15, awards: 15, necs: 10,
-  education: 10, pfa3: 10, ladr90: 10, esrFlags: 10,
+  education: 10, pfa3: 10, ladr90: 10,
 } as const;
+export const COMPLETENESS_MAX = Object.values(COMPLETENESS_POINTS).reduce((a, b) => a + b, 0);
 export const ADVERSE_PER_ITEM = 15;
 export const ADVERSE_CAP = 30;
 export const PFA_FAIL_PENALTY = 10;
@@ -213,11 +260,17 @@ function scorePerformance(evals: RubricEvalInput[], T: string): FactorScore {
   let d2 = 0;
   obs.forEach((e, i) => {
     if (e.trait_average == null) return; // uncomputable row: contributes no P2 weight
-    const comps = [e.summary_group_average, e.rsca].filter((x): x is number => x != null);
+    // `summary_group_average` is pooled server-side from peers; `rsca` is typed by
+    // the Sailor into member_board_records.eval_context. A self-typed number may
+    // only ever make the comparison TOUGHER, never supply the comparator on its
+    // own — as the sole comparator, typing rsca 3.0 against a 4.5 trait average
+    // was worth +31 P2 points over the honest no-comparator fallback.
+    const sga = e.summary_group_average;
+    const comparator = sga == null ? null : Math.max(sga, e.rsca ?? sga);
     let s: number;
     let w: number;
-    if (comps.length > 0) {
-      s = clamp(50 + P2_SLOPE * (e.trait_average - Math.max(...comps)), 0, 100);
+    if (comparator != null) {
+      s = clamp(50 + P2_SLOPE * (e.trait_average - comparator), 0, 100);
       w = r[i];
     } else {
       s = clamp(P2_FALLBACK_SLOPE * (e.trait_average - P2_FALLBACK_FLOOR), 0, 100);
@@ -237,19 +290,37 @@ function scorePerformance(evals: RubricEvalInput[], T: string): FactorScore {
     P3 = clamp(50 + 0.5 * (mean(recent) - mean(prior)), 0, 100);
   }
 
-  // P4 — EP breakout scarcity; requires a summary-group distribution on ≥1 eval.
+  // P4 — EP breakout scarcity. An eval carries breakout information only when it
+  // records a summary-group distribution AND that group's Early Promote quota
+  // actually BINDS: earlyPromoteMax(N) < N. At N = 1 the instruction allows the
+  // whole group to be Early Promote (ceil(0.20·1) = 1), so an EP in a summary
+  // group of one is compliant and says nothing — it used to score s = 1, the
+  // maximum, because max(1, N−1) hid the degenerate denominator.
+  //
+  // The denominator is Σr over the INFORMATIVE evals, not Σr over all of them.
+  // Charging an eval that records no distribution with s = 0 against the full
+  // denominator is the founding defect in miniature: absent data was pulling P4
+  // down exactly as if the Sailor had been passed over. A non-EP eval that DOES
+  // record a binding distribution keeps its s = 0 — being in a real breakout
+  // group and not breaking out is evidence, not absence.
   let P4: number | null = null;
-  if (obs.some((e) => e.ep_count != null && e.group_size != null)) {
-    P4 =
-      (100 *
-        obs.reduce((a, e, i) => {
-          let s = 0;
-          if (e.promotion_recommendation === "Early Promote" && e.ep_count != null && e.group_size != null) {
-            s = 1 - (e.ep_count - 1) / Math.max(1, e.group_size - 1);
-          }
-          return a + r[i] * s;
-        }, 0)) /
-      sumR;
+  const informative = obs.filter(
+    (e) => e.ep_count != null && e.group_size != null && earlyPromoteMax(e.group_size) < e.group_size,
+  );
+  if (informative.length > 0) {
+    let n4 = 0;
+    let d4 = 0;
+    obs.forEach((e, i) => {
+      if (e.ep_count == null || e.group_size == null) return;
+      if (earlyPromoteMax(e.group_size) >= e.group_size) return;
+      const s =
+        e.promotion_recommendation === "Early Promote"
+          ? 1 - (e.ep_count - 1) / Math.max(1, e.group_size - 1)
+          : 0;
+      n4 += r[i] * s;
+      d4 += r[i];
+    });
+    P4 = (100 * n4) / d4;
   }
 
   // Decline penalty: −10 per consecutive drop in REC_POINTS, capped at −20.
@@ -305,9 +376,13 @@ function scoreLeadership(
     subs.push([LEADERSHIP_SUBWEIGHTS.L1, L1], [LEADERSHIP_SUBWEIGHTS.L3, L3]);
   }
   if (psr.awards) {
+    // An award is worth what the award is worth. `verified_in_ompf` is a box the
+    // Sailor ticks themselves, so halving unverified awards did not measure
+    // verification — it measured willingness to tick. The OMPF reminder lives
+    // unscored in ReadinessReport.confirmInOmpf.
     const awardPts = psr.awards
       .filter((aw) => monthsBefore(aw.date_awarded, T) <= AWARD_LOOKBACK_MONTHS)
-      .reduce((a, aw) => a + AWARD_POINTS[aw.level] * (aw.verified_in_ompf ? 1 : UNVERIFIED_MULT), 0);
+      .reduce((a, aw) => a + AWARD_POINTS[aw.level], 0);
     L2 = Math.min(100, awardPts);
     subs.push([LEADERSHIP_SUBWEIGHTS.L2, L2]);
   }
@@ -352,7 +427,10 @@ function aggregateLadr(items: LadrItemInput[], emphasisMult: number): LadrAgg {
     const w = it.board_emphasis ? emphasisMult : 1;
     c.answered += w;
     answered++;
-    if (it.status === "met") c.met += (it.verified_in_ompf ? 1 : UNVERIFIED_MULT) * w;
+    // Met is met. `verified_in_ompf` is self-ticked (see scoreLeadership) — it is
+    // an honesty axis, not a verification one, and it is reported unscored by
+    // ReadinessReport.confirmInOmpf.
+    if (it.status === "met") c.met += w;
   }
   const ratios: Partial<Record<LadrCategory, number>> = {};
   const ratioDetail: Detail = {};
@@ -394,7 +472,7 @@ function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & 
   items.forEach((it, i) => {
     if (it.status !== "not_met" && it.status !== "unanswered") return;
     const flipped = items.slice();
-    flipped[i] = { ...it, status: "met", verified_in_ompf: true };
+    flipped[i] = { ...it, status: "met" };
     unmet.push({
       milestone_id: it.milestone_id,
       item: it.item ?? "",
@@ -419,18 +497,58 @@ function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & 
 }
 
 // FACTOR 4 — Continuity (§7). Window is the half-open day interval
-// (windowStart, windowEnd] of exactly 1826 days; periods cover both endpoints
-// inclusive. Uncovered runs > gapDays (leading/internal/trailing) each cost 15
-// in the GRADED score (gapCount, unchanged). recordGapCount is a separate,
-// advisory-only count of GENUINE reporting breaks — internal and trailing gaps
-// only, never the pre-first-report leading span (a 3-year Sailor has no "break",
-// so the continuity advisory must not fire on them). conf_C = 1 always.
+// (windowStart, windowEnd] of at most 1826 days; periods cover both endpoints
+// inclusive.
+//
+// TWO coverage numbers, deliberately:
+//
+//   detail.coverage      coveredDays / 1826 — how much of the FIVE-YEAR WINDOW is
+//                        documented. Unchanged meaning. It is what readiness.ts
+//                        grades the area on ("APEX holds 3 of the 5 window years"
+//                        is not the same claim as holding all of them) and what
+//                        the completeness continuity95 item tests.
+//   detail.spanCoverage  coveredDays / observedDays — how much of the span APEX
+//                        can actually SEE is documented. This is what S_C grades.
+//
+// S_C moved to the second one because the first was charging a three-year Sailor
+// twice for time they had not yet served: coverage 1096/1826 = 0.60 AND a 15-point
+// leading-gap penalty, S_C = 45 for a record with nothing missing from it. The
+// §17-6 advisory already refused to call the pre-first-report span a break — "a
+// 3-year Sailor has no break" — and a graded penalty that contradicts the advisory
+// printed beside it is the defect, not the advisory. APEX cannot know when the
+// member made E-5; the earliest report they entered is the earliest date it has
+// any basis to call a period documented. gapCount now counts the same GENUINE
+// breaks (internal + trailing) the advisory counts, so the two cannot disagree.
+//
+// What the span reading gives away — "one recent report, therefore perfect
+// continuity" — is paid for by conf_C, which is min(1, observedDays/1826) instead
+// of a flat 1. A one-year span reports S_C 100 at conf 0.20 and carries a fifth of
+// the factor's weight into the composite. Same shape as conf_P = min(1, N/3): "we
+// have only seen part of the window" belongs on the confidence axis, not forged
+// into a deficiency. No usable evals at all is the §7 item-8 zero-data case —
+// S 0, conf 0, no_data — never a graded 0 the Sailor has to out-run.
 function scoreContinuity(evals: RubricEvalInput[], T: string, gapDays: number): FactorScore & { coverage: number } {
+  if (evals.length === 0)
+    return {
+      S: 0,
+      conf: 0,
+      coverage: 0,
+      detail: {
+        no_data: true, coverage: 0, spanCoverage: 0,
+        coveredDays: 0, observedDays: 0, gapCount: 0, recordGapCount: 0,
+      },
+    };
   const tDay = dayNum(T);
   const latestTo = evals.map((e) => e.period_to).sort().at(-1);
   const graceEndDay = tDay - CONTINUITY_GRACE_DAYS;
   const winEndDay = Math.min(tDay, Math.max(latestTo ? dayNum(latestTo) : graceEndDay, graceEndDay));
-  const winStartDay = winEndDay - CONTINUITY_WINDOW_DAYS; // excluded boundary day
+  // A malformed period_from yields NaN, and NaN would propagate through
+  // Math.max into every day comparison below; fall back to the full window.
+  const froms = evals.map((e) => dayNum(e.period_from)).filter((d) => !Number.isNaN(d));
+  const fullStartDay = winEndDay - CONTINUITY_WINDOW_DAYS;
+  // excluded boundary day: the first in-window day is winStartDay + 1
+  const winStartDay = froms.length ? Math.max(fullStartDay, Math.min(...froms) - 1) : fullStartDay;
+  const observedDays = Math.max(0, winEndDay - winStartDay);
 
   const clipped = evals
     .map(
@@ -451,44 +569,47 @@ function scoreContinuity(evals: RubricEvalInput[], T: string, gapDays: number): 
 
   const coveredDays = merged.reduce((a, [f, t]) => a + (t - f + 1), 0);
   const coverage = Math.min(1, coveredDays / CONTINUITY_WINDOW_DAYS);
+  const spanCoverage = observedDays > 0 ? Math.min(1, coveredDays / observedDays) : 0;
 
-  let gapCount = 0;        // graded penalty — leading/internal/trailing (unchanged)
-  let recordGapCount = 0;  // advisory only — genuine breaks (excludes leading)
+  // Genuine reporting breaks only: internal (between two reports) and trailing
+  // (after the last one). The leading span cannot be a break — see the header.
+  let gapCount = 0;
   let cursor = winStartDay; // boundary: first in-window day is cursor + 1
   let seenReport = false;
   for (const [f, t] of merged) {
-    if (f - cursor - 1 > gapDays) {
-      gapCount++;
-      if (seenReport) recordGapCount++; // a gap BETWEEN two reports
-    }
+    if (seenReport && f - cursor - 1 > gapDays) gapCount++;
     seenReport = true;
     cursor = Math.max(cursor, t);
   }
-  if (winEndDay - cursor > gapDays) {
-    gapCount++;
-    if (seenReport) recordGapCount++; // trailing gap after the last report
-  }
+  if (seenReport && winEndDay - cursor > gapDays) gapCount++;
 
-  const S = clamp(100 * coverage - CONTINUITY_GAP_PENALTY * gapCount, 0, 100);
+  const S = clamp(100 * spanCoverage - CONTINUITY_GAP_PENALTY * gapCount, 0, 100);
   return {
     S,
-    conf: 1,
+    conf: Math.min(1, observedDays / CONTINUITY_WINDOW_DAYS),
     coverage,
     detail: {
       windowStart: isoOf(winStartDay),
       windowEnd: isoOf(winEndDay),
+      observedDays,
       coverage,
+      spanCoverage,
       coveredDays,
       gapCount,
-      recordGapCount,
+      // Kept as a distinct key because RubricResult.continuityGap and the §17-6
+      // advisory read it; it is now the same count the graded penalty uses.
+      recordGapCount: gapCount,
     },
   };
 }
 
 // FACTOR 5 — Record completeness (§7). Presence, not quality; conf_R = 1 (it
-// measures missingness itself). unverifiedCount = "in ESR but not closed out to
-// OMPF" flags: unverified award entries + unverified met LaDR items (§7 item 6
-// names exactly the met/award entries as the UNVERIFIED_MULT population).
+// measures missingness itself, so it is never uncertain about its own subject).
+// NOT part of the readiness verdict — see VERDICT_FACTORS. It is reported as an
+// area and it is what the coverage headline is made of.
+//
+// `unverifiedCount` is still reported in `detail` and is still UNSCORED: it is
+// the population ReadinessReport.confirmInOmpf lists.
 function scoreCompleteness(
   psr: PsrSection,
   ladrItems: LadrItemInput[],
@@ -496,52 +617,66 @@ function scoreCompleteness(
   ladrAnswered: number,
   ladrApplicable: number,
 ): FactorScore {
-  const awards = psr.awards ?? [];
   const unverifiedCount =
-    awards.filter((a) => !a.verified_in_ompf).length +
+    (psr.awards ?? []).filter((a) => !a.verified_in_ompf).length +
     ladrItems.filter((it) => it.status === "met" && !it.verified_in_ompf).length;
   const items = {
     continuity95: coverage >= 0.95 ? COMPLETENESS_POINTS.continuity95 : 0,
     psrEntered: psr.entered ? COMPLETENESS_POINTS.psrEntered : 0,
-    awards:
-      awards.length > 0
-        ? Math.round(
-            (COMPLETENESS_POINTS.awards * awards.filter((a) => a.verified_in_ompf).length) / awards.length,
-          )
-        : 0,
+    // Presence, like necs/education: an entered-but-empty section counts, an
+    // unfilled (null) one does not. It used to be the verified/total ratio.
+    awards: psr.awards ? COMPLETENESS_POINTS.awards : 0,
     necs: psr.necs ? COMPLETENESS_POINTS.necs : 0,
     education: psr.education ? COMPLETENESS_POINTS.education : 0,
     pfa3: (psr.pfa?.length ?? 0) >= 3 ? COMPLETENESS_POINTS.pfa3 : 0,
     ladr90:
       ladrApplicable > 0 && ladrAnswered / ladrApplicable >= 0.9 ? COMPLETENESS_POINTS.ladr90 : 0,
-    esrFlags: Math.round(COMPLETENESS_POINTS.esrFlags * (1 - Math.min(1, unverifiedCount / 5))),
   };
-  const S = Object.values(items).reduce((a, b) => a + b, 0);
+  const S = (100 * Object.values(items).reduce((a, b) => a + b, 0)) / COMPLETENESS_MAX;
   return { S, conf: 1, detail: { ...items, unverifiedCount } };
 }
 
-// FACTOR 6 — Precept alignment (§7). Fixed computable indicator per flag;
-// unavailable underlying data → indicator 0 (never fabricate). conf_X = 1.
+// FACTOR 6 — Precept alignment (§7). One computable indicator per flag.
+//
+// An indicator whose underlying data is ABSENT now returns null and is dropped —
+// the surviving indicators are averaged among themselves and conf_X is the share
+// of flags that could be computed. It used to return 0 for missing data at a flat
+// conf_X = 1, which is the founding defect written down as policy: a Sailor whose
+// rating has no LaDR loaded scored `warfighting: 0` and was charged the full
+// precept weight for it. `mean()` of the available halves handles the paired
+// indicators the same way (education, technical_expertise) rather than halving a
+// present ratio against an absent one.
+//
+// The tours-derived indicators key off L1 === null, which is exactly
+// scoreLeadership's "tours section not entered" signal.
 function scorePrecept(
   flags: PreceptFlag[],
   ctx: { ratios: Partial<Record<LadrCategory, number>>; L1: number | null; seaMonths72: number },
 ): FactorScore {
-  const indicator: Record<PreceptFlag, () => number> = {
-    warfighting: () => ctx.ratios.qual_warfare ?? 0,
-    leadership_positions: () => (ctx.L1 ?? 0) / 100,
-    education: () => ((ctx.ratios.education_degree ?? 0) + (ctx.ratios.credential ?? 0)) / 2,
-    sea_duty: () => Math.min(1, ctx.seaMonths72 / SEA_MONTHS_FULL),
-    technical_expertise: () =>
-      ((ctx.ratios.nec_opportunity ?? 0) + (ctx.ratios.qual_rate_specific ?? 0)) / 2,
+  const mean = (xs: Array<number | undefined>): number | null => {
+    const present = xs.filter((x): x is number => x != null);
+    return present.length === 0 ? null : present.reduce((a, b) => a + b, 0) / present.length;
+  };
+  const indicator: Record<PreceptFlag, () => number | null> = {
+    warfighting: () => ctx.ratios.qual_warfare ?? null,
+    leadership_positions: () => (ctx.L1 == null ? null : ctx.L1 / 100),
+    education: () => mean([ctx.ratios.education_degree, ctx.ratios.credential]),
+    sea_duty: () => (ctx.L1 == null ? null : Math.min(1, ctx.seaMonths72 / SEA_MONTHS_FULL)),
+    technical_expertise: () => mean([ctx.ratios.nec_opportunity, ctx.ratios.qual_rate_specific]),
   };
   const detail: Detail = {};
   let sum = 0;
+  let n = 0;
   for (const f of flags) {
     const v = indicator[f]();
     detail[f] = v;
-    sum += v;
+    if (v != null) {
+      sum += v;
+      n++;
+    }
   }
-  return { S: (100 * sum) / flags.length, conf: 1, detail };
+  if (n === 0) return { S: 0, conf: 0, detail: { ...detail, no_data: true } };
+  return { S: (100 * sum) / n, conf: n / flags.length, detail };
 }
 
 // ---------------------------------------------------------------------------
@@ -584,12 +719,21 @@ export function scoreBoardConfidence(
 
   // v1.1 review fix: dateless awards/tours cannot be placed in any lookback
   // window — exclude them from scoring rather than let NaN comparisons decide.
+  //
+  // A section the filter EMPTIES is returned as null, not as []. The two mean
+  // opposite things (types.ts: "null = section never filled ≠ empty list"): [] is
+  // "I have no awards", which scoreLeadership correctly reads as L2 = 0 at full
+  // confidence, while a section whose every row was thrown out for a missing date
+  // is data APEX could not place, not an absence of achievements. Returning []
+  // there scored "no data" as "nothing good found" — a record whose tours all
+  // lacked dates read S_L 10.2 at conf 1.00 instead of dropping L1/L3 and
+  // reporting conf 0.30.
   let dateless = 0;
   const keepDated = <E,>(arr: E[] | null, ok: (x: E) => boolean): E[] | null => {
     if (!arr) return null;
     const kept = arr.filter(ok);
     dateless += arr.length - kept.length;
-    return kept;
+    return kept.length === 0 && arr.length > 0 ? null : kept;
   };
   const psr: PsrSection = {
     ...inputs.psr,
@@ -610,33 +754,70 @@ export function scoreBoardConfidence(
   const cont = scoreContinuity(evals, T, config.continuity_gap_days);
   const comp = scoreCompleteness(psr, inputs.ladr, cont.coverage, dev.answered, dev.applicable);
 
-  // Zero precept flags is an ADMIN omission: the factor is excluded and the
-  // other five weights redistribute ×100/90 — the only weight redistribution.
+  // EXCLUSIONS from the verdict, and the ONE redistribution mechanism.
+  //   - development and completeness are excluded always — see VERDICT_FACTORS.
+  //   - precept is excluded when no flags are configured, which is an ADMIN
+  //     omission (a Sailor can never cause it).
+  // The surviving weights are scaled ×100/(100 − excluded) so they sum to 100.
+  // The scale cancels out of `final` — a weighted MEAN is invariant under a
+  // common factor on its weights — but it is load-bearing for
+  // ReadinessReport.coverage, which is Σ(weight·conf)/100 over these same
+  // effective weights and must stay on a [0,1] scale.
   const preceptIncluded = inputs.preceptFlags.length > 0;
-  const scale = preceptIncluded ? 1 : 100 / Math.max(1e-9, 100 - W.precept);
+  const inVerdict = (k: FactorKey): boolean =>
+    VERDICT_FACTORS.has(k) && (k !== "precept" || preceptIncluded);
+  const excludedWeight = (Object.keys(W) as FactorKey[])
+    .filter((k) => !inVerdict(k))
+    .reduce((a, k) => a + W[k], 0);
+  const scale = 100 / Math.max(1e-9, 100 - excludedWeight);
   const prec: FactorScore = preceptIncluded
     ? scorePrecept(inputs.preceptFlags, { ratios: dev.ratios, L1: lead.L1, seaMonths72: lead.seaMonths72 })
     : { S: 0, conf: 1, detail: { excluded: true } };
 
-  const factor = (key: FactorKey, weight: number, f: FactorScore): FactorResult => ({
-    key,
-    weight,
-    score: f.S,
-    confidence: f.conf,
-    contribution: (weight / 100) * f.S * f.conf,
-    detail: f.detail,
-  });
+  const factor = (key: FactorKey, f: FactorScore): FactorResult => {
+    const weight = inVerdict(key) ? W[key] * scale : 0;
+    return {
+      key,
+      weight,
+      score: f.S,
+      confidence: f.conf,
+      contribution: (weight / 100) * f.S * f.conf,
+      detail: f.detail,
+    };
+  };
 
   const factors: FactorResult[] = [
-    factor("performance", W.performance * scale, perf),
-    factor("leadership", W.leadership * scale, lead),
-    factor("development", W.development * scale, dev),
-    factor("continuity", W.continuity * scale, cont),
-    factor("completeness", W.completeness * scale, comp),
-    factor("precept", preceptIncluded ? W.precept : 0, prec),
+    factor("performance", perf),
+    factor("leadership", lead),
+    factor("development", dev),
+    factor("continuity", cont),
+    factor("completeness", comp),
+    factor("precept", prec),
   ];
 
-  const raw = factors.reduce((a, f) => a + f.contribution, 0);
+  // THE COMPOSITE. Σ(w·conf·S) / Σ(w·conf) — a confidence-weighted MEAN of the
+  // factor scores, not a sum against a fixed denominator of 100.
+  //
+  // The fixed denominator was the founding defect. It made conf_f = 0 ("APEX
+  // cannot see this") arithmetically identical to S_f = 0 with conf_f = 1 ("APEX
+  // looked and it is bad"): both contributed nothing while the factor's full
+  // weight stayed in the denominator, so every point APEX could not observe was
+  // charged to the Sailor as a point they had failed to earn. Six Early Promotes
+  // with empty tabs scored 45.0 "Not competitive"; a record with no LaDR loaded
+  // at all scored BELOW the same record with every roadmap row answered and
+  // failed. Dividing by Σ(w·conf) drops unmeasured factors out of both sides, so
+  // absence moves the score nowhere and only lands on the coverage axis
+  // (ReadinessReport.coverage.measured, which is this denominator over 100).
+  //
+  // `contribution` keeps its published meaning — (weight/100)·S·conf — so the
+  // per-factor display stays in [0, weight]; the identity is
+  // final = Σcontribution / coverage − A.
+  const denom = factors.reduce((a, f) => a + f.weight * f.confidence, 0);
+  if (denom <= 0)
+    warnings.push(
+      "No area of your record has enough entered for APEX to compute an overall score — the score below is a placeholder, not an assessment.",
+    );
+  const raw = denom <= 0 ? 0 : (100 * factors.reduce((a, f) => a + f.contribution, 0)) / denom;
 
   // Adverse adjustment A: 15 per adverse item (cap 30) + 10 for any PFA failure
   // within 36 months of T (INCLUSIVE bound — exactly 36 months is inside).
@@ -722,34 +903,18 @@ export function scoreBoardConfidence(
 }
 
 // ---------------------------------------------------------------------------
-// v2 — marginal value of a single input flip (pure, additive; the composite
-// arithmetic above is untouched)
+// v2 — the action plan (pure; it reports, it does not re-score)
 // ---------------------------------------------------------------------------
-
-/**
- * The composite on its full-float scale: Σcontribution − A, UNCLAMPED.
- * This is `RubricResult.final` before the [0,100] clamp and the terminal
- * 1-decimal rounding, and it is the scale bandDeltas measures on.
- *
- * Neither the clamp nor the rounding may be applied first. Rounding quantizes
- * away the ranking between small candidates. Clamping is worse: with a large
- * adverse adjustment (2 adverse items + a PFA failure gives A = 40) the base
- * AND every candidate all clamp to 0, so every delta is 0 and the Sailor in the
- * most trouble gets an empty action plan. Clamp only for display.
- */
-export function compositeRaw(r: RubricResult): number {
-  return r.factors.reduce((a, f) => a + f.contribution, 0) - r.adverseAdjustment;
-}
 
 /**
  * Only real improvements. There is deliberately NO `award_verify` / `ladr_verify`
  * candidate: `verified_in_ompf` is a self-ticked box (RecordEntryForm), so it is
- * an HONESTY axis, not a verification axis. Scoring it inverts correct doctrine
+ * an HONESTY axis, not a verification axis. Scoring it inverted correct doctrine
  * (a board sees only your OMPF) into an integrity penalty — ticking every box and
- * changing nothing else is worth double-digit points, while disclosing honestly
- * ("met, not yet in OMPF") can cost points. Confirming an OMPF entry belongs in
- * the plan as an unscored reminder; see ReadinessReport.confirmInOmpf. Taking
- * UNVERIFIED_MULT and the esrFlags term out of the score itself is P2 arithmetic.
+ * changing nothing else was worth 9.0 composite points on a measured record,
+ * while disclosing honestly ("met, not yet in OMPF") cost them. It no longer
+ * scores anywhere: UNVERIFIED_MULT and the esrFlags term are gone. Confirming an
+ * OMPF entry stays in the plan as an unscored reminder — ReadinessReport.confirmInOmpf.
  */
 export type BandDeltaKind =
   | "ladr_answer"    // an unanswered LaDR row → answered "met"
@@ -758,121 +923,68 @@ export type BandDeltaKind =
 export interface BandDelta {
   id: string;                  // stable within a run: "ladr:<uuid>:meet"
   kind: BandDeltaKind;
-  // Both narrowed from the wider forward-looking contract: with the verification
-  // flips gone every candidate is a LaDR row, so `FactorKey` and `string | null`
-  // described ranges that cannot occur. Widen again when non-LaDR candidates
-  // return (P1b: record-field improvements).
+  // Both narrowed from the wider forward-looking contract: every candidate is a
+  // LaDR row, so `FactorKey` and `string | null` described ranges that cannot
+  // occur. Widen again when non-LaDR candidates return (P1b).
   area: "development";
   label: string;               // LaDR milestone text
   milestoneId: string;
   /**
-   * TRUE marginal composite points: compositeRaw(re-scored with this ONE input
-   * flipped) − compositeRaw(base). Recomputed, never estimated — answering an
-   * unanswered LaDR row moves the numerator, the answered/applicable confidence
-   * denominator, record completeness (ladr90, esrFlags) AND the precept
-   * indicators at once, so nothing short of a full re-score is right.
+   * Marginal points on the DEVELOPMENT AREA's own 0–100 scale — the exact change
+   * in S_D when this one row flips to met, re-aggregated rather than estimated
+   * (scoreLadr → LadrUnmet.marginal_points).
    *
-   * May be NEGATIVE. Measured example: −29/120 exactly, decomposing as
-   * development +0.625, completeness +0.800, precept −1.667 — the negative is
-   * entirely the `warfighting` precept indicator falling 1.0 → 0.833 as an
-   * unverified row dilutes ratios.qual_warfare. (An earlier note in this repo
-   * blamed the esrFlags unverified-count term; that term is real but contributes
-   * −0.2 and is swamped — completeness nets POSITIVE on this flip.)
+   * It is deliberately NOT a composite delta any more. Development carries no
+   * weight in the verdict (VERDICT_FACTORS), so the composite delta of a LaDR
+   * flip is now ~0 for every row and every plan would ship EMPTY — readiness.ts
+   * keeps only `delta > 0`. Ranking on the residue (the completeness ladr90 step
+   * and the precept indicators) would rank the plan by side effects. The area's
+   * own scale is the honest unit: these are development actions, ranked by how
+   * much they move development.
+   *
+   * May be NEGATIVE — flipping a row can pull a light category into wSum and dilute
+   * a heavier one. readiness.ts filters those out; "do this, lose 0.24 points" is
+   * not advice.
+   *
+   * NOTE for the reader of readiness.ts: ReadinessAction.worth is this number, and
+   * that field's comment still says "marginal composite points". It is only ever
+   * sorted and filtered `> 0`, never rendered, so the ordering is correct — but
+   * the comment is stale and belongs to whoever owns readiness.ts next.
    */
   delta: number;
 }
 
 /**
- * ponytail: hard ceiling of 60 full re-scores per call. A curated LaDR is 20–30
- * rows, so 60 covers every real record with headroom; the cap exists so a
- * pathological auto-extracted LaDR cannot turn one page render into thousands of
- * re-scores — and each re-score is itself O(n) in LaDR rows, so this is the
- * difference between O(n²) and unbounded. Candidates are PRE-RANKED by points at
- * stake before slicing (see stakeOf): slicing in raw input order silently dropped
- * the single highest-value candidate — a board-emphasis advancement_consideration
- * row ranking #1 at +5.43 vanished behind 60 filler rows worth −0.17 each.
- */
-export const BAND_DELTA_CANDIDATE_CAP = 60;
-
-/**
- * Cheap upper bound on what a row is worth, used ONLY to order candidates before
- * the cap. Never reported — `delta` is always the true re-score.
+ * The ranked action plan. Every candidate is already priced by the base scoring
+ * run — scoreLadr re-aggregates the LaDR once per unmet row and hands back
+ * `RubricResult.ladrUnmet` — so this reads that out and sorts it.
  *
- * The category weight alone is DILUTION-BLIND: a category's ratio is shared by
- * every row in it, so one row among 60 barely moves it while a lone row in a
- * light category moves its ratio 0 → 0.5 outright. Ranking on the raw weight
- * reproduced the original defect in a different shape — 60 `credential` rows
- * (weight 10) buried a lone `skill_training_recommended` row (weight 2) that was
- * the ONLY positive candidate at +1.05, and the plan shipped empty. Dividing by
- * the rows sharing the category tracks the real marginal closely enough to rank.
- *
- * ponytail: the ceiling is that this models dilution but not the numerator —
- * verified/unverified mix, board_emphasis weighting inside c.answered, and the
- * cross-factor completeness/precept terms are all ignored. It only has to order
- * candidates well enough that the cap does not drop a winner; `delta` is exact
- * for everything that survives. If a future shape defeats it, rank on
- * scoreLadr's factor-local marginal_points instead — exact, but O(n²) up front.
- */
-const stakeOf = (
-  it: LadrItemInput,
-  emphasisMult: number,
-  rowsInCategory: number,
-): number =>
-  (LADR_CATEGORY_WEIGHTS[it.category] * (it.board_emphasis ? emphasisMult : 1)) /
-  Math.max(1, rowsInCategory);
-
-/**
- * Pure: the marginal composite value of each single-input improvement, ranked.
- *
- * `config` is REQUIRED and must be the config `result` was scored under. Running
- * it against the defaults while the operator has tuned `board_rubric_config`
- * produces deltas that are wrong by multiples and can invert the ranking.
+ * It used to re-score the ENTIRE rubric once per candidate to measure a composite
+ * delta, which needed a 60-candidate cap and a dilution-aware `stakeOf` heuristic
+ * to decide what the cap was allowed to drop. All three are gone with the thing
+ * they served. `inputs` supplies the answered/not-answered distinction (the two
+ * kinds give different advice); `config` is unused now that nothing is re-scored,
+ * and is kept only so callers do not have to change.
  */
 export function bandDeltas(
   result: RubricResult,
   inputs: RubricInputs,
-  config: RubricConfig,
+  _config: RubricConfig,
 ): BandDelta[] {
-  const base = compositeRaw(result);
-
-  type Candidate = Omit<BandDelta, "delta"> & { flipped: RubricInputs; stake: number };
-  const candidates: Candidate[] = [];
-
-  // Rows sharing each category's ratio — the dilution denominator for stakeOf.
-  // 'na' rows are excluded exactly as the aggregation excludes them.
-  const rowsInCategory = new Map<string, number>();
-  for (const it of inputs.ladr)
-    if (it.status !== "na")
-      rowsInCategory.set(it.category, (rowsInCategory.get(it.category) ?? 0) + 1);
-
-  inputs.ladr.forEach((it, i) => {
-    if (it.status !== "unanswered" && it.status !== "not_met") return;
-    candidates.push({
-      // "answer" is a checklist row that has never been touched; "meet" is one
-      // the Sailor has explicitly marked not met. Same flip, different advice.
-      id: `ladr:${it.milestone_id}:${it.status === "unanswered" ? "answer" : "meet"}`,
-      kind: it.status === "unanswered" ? "ladr_answer" : "ladr_meet",
-      area: "development",
-      label: it.item || it.milestone_id,
-      milestoneId: it.milestone_id,
-      stake: stakeOf(
-        it,
-        config.board_emphasis_multiplier,
-        rowsInCategory.get(it.category) ?? 1,
-      ),
-      flipped: {
-        ...inputs,
-        ladr: inputs.ladr.map((x, j) => (j === i ? { ...x, status: "met" as const } : x)),
-      },
-    });
-  });
-
-  return candidates
-    .sort((a, b) => b.stake - a.stake)
-    .slice(0, BAND_DELTA_CANDIDATE_CAP)
-    .map(({ flipped, stake: _stake, ...rest }) => ({
-      ...rest,
-      delta: compositeRaw(scoreBoardConfidence(flipped, config)) - base,
-    }))
+  const statusOf = new Map(inputs.ladr.map((i) => [i.milestone_id, i.status]));
+  return (result.ladrUnmet ?? [])
+    .map((u) => {
+      // "answer" is a checklist row that has never been touched; "meet" is one the
+      // Sailor has explicitly marked not met. Same flip, different advice.
+      const unanswered = statusOf.get(u.milestone_id) === "unanswered";
+      return {
+        id: `ladr:${u.milestone_id}:${unanswered ? "answer" : "meet"}`,
+        kind: (unanswered ? "ladr_answer" : "ladr_meet") as BandDeltaKind,
+        area: "development" as const,
+        label: u.item || u.milestone_id,
+        milestoneId: u.milestone_id,
+        delta: u.marginal_points,
+      };
+    })
     .sort((a, b) => b.delta - a.delta);
 }

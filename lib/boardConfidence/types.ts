@@ -125,14 +125,17 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
 /**
  * v2: one unmet LaDR row, with its identity intact. `factorLocalPoints` is a TRUE
  * recompute of the development factor's own 0–100 score with this single row
- * flipped to met+verified — it is FACTOR-LOCAL, not composite points. Composite
- * worth comes from bandDeltas(), which re-scores the whole rubric per candidate.
+ * flipped to met — FACTOR-LOCAL, not composite points.
  *
  * The name is load-bearing. It was `marginal_points`, which reads as "what this
- * is worth" and differs from ReadinessAction.worth by roughly 12× for the SAME
- * milestone — different scale AND a different flip. Two numbers for one row on
- * one screen is a contradiction a Sailor can see, so the factor-local one is
- * named for what it is and no template renders it.
+ * is worth"; at the time it differed from ReadinessAction.worth by roughly 12×
+ * for the SAME milestone — different scale AND a different flip — and two numbers
+ * for one row on one screen is a contradiction a Sailor can see.
+ *
+ * Those two numbers are now ONE: `development` carries no weight in the verdict
+ * (rubric.ts VERDICT_FACTORS), so a composite delta is 0.000 for every row and
+ * bandDeltas() ranks the plan on this field directly. The name still says what it
+ * is, and no template renders it.
  */
 export interface LadrUnmet {
   milestone_id: string;
@@ -160,10 +163,13 @@ export type FactorKey =
 
 export interface FactorResult {
   key: FactorKey;
-  weight: number;                       // effective weight (after 100/90 redistribution if any)
+  weight: number;                       // effective weight; 0 for a factor excluded
+                                        // from the verdict, others redistribute
   score: number;                        // S_f in [0,100], full float
   confidence: number;                   // conf_f in [0,1]
-  contribution: number;                 // (weight/100) * score * confidence
+  contribution: number;                 // (weight/100) * score * confidence. The
+                                        // composite is Σcontribution / Σ(weight·conf/100),
+                                        // NOT Σcontribution — see rubric.ts.
   detail: Record<string, number | string | boolean | null>;
       // every intermediate the UI shows on expand — e.g. performance:
       // {P1, P2, P3, P4, declinePenalty, nObserved, availableSubweight, ...};

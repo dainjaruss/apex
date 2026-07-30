@@ -1,10 +1,15 @@
 // tests/unit/boardConfidenceReadiness.test.ts
 //
 // v2 readiness layer (epic §3.4b, revised after the PR #21 domain review) —
-// buildReadinessReport, bandDeltas, and scoreLadr's unmet output. The layer
-// exists because rubric.ts sums (weight/100)·S·conf against fixed bands with no
-// renormalization by Σ(weight·conf), so "we have no data" (conf = 0) and "the
-// record is bad" (S = 0) are numerically identical.
+// buildReadinessReport, bandDeltas, and scoreLadr's unmet output.
+//
+// The layer was built because rubric.ts summed (weight/100)·S·conf against a
+// FIXED denominator of 100, so "we have no data" (conf = 0) and "the record is
+// bad" (S = 0) were numerically identical. That is fixed in the engine now — the
+// composite renormalizes by Σ(weight·conf) — and the tests below that used to
+// pin the defect so the layer could work around it now pin its ABSENCE. The
+// layer is still load-bearing: it decides whether a number may be SHOWN at all,
+// which is a different question from whether the number is right.
 //
 // Most of these pin a SENTENCE, not a number. The domain review found the
 // arithmetic sound and the strings bolted to it wrong, so the regressions worth
@@ -16,9 +21,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bandDeltas,
-  compositeRaw,
   scoreBoardConfidence,
-  BAND_DELTA_CANDIDATE_CAP,
   DEFAULT_RUBRIC_CONFIG,
 } from "@/lib/boardConfidence/rubric";
 import {
@@ -158,19 +161,26 @@ const seaSailor: RubricInputs = {
 
 // ---------------------------------------------------------------------------
 
-describe("the band inversion the layer exists to fix", () => {
-  it("still reproduces in the raw rubric: the all-EP record bands BELOW the all-Promotable one", () => {
+describe("the band inversion — now fixed in the ENGINE, not worked around", () => {
+  it("the all-EP record no longer bands below the all-Promotable one", () => {
+    // THE defect this epic opened on. Measured before: sailorA 45.0 "Not
+    // competitive" against sailorB 57.3 "Crunch" — six Early Promotes losing to
+    // five Promotables because A had not filled in the PSR and LaDR tabs.
     const a = scoreBoardConfidence(sailorA, CFG);
     const b = scoreBoardConfidence(sailorB, CFG);
     const perf = (r: typeof a) => r.factors.find((f) => f.key === "performance")!;
 
     expect(perf(a).score).toBeGreaterThan(perf(b).score);
-    expect(a.final).toBeLessThan(b.final);
-    expect(a.bandLabel).toBe("Not competitive this cycle");
+    // The composite now agrees with the performance factor instead of contradicting it.
+    expect(a.final).toBeGreaterThan(b.final);
+    expect(a.bandLabel).toBe("Clearly at the top");
     expect(b.bandLabel).toBe("Crunch — middle band");
   });
 
-  it("coverage separates the two records, and only the well-entered one gets a number", () => {
+  it("coverage still separates the two records, and still gates the thin one", () => {
+    // The engine being right is not a licence to SHOW a number computed from a
+    // quarter of a record. sailorA's 85.2 is arithmetically honest and still
+    // withheld, because two of the four verdict factors have nothing in them.
     const a = report(sailorA);
     const b = report(sailorB);
 
@@ -180,24 +190,18 @@ describe("the band inversion the layer exists to fix", () => {
 
     expect(a.score).toBeNull();
     expect(a.scoreNote).toMatch(/cannot score/i);
-    expect(b.score).toEqual({ value: 57.3, band: 50, label: "Crunch — middle band" });
+    expect(b.score).toEqual({ value: 59.9, band: 50, label: "Crunch — middle band" });
     expect(b.scoreNote).toBeNull();
   });
 
   it("names what is missing instead of scoring it as zero, and still reports the strong areas", () => {
     const a = report(sailorA);
 
+    // Four verdict areas; development and completeness are not areas of the
+    // SAILOR'S RECORD a board reads, so they are not counted against them here.
     expect(a.coverage.areasKnown).toBe(2);
-    expect(a.coverage.areasTotal).toBe(6);
-    // Completeness joins the missing list rather than being graded: with the PSR
-    // and LaDR tabs untouched, "large parts are not entered" is a statement about
-    // entry, and the Results screen promises not to grade non-entry.
-    expect(a.coverage.missing.map((m) => m.area).sort()).toEqual([
-      "completeness",
-      "development",
-      "leadership",
-      "precept",
-    ]);
+    expect(a.coverage.areasTotal).toBe(4);
+    expect(a.coverage.missing.map((m) => m.area).sort()).toEqual(["leadership", "precept"]);
     expect(a.areas.find((x) => x.key === "performance")!.status).toBe("strong");
   });
 });
@@ -227,14 +231,64 @@ describe("the two gates on emitting a number", () => {
     preceptFlags: ["warfighting", "leadership_positions", "sea_duty"],
   };
 
-  it("BLIND SPOT: a flawless record is not scored while a weighted factor has zero confidence", () => {
+  it("a missing LaDR is no longer a blind spot, because it no longer carries weight", () => {
+    // This record used to be scored "Crunch" off 15 weighted points of earned
+    // zeros, and the blind-spot gate then had to suppress the number to stop it
+    // reaching the Sailor. Development leaving the verdict removes the cause, so
+    // the gate has nothing to fire on and a flawless record gets its number.
     const rep = report(flawless);
-    expect(rep.coverage.measured).toBeGreaterThan(COVERAGE_FLOOR); // the floor would NOT have caught it
-    expect(scoreBoardConfidence(flawless, CFG).bandLabel).toBe("Crunch — middle band");
+    const dev = rep.areas.find((a) => a.key === "development")!;
+    expect(dev.detail.weight).toBe(0);
+    expect(dev.detail.confidence).toBe(0);
+    expect(rep.score).not.toBeNull();
+    expect(rep.score!.band).toBeGreaterThanOrEqual(75);
+    // …and the Sailor is still told the roadmap is missing, on the coverage axis.
+    expect(dev.status).toBe("not_enough_entered");
+    expect(dev.summary).toMatch(/does not have your rating's development roadmap/);
+  });
+
+  it("BLIND SPOT: still a real gate on a factor that DOES carry verdict weight", () => {
+    // Leadership blind (no tours, no awards) while every other verdict factor is
+    // fully observed: coverage lands at 0.80, clear of the floor, so the floor
+    // would not catch it — the gate must.
+    const noLeadership: RubricInputs = {
+      boardDate: T,
+      evals: [2021, 2022, 2023, 2024, 2025, 2026].map((y) => ({
+        ...annual(y, "Must Promote", 4.4),
+        summary_group_average: 4.0,
+        ep_count: 0,
+        group_size: 10,
+      })),
+      psr: {
+        entered: true,
+        awards: null,
+        tours: null,
+        necs: [{ code: "742A", verified_in_ompf: true }],
+        education: [{ kind: "degree", title: "AS", verified_in_ompf: true }],
+        pfa: [
+          { cycle: "a", date: "2024-04-01", result: "pass" },
+          { cycle: "b", date: "2024-10-01", result: "pass" },
+          { cycle: "c", date: "2025-04-01", result: "pass" },
+        ],
+        adverse: [],
+      },
+      // every flag here is computable from the LaDR alone, so only leadership is blind
+      ladr: [
+        { milestone_id: "w", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "EIWS" },
+        { milestone_id: "e", category: "education_degree", status: "met", verified_in_ompf: true, item: "AS" },
+        { milestone_id: "c", category: "credential", status: "met", verified_in_ompf: true, item: "Sec+" },
+        { milestone_id: "n", category: "nec_opportunity", status: "met", verified_in_ompf: true, item: "742A" },
+        { milestone_id: "r", category: "qual_rate_specific", status: "met", verified_in_ompf: true, item: "Rate" },
+      ],
+      preceptFlags: ["warfighting", "education", "technical_expertise"],
+    };
+    const rep = report(noLeadership);
+    const lead = rep.areas.find((a) => a.key === "leadership")!;
+    expect(lead.detail.weight).toBeGreaterThan(0);
+    expect(lead.detail.confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
+    expect(rep.coverage.measured).toBeGreaterThan(COVERAGE_FLOOR); // the floor would NOT catch it
     expect(rep.score).toBeNull();
-    // A first-run condition, not a permanent one: tell them to pull the roadmap.
-    expect(rep.scoreNote).toContain("Navy COOL");
-    expect(rep.scoreNote).toContain("one click");
+    expect(rep.scoreNote).toMatch(/leadership and impact/);
   });
 
   it("COVERAGE FLOOR: still catches a thin record whose factors all have some confidence", () => {
@@ -253,15 +307,15 @@ describe("the two gates on emitting a number", () => {
     expect(rep.score).toBeNull();
   });
 
-  it("gates on conf < AREA_EVIDENCE_FLOOR, not conf === 0 — the PR #22 interaction", () => {
-    // A returning user who changes NOTHING while their rating's roadmap grows
-    // from 6 to 86 milestones (80 transcribed advancement_consideration rows).
-    // Their development S stays 100. Measured with a `=== 0` gate:
-    //   BEFORE  dev conf 1.000, contrib 15.00 -> 72.2 "Competitive"  (scored)
-    //   AFTER   dev conf 0.070, contrib  1.05 -> 57.2 "Crunch"       (scored!)
-    // -15 points and a full band drop because APEX learned more about their
-    // rating. conf 0.070 slips a zero test, and coverage lands at 0.80 — above
-    // COVERAGE_FLOOR — so the floor does not catch it either.
+  it("the roadmap growing under a returning user changes NOTHING about their score", () => {
+    // The regression this gate was built to catch, now impossible by construction.
+    // A returning user who changes nothing while their rating's roadmap grows from
+    // 6 to 86 milestones (80 transcribed advancement_consideration rows):
+    //   ORIGINALLY  dev conf 1.000, contrib 15.00 -> 72.2 "Competitive"
+    //   THEN        dev conf 0.070, contrib  1.05 -> 57.2 "Crunch"
+    // −15 points and a full band drop because APEX learned more about their
+    // RATING. The roadmap is no longer in the verdict, so the same record scores
+    // the same number before and after, and no gate has to rescue it.
     const answered6: LadrItemInput[] = [
       { milestone_id: "a1", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "EIWS" },
       { milestone_id: "a2", category: "pme_required", status: "met", verified_in_ompf: true, item: "PME" },
@@ -304,25 +358,26 @@ describe("the two gates on emitting a number", () => {
 
     const devOf = (i: RubricInputs) =>
       scoreBoardConfidence(i, CFG).factors.find((f) => f.key === "development")!;
+    // The area still MEASURES the change — the plan needs it — it just cannot
+    // spend it. conf falls 1.000 -> 6/86 exactly as before.
     expect(devOf(base).confidence).toBe(1);
     expect(devOf(after).score).toBe(100); // unchanged: the RECORD did not change
     expect(devOf(after).confidence).toBeCloseTo(6 / 86, 6);
-    expect(devOf(after).confidence).toBeGreaterThan(0); // a `=== 0` gate would miss it
-    expect(devOf(after).confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
+    expect(devOf(after).weight).toBe(0);
+
+    // …and not a thousandth of a point of it reaches the composite.
+    expect(scoreBoardConfidence(after, CFG).final).toBe(scoreBoardConfidence(base, CFG).final);
+    expect(scoreBoardConfidence(after, CFG).band).toBe(scoreBoardConfidence(base, CFG).band);
 
     const before = report(base);
     const grownRep = report(after);
     expect(before.score).not.toBeNull();
-    expect(scoreBoardConfidence(after, CFG).final).toBeLessThan(before.score!.value - 10);
+    expect(grownRep.score).toEqual(before.score); // no silent band regression
+    expect(grownRep.coverage.measured).toBe(before.coverage.measured);
 
-    // The floor alone would NOT have caught it...
-    expect(grownRep.coverage.measured).toBeGreaterThan(COVERAGE_FLOOR);
-    // ...so the gate must, and the band never regresses in front of the Sailor.
-    expect(grownRep.score).toBeNull();
-
-    // And the sentence does not blame them for rows that did not exist before.
-    expect(grownRep.scoreNote).toMatch(/grows when APEX loads newer roadmap data/);
+    // And the sentence still does not blame them for rows that did not exist before.
     const dev = grownRep.areas.find((a) => a.key === "development")!;
+    expect(dev.status).toBe("not_enough_entered");
     expect(dev.summary).toContain("6 of 86 milestones");
     expect(dev.summary).toMatch(/were not here before/);
     expect(dev.summary).not.toMatch(/checklist is unanswered/);
@@ -342,16 +397,25 @@ describe("the two gates on emitting a number", () => {
     // Without this, a fully-entered record reads "APEX can see 5 of 6 areas of
     // YOUR RECORD" when the gap is that no precept is loaded.
     const rep = report({ ...sailorB, preceptFlags: [] });
-    expect(rep.coverage.areasTotal).toBe(5);
+    // performance + leadership + continuity: the verdict factors that remain once
+    // the precept is excluded too.
+    expect(rep.coverage.areasTotal).toBe(3);
     expect(rep.coverage.missing.map((m) => m.area)).not.toContain("precept");
+    expect(rep.coverage.missing.map((m) => m.area)).not.toContain("development");
   });
 });
 
 describe("the empty record — the first thing a new user sees", () => {
-  it("the raw rubric still calls it a drop-from-consideration risk", () => {
+  it("the raw rubric emits a flagged PLACEHOLDER, not a verdict", () => {
+    // There is nothing in any verdict factor, so Σ(weight·conf) is 0 and the
+    // composite is undefined. `final` is typed `number` and the column is NOT
+    // NULL, so 0 is emitted — with a warning that says in words that it is not an
+    // assessment. Making `final` nullable is the honest fix and it belongs to
+    // whoever owns service.ts and the board_analyses column.
     const r = scoreBoardConfidence(emptyRecord, CFG);
-    expect(r.final).toBe(1);
-    expect(r.bandLabel).toBe("Drop-from-consideration risk");
+    expect(r.factors.reduce((a, f) => a + f.weight * f.confidence, 0)).toBe(0);
+    expect(r.final).toBe(0);
+    expect(r.warnings.some((w) => /placeholder, not an assessment/.test(w))).toBe(true);
   });
 
   it("the readiness report emits no score and no band at all", () => {
@@ -360,8 +424,13 @@ describe("the empty record — the first thing a new user sees", () => {
     expect(JSON.stringify(rep.areas)).not.toContain("Drop-from-consideration risk");
   });
 
-  it("coverage is NOT zero for an empty record — three factors report conf = 1 by construction", () => {
-    expect(report(emptyRecord).coverage.measured).toBeCloseTo(0.3, 10);
+  it("coverage IS zero for an empty record — nothing in the verdict claims to see it", () => {
+    // It used to read 0.30, because continuity, completeness and precept reported
+    // conf = 1 unconditionally and so asserted knowledge of a record that did not
+    // exist. Continuity and precept now report the §7 item-8 zero-data case, and
+    // completeness — which really can measure its own subject — carries no verdict
+    // weight. An empty record is 0.00 known, which is what it is.
+    expect(report(emptyRecord).coverage.measured).toBe(0);
   });
 
   it("lists every unknown area rather than grading it", () => {
@@ -395,9 +464,14 @@ describe("BLOCKER B2 — a three-year Sailor must not be told their record has g
     expect(c.detail.recordGapCount).toBe(0);
     expect(r.continuityGap).toBe(false);
     expect(r.continuityAdvisory).toBeNull();
-    // ...but the factor SCORE carries the pre-first-report leading-span penalty,
-    // which is exactly what must not be turned back into a sentence.
-    expect(c.score).toBeLessThan(55);
+    // …and the factor SCORE now agrees with the advisory instead of contradicting
+    // it. It used to read 45.02 — a 0.60 window coverage AND a 15-point
+    // leading-gap penalty, charging this Sailor twice for years they had not
+    // served. Three consecutive reports with nothing missing between them is
+    // complete continuity; "APEX holds 3 of 5 years" is a CONFIDENCE statement.
+    expect(c.score).toBe(100);
+    expect(c.confidence).toBeCloseTo(1096 / 1826, 3);
+    expect(Number(c.detail.coverage)).toBeLessThan(0.95); // window coverage, unchanged
   });
 
   it("continuity status keys on the gap count, never on the factor score", () => {
@@ -515,10 +589,14 @@ describe("BLOCKER B1 — the precept must not assert doctrine APEX guessed", () 
   it("does not call a four-year sea-duty record deficient on flags it cannot compute", () => {
     const r = scoreBoardConfidence(seaSailor, CFG);
     const p = r.factors.find((f) => f.key === "precept")!;
-    // sea_duty is a perfect 1.0; warfighting/education/technical_expertise are
-    // structurally 0 because they read LaDR ratios that do not exist.
+    // sea_duty is a perfect 1.0. warfighting/education/technical_expertise read
+    // LaDR ratios that do not exist — they are NULL now, not a structural 0, and
+    // they drop out of both the average and the confidence instead of being
+    // scored as deficiencies the Sailor earned.
     expect(p.detail.sea_duty).toBe(1);
-    expect(p.detail.warfighting).toBe(0);
+    expect(p.detail.warfighting).toBeNull();
+    expect(p.confidence).toBeLessThan(1);
+    expect(p.score).toBeGreaterThan(0);
 
     const area = report(seaSailor).areas.find((a) => a.key === "precept")!;
     expect(area.status).toBe("not_enough_entered");
@@ -730,211 +808,142 @@ describe("scoreLadr emits milestone identity", () => {
   });
 });
 
-describe("bandDeltas — true marginal points, hand-checked against a full re-score", () => {
-  const base = scoreBoardConfidence(sailorB, CFG);
-  const handDelta = (next: RubricInputs) =>
-    compositeRaw(scoreBoardConfidence(next, CFG)) - compositeRaw(base);
-  const meet = (id: string): RubricInputs => ({
-    ...sailorB,
-    ladr: sailorB.ladr.map((i) => (i.milestone_id === id ? { ...i, status: "met" as const } : i)),
+describe("bandDeltas — the plan, priced on the development area's own scale", () => {
+  const inputs = sailorB;
+  const base = scoreBoardConfidence(inputs, CFG);
+  const deltas = bandDeltas(base, inputs, CFG);
+
+  it("prices EVERY unmet or unanswered row, and nothing else", () => {
+    const candidates = inputs.ladr.filter(
+      (i) => i.status === "not_met" || i.status === "unanswered",
+    );
+    expect(deltas.map((d) => d.milestoneId).sort()).toEqual(
+      candidates.map((i) => i.milestone_id).sort(),
+    );
+    // There is deliberately no verification candidate: ticking a self-ticked box
+    // is not an improvement and must never appear in a plan.
+    expect(deltas.every((d) => d.kind === "ladr_answer" || d.kind === "ladr_meet")).toBe(true);
+    expect(JSON.stringify(deltas)).not.toMatch(/verify/i);
   });
 
-  it("answering an unanswered LaDR row matches the hand re-score exactly", () => {
-    // The flip the audit's verifier flagged as NOT a clean arithmetic
-    // consequence: it moves the numerator AND the answered/applicable
-    // confidence denominator, plus completeness and the precept indicators.
-    const got = bandDeltas(base, sailorB, CFG).find((d) => d.id === "ladr:m-open:answer")!;
-    expect(got.kind).toBe("ladr_answer");
-    expect(got.delta).toBe(handDelta(meet("m-open")));
-
-    // Recomputed, not derivable from the development factor alone.
-    const local = base.ladrUnmet!.find((u) => u.milestone_id === "m-open")!.factorLocalPoints;
-    expect(got.delta).not.toBeCloseTo(local, 3);
+  it("delta is the development factor's own marginal, recomputed not estimated", () => {
+    // The unit changed with the arithmetic: development carries no verdict weight,
+    // so a COMPOSITE delta is ~0 for every row and would ship an empty plan. Each
+    // delta is checked here against an independent full re-score of the factor.
+    const dev = (r: typeof base) => r.factors.find((f) => f.key === "development")!.score;
+    for (const d of deltas) {
+      const flipped = scoreBoardConfidence(
+        {
+          ...inputs,
+          ladr: inputs.ladr.map((i) =>
+            i.milestone_id === d.milestoneId ? { ...i, status: "met" as const } : i,
+          ),
+        },
+        CFG,
+      );
+      expect(d.delta).toBeCloseTo(dev(flipped) - dev(base), 10);
+    }
   });
 
-  it("every candidate delta equals its own full re-score, and the list is ranked", () => {
-    const deltas = bandDeltas(base, sailorB, CFG);
-    expect(deltas.length).toBe(4); // 3 not_met + 1 unanswered; no verify candidates
-    for (let i = 1; i < deltas.length; i++)
-      expect(deltas[i - 1].delta).toBeGreaterThanOrEqual(deltas[i].delta);
-    for (const d of deltas) expect(d.delta).toBe(handDelta(meet(d.milestoneId!)));
+  it("a composite delta would have been useless — every flip moves the final by 0", () => {
+    // The measurement that forced the unit change. Without a precept loaded there
+    // is nothing left for a LaDR flip to move, so ranking on the composite would
+    // have produced an all-zero plan that readiness.ts filters to empty.
+    const noPrecept: RubricInputs = { ...inputs, preceptFlags: [] };
+    const before = scoreBoardConfidence(noPrecept, CFG).final;
+    for (const i of noPrecept.ladr) {
+      const flipped = scoreBoardConfidence(
+        { ...noPrecept, ladr: noPrecept.ladr.map((x) => (x === i ? { ...x, status: "met" as const } : x)) },
+        CFG,
+      );
+      expect(flipped.final).toBe(before);
+    }
+    // …and the plan is NOT empty anyway.
+    expect(bandDeltas(scoreBoardConfidence(noPrecept, CFG), noPrecept, CFG).some((d) => d.delta > 0)).toBe(true);
   });
 
-  it("a flip can be NEGATIVE, and the negative is the PRECEPT indicator diluting", () => {
-    const inputs: RubricInputs = {
-      boardDate: T,
-      evals: [],
-      psr: { ...emptyPsr, entered: true },
-      ladr: [
-        { milestone_id: "v1", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "EIWS" },
-        { milestone_id: "v2", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "ESWS" },
-        { milestone_id: "u1", category: "qual_warfare", status: "unanswered", verified_in_ompf: false, item: "EAWS" },
-        { milestone_id: "n1", category: "pme_required", status: "not_met", verified_in_ompf: false, item: "Required PME" },
-      ],
-      preceptFlags: ["warfighting"],
+  it("is ranked highest-first", () => {
+    expect([...deltas].sort((a, b) => b.delta - a.delta)).toEqual(deltas);
+  });
+
+  it("distinguishes 'answer this row' from 'complete this milestone'", () => {
+    const open = deltas.find((d) => d.milestoneId === "m-open")!;
+    const cert = deltas.find((d) => d.milestoneId === "m-cert")!;
+    expect(open.kind).toBe("ladr_answer");
+    expect(open.id).toBe("ladr:m-open:answer");
+    expect(cert.kind).toBe("ladr_meet");
+    expect(cert.id).toBe("ladr:m-cert:meet");
+  });
+
+  it("names the milestone, falling back to its id when no text was threaded", () => {
+    expect(deltas.find((d) => d.milestoneId === "m-cert")!.label).toBe("CompTIA Security+");
+    const bare: RubricInputs = {
+      ...emptyRecord,
+      ladr: [{ milestone_id: "bare-1", category: "credential", status: "not_met", verified_in_ompf: false }],
     };
-    const r = scoreBoardConfidence(inputs, CFG);
-    const flipped = scoreBoardConfidence(
-      {
-        ...inputs,
-        ladr: inputs.ladr.map((i) => (i.milestone_id === "u1" ? { ...i, status: "met" as const } : i)),
-      },
-      CFG,
-    );
-    const delta = bandDeltas(r, inputs, CFG).find((d) => d.id === "ladr:u1:answer")!.delta;
-
-    expect(delta).toBeCloseTo(-29 / 120, 12);
-
-    // The decomposition, because the cause was mis-attributed once already:
-    // completeness nets POSITIVE, and the whole negative is the precept.
-    const contrib = (res: typeof r, k: string) =>
-      res.factors.find((f) => f.key === k)!.contribution;
-    expect(contrib(flipped, "development") - contrib(r, "development")).toBeCloseTo(0.625, 10);
-    expect(contrib(flipped, "completeness") - contrib(r, "completeness")).toBeCloseTo(0.8, 10);
-    expect(contrib(flipped, "precept") - contrib(r, "precept")).toBeCloseTo(-5 / 3, 10);
-
-    // ...and the plan does not tell anyone to do something that costs them points.
-    expect(buildReadinessReport(r, inputs, CFG).actions.map((a) => a.id)).not.toContain(
-      "ladr:u1:answer",
-    );
+    expect(bandDeltas(scoreBoardConfidence(bare, CFG), bare, CFG)[0].label).toBe("bare-1");
   });
 
-  it("measures on the UNCLAMPED composite, so a heavily-penalized record still gets a plan", () => {
-    // 2 adverse items + a PFA failure ⇒ A = 40, and the composite clamps to 0.
-    // Clamping before subtracting made every delta 0 and blanked the plan for
-    // exactly the Sailor in the most trouble.
-    const inputs: RubricInputs = {
-      boardDate: T,
-      evals: [annual(2026, "Promotable", 3.8)],
+  it("a heavily-penalized record still gets a plan", () => {
+    // The clamp used to be able to flatten every candidate to 0 on a record with
+    // a large adverse adjustment. Nothing about the plan reads the composite now,
+    // so the plan cannot be destroyed by anything that happens to the composite.
+    const penalized: RubricInputs = {
+      ...inputs,
       psr: {
-        ...emptyPsr,
-        entered: true,
+        ...inputs.psr,
         adverse: [
           { kind: "njp", date: "2025-01-01" },
           { kind: "page13", date: "2025-02-01" },
         ],
         pfa: [{ cycle: "2025-1", date: "2025-04-01", result: "fail" }],
       },
-      ladr: [{ milestone_id: "x", category: "credential", status: "not_met", verified_in_ompf: false, item: "Security+" }],
-      preceptFlags: ["warfighting"],
     };
-    const r = scoreBoardConfidence(inputs, CFG);
+    const r = scoreBoardConfidence(penalized, CFG);
     expect(r.adverseAdjustment).toBe(40);
-    expect(r.final).toBe(0); // the DISPLAY value is still clamped
-
-    expect(bandDeltas(r, inputs, CFG)[0].delta).toBeGreaterThan(0);
-    expect(buildReadinessReport(r, inputs, CFG).actions.length).toBeGreaterThan(0);
+    expect(r.final).toBeLessThan(scoreBoardConfidence(inputs, CFG).final - 39);
+    const plan = bandDeltas(r, penalized, CFG).filter((d) => d.delta > 0);
+    expect(plan.length).toBeGreaterThan(0);
   });
 
-  it("pre-ranks by stake before the cap, so the top candidate is never sliced off", () => {
-    // 60 filler rows would fill the cap in raw input order and drop the one row
-    // that actually matters.
-    const filler: LadrItemInput[] = Array.from({ length: BAND_DELTA_CANDIDATE_CAP }, (_, i) => ({
-      milestone_id: `f-${i}`,
-      category: "credential" as const,
-      status: "not_met" as const,
-      verified_in_ompf: false,
-      item: `Filler ${i}`,
-    }));
-    const star: LadrItemInput = {
-      milestone_id: "STAR",
-      category: "advancement_consideration",
-      status: "not_met",
-      verified_in_ompf: false,
-      item: "Serve as Leading Petty Officer",
-      board_emphasis: true,
+  it("board-emphasis weighting is honoured, because the base run already applied it", () => {
+    const emphasised: RubricInputs = {
+      ...emptyRecord,
+      ladr: [
+        { milestone_id: "plain", category: "qual_warfare", status: "not_met", verified_in_ompf: false, item: "Plain" },
+        { milestone_id: "big", category: "qual_warfare", status: "not_met", verified_in_ompf: false, item: "Emphasised", board_emphasis: true },
+        { milestone_id: "anchor", category: "qual_warfare", status: "met", verified_in_ompf: true, item: "Anchor" },
+      ],
     };
-    const inputs: RubricInputs = {
-      boardDate: T,
-      evals: [annual(2026, "Promotable", 3.8)],
-      psr: { ...emptyPsr, entered: true },
-      ladr: [...filler, star], // STAR is LAST in input order
-      preceptFlags: ["warfighting"],
-    };
-    const deltas = bandDeltas(scoreBoardConfidence(inputs, CFG), inputs, CFG);
-
-    expect(deltas.length).toBe(BAND_DELTA_CANDIDATE_CAP);
-    expect(deltas[0].milestoneId).toBe("STAR");
-    expect(deltas[0].delta).toBeGreaterThan(0);
+    const one = bandDeltas(scoreBoardConfidence(emphasised, { ...CFG, board_emphasis_multiplier: 1 }), emphasised, CFG);
+    const five = bandDeltas(scoreBoardConfidence(emphasised, { ...CFG, board_emphasis_multiplier: 5 }), emphasised, CFG);
+    const of = (ds: typeof one, id: string) => ds.find((d) => d.milestoneId === id)!.delta;
+    expect(of(one, "big")).toBeCloseTo(of(one, "plain"), 10);
+    expect(of(five, "big")).toBeGreaterThan(of(five, "plain"));
+    // and at ×5 the emphasised row outranks the plain one in the plan order
+    expect(five[0].milestoneId).toBe("big");
   });
 
-  it("the stake proxy accounts for DILUTION — a lone row in a light category outranks a crowded heavy one", () => {
-    // Ranking on the raw category weight reproduced the cap defect in another
-    // shape: a category's ratio is shared by every row in it, so one of 60
-    // `credential` rows (weight 10) barely moves it, while a LONE
-    // `skill_training_recommended` row (weight 2) moves its ratio 0 → 0.5
-    // outright. Measured: LONE is +1.05 and the ONLY positive candidate; the 60
-    // credential rows are −0.096 each. Weight-blind ranking shipped 0 actions.
-    const crowded: LadrItemInput[] = Array.from({ length: BAND_DELTA_CANDIDATE_CAP }, (_, i) => ({
-      milestone_id: `d-${i}`,
-      category: "credential" as const,
-      status: "not_met" as const,
-      verified_in_ompf: false,
-      item: `Credential ${i}`,
-    }));
-    const lone: LadrItemInput = {
-      milestone_id: "LONE",
-      category: "skill_training_recommended",
-      status: "not_met",
-      verified_in_ompf: false,
-      item: "Lone light-category row",
+  it("scales to a pathological roadmap without a candidate cap", () => {
+    // The 60-candidate cap and its ranking heuristic are gone: every row is priced
+    // by the base run, so there is nothing left to cap and nothing to drop.
+    const huge: RubricInputs = {
+      ...emptyRecord,
+      ladr: Array.from({ length: 300 }, (_, i) => ({
+        milestone_id: `m-${i}`,
+        category: "credential" as const,
+        status: "not_met" as const,
+        verified_in_ompf: false,
+        item: `Row ${i}`,
+      })),
     };
-    const inputs: RubricInputs = {
-      boardDate: T,
-      evals: [annual(2026, "Promotable", 3.8)],
-      psr: {
-        ...emptyPsr,
-        entered: true,
-        awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: true }],
-        tours: [{ title: "Sea Tour", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
-      },
-      ladr: [...crowded, lone], // LONE is LAST, and its category weight is the LOWEST
-      preceptFlags: ["warfighting"],
-    };
-    const r = scoreBoardConfidence(inputs, CFG);
-    const deltas = bandDeltas(r, inputs, CFG);
-
-    expect(deltas.length).toBe(BAND_DELTA_CANDIDATE_CAP);
-    expect(deltas[0].milestoneId).toBe("LONE");
-    expect(deltas[0].delta).toBeCloseTo(1.05, 6);
-    // It is the only improvement that exists, so the plan must contain exactly it.
-    expect(buildReadinessReport(r, inputs, CFG).actions.map((a) => a.source.id)).toEqual(["LONE"]);
+    expect(bandDeltas(scoreBoardConfidence(huge, CFG), huge, CFG).length).toBe(300);
   });
 
-  it("pre-ranking is deterministic, and stable when every stake ties", () => {
-    const tied: LadrItemInput[] = Array.from({ length: BAND_DELTA_CANDIDATE_CAP + 1 }, (_, i) => ({
-      milestone_id: `t-${i}`,
-      category: "credential" as const,
-      status: "not_met" as const,
-      verified_in_ompf: false,
-      item: `Tied ${i}`,
-    }));
-    const inputs: RubricInputs = {
-      boardDate: T,
-      evals: [annual(2026, "Promotable", 3.8)],
-      psr: { ...emptyPsr, entered: true },
-      ladr: tied,
-      preceptFlags: ["warfighting"],
-    };
-    const r = scoreBoardConfidence(inputs, CFG);
-    const orderings = new Set(
-      Array.from({ length: 20 }, () =>
-        bandDeltas(r, inputs, CFG)
-          .map((d) => d.milestoneId)
-          .join(","),
-      ),
-    );
-    expect(orderings.size).toBe(1);
-  });
-
-  it("respects an operator-tuned config — which is why config is required", () => {
-    const tuned = { ...CFG, weights: { ...CFG.weights, development: 60, performance: 20 } };
-    const stock = bandDeltas(scoreBoardConfidence(sailorB, CFG), sailorB, CFG);
-    const under = bandDeltas(scoreBoardConfidence(sailorB, tuned), sailorB, tuned);
-    expect(under[0].delta).not.toBeCloseTo(stock[0].delta, 3);
+  it("is pure — same inputs, deep-equal output", () => {
+    expect(bandDeltas(base, inputs, CFG)).toEqual(bandDeltas(scoreBoardConfidence(inputs, CFG), inputs, CFG));
   });
 });
-
 describe("the ranked action plan", () => {
   const rep = report(sailorB);
 

@@ -1,9 +1,21 @@
 // tests/unit/boardConfidenceRubric.test.ts
 //
 // scoreBoardConfidence — deterministic Board Confidence rubric (spec §7).
-// The three §7.2 worked examples are the conformance fixture: final/band are
-// pinned exactly, cited intermediates at 1-decimal tolerance (§11.1 — the §7.2
-// numbers are 2-decimal displays of full-float values). Plus every §7 boundary:
+//
+// The three §7.2 worked examples are still the conformance fixture, but their
+// pinned finals were RE-DERIVED for the corrected arithmetic: the composite is
+// Σ(w·conf·S)/Σ(w·conf), not Σ(w/100)·S·conf against a fixed denominator of 100,
+// and `development`/`completeness` no longer carry verdict weight. A pinned
+// number alone cannot tell a right engine from a wrong one, so every example also
+// asserts the composite IDENTITY (final = Σcontribution/coverage − A) recomputed
+// from (weight, score, confidence) — that arm fails for any factor whose three
+// reported numbers stop agreeing with the score they produced.
+//
+// The invariant suite at the bottom is the real guard: it pins PROPERTIES that
+// must hold for every record — absence never lowers the composite, self-attested
+// fields cannot move it — rather than the output of the current implementation.
+//
+// Plus every §7 boundary:
 // band edges 85/70/50/30, gap edge 90 days, grace edge 365 days, coverage edge
 // 0.95, N_obs edge 3, trend edge 4 evals, adverse caps 30/20, PFA 36-month
 // INCLUSIVE bound, and the §7 item-8 zero-data guard (never NaN).
@@ -13,10 +25,12 @@ import { describe, it, expect, vi } from "vitest";
 import {
   DEFAULT_RUBRIC_CONFIG,
   scoreBoardConfidence,
+  bandDeltas,
   bandFor,
   round1HalfAway,
   FACTOR_WEIGHTS,
 } from "@/lib/boardConfidence/rubric";
+import { earlyPromoteMax } from "@/lib/forcedDistribution";
 import type {
   FactorKey,
   FactorResult,
@@ -42,6 +56,24 @@ const byKey = (r: RubricResult): Record<FactorKey, FactorResult> =>
 
 const rawSum = (r: RubricResult): number =>
   r.factors.reduce((s, f) => s + f.contribution, 0);
+
+/**
+ * The composite recomputed from scratch out of (weight, score, confidence) —
+ * Σ(w·conf·S)/Σ(w·conf) − A, clamped and rounded. Deliberately NOT written the
+ * way the engine writes it, so a pinned final and this arm cannot both be wrong
+ * in the same way. Any factor whose reported triple stops agreeing with the score
+ * it produced fails here even when the pinned number is updated to match.
+ */
+const recompute = (r: RubricResult): number => {
+  let num = 0;
+  let den = 0;
+  for (const f of r.factors) {
+    num += f.weight * f.confidence * f.score;
+    den += f.weight * f.confidence;
+  }
+  const raw = den === 0 ? 0 : num / den;
+  return round1HalfAway(Math.min(100, Math.max(0, raw - r.adverseAdjustment)));
+};
 
 const emptyPsr: PsrSection = {
   entered: false,
@@ -212,41 +244,51 @@ describe("§7.2 Example 1 — strong record (conformance fixture)", () => {
   const r = scoreBoardConfidence(ex1Inputs);
   const f = byKey(r);
 
-  it("emits six factors with the nominal weights", () => {
+  it("emits six factors; the two off the verdict axis carry weight 0", () => {
     expect(r.factors).toHaveLength(6);
-    expect(f.performance.weight).toBe(40);
-    expect(f.precept.weight).toBe(10);
+    // development 15 + completeness 10 are excluded; 40/15/10/10 → ×100/75.
+    expect(f.development.weight).toBe(0);
+    expect(f.completeness.weight).toBe(0);
+    expect(f.performance.weight).toBeCloseTo((40 * 100) / 75, 9);
+    expect(f.precept.weight).toBeCloseTo((10 * 100) / 75, 9);
+    expect(r.factors.reduce((a, x) => a + x.weight, 0)).toBeCloseTo(100, 9);
   });
 
   it("pins the performance subcomponents P1–P4", () => {
     expect(num(f.performance.detail.P1)).toBeCloseTo(97.0, 1);
     expect(num(f.performance.detail.P2)).toBeCloseTo(84.48, 1);
     expect(num(f.performance.detail.P3)).toBeCloseTo(56.67, 1);
-    expect(num(f.performance.detail.P4)).toBeCloseTo(78.77, 1);
+    // P4 = 92.67, not the old 78.77: the two earliest evals record NO summary-group
+    // distribution, and they no longer sit in P4's denominator scoring s = 0.
+    expect(num(f.performance.detail.P4)).toBeCloseTo(92.67, 1);
     expect(num(f.performance.detail.declinePenalty)).toBe(0);
   });
 
   it("pins the factor scores S_P / S_L / S_D / S_R", () => {
-    expect(f.performance.score).toBeCloseTo(83.84, 1);
+    expect(f.performance.score).toBeCloseTo(85.92, 1);
     expect(f.leadership.score).toBeCloseTo(84.4, 1);
-    expect(f.development.score).toBeCloseTo(87.0, 1);
-    expect(f.completeness.score).toBeCloseTo(98, 1);
+    // 89.50, not 87.00: the one met-but-unverified education row counts in full.
+    expect(f.development.score).toBeCloseTo(89.5, 1);
+    expect(f.completeness.score).toBeCloseTo(100, 1);
   });
 
-  it("pins all six contributions", () => {
-    expect(f.performance.contribution).toBeCloseTo(33.53, 1);
-    expect(f.leadership.contribution).toBeCloseTo(12.66, 1);
-    expect(f.development.contribution).toBeCloseTo(13.05, 1);
-    expect(f.continuity.contribution).toBeCloseTo(10.0, 1);
-    expect(f.completeness.contribution).toBeCloseTo(9.8, 1);
-    expect(f.precept.contribution).toBeCloseTo(10.0, 1);
+  it("the excluded factors are still fully computed, they just contribute nothing", () => {
+    expect(f.development.confidence).toBe(1);
+    expect(f.completeness.confidence).toBe(1);
+    expect(f.development.contribution).toBe(0);
+    expect(f.completeness.contribution).toBe(0);
+    expect(r.ladrUnmet!.length).toBeGreaterThan(0);
   });
 
-  it("FINAL = 89.0 → vote 100 'Clearly at the top' (exact)", () => {
+  it("FINAL = 89.4 → vote 100 'Clearly at the top' (exact)", () => {
     expect(r.adverseAdjustment).toBe(0);
-    expect(r.final).toBe(89.0);
+    expect(r.final).toBe(89.4);
     expect(r.band).toBe(100);
     expect(r.bandLabel).toBe("Clearly at the top");
+  });
+
+  it("satisfies the composite identity independently of the pinned number", () => {
+    expect(r.final).toBe(recompute(r));
   });
 });
 
@@ -367,12 +409,24 @@ describe("§7.2 Example 2 — average record (crunch / second-review profile)", 
     expect(f.development.confidence).toBeCloseTo(0.793, 1);
   });
 
-  it("raw = 50.29; FINAL = 50.3 → vote 50 'Crunch — middle band' (exact)", () => {
-    expect(rawSum(r)).toBeCloseTo(50.29, 1);
+  it("FINAL = 46.8 → vote 25 (exact), and the identity holds", () => {
+    // 50.3 before. The drop is entirely the two data-entry factors leaving the
+    // verdict: completeness was carrying S_R 88.9 and development S_D 51.8 into a
+    // record whose PERFORMANCE is 39.5 — one decline, no Early Promote in five
+    // years, trait averages at or below the summary group, and a warfare-qual gap
+    // that the precept factor reads as `warfighting: 0`. Filling in APEX forms was
+    // worth a band; it is not any more.
     expect(r.adverseAdjustment).toBe(0);
-    expect(r.final).toBe(50.3);
-    expect(r.band).toBe(50);
-    expect(r.bandLabel).toBe("Crunch — middle band");
+    expect(r.final).toBe(46.8);
+    expect(r.band).toBe(25);
+    expect(r.final).toBe(recompute(r));
+  });
+
+  it("the composite is NOT the sum of contributions — it is that sum over coverage", () => {
+    const coverage = r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100;
+    expect(coverage).toBeLessThan(1); // conf_D 0.79 on a weight-0 factor cannot… 
+    // …reach the denominator at all: coverage over the VERDICT weights is 1 here.
+    expect(rawSum(r)).toBeCloseTo(46.84, 1);
   });
 });
 
@@ -439,11 +493,12 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
   it("pins P2 (fallback comparator path) and the conf_P collapse", () => {
     expect(num(f.performance.detail.P2)).toBeCloseTo(45.08, 1);
     expect(f.performance.confidence).toBeCloseTo(0.467, 1);
-    expect(f.performance.contribution).toBeCloseTo(10.51, 1);
   });
 
-  it("tours-not-entered removes L1+L3: S_L = 5 at conf_L 0.30", () => {
-    expect(f.leadership.score).toBeCloseTo(5, 1);
+  it("tours-not-entered removes L1+L3: S_L = 10 at conf_L 0.30", () => {
+    // 10, not 5: the single NAM is worth its 10 points whether or not the Sailor
+    // has ticked "verified in OMPF" on it.
+    expect(f.leadership.score).toBeCloseTo(10, 1);
     expect(f.leadership.confidence).toBeCloseTo(0.3, 1);
   });
 
@@ -452,22 +507,33 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(f.development.confidence).toBeCloseTo(0.222, 1);
   });
 
-  it("pins continuity S_C = 100·0.4003 − 30 = 10.03 and completeness S_R = 8", () => {
-    expect(num(f.continuity.detail.coverage)).toBeCloseTo(0.4003, 1);
-    expect(num(f.continuity.detail.gapCount)).toBe(2);
-    expect(f.continuity.score).toBeCloseTo(10.03, 1);
-    expect(f.completeness.score).toBeCloseTo(8, 1);
+  it("continuity: window coverage 0.4003 is REPORTED, the score grades the observed span", () => {
+    // detail.coverage keeps its meaning — 731 of the 1826 window days documented,
+    // which is what readiness.ts grades the area on and what the completeness
+    // continuity95 item tests. The SCORE grades spanCoverage (731/824), because
+    // the 1095 days before this Sailor's first report are not a missing report.
+    expect(num(f.continuity.detail.coverage)).toBeCloseTo(0.4003, 3);
+    expect(num(f.continuity.detail.spanCoverage)).toBeCloseTo(0.8871, 3);
+    // ONE genuine break (the trailing gap), not two — the leading span is gone.
+    expect(num(f.continuity.detail.gapCount)).toBe(1);
+    expect(f.continuity.score).toBeCloseTo(100 * 0.8871359 - 15, 3);
+    // …and the observed span is only 824 of 1826 days, which lands on conf.
+    expect(f.continuity.confidence).toBeCloseTo(824 / 1826, 6);
+    expect(f.completeness.score).toBeCloseTo((100 * 15) / 90, 1);
   });
 
-  it("raw = 20.23, A = 10 (PFA fail ≤36 mo); final pins the §7.2 value 10.2 (graded, NOT gated)", () => {
-    expect(rawSum(r)).toBeCloseTo(20.23, 1);
+  it("A = 10 (PFA fail ≤36 mo); FINAL = 49.0 on coverage 0.44 (graded, NOT gated)", () => {
     expect(r.adverseAdjustment).toBe(10);
-    // v1.5 (corrected): continuity is graded, never a hard zero. The §7.2
-    // worked example stays pinned at 10.2 — the two graded gaps still cost
-    // −15 each in the continuity factor, but the score is no longer forced to 0.
-    expect(r.final).toBe(10.2);
-    expect(r.band).toBe(0);
-    expect(r.bandLabel).toBe("Drop-from-consideration risk");
+    // 10.2 before. This record is not WORSE than it was — APEX can barely SEE it:
+    // 2 reports, no tours, PSR not entered, 6 of 27 roadmap rows answered. Every
+    // one of those absences used to be charged as an earned zero. They now leave
+    // the denominator, and the residue is what APEX actually measured. Coverage
+    // 0.44 is how the Sailor is told that, and readiness.ts refuses to render a
+    // number at all below its 0.75 floor.
+    expect(r.final).toBe(49.0);
+    expect(r.band).toBe(25);
+    expect(r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100).toBeCloseTo(0.436, 3);
+    expect(r.final).toBe(recompute(r));
   });
 
   it("raises the continuity advisory for the genuine trailing gap (leading span excluded)", () => {
@@ -538,7 +604,9 @@ describe("v1.5 RubricConfig tuning", () => {
         precept: 5,
       },
     });
-    expect(byKey(skewed).performance.weight).toBe(70);
+    // development 5 + completeness 5 are excluded → the other four ×100/90.
+    expect(byKey(skewed).performance.weight).toBeCloseTo((70 * 100) / 90, 9);
+    expect(byKey(skewed).development.weight).toBe(0);
     expect(skewed.final).not.toBe(scoreBoardConfidence(ex1Inputs).final);
   });
 
@@ -666,9 +734,12 @@ describe("completeness — continuity-coverage item edge at 0.95", () => {
   it("coverage 0.9502 earns the 20-point item; 0.9491 does not", () => {
     const a = covRun("2021-12-01"); // covered 1735/1826 = 0.9502
     const b = covRun("2021-12-03"); // covered 1733/1826 = 0.9491
+    // The item still keys on WINDOW coverage — "do you have five years of reports"
+    // is a completeness question, and it is the one readiness.ts reuses.
     expect(num(a.continuity.detail.coverage)).toBeGreaterThanOrEqual(0.95);
     expect(num(b.continuity.detail.coverage)).toBeLessThan(0.95);
-    expect(a.completeness.score - b.completeness.score).toBeCloseTo(20, 5);
+    // 20 of the table's 90 points, rescaled to the 0-100 factor.
+    expect(a.completeness.score - b.completeness.score).toBeCloseTo((100 * 20) / 90, 5);
     expect(a.completeness.confidence).toBe(1); // never confidence-discounted
   });
 });
@@ -716,34 +787,35 @@ describe("missing-data policy — performance confidence and sub-weights", () =>
       ],
     };
     const l = byKey(run({ psr })).leadership;
-    expect(l.score).toBeCloseTo(10, 1); // verified NAM = 10, renormalized over L2 alone
+    expect(l.score).toBeCloseTo(10, 1); // NAM = 10, renormalized over L2 alone
     expect(l.confidence).toBeCloseTo(0.3, 3);
   });
 });
 
-describe("missing-data policy — precept exclusion redistributes ×100/90 (admin-side only)", () => {
-  it("zero precept flags: precept weight 0 / detail.excluded, five weights ×100/90", () => {
-    const f = byKey(run({ evals: annual(3) })); // preceptFlags: []
-    expect(f.precept.weight).toBe(0);
-    expect(f.precept.score).toBe(0);
-    expect(f.precept.confidence).toBe(1);
-    expect(f.precept.contribution).toBe(0);
-    expect(f.precept.detail.excluded).toBe(true);
-    for (const key of [
-      "performance",
-      "leadership",
-      "development",
-      "continuity",
-      "completeness",
-    ] as FactorKey[]) {
-      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 90, 3);
-    }
+describe("verdict exclusion — ONE redistribution mechanism, weights always sum to 100", () => {
+  it("development and completeness are always excluded; the rest redistribute", () => {
+    const f = byKey(scoreBoardConfidence(ex3Inputs)); // precept flags ARE configured
+    expect(f.development.weight).toBe(0);
+    expect(f.completeness.weight).toBe(0);
+    // excluded = 15 + 10 = 25 → ×100/75 over performance/leadership/continuity/precept
+    for (const key of ["performance", "leadership", "continuity", "precept"] as FactorKey[])
+      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 75, 9);
   });
 
-  it("with flags configured, weights stay nominal (sailor-side absence never redistributes)", () => {
-    const f = byKey(scoreBoardConfidence(ex3Inputs));
-    expect(f.performance.weight).toBe(40);
-    expect(f.precept.weight).toBe(10);
+  it("zero precept flags excludes it too: ×100/65, and detail.excluded is set", () => {
+    const f = byKey(run({ evals: annual(3) })); // preceptFlags: []
+    expect(f.precept.weight).toBe(0);
+    expect(f.precept.contribution).toBe(0);
+    expect(f.precept.detail.excluded).toBe(true);
+    for (const key of ["performance", "leadership", "continuity"] as FactorKey[])
+      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 65, 9);
+  });
+
+  it("effective weights sum to exactly 100 in BOTH branches", () => {
+    for (const flags of [[], ["warfighting"]] as RubricInputs["preceptFlags"][]) {
+      const r = run({ evals: annual(3), preceptFlags: flags });
+      expect(r.factors.reduce((a, f) => a + f.weight, 0)).toBeCloseTo(100, 9);
+    }
   });
 });
 
@@ -767,13 +839,13 @@ describe("missing-data policy — LaDR na renormalizes, unanswered lowers conf_D
   });
 });
 
-describe("UNVERIFIED_MULT — ESR-only items count at half value everywhere", () => {
-  it("a met LaDR item with verified_in_ompf false scores its category at 0.5", () => {
-    const d = byKey(run({ ladr: [li("qual_warfare", "met", false)] })).development;
-    expect(d.score).toBeCloseTo(50, 1);
+describe("self-attestation is not scored — `verified_in_ompf` is a box the Sailor ticks", () => {
+  it("a met LaDR item scores its category in full whether or not it is ticked", () => {
+    expect(byKey(run({ ladr: [li("qual_warfare", "met", false)] })).development.score).toBeCloseTo(100, 1);
+    expect(byKey(run({ ladr: [li("qual_warfare", "met", true)] })).development.score).toBeCloseTo(100, 1);
   });
 
-  it("an unverified award earns half its L2 points", () => {
+  it("an award earns its full L2 points whether or not it is ticked", () => {
     const award = (verified: boolean): PsrSection => ({
       ...emptyPsr,
       awards: [
@@ -781,7 +853,31 @@ describe("UNVERIFIED_MULT — ESR-only items count at half value everywhere", ()
       ],
     });
     expect(byKey(run({ psr: award(true) })).leadership.score).toBeCloseTo(10, 1);
-    expect(byKey(run({ psr: award(false) })).leadership.score).toBeCloseTo(5, 1);
+    expect(byKey(run({ psr: award(false) })).leadership.score).toBeCloseTo(10, 1);
+  });
+
+  it("completeness scores the PRESENCE of an awards section, not the verified share", () => {
+    const mixed: PsrSection = {
+      ...emptyPsr,
+      awards: [
+        { title: "NAM", level: "personal_achievement", date_awarded: "2024-02-01", verified_in_ompf: false },
+        { title: "NCM", level: "personal_commendation", date_awarded: "2024-03-01", verified_in_ompf: false },
+      ],
+    };
+    const all: PsrSection = {
+      ...mixed,
+      awards: (mixed.awards ?? []).map((a) => ({ ...a, verified_in_ompf: true })),
+    };
+    expect(byKey(run({ psr: mixed })).completeness.score).toBe(
+      byKey(run({ psr: all })).completeness.score,
+    );
+    // …but the unscored count the OMPF reminder is built from is still reported.
+    expect(num(byKey(run({ psr: mixed })).completeness.detail.unverifiedCount)).toBe(2);
+    expect(num(byKey(run({ psr: all })).completeness.detail.unverifiedCount)).toBe(0);
+  });
+
+  it("there is no esrFlags term left to score the unverified count", () => {
+    expect(byKey(run({})).completeness.detail).not.toHaveProperty("esrFlags");
   });
 });
 
@@ -1063,5 +1159,451 @@ describe("determinism — pure engine, no clock reads", () => {
     scoreBoardConfidence(structuredClone(ex2Inputs));
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// INVARIANTS. These pin PROPERTIES the engine must have for every record, not
+// the output of the current implementation. Prior rounds on this epic shipped
+// five tests that pinned today's numbers and therefore caught nothing when the
+// numbers were wrong; the rule of this block is that no assertion may contain a
+// constant copied out of a test run.
+// ---------------------------------------------------------------------------
+
+// A record with something real in every factor, used as the perturbation base.
+const solidEvals = (n: number, rec: PromotionRec = "Must Promote"): RubricEvalInput[] =>
+  Array.from({ length: n }, (_, i) =>
+    ev({
+      period_from: `${2026 - n + i}-03-16`,
+      period_to: `${2027 - n + i}-03-15`,
+      promotion_recommendation: rec,
+      trait_average: 4.2,
+      summary_group_average: 4.0,
+      ep_count: 0,
+      group_size: 10,
+    }),
+  );
+
+const solidPsr = (): PsrSection => ({
+  entered: true,
+  awards: [
+    { title: "NAM", level: "personal_achievement", date_awarded: "2024-02-01", verified_in_ompf: true },
+    { title: "MSM", level: "msm_or_above", date_awarded: "2025-02-01", verified_in_ompf: true },
+  ],
+  necs: [{ code: "746A", verified_in_ompf: true }],
+  education: [{ kind: "degree", title: "AS", date: "2024-12-15", verified_in_ompf: true }],
+  tours: [{ title: "USS NEVERSAIL", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+  pfa: [
+    { cycle: "2024-1", date: "2024-05-10", result: "pass" },
+    { cycle: "2024-2", date: "2024-11-10", result: "pass" },
+    { cycle: "2025-1", date: "2025-05-10", result: "pass" },
+  ],
+  adverse: [],
+});
+
+const solidLadr = (): LadrItemInput[] => [
+  li("qual_warfare", "met"),
+  li("qual_warfare", "not_met", false),
+  li("qual_rate_specific", "met"),
+  li("pme_required", "met"),
+  li("credential", "not_met", false),
+  li("education_degree", "met"),
+  li("nec_opportunity", "not_met", false),
+];
+
+const solid = (over: Partial<RubricInputs> = {}): RubricInputs => ({
+  boardDate: T,
+  evals: solidEvals(4),
+  psr: solidPsr(),
+  ladr: solidLadr(),
+  preceptFlags: [],
+  ...over,
+});
+
+describe("INVARIANT — unknown and weak are separate axes", () => {
+  // The founding decision, stated as arithmetic: for EVERY factor, a record that
+  // gives APEX nothing to look at must never score below the SAME record with the
+  // worst possible data in that factor. Before the fix these were identical by
+  // construction — conf = 0 and S = 0 both contributed nothing against a fixed
+  // denominator of 100 — which is the whole reason this PR exists.
+  const cases: Array<{ factor: string; absent: Partial<RubricInputs>; worst: Partial<RubricInputs> }> = [
+    {
+      factor: "performance",
+      absent: { evals: [] },
+      worst: { evals: solidEvals(4, "Significant Problems") },
+    },
+    {
+      factor: "leadership",
+      absent: { psr: { ...solidPsr(), tours: null, awards: null } },
+      worst: { psr: { ...solidPsr(), tours: [], awards: [] } },
+    },
+    {
+      factor: "precept",
+      absent: { ladr: [], psr: { ...solidPsr(), tours: null }, preceptFlags: ["warfighting", "leadership_positions"] },
+      worst: {
+        ladr: [li("qual_warfare", "not_met", false)],
+        psr: { ...solidPsr(), tours: [] },
+        preceptFlags: ["warfighting", "leadership_positions"],
+      },
+    },
+    {
+      factor: "continuity",
+      absent: { evals: [] },
+      worst: {
+        // two reports at opposite ends of the window: a real, enormous break
+        evals: [
+          ev({ period_from: "2021-04-01", period_to: "2021-06-30" }),
+          ev({ period_from: "2026-01-01", period_to: "2026-03-15" }),
+        ],
+      },
+    },
+  ];
+
+  for (const c of cases) {
+    it(`${c.factor}: no data scores at least as high as worst-possible data`, () => {
+      const absent = scoreBoardConfidence(solid(c.absent));
+      const worst = scoreBoardConfidence(solid(c.worst));
+      expect(absent.final).toBeGreaterThanOrEqual(worst.final);
+      // …and the two are genuinely distinguishable, so this is not vacuously true.
+      expect(absent.final).not.toBe(worst.final);
+    });
+  }
+
+  it("a factor APEX cannot see leaves the denominator entirely", () => {
+    const r = scoreBoardConfidence(solid({ evals: [] }));
+    const perf = byKey(r).performance;
+    expect(perf.confidence).toBe(0);
+    // The composite equals the mean over the factors that DO have data — computed
+    // here without performance appearing anywhere, weight or otherwise.
+    const seen = r.factors.filter((f) => f.weight > 0 && f.confidence > 0);
+    const mean =
+      seen.reduce((a, f) => a + f.weight * f.confidence * f.score, 0) /
+      seen.reduce((a, f) => a + f.weight * f.confidence, 0);
+    expect(r.final).toBe(round1HalfAway(mean - r.adverseAdjustment));
+  });
+
+  it("answering a roadmap row and failing it beats leaving it blank, never the reverse", () => {
+    // Measured before the fix: 59.3 for "every row answered, every row failed" vs
+    // 58.2 for "answered nothing" — being honest cost the Sailor a point.
+    const rows = solidLadr();
+    const blank = scoreBoardConfidence(solid({ ladr: rows.map((x) => ({ ...x, status: "unanswered" as const })) }));
+    const failed = scoreBoardConfidence(solid({ ladr: rows.map((x) => ({ ...x, status: "not_met" as const })) }));
+    expect(failed.final).toBeGreaterThanOrEqual(blank.final);
+  });
+});
+
+describe("INVARIANT — a roadmap is a plan, not a verdict", () => {
+  const statuses: LadrStatus[] = ["met", "not_met", "unanswered", "na"];
+
+  it("no LaDR answer moves the composite when no precept is configured", () => {
+    const base = scoreBoardConfidence(solid({ ladr: [] })).final;
+    for (const st of statuses)
+      expect(scoreBoardConfidence(solid({ ladr: solidLadr().map((x) => ({ ...x, status: st })) })).final).toBe(base);
+    // …including the case that used to cost 15 weighted points outright.
+    expect(scoreBoardConfidence(solid({ ladr: [] })).final).toBe(base);
+  });
+
+  it("the length of the roadmap cannot move the composite", () => {
+    const short = solidLadr();
+    const long = [...solidLadr(), ...many(80, "advancement_consideration", "not_met", false)];
+    const a = scoreBoardConfidence(solid({ ladr: short }));
+    const b = scoreBoardConfidence(solid({ ladr: long }));
+    expect(b.final).toBe(a.final);
+    // …while the AREA still reports the difference, because the plan needs it.
+    expect(byKey(b).development.score).not.toBe(byKey(a).development.score);
+  });
+
+  it("with a precept configured the roadmap moves the composite ONLY through the precept factor", () => {
+    const flags: RubricInputs["preceptFlags"] = ["warfighting"];
+    const met = scoreBoardConfidence(solid({ preceptFlags: flags, ladr: [li("qual_warfare", "met")] }));
+    const notMet = scoreBoardConfidence(solid({ preceptFlags: flags, ladr: [li("qual_warfare", "not_met", false)] }));
+    expect(met.final).toBeGreaterThan(notMet.final);
+    for (const key of ["performance", "leadership", "continuity"] as FactorKey[])
+      expect(byKey(met)[key].contribution).toBeCloseTo(byKey(notMet)[key].contribution, 9);
+    expect(byKey(met).development.contribution).toBe(0);
+    expect(byKey(notMet).development.contribution).toBe(0);
+  });
+
+  it("the action plan survives development leaving the verdict", () => {
+    const inputs = solid({});
+    const plan = bandDeltas(scoreBoardConfidence(inputs), inputs, DEFAULT_RUBRIC_CONFIG);
+    expect(plan.length).toBe(inputs.ladr.filter((i) => i.status === "not_met" || i.status === "unanswered").length);
+    expect(plan.some((d) => d.delta > 0)).toBe(true);
+    expect([...plan].sort((a, b) => b.delta - a.delta)).toEqual(plan);
+    // every delta is the development factor's own marginal, not a composite delta
+    const unmet = new Map(scoreBoardConfidence(inputs).ladrUnmet!.map((u) => [u.milestone_id, u.marginal_points]));
+    for (const d of plan) expect(d.delta).toBe(unmet.get(d.milestoneId));
+  });
+});
+
+describe("INVARIANT — self-attested fields cannot move the composite", () => {
+  it("flipping every verified_in_ompf box changes nothing anywhere", () => {
+    const honest = solid({
+      psr: { ...solidPsr(), awards: (solidPsr().awards ?? []).map((a) => ({ ...a, verified_in_ompf: false })) },
+      ladr: solidLadr().map((x) => ({ ...x, verified_in_ompf: false })),
+      preceptFlags: ["warfighting", "education", "technical_expertise"],
+    });
+    const ticked = solid({
+      psr: solidPsr(),
+      ladr: solidLadr().map((x) => ({ ...x, verified_in_ompf: true })),
+      preceptFlags: ["warfighting", "education", "technical_expertise"],
+    });
+    const a = scoreBoardConfidence(honest);
+    const b = scoreBoardConfidence(ticked);
+    expect(a.final).toBe(b.final);
+    for (const f of a.factors) {
+      const g = byKey(b)[f.key];
+      expect(f.score).toBeCloseTo(g.score, 9);
+      expect(f.confidence).toBeCloseTo(g.confidence, 9);
+    }
+  });
+
+  it("a self-typed rsca can never RAISE the composite", () => {
+    // rsca comes from member_board_records.eval_context — the Sailor types it.
+    // With no summary group it used to be the sole comparator, so typing 3.0
+    // against a 4.2 trait average was worth double digits.
+    const noSga = solidEvals(4).map((e) => ({ ...e, summary_group_average: null, ep_count: null, group_size: null }));
+    const honest = scoreBoardConfidence(solid({ evals: noSga })).final;
+    for (const rsca of [2.0, 3.0, 3.4, 4.0, 4.2, 4.6, 5.0]) {
+      const typed = scoreBoardConfidence(solid({ evals: noSga.map((e) => ({ ...e, rsca })) })).final;
+      expect(typed).toBeLessThanOrEqual(honest);
+    }
+  });
+
+  it("with a real summary group, rsca is still allowed to make the comparison tougher", () => {
+    const withSga = solidEvals(4); // sga 4.0, trait 4.2
+    const plain = scoreBoardConfidence(solid({ evals: withSga })).final;
+    const tougher = scoreBoardConfidence(solid({ evals: withSga.map((e) => ({ ...e, rsca: 4.6 })) })).final;
+    const softer = scoreBoardConfidence(solid({ evals: withSga.map((e) => ({ ...e, rsca: 2.0 })) })).final;
+    expect(tougher).toBeLessThan(plain);
+    expect(softer).toBe(plain); // a lower self-typed number buys nothing
+  });
+});
+
+describe("INVARIANT — P4 breakout scarcity follows the Table 1-2 quota", () => {
+  // The three earlier reports deliberately record NO summary-group distribution,
+  // so the ONLY thing that can put P4 on the board is the Early Promote row.
+  const epEval = (groupSize: number | null, epCount: number | null): RubricEvalInput[] => [
+    ...solidEvals(3).map((e) => ({ ...e, ep_count: null, group_size: null })),
+    ev({
+      period_from: "2025-03-16",
+      period_to: "2026-03-15",
+      promotion_recommendation: "Early Promote",
+      trait_average: 4.5,
+      summary_group_average: 4.0,
+      ep_count: epCount,
+      group_size: groupSize,
+    }),
+  ];
+
+  it("an Early Promote in a summary group of ONE carries no breakout information", () => {
+    // earlyPromoteMax(1) = 1 = N: the whole group could be Early Promote. The eval
+    // is dropped from P4 entirely — it does NOT score 0, which would be the same
+    // defect pointing the other way.
+    const solo = byKey(scoreBoardConfidence(solid({ evals: epEval(1, 1) }))).performance;
+    expect(solo.detail.P4).toBeNull();
+    expect(num(solo.detail.availableSubweight)).toBeCloseTo(0.85, 9);
+  });
+
+  it("the same Early Promote in a group of twelve does, and scores higher", () => {
+    const solo = scoreBoardConfidence(solid({ evals: epEval(1, 1) }));
+    const group = scoreBoardConfidence(solid({ evals: epEval(12, 1) }));
+    expect(num(byKey(group).performance.detail.P4)).toBeGreaterThan(0);
+    expect(byKey(group).performance.score).toBeGreaterThan(byKey(solo).performance.score);
+  });
+
+  it("the gate is the instruction's quota, checked against forcedDistribution for N = 1..30", () => {
+    // earlyPromoteMax is PR #25's verbatim transcription of Table 1-2. The gate is
+    // "the quota binds", i.e. earlyPromoteMax(N) < N. Pin the whole table so the
+    // rubric cannot drift from the instruction it claims to follow.
+    for (let n = 1; n <= 30; n++) {
+      const binds = earlyPromoteMax(n) < n;
+      expect(binds).toBe(n >= 2);
+      const p = byKey(scoreBoardConfidence(solid({ evals: epEval(n, 1) }))).performance;
+      expect(p.detail.P4 !== null).toBe(binds);
+    }
+  });
+
+  it("a solo group cannot inflate P4 even when another eval DOES supply it", () => {
+    // Mutation survivor M07. The `informative.length > 0` filter alone does not
+    // guard this: once ANY eval puts P4 on the board, the per-eval gate is the
+    // only thing keeping a summary group of one out of the numerator, where it
+    // scores a perfect s = 1 for a breakout nobody had to compete for.
+    const withSolo = [
+      ...solidEvals(2).map((e) => ({ ...e, ep_count: 0, group_size: 10 })),
+      ev({
+        period_from: "2024-03-16", period_to: "2025-03-15",
+        promotion_recommendation: "Early Promote", trait_average: 4.5,
+        summary_group_average: 4.0, ep_count: 1, group_size: 1,
+      }),
+    ];
+    const withoutSolo = withSolo.slice(0, 2);
+    const a = byKey(scoreBoardConfidence(solid({ evals: withSolo }))).performance;
+    const b = byKey(scoreBoardConfidence(solid({ evals: withoutSolo }))).performance;
+    expect(num(a.detail.P4)).toBe(0); // the two real groups, neither broken out of
+    expect(num(a.detail.P4)).toBe(num(b.detail.P4));
+  });
+
+  it("evals that record NO distribution stay out of P4's denominator", () => {
+    // They used to sit in it scoring s = 0, so a Sailor whose earlier commands
+    // never recorded a summary group was charged for it. A lone Early Promote in
+    // a group of 12 is a perfect breakout whether or not the reports around it
+    // happen to carry a distribution.
+    const blanksAround = byKey(scoreBoardConfidence(solid({ evals: epEval(12, 1) }))).performance;
+    expect(num(blanksAround.detail.P4)).toBeCloseTo(100, 9);
+
+    // …and a genuine non-breakout DOES stay in it: same record, but the earlier
+    // reports record real groups the Sailor did not break out of.
+    const realGroups = byKey(
+      scoreBoardConfidence(
+        solid({ evals: epEval(12, 1).map((e, i) => (i === 3 ? e : { ...e, ep_count: 0, group_size: 10 })) }),
+      ),
+    ).performance;
+    expect(num(realGroups.detail.P4)).toBeLessThan(100);
+  });
+});
+
+describe("INVARIANT — a section APEX could not read is not a section that is empty", () => {
+  const dateless = (over: Partial<PsrSection>): PsrSection => ({ ...solidPsr(), ...over });
+
+  it("tours whose dates are all missing behave exactly like an unfilled tours section", () => {
+    const unreadable = scoreBoardConfidence(
+      solid({ psr: dateless({ tours: [{ title: "X", start: "", end: null, sea_duty: true, leadership: true }] }) }),
+    );
+    const unfilled = scoreBoardConfidence(solid({ psr: dateless({ tours: null }) }));
+    expect(byKey(unreadable).leadership.score).toBeCloseTo(byKey(unfilled).leadership.score, 9);
+    expect(byKey(unreadable).leadership.confidence).toBe(byKey(unfilled).leadership.confidence);
+    expect(unreadable.warnings.some((w) => /missing dates/.test(w))).toBe(true);
+  });
+
+  it("and NOT like a tours section entered with no tours in it", () => {
+    const unreadable = scoreBoardConfidence(
+      solid({ psr: dateless({ tours: [{ title: "X", start: "", end: null, sea_duty: true, leadership: true }] }) }),
+    );
+    const genuinelyNone = scoreBoardConfidence(solid({ psr: dateless({ tours: [] }) }));
+    expect(byKey(unreadable).leadership.confidence).toBeGreaterThan(0);
+    expect(byKey(genuinelyNone).leadership.confidence).toBeGreaterThan(
+      byKey(unreadable).leadership.confidence,
+    );
+    expect(unreadable.final).toBeGreaterThan(genuinelyNone.final);
+  });
+
+  it("the same holds for awards", () => {
+    const unreadable = scoreBoardConfidence(
+      solid({ psr: dateless({ awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "", verified_in_ompf: true }] }) }),
+    );
+    const unfilled = scoreBoardConfidence(solid({ psr: dateless({ awards: null }) }));
+    expect(byKey(unreadable).leadership.score).toBeCloseTo(byKey(unfilled).leadership.score, 9);
+    expect(byKey(unreadable).leadership.confidence).toBe(byKey(unfilled).leadership.confidence);
+  });
+});
+
+describe("INVARIANT — continuity grades missing REPORTS, never missing YEARS", () => {
+  const consecutive = (n: number): RubricEvalInput[] =>
+    Array.from({ length: n }, (_, i) =>
+      ev({ period_from: `${2026 - n + i}-03-16`, period_to: `${2027 - n + i}-03-15` }),
+    );
+
+  it("a complete run of reports is complete however short it is", () => {
+    for (const n of [1, 2, 3, 4, 5]) {
+      const c = byKey(scoreBoardConfidence(solid({ evals: consecutive(n) }))).continuity;
+      expect(c.score).toBeCloseTo(100, 6);
+      expect(num(c.detail.gapCount)).toBe(0);
+      expect(num(c.detail.recordGapCount)).toBe(0);
+    }
+  });
+
+  it("…and how short it is lands on confidence instead", () => {
+    const conf = [1, 2, 3, 4, 5].map(
+      (n) => byKey(scoreBoardConfidence(solid({ evals: consecutive(n) }))).continuity.confidence,
+    );
+    expect([...conf].sort((a, b) => a - b)).toEqual(conf); // strictly increasing
+    expect(conf[0]).toBeLessThan(0.3);
+    expect(conf[4]).toBe(1);
+  });
+
+  it("an INTERNAL break is still a break, and still costs the penalty", () => {
+    const gapped = [
+      ev({ period_from: "2021-04-01", period_to: "2022-03-31" }),
+      ev({ period_from: "2025-03-16", period_to: "2026-03-15" }),
+    ];
+    const c = byKey(scoreBoardConfidence(solid({ evals: gapped }))).continuity;
+    expect(num(c.detail.gapCount)).toBe(1);
+    expect(c.score).toBeLessThan(100);
+    expect(scoreBoardConfidence(solid({ evals: gapped })).continuityGap).toBe(true);
+  });
+
+  it("a TRAILING break is still a break", () => {
+    const stale = [ev({ period_from: "2021-04-01", period_to: "2022-03-31" })];
+    const r = scoreBoardConfidence(solid({ evals: stale }));
+    expect(num(byKey(r).continuity.detail.gapCount)).toBe(1);
+    expect(r.continuityGap).toBe(true);
+  });
+
+  it("an undocumented span inside the window is charged ONCE, through coverage", () => {
+    // Mutation survivor M17. A stale report outside the five-year window pins the
+    // window start back to the full 1826 days, which re-opens a leading uncovered
+    // run inside it. That run is real and it IS charged — spanCoverage falls to
+    // 365/1826 — but charging it a second time as a 15-point "gap" penalty is the
+    // double-count this factor was rewritten to stop.
+    const staleThenRecent = [
+      ev({ period_from: "2014-03-16", period_to: "2015-03-15" }), // clipped out entirely
+      ev({ period_from: "2025-03-16", period_to: "2026-03-15" }),
+    ];
+    const c = byKey(scoreBoardConfidence(solid({ evals: staleThenRecent }))).continuity;
+    expect(num(c.detail.observedDays)).toBe(1826); // the stale row pinned it back
+    expect(num(c.detail.coveredDays)).toBe(365);
+    expect(num(c.detail.spanCoverage)).toBeCloseTo(365 / 1826, 6);
+    expect(num(c.detail.gapCount)).toBe(0); // charged once, not twice
+    expect(c.score).toBeCloseTo((100 * 365) / 1826, 6);
+  });
+
+  it("no usable report at all is the zero-data case, not a graded zero", () => {
+    const c = byKey(scoreBoardConfidence(solid({ evals: [] }))).continuity;
+    expect(c.confidence).toBe(0);
+    expect(c.detail.no_data).toBe(true);
+    expect(c.contribution).toBe(0);
+    expect(num(c.detail.coveredDays)).toBe(0);
+  });
+});
+
+describe("INVARIANT — every number the engine emits is finite", () => {
+  const hostile: Array<[string, Partial<RubricInputs>]> = [
+    ["empty", { evals: [], psr: emptyPsr, ladr: [] }],
+    ["malformed eval dates", { evals: [ev({ period_from: "not-a-date", period_to: "2026-03-15" })] }],
+    ["one report, no group, no comparator", { evals: [ev({ summary_group_average: null, rsca: null })] }],
+    ["all sections dateless", {
+      psr: {
+        ...solidPsr(),
+        awards: [{ title: "X", level: "unit", date_awarded: "", verified_in_ompf: false }],
+        tours: [{ title: "Y", start: "", end: null, sea_duty: true, leadership: true }],
+      },
+    }],
+    ["every flag configured, nothing to compute them from", {
+      evals: [], ladr: [], psr: emptyPsr,
+      preceptFlags: ["warfighting", "leadership_positions", "education", "sea_duty", "technical_expertise"],
+    }],
+  ];
+
+  for (const [name, over] of hostile) {
+    it(name, () => {
+      const r = scoreBoardConfidence(solid(over));
+      expect(Number.isFinite(r.final)).toBe(true);
+      expect(r.final).toBeGreaterThanOrEqual(0);
+      expect(r.final).toBeLessThanOrEqual(100);
+      for (const f of r.factors) {
+        expect(Number.isFinite(f.score)).toBe(true);
+        expect(Number.isFinite(f.confidence)).toBe(true);
+        expect(Number.isFinite(f.contribution)).toBe(true);
+        expect(Number.isFinite(f.weight)).toBe(true);
+      }
+    });
+  }
+
+  it("a record with NOTHING in any verdict factor says so instead of scoring it", () => {
+    const r = scoreBoardConfidence({ boardDate: T, evals: [], psr: emptyPsr, ladr: [], preceptFlags: [] });
+    expect(r.factors.reduce((a, f) => a + f.weight * f.confidence, 0)).toBe(0);
+    expect(r.final).toBe(0);
+    expect(r.warnings.some((w) => /placeholder, not an assessment/.test(w))).toBe(true);
   });
 });
