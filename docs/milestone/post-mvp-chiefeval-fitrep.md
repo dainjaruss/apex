@@ -71,6 +71,7 @@ Extending APEX to cover these forms completes the enlisted-to-officer continuum 
 - Drops and replaces the `evaluations_report_type_check` constraint to allow `'EVAL'`, `'CHIEFEVAL'`, `'FITREP'`.
 - Inserts the complete **CHIEFEVAL** `form_definitions` row (NAVPERS 1616/27, E7–E9) with full block JSON including CPO-specific trait labels (Blocks 33–39), omitting Block 47.
 - Updates the **FITREP_W2_O6** `form_definitions` row with the full officer block JSON, adding `tactical_performance` as the 8th trait field.
+  - **Corrected 2026-07-29 by `011_fitrep_trait_correction.sql`.** There is no 8th trait. NAVPERS 1610/2 (REV 05-2025) prints seven traits at Blocks 33–39, and Tactical Performance is Block **39** — not an extra `39.1` row appended to the enlisted table. The row that 003 carried at Block 34, Quality of Work, is an EVAL trait and is not on 1610/2 at all.
 
 ### Phase 2 — Type System ✅
 

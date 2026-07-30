@@ -354,11 +354,10 @@ async function seedEvals(users: Record<string, string>) {
     grade_rate: "CDR",
     trait_grades: {
       knowledge: "4.0",
-      work: "4.0",
       eo: "4.0",
       bearing: "4.0",
-      accomplishment: "4.0",
       teamwork: "4.0",
+      accomplishment: "4.0",
       leadership: "4.0",
       tactical_performance: "4.0",
     },
@@ -412,15 +411,15 @@ async function seedEvals(users: Record<string, string>) {
     grade_rate: "LT",
     trait_grades: {
       knowledge: "4.0",
-      work: "4.0",
       eo: "4.0",
       bearing: "4.0",
-      accomplishment: "4.0",
       teamwork: "4.0",
+      accomplishment: "4.0",
       leadership: "4.0",
       tactical_performance: "5.0",
     },
-    trait_average: 4.13,
+    // Six 4.0s + one 5.0 over the seven 1610/2 traits = 29/7 = 4.14.
+    trait_average: 4.14,
     retention: undefined,
   });
 

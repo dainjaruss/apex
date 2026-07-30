@@ -3,8 +3,23 @@
 // High-fidelity PDF generation by OVERLAYING our data onto the official
 // NAVPERS 1610/2 (FITREP, REV 05-2025) blank.
 //
-// Maps Officer-specific trait layout (8 traits including Tactical Performance)
-// and omits Block 47 (Retention).
+// Maps the Officer trait layout — the SEVEN traits printed at Blocks 33-39, five on
+// page 1 and two on page 2 — and omits Block 47 (Retention).
+//
+// ponytail: ONLY the trait grid below (GRADE_COLS_P1/P2 and both `traitCy` maps) has
+// been measured against public/fitrepBlank.pdf. Every other coordinate in `C` is
+// inherited and UNVERIFIED — before this file was corrected, its coordinate block was
+// byte-identical to lib/chiefEvalOverlay.ts across 77 lines, which is impossible for two
+// different NAVPERS forms: it was copied, never measured. Rendering a fully populated
+// report shows the consequences (identity row over its own labels, comments over the
+// Block 41 header, promotion-recommendation X in the wrong column, trait average printed
+// inside Block 39's descriptor instead of the "Member Trait Average" field, signature
+// dates below Block 47). 1610/2 also numbers its non-trait blocks differently from the
+// EVAL this was copied from — comments are Block 41, not 43; Block 44 is the Reporting
+// Senior Address, not Qualifications. Upgrade path: re-measure the remaining fields the
+// same way the grid was (300 dpi raster scan for the box/rule positions), and decide how
+// values should sit over the placeholders the blank pre-prints ("0.00" in the trait
+// average fields, an "X" in Block 42 NOB) before writing on top of them.
 //
 
 import {
@@ -59,9 +74,18 @@ function recIndex(r?: string): number | null {
   return i >= 0 ? i : null;
 }
 
+// Trait-grid geometry below is MEASURED from public/fitrepBlank.pdf, not carried over
+// from the EVAL/CHIEFEVAL template — 1610/2 has its own grid and the inherited numbers
+// missed every checkbox on the form (see tests/unit/fitrepTraitTable.test.ts).
+//
+// Method: render the blank at 300 dpi greyscale and locate the checkbox borders — the
+// six boxes per row are 14.4 pt squares whose right edge sits on each grade column's
+// rule; row centres come from the checkbox band, which is also where the row's NOB
+// label prints. Both are re-derivable from the form at any time.
 const C = {
-  GRADE_COLS_P1: [80.6, 209.5, 245.5, 381.6, 418.3, 555.8],
-  GRADE_COLS_P2: [80.6, 209.5, 245.5, 383.0, 418.3, 555.8],
+  // [NOB, 1.0, 2.0, 3.0, 4.0, 5.0] checkbox centres.
+  GRADE_COLS_P1: [95.5, 224.4, 260.4, 396.5, 433.2, 570.7],
+  GRADE_COLS_P2: [94.6, 223.4, 259.4, 396.2, 432.2, 569.8],
 
   p1: {
     name_x: 23.5,
@@ -125,12 +149,13 @@ const C = {
     counselor_width: 145.0,
     counselBaseline: 400.0,
 
+    // Blocks 33-37 (page 1 of the trait grid).
     traitCy: {
-      knowledge: 339.8,
-      work: 271.8,
-      eo: 204.8,
-      bearing: 136.8,
-      accomplishment: 68.8,
+      knowledge: 392.75, // 33 PROFESSIONAL EXPERTISE
+      eo: 309.25, // 34 COMMAND OR ORGANIZATIONAL CLIMATE
+      bearing: 224.3, // 35 MILITARY BEARING/CHARACTER
+      teamwork: 140.05, // 36 TEAMWORK
+      accomplishment: 56.5, // 37 MISSION ACCOMPLISHMENT AND INITIATIVE
     } as Record<string, number>,
   },
 
@@ -141,10 +166,10 @@ const C = {
     dodid_x: 452.0,
     identityBaseline: 755.3,
 
+    // Blocks 38-39 (page 2 of the trait grid).
     traitCy: {
-      teamwork: 663.8,
-      leadership: 594.8,
-      tactical_performance: 525.8, // Officer 8th trait
+      leadership: 609.5, // 38 LEADERSHIP
+      tactical_performance: 513.7, // 39 TACTICAL PERFORMANCE (warfare qualified only)
     } as Record<string, number>,
 
     traitAvg_x: 528.0,
@@ -363,15 +388,15 @@ export async function generateFitrepOverlayPdf(
   text(page1, formatNavpersDate(bv.date_counseled), p1.dateCounseled_x, p1.counselBaseline);
   text(page1, up(bv.counselor), p1.counselor_x, p1.counselBaseline, 12, courier, p1.counselor_width);
 
-  // Officer Trait grades 33-37 on page 1
+  // Officer trait grades, Blocks 33-37, on page 1
   const p1Trait = (key: string, grade?: string) => {
     const gi = gradeIndex(grade);
     if (gi != null && p1.traitCy[key] != null) mark(page1, C.GRADE_COLS_P1[gi], p1.traitCy[key]);
   };
   p1Trait("knowledge", tg.knowledge);
-  p1Trait("work", tg.work);
   p1Trait("eo", tg.eo);
   p1Trait("bearing", tg.bearing);
+  p1Trait("teamwork", tg.teamwork);
   p1Trait("accomplishment", tg.accomplishment);
 
   // ───────────────── PAGE 2 ─────────────────
@@ -380,7 +405,6 @@ export async function generateFitrepOverlayPdf(
     const gi = gradeIndex(grade);
     if (gi != null && p2.traitCy[key] != null) mark(page2, C.GRADE_COLS_P2[gi], p2.traitCy[key]);
   };
-  p2Trait("teamwork", tg.teamwork);
   p2Trait("leadership", tg.leadership);
   p2Trait("tactical_performance", tg.tactical_performance);
 

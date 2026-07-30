@@ -322,8 +322,8 @@
   },
   "trait_grades.knowledge": {
     "title": "Professional Knowledge",
-    "block": "Block 33",
-    "excerpt": "Professional Knowledge (Block 33): Assess mastery of rating, specialty, or job. Measures technical/professional expertise and its application to solve problems.",
+    "block": "Block 33 (EVAL / FITREP)",
+    "excerpt": "Professional Knowledge (EVAL Block 33) / Professional Expertise (FITREP Block 33): Assess mastery of rating, specialty, or job. Measures technical/professional expertise and its application to solve problems.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
@@ -331,8 +331,8 @@
   },
   "trait_grades.work": {
     "title": "Quality of Work",
-    "block": "Block 34",
-    "excerpt": "Quality of Work (Block 34): Measure of quality, neatness, and accuracy of completed work. Assess supervision needs and error rates.",
+    "block": "Block 34 (EVAL only — not a FITREP trait)",
+    "excerpt": "Quality of Work (EVAL Block 34 — NAVPERS 1610/2 has no such trait): Measure of quality, neatness, and accuracy of completed work. Assess supervision needs and error rates.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
@@ -340,8 +340,8 @@
   },
   "trait_grades.eo": {
     "title": "Command Climate / Equal Opportunity",
-    "block": "Block 35",
-    "excerpt": "Command or Organizational Climate/Equal Opportunity (Block 35): In reports on COs, executive officers, CMDCMs, department heads, division officers, CPOs, and leading petty officers who are responsible for officer and enlisted personnel, comment on efforts by the member and quality of results in fostering a command and workplace environment conducive to growth and development of personnel. Transparency, sensitivity, and responsiveness to concerns are hallmarks of superior performance in this area. Consider member's contribution to personnel advancement, increased educational opportunities, overall career development, and results of retention excellence award programs.",
+    "block": "Block 35 (EVAL) · Block 34 (FITREP)",
+    "excerpt": "Command or Organizational Climate/Equal Opportunity (EVAL Block 35, FITREP Block 34): In reports on COs, executive officers, CMDCMs, department heads, division officers, CPOs, and leading petty officers who are responsible for officer and enlisted personnel, comment on efforts by the member and quality of results in fostering a command and workplace environment conducive to growth and development of personnel. Transparency, sensitivity, and responsiveness to concerns are hallmarks of superior performance in this area. Consider member's contribution to personnel advancement, increased educational opportunities, overall career development, and results of retention excellence award programs.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative.",
@@ -350,8 +350,8 @@
   },
   "trait_grades.bearing": {
     "title": "Military Bearing / Character",
-    "block": "Block 36",
-    "excerpt": "Military Bearing and Character (Block 36): Strict adherence of every member to the highest personal and professional standards of conduct is paramount in assessing military bearing and character. This performance trait also encompasses standards of physical appearance, fitness, and readiness. To merit high marks, a member must meet and model the highest standards of professionalism in demeanor, deportment, and interaction with, and treatment of, superiors, peers, and subordinates.",
+    "block": "Block 36 (EVAL) · Block 35 (FITREP)",
+    "excerpt": "Military Bearing and Character (EVAL Block 36, FITREP Block 35): Strict adherence of every member to the highest personal and professional standards of conduct is paramount in assessing military bearing and character. This performance trait also encompasses standards of physical appearance, fitness, and readiness. To merit high marks, a member must meet and model the highest standards of professionalism in demeanor, deportment, and interaction with, and treatment of, superiors, peers, and subordinates.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
@@ -359,8 +359,8 @@
   },
   "trait_grades.accomplishment": {
     "title": "Personal Job Accomplishment / Initiative",
-    "block": "Block 37",
-    "excerpt": "Personal Job Accomplishment / Initiative (Block 37): Measure of drive, resourcefulness, quantity of work, and performance under pressure.",
+    "block": "Block 37 (EVAL / FITREP)",
+    "excerpt": "Personal Job Accomplishment / Initiative (EVAL Block 37) / Mission Accomplishment and Initiative (FITREP Block 37): Measure of drive, resourcefulness, quantity of work, and performance under pressure.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
@@ -368,8 +368,8 @@
   },
   "trait_grades.teamwork": {
     "title": "Teamwork",
-    "block": "Block 38",
-    "excerpt": "Teamwork (Block 38): Cooperation and support of others, fostering synergy, and building collaboration across sections.",
+    "block": "Block 38 (EVAL / CHIEFEVAL) · Block 36 (FITREP)",
+    "excerpt": "Teamwork (EVAL/CHIEFEVAL Block 38, FITREP Block 36): Cooperation and support of others, fostering synergy, and building collaboration across sections.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."
@@ -377,8 +377,8 @@
   },
   "trait_grades.leadership": {
     "title": "Leadership",
-    "block": "Block 39",
-    "excerpt": "Leadership (Block 39): Organizing, motivating, and developing others. Inspirational leadership and subordinate development.",
+    "block": "Block 39 (EVAL / CHIEFEVAL) · Block 38 (FITREP)",
+    "excerpt": "Leadership (EVAL/CHIEFEVAL Block 39, FITREP Block 38): Organizing, motivating, and developing others. Inspirational leadership and subordinate development.",
     "rules": [
       "Select a grade from 1.0 to 5.0, or select NOB (Not Observed).",
       "Any 1.0 or 5.0 grade requires supporting comments in Block 43 narrative."

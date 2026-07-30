@@ -42,7 +42,8 @@ export const NAVFIT_TRAIT_MAP: Record<
     { block: 38, key: "deckplate_leadership", column: "TEAM" },
     { block: 39, key: "team_effectiveness", column: "MIL" },
   ],
-  // Excludes the legacy `work` → 34 alias in fitrepTraitBlockMap — block 34 is `eo`.
+  // Block 34 is `eo` (COMMAND OR ORGANIZATIONAL CLIMATE). 1610/2 has no Quality of
+  // Work trait, so QUAL stays NULL; TAC carries Block 39 Tactical Performance.
   FITREP: [
     { block: 33, key: "knowledge", column: "PROF" },
     { block: 34, key: "eo", column: "EO" },

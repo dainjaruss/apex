@@ -18,19 +18,6 @@ interface Block33to39TraitsProps {
   showSummaryGroupAverage?: boolean;
 }
 
-const TRAIT_KEYS = [
-  { key: "knowledge", label: "Professional Knowledge (33)" },
-  { key: "work", label: "Quality of Work (34)" },
-  { key: "eo", label: "Command Climate / Equal Opportunity (35)" },
-  { key: "bearing", label: "Military Bearing / Character (36)" },
-  {
-    key: "accomplishment",
-    label: "Personal Job Accomplishment / Initiative (37)",
-  },
-  { key: "teamwork", label: "Teamwork (38)" },
-  { key: "leadership", label: "Leadership (39)" },
-] as const;
-
 const GRADE_VALUES = ["1.0", "2.0", "3.0", "4.0", "5.0", "NOB"] as const;
 
 export default function Block33to39Traits({
@@ -76,7 +63,28 @@ export default function Block33to39Traits({
       ];
     }
 
-    const base: Array<{ key: string; label: string }> = [
+    // Blocks 33–39 as printed on NAVPERS 1610/2 (REV 05-2025) — seven traits, no
+    // Quality of Work (that is an EVAL trait), Tactical Performance at Block 39.
+    if (isFitrep) {
+      return [
+        { key: "knowledge", label: "Professional Expertise (33)" },
+        { key: "eo", label: "Command or Organizational Climate (34)" },
+        { key: "bearing", label: "Military Bearing / Character (35)" },
+        { key: "teamwork", label: "Teamwork (36)" },
+        {
+          key: "accomplishment",
+          label: "Mission Accomplishment and Initiative (37)",
+        },
+        { key: "leadership", label: "Leadership (38)" },
+        {
+          key: "tactical_performance",
+          label: "Tactical Performance (39) — warfare qualified officers only",
+        },
+      ];
+    }
+
+    // NAVPERS 1616/26 (EVAL).
+    return [
       { key: "knowledge", label: "Professional Knowledge (33)" },
       { key: "work", label: "Quality of Work (34)" },
       { key: "eo", label: "Command Climate / Equal Opportunity (35)" },
@@ -88,13 +96,6 @@ export default function Block33to39Traits({
       { key: "teamwork", label: "Teamwork (38)" },
       { key: "leadership", label: "Leadership (39)" },
     ];
-    if (isFitrep) {
-      base.push({
-        key: "tactical_performance",
-        label: "Tactical Performance (Officer 8th Trait)",
-      });
-    }
-    return base;
   }, [isFitrep, isChiefEval]);
 
   // Only the grades the rater has actually set. Per EVALMAN an untouched trait is blank
@@ -144,7 +145,7 @@ export default function Block33to39Traits({
             className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
             aria-hidden
           />
-          Trait Performance Ratings (Blocks 33 - 39{isFitrep ? " + Officer 8th Trait" : ""})
+          Trait Performance Ratings (Blocks 33 - 39)
         </h2>
         <div className="mt-2 sm:mt-0 flex flex-wrap items-center gap-2">
           <div
