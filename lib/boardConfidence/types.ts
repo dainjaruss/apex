@@ -84,6 +84,30 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
   // applies_to_paygrades sits entirely at E7+ while the member targets E7+.
   // Emphasized items count ×board_emphasis_multiplier inside their category.
   board_emphasis?: boolean;
+  // v2 readiness layer (ADDITIVE — never read by any scoring arithmetic).
+  // ladr_milestones.item, so the plan can name the milestone instead of
+  // emitting `ratio_qual_warfare: 0`. Optional: older persisted RubricInputs
+  // snapshots in board_analyses.input predate it.
+  item?: string;
+  // ladr_milestones.detail.typical_months / .blocked_unless (jsonb, no
+  // migration). Absent typical_months means "APEX does not know how long this
+  // takes" — the readiness layer says so rather than guessing a duration.
+  typical_months?: number | null;
+  blocked_unless?: string | null;
+}
+
+/**
+ * v2: one unmet LaDR row, with its identity intact. `marginal_points` is a TRUE
+ * recompute of the development factor's own 0–100 score with this single row
+ * flipped to met+verified — it is FACTOR-LOCAL, not composite points. Composite
+ * worth comes from bandDeltas(), which re-scores the whole rubric per candidate.
+ */
+export interface LadrUnmet {
+  milestone_id: string;
+  item: string;                        // "" when the caller did not thread milestone text
+  category: LadrCategory;
+  marginal_points: number;
+  board_emphasis: boolean;
 }
 
 export type PreceptFlag =
@@ -128,6 +152,13 @@ export interface RubricResult {
   // break as disqualifying. Advisory only; the score is NOT forced to 0.
   continuityGap: boolean;
   continuityAdvisory: string | null;
+  // v2 (ADDITIVE): scoreLadr already iterates every row and knows exactly which
+  // are unmet; it used to discard that and emit only per-category ratios.
+  // FactorResult.detail cannot hold an array, so the list rides on the result.
+  // Optional so hand-built RubricResult literals (narrative fixtures, persisted
+  // board_analyses rows written before v2) still typecheck; scoreBoardConfidence
+  // always populates it.
+  ladrUnmet?: LadrUnmet[];
 }
 
 // v1.5: operator-tunable rubric parameters (board_rubric_config table; the
