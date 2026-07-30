@@ -82,6 +82,35 @@ export const LADR_CATEGORY_WEIGHTS: Record<LadrCategory, number> = {
   pme_recommended: 3, skill_training_recommended: 2,
   career_milestone: 0, billet_recommended: 0,   // informational only — never scored
 };
+
+/**
+ * v1.5 board emphasis: an explicitly flagged row (parser/seed), the
+ * "Considerations for advancement" category, or a milestone that exists only
+ * at E7+ while the member is targeting E7+.
+ *
+ * Lives here, not in service.ts, because LadrChecklist.tsx badges the same
+ * rows: two copies of this predicate would drift and the UI would then claim
+ * an emphasis the engine does not score. service.ts assembles the scoring
+ * input from it; the checklist renders the badge from it.
+ */
+export function isBoardEmphasis(
+  m: {
+    category: string;
+    applies_to_paygrades: number[];
+    detail?: Record<string, unknown> | null;
+  },
+  targetPaygrade: number | null,
+): boolean {
+  return (
+    m.detail?.board_emphasis === true ||
+    m.category === "advancement_consideration" ||
+    (targetPaygrade != null &&
+      targetPaygrade >= 7 &&
+      m.applies_to_paygrades.length > 0 && // Math.min() of [] is Infinity
+      Math.min(...m.applies_to_paygrades) >= 7)
+  );
+}
+
 export const CONTINUITY_WINDOW_DAYS = 1826;    // 60 months
 export const CONTINUITY_GRACE_DAYS = 365;
 export const CONTINUITY_GAP_DAYS_DEFAULT = 90;
