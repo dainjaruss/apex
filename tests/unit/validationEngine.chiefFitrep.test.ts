@@ -233,3 +233,71 @@ describe("FITREP validation (NAVPERS 1610/2)", () => {
     );
   });
 });
+// ─────────────────────────────────────────────────────────────────────────────
+// FITREP Block 45 — the "three or more 2.0s" bar counts TRAITS (form blocks),
+// not trait-map keys. The FITREP map has eight keys for seven blocks: the legacy
+// `work` key and `eo` both address Block 34. Counting keys let one physical trait
+// be tallied — and named — twice, turning a compliant two-2.0 FITREP into a hard
+// rejection. Instruction basis, Encl (2), ch. 1, para 1-2, p. 1-16: "A Promotable
+// promotion recommendation allows up to two traits … to be assessed as
+// Progressing (2.0) and still maintain an … promotion recommendation of
+// Promotable."
+// Blocks 34 (Climate/EO) and 35 (Bearing/Character) are separately gated at a
+// single 2.0 by the Zod refinement, so these cases use the ungated traits.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("FITREP Block 45 — 2.0 count is per block, not per trait key", () => {
+  const fitrepWith = (t: Record<string, string>, rec: string): Evaluation =>
+    ({
+      ...mockFitrep,
+      promotion_recommendation: rec,
+      trait_grades: { ...mockFitrep.trait_grades, ...t },
+      comments: "SUBSTANTIATED: SPECIFIC VERIFIABLE PERFORMANCE SHORTFALLS NOTED.",
+    }) as Evaluation;
+
+  const barIssue = (r: ReturnType<typeof runFullValidation>) =>
+    r.errors.find(
+      (e) =>
+        e.field === "promotion_recommendation" &&
+        /bar a promotion recommendation of Promotable or higher/i.test(e.message),
+    );
+
+  it("passes Promotable with two genuine 2.0s — the instruction's explicit allowance", () => {
+    const res = runFullValidation(
+      fitrepWith({ knowledge: "2.0", teamwork: "2.0" }, "Promotable"),
+    );
+    expect(barIssue(res)).toBeUndefined();
+    expect(res.errors).toHaveLength(0);
+  });
+
+  it("still bars Promotable with three genuine 2.0s, naming each block once", () => {
+    const res = runFullValidation(
+      fitrepWith(
+        { knowledge: "2.0", teamwork: "2.0", accomplishment: "2.0" },
+        "Promotable",
+      ),
+    );
+    const issue = barIssue(res);
+    expect(issue).toBeDefined();
+    expect(issue!.block).toBe(45);
+    expect(issue!.message).toContain("3 trait grades of 2.0");
+    // Blocks 33 (knowledge), 36 (teamwork), 37 (accomplishment) — each exactly once.
+    for (const b of ["Block 33", "Block 36", "Block 37"])
+      expect(issue!.message.split(b).length - 1, b).toBe(1);
+    expect(res.success).toBe(false);
+  });
+
+  it("counts `work` and `eo` as the ONE Block 34 they both map to", () => {
+    // Two blocks at 2.0 (34 and 36) written through three keys. Block 34 is gated
+    // separately, so other errors fire — but the count-based bar must not.
+    const res = runFullValidation(
+      fitrepWith({ work: "2.0", eo: "2.0", teamwork: "2.0" }, "Promotable"),
+    );
+    expect(barIssue(res)).toBeUndefined();
+    // The Block 43 substantiation ask shares the count and must not double-name it.
+    const subst = [...res.errors, ...res.warnings].find(
+      (e) => e.block === 43 && /substantiate/i.test(e.message),
+    );
+    expect(subst?.message).not.toContain("three or more 2.0 marks");
+    expect((subst?.message.split("Block 34").length ?? 1) - 1).toBe(1);
+  });
+});

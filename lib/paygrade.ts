@@ -50,6 +50,23 @@ export function paygradeOf(raw?: string | null): string | null {
   const token = s.match(/\b([EWO])-?([1-9])\b/);
   if (token) return `${token[1]}-${token[2]}`;
 
+  // 2b) Warrant officer grade abbreviations. The instruction's standard spellings (Encl (2),
+  //     ch. 1, para 1-2, "BLOCK 2 GRADE/RATE" p. 1-1 and "BLOCK 23 GRADE" p. 1-10) are
+  //     CWO5, CWO4, CWO3, CWO2, WO1 — W-1 is WO1, never CWO1. The registration list writes
+  //     WO2–WO5 instead, and a Reporting Senior types the CWO form free-hand, so accept both.
+  //     MUST precede the rating-suffix rules below, which would otherwise read the trailing
+  //     digit as a petty-officer paygrade: "CWO2" -> E-5, "WO1"/"CWO1" -> E-6 — false 60% and
+  //     60% forced-distribution caps on bands the instruction lists as "No limit".
+  //
+  //     Matched against a whitespace-stripped copy, and O/0 are interchangeable: Block 23
+  //     forbids the spaced form, but summary_groups.grade_rate is free text, and "CWO 3" /
+  //     "CW03" otherwise fall through to the rating-suffix rules and decode as E-4 — the
+  //     wrong forced-distribution band rather than an honest null.
+  //     Stays ANCHORED: AWO1 (Naval Aircrewman Operator, E-6) is a real rating and must not
+  //     match.
+  const warrant = s.replace(/\s+/g, "").match(/^C?W[O0]-?([1-5])$/);
+  if (warrant) return `W-${warrant[1]}`;
+
   // 3) Full enlisted rating abbreviations, decoded by their paygrade suffix.
   //    Chiefs: ...CM = E-9 (Master), ...CS = E-8 (Senior), ...C = E-7 (Chief).
   if (/^[A-Z]+CM$/.test(s)) return "E-9";

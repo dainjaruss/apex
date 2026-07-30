@@ -2,7 +2,67 @@
 
 ## NAVPERS 1616/26 Enlisted Evaluation Rules Mapping
 
-This document provides mapping, policy details, and reference citations for every Navy guideline validated by the APEX Evaluation Engine. All rules are based on **BUPERSINST 1610.10H (EVALMAN)**.
+This document provides mapping, policy details, and reference citations for every Navy guideline validated by the APEX Evaluation Engine. Most rules are based on **BUPERSINST 1610.10H (EVALMAN)**; advancement and selection-board rules are **BUPERSINST 1430.16** — see [§0.3](#03-when-143016-governs-not-161010h).
+
+---
+
+## 0. Citation conventions and sources of record
+
+### 0.1 How to cite the EVALMAN — and a correction
+
+Earlier revisions of this file cited block rules as *"Chapter 1, Section 1-45"*, *"Section 1-33"*, and so on. **Those paragraph numbers do not exist.** The number after the dash was the NAVPERS **block** number, not a paragraph number.
+
+The block instructions live in **Enclosure (2), chapter 1**, which contains exactly four paragraphs:
+
+> `1-1. Purpose.` · `1-2. Instructions for Specific Blocks.` · `1-3. Preparing the Summary Letter.` · `1-4. Submission/Mailing Procedures.`
+
+Every per-block rule sits under **para 1-2**, under a heading naming the block (e.g. `EVAL BLOCK 45 / [FITREP/CHIEFEVAL] BLOCK 48`), on Enclosure (2) pages `1-1` through `1-22`. Note also that *chapter 1 of the basic instruction* is titled "BASIC GUIDE FOR COMPLETING, PROCESSING, AND MAILING REPORTS" — it is not a block-instruction chapter in its own right.
+
+**Correct form:** `BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "EVAL BLOCK <n>", p. 1-<pp>`.
+
+All citations below have been rewritten to that form. Where a page number is given it was read off the extracted text layer of the instruction PDF.
+
+### 0.2 Source editions of record
+
+| Document | Edition | Note |
+|---|---|---|
+| BUPERSINST 1610.10H (EVALMAN) | **CH-2, 26 May 2026** | Current. Fetched from MyNavyHR 2026-07-29. |
+| Bundled copy `my_tools/BUPERSINST 1610.10.pdf` | **CH-1, 16 Dec 2025** | ⚠️ **One change transmittal behind.** |
+| BUPERSINST 1430.16 (Advancement Manual) | 1430.16H, 21 Jan 2026 | Governs advancement + the selection board. |
+
+⚠️ **The bundled PDF is stale.** It carries Change Transmittal 1 (16 Dec 2025); the current instruction is **CH-2, 26 May 2026**. Re-download before treating the bundled file as the citation of record.
+
+**What CH-2 actually changed.** CH-2's transmittal reads *"Revised enclosure 2, page 3-1 through 3-2a and 3-6 through 3-7a"* — i.e. **chapter 3 (Regular Reports) only**.
+
+<details>
+<summary>How this was verified (re-run this rather than trusting the claim)</summary>
+
+Fetched 2026-07-29 with the app's own client — `undici` plus a browser `User-Agent`, as in `lib/boardConfidence/preceptFetch.ts`. **`curl` with a User-Agent alone gets a 403 from `mynavyhr.navy.mil`; the shipped fetch path gets a 200.** Source: `https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10.pdf` — **174 pp., ModDate 1 Jun 2026, sha256 `5e71ca59…dc9058`**. That hash is a *timestamp of what was posted that day*, not a check: MyNavyHR re-posts the file (a previous fetch on the same day returned 173 pp., ModDate 27 May 2026), so a mismatch means "re-posted", not "tampered".
+
+Comparison method: `pdftotext -layout` on both copies, split into pages, keyed by each page's own printed `<page> Enclosure (n)` footer, whitespace-normalized, compared page-for-page. 154 pages carry a matching label in both.
+
+- **Substantive differences are confined to Encl (2) ch. 3** — pages `3-1`, `3-2`, `3-6`, `3-7`, plus `3-2a` and `3-7a` which exist only in CH-2. Exactly what the transmittal says.
+- Eleven other pages differ **only by OCR noise** — both files are Adobe Paper Capture scans, so e.g. p. 1-16 renders the block heading `[FITREP/CHIEFEVAL]` as `IFITREP/CHIEFEVALI` in the bundled copy and drops it in the live one. Same underlying text, different scan.
+- So **"byte-identical" is the wrong word** and was wrong before: the two PDFs differ in page count, page size, and OCR output. The accurate claim is *textually identical outside Encl (2) ch. 3*.
+</details>
+
+Consequences:
+
+- Every citation in this file (Encl (1) para 13a, Encl (2) ch. 1 block rules, ch. 13 comments guidance, Tables 1-2/1-3/1-4) is textually identical in CH-1 and CH-2, so the bundled PDF remains accurate *for these rules*.
+- Anything touching **report continuity, periodic-report requirements, or Regular-report periods** must use CH-2, not the bundled copy.
+
+### 0.3 When 1430.16 governs, not 1610.10H
+
+APEX cites 1610.10H throughout, but 1610.10H governs only **how a report is written**. It does **not** govern advancement or the selection board. Cite **BUPERSINST 1430.16** for:
+
+| Topic | Instruction |
+|---|---|
+| Advancement eligibility, exam cycles, PMA computation | 1430.16, ch. 2–3 (PMA conversion table: para 308) |
+| **Selection-board mechanics, what the board reads** | **1430.16, ch. 11** |
+| Recording/priority of advancement recommendations | 1430.16 |
+| Writing the report, trait grades, forced distribution, summary groups | 1610.10H |
+
+The Block 45 → PMA conversion (Early Promote 4.0, Must Promote 3.8, Promotable 3.6, Progressing 3.4, Significant Problems 2.0) is **1430.16 para 308**, not 1610.10H. So is the rule that a Block 43 RSCA differing from NSIPS must yield to the **NSIPS ESR value** (1430.16 para 308 note 1).
 
 ---
 
@@ -11,53 +71,53 @@ This document provides mapping, policy details, and reference citations for ever
 ### Block 1: Member Name
 
 - **Rule:** Name must not be blank and must be formatted exactly as `LAST, FIRST MI` (spaces and suffixes allowed, no double commas).
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-1 (Instructions for Block 1).
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 1 NAME", p. 1-1.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.member_name` regex validation).
 
 ### Block 2: Grade/Rate
 
 - **Rule:** Grade/Rate must be provided, must match the rating worn on the report ending date, and must contain only letters and numbers (no special characters or spaces).
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-2 (Instructions for Block 2).
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 2 GRADE/RATE", p. 1-1 — "Enter the grade or rate the Service member is actually wearing on the ending date of the report."
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.grade_rate` regex validation).
 
 ### Block 4: DoD ID / SSN
 
 - **Rule:** DoD ID must be exactly 10 digits. APEX restricts records to synthetic/test data and strictly prohibits PII (SSNs).
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-4.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 4", p. 1-2. (The 10-digit DoD ID in lieu of SSN is APEX's own PII policy, not an instruction requirement.)
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.dod_id` regex validation).
 
 ### Block 5: Duty/Competitive Status
 
 - **Rule:** Duty Status is required and must match one of the standard Navy designations: T`, `TAR`, `INACT`, or `AT/ADOS`.
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-5.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 5 DUTY STATUS", p. 1-2. Block 5 is also a **summary-group discriminator** — Table 1-4: "For enlisted, group ACT and TAR together, group INACT, AT/ADOS separately."
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.duty_status` min length check).
 
 ### Block 6: UIC
 
 - **Rule:** UIC must be exactly 5 alphanumeric characters.
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-6.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 6 UIC", p. 1-2.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.uic` length restriction).
 
 ### Block 8: Promotion Status
 
 - **Rule:** Status must be one of: `Regular`, `Frocked`, `Selected`, or `Spot`.
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-8.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 8 PROMOTION STATUS", p. 1-3.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.promotion_status` min length check).
 
 ---
 
 ## 2. Chronological & Context Rules (Block 14 - 32)
 
-### Block 14/15: Period of Report
+### Blocks 14-15: Period of Report
 
 - **Rule:** Period To (`period_to`) must not fall before Period From (`period_from`). Date fields must follow the ISO-8601 (`YYYY-MM-DD`) format locally.
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-14/15.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCKS 14-15 PERIOD OF REPORT", p. 1-4. (ISO-8601 storage is an APEX convention; the form prints YYMMMDD.)
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.superRefine` bounds evaluation).
 
 ### Block 30: Date Counseled
 
 - **Rule:** Date Counseled must follow the official Navy date format `YYMMMDD` (e.g. `25JAN15`) or match standard counseling exceptions (`NOT REQ`, `NOT PERF`).
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-30.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 30 DATE COUNSELED", p. 1-13.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.superRefine` regex testing).
 
 ---
@@ -67,26 +127,33 @@ This document provides mapping, policy details, and reference citations for ever
 ### Block 33 - 39: Trait Performance Ratings
 
 - **Rule:** Each of the 7 performance traits must contain a rating of `1.0`, `2.0`, `3.0`, `4.0`, `5.0`, or `NOB` (Not Observed).
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-33.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCKS 33-39 PERFORMANCE TRAITS", pp. 1-13 to 1-15.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.trait_grades` enum enforcement).
 
 ### Block 40: Individual Trait Average
 
 - **Rule:** The Individual Trait Average is dynamically calculated as the sum of all numeric trait grades divided by the number of graded traits. Trait ratings marked as `NOB` are excluded from the calculation.
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-40.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "EVAL BLOCK 40 INDIVIDUAL TRAIT AVERAGE", p. 1-15.
 - **Code Enforcement:** `components/blocks/Block33to39Traits/Block33to39Traits.tsx` (Dynamic compute helper).
 
 ### Block 45: Promotion Recommendation Gating Rules
 
 The Navy enforces strict policy restrictions on promotion recommendations based on individual trait performance:
 
-1.  **Rule (Trait Grade 1.0):** A grade of `1.0` in _any_ performance trait limits the final promotion recommendation to `Progressing` or `Significant Problems` (bars Promotable, Must Promote, or Early Promote).
-2.  **Rule (Trait Grade 2.0):** A grade of `2.0` in _any_ performance trait limits the final promotion recommendation to `Promotable` or lower (bars Must Promote or Early Promote).
-3.  **Rule (Command Climate / EO):** A grade of `2.0` or lower in _Command Climate/EO_ (Block 35) or _Military Bearing/Character_ (Block 36) limits the final promotion recommendation to `Progressing` or `Significant Problems`.
-4.  **Rule (EO Minimum 3.0):** The _Command Climate/EO_ grade must be `3.0` or higher to receive a recommendation of `Promotable`, `Must Promote`, or `Early Promote`.
+The controlling paragraph, quoted verbatim so it can be checked:
 
-- **Citation:** BUPERSINST 1610.10H, Chapter 1, Section 1-45 & EVALMAN Chapter 13.
-- **Code Enforcement:** `types/navpers.ts` (`EvalSchema.superRefine` conditional assertions).
+> "A Promotable promotion recommendation allows **up to two traits, excluding Character or Equal Opportunity** to be assessed as Progressing (2.0) and still maintain an overall evaluation and promotion recommendation of Promotable. This means a member who receives one or two 2.0 trait grades cannot receive a promotion recommendation higher than Promotable. Command or Organizational Climate and Equal Opportunity (FITREP/EVAL) and Accountability (CHIEFEVAL) must be evaluated as **3.0 or higher** to maintain eligibility for advancement and receive a recommendation of Promotable. A recommendation of **Must Promote or Early Promote may not be assigned with any trait assessed as 2.0**. A **Promotable or higher recommendation may not be assigned with any trait graded 1.0**."
+
+1.  **Rule (Trait Grade 1.0):** A grade of `1.0` in _any_ performance trait limits the final promotion recommendation to `Progressing` or `Significant Problems` (bars Promotable, Must Promote, or Early Promote).
+2.  **Rule (Trait Grade 2.0 — cap):** One or two `2.0` grades cap the recommendation at `Promotable` (bar Must Promote and Early Promote).
+3.  **Rule (Three or more 2.0s — bar).** ⚠️ *Previously missing from this document and from the code.* "Up to two traits … and still maintain … Promotable" means a **third** `2.0` bars `Promotable` outright, leaving only `Progressing` or `Significant Problems`. The p. 1-16 quote above is the whole basis, and is sufficient on its own.
+4.  **Rule (Command Climate / EO and Character — single-mark bar):** A grade of `2.0` or lower in _Command Climate/EO_ or in _Military Bearing/**Character**_ limits the recommendation to `Progressing` or `Significant Problems`. This is the "excluding Character or Equal Opportunity" carve-out in rule 3: those two traits are barred at **one** 2.0, not three. Blocks are form-specific — EVAL: EO 35 / Character 36; FITREP: EO 34 / Character 35; CHIEFEVAL: **Accountability 37** (there is no separately-named EO trait on the CHIEFEVAL).
+5.  **Rule (EO Minimum 3.0):** The _Command Climate/EO_ grade (CHIEFEVAL: _Accountability_) must be `3.0` or higher to receive a recommendation of `Promotable`, `Must Promote`, or `Early Promote`.
+
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "EVAL BLOCK 45 / [FITREP/CHIEFEVAL] BLOCK 48", pp. 1-16 to 1-17.
+  - ⚠️ **Do not cite Encl (2) para 6-3 (p. 6-1) for rule 3.** It uses the same "three 2.0 trait grades" wording, but scoped to *"An Observed report with an 'NOB' promotion recommendation"* — a case rule 3 excludes. `lib/validationEngine.ts` says the same.
+  - ⚠️ The previous citation, *"Chapter 1, Section 1-45 & EVALMAN Chapter 13"*, was wrong on both halves: **there is no paragraph 1-45** (see [§0.1](#01-how-to-cite-the-evalman--and-a-correction)), and chapter 13 is "Guidance for Comments" — it carries no promotion-recommendation gate.
+- **Code Enforcement:** rules 1, 2, 4, 5 in `types/navpers.ts` (`refinePromotionRecommendation`); rule 3 in `lib/validationEngine.ts` (rule 12).
 
 ---
 
@@ -98,7 +165,15 @@ The Navy enforces strict policy restrictions on promotion recommendations based 
   - **10-Pitch:** Max 90 characters per line (CPL).
   - **12-Pitch:** Max 84 characters per line (CPL).
   - Continuation sheets are not accepted.
-- **Citation:** BUPERSINST 1610.10H, Chapter 13.
+- **Provenance — read this before citing the numbers.** The three figures have two different sources, and only one of them is the instruction:
+
+  | Element | Source | Status |
+  |---|---|---|
+  | The 10-pitch / 12-pitch concept | **BUPERSINST 1610.10H, Encl (2), para 13-2a(1)**, p. 13-1, verbatim: *"NAVFIT98A reports with 10- or 12-pitch will still be accepted."* | ✅ Verified in the instruction |
+  | No continuation sheets | **Encl (1), para 13a "Basic 'Do's and Don'ts.'"**, p. 9, verbatim: *"Continuation sheets and enclosures are not allowed, except…"* (the exceptions are member statements, flag endorsements, civilian/foreign letter reports, letter-extensions, and classified letter-supplements). Encl (2) states the same rule in **different wording** at para **13-2b(1)**, p. 13-2: *"Continuation sheets will not be accepted. Limit comments to the space on the form."* | ✅ Verified in the instruction |
+  | **18 lines · 90 CPL · 84 CPL** | ⚠️ **APEX's own measured constraint.** Derived from the rendered official 1616/26 box and NAVFIT98A's 10/12-pitch capacity — see `docs/milestone/01-pdf-sections-a-and-b.md` ("Comment-box dimensions not published … Measured the rendered official 1616/26 box"). | ❌ **Not in the instruction** |
+
+  ⚠️ The previous citation attributed all three numbers to "Chapter 13". **They appear nowhere in the 171-page instruction** — targeted greps for `18 lines`, `90`/`84 characters`, `characters per line`, and `Courier` return a single hit, the pitch sentence quoted above. **The constraint is sound and must not be removed** — it is what makes the rendered PDF match the printed form — but it is an APEX measurement, not doctrine. Do not present it to a user as an instruction requirement.
 - **Code Enforcement:** `lib/commentFit.ts` (Monospace text wrapper and limit check).
 
 ---
@@ -144,12 +219,33 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 
 ### Officer FITREP (NAVPERS 1610/2, Paygrade W2–O6)
 
-- **Trait keys:** Seven enlisted-style traits plus **`tactical_performance`** (8 total). Block map follows 1610/2 REV 05-2025: EO/climate substantiation references **Block 34** (`fitrepTraitBlockMap.eo = 34`).
+- **Trait blocks: the FITREP has SEVEN, not eight.** ⚠️ This document previously said "Seven enlisted-style traits plus `tactical_performance` (**8 total**)". **That is wrong.** NAVPERS 1610/2 REV 05-2025 prints seven trait blocks, 33–39, and their labels are *not* the EVAL's:
+
+  | Blk | FITREP (1610/2) | EVAL (1616/26) — for contrast |
+  |---|---|---|
+  | 33 | PROFESSIONAL EXPERTISE | PROFESSIONAL KNOWLEDGE |
+  | 34 | **COMMAND OR ORGANIZATIONAL CLIMATE** | QUALITY OF WORK |
+  | 35 | MILITARY BEARING/CHARACTER | **COMMAND OR ORGANIZATIONAL CLIMATE** |
+  | 36 | TEAMWORK | MILITARY BEARING/CHARACTER |
+  | 37 | MISSION ACCOMPLISHMENT | PERSONAL JOB ACCOMPLISHMENT/INITIATIVE |
+  | 38 | LEADERSHIP | TEAMWORK |
+  | 39 | TACTICAL PERFORMANCE | LEADERSHIP |
+
+  `tactical_performance` is **Block 39**, the seventh trait — not an "8th trait" bolted onto the EVAL's seven. The block map in `lib/validationEngine.ts` (`fitrepTraitBlockMap`) has the seven block numbers right.
+
+  🔴 **Known open defect — APEX still carries the 8-trait assumption in code.** `FITREP_TRAIT_KEYS` (`types/navpers.ts`) lists **eight** keys because it keeps a legacy `work` key alongside `eo`, and `fitrepTraitBlockMap` maps **both to Block 34**. Consequences, none of them fixed here:
+  - `components/blocks/Block33to39Traits/Block33to39Traits.tsx` renders **8** trait inputs for a FITREP, labelled with the **EVAL's** trait names and block numbers, plus "Tactical Performance (Officer 8th Trait)".
+  - `computeTraitAverage` (`lib/traitAverage.ts`) therefore divides an officer's Block 40 trait average by **8**, double-counting Block 34.
+  - `validationEngine.ts` rule 11 demands a grade for the phantom `work` trait on every FITREP.
+  - `lib/fitrepOverlay.ts:147` comments `tactical_performance` as the "Officer 8th trait".
+
+  Fixing this spans `types/navpers.ts`, `lib/traitAverage.ts`, `lib/traitStandards.ts`, `lib/fitrepOverlay.ts`, `lib/navfit98/constants.ts` and the trait component, so it is tracked here rather than patched piecemeal. **Until it is fixed, APEX's officer FITREP trait average is not the form's trait average.**
+- **EO/climate block:** substantiation references **Block 34** (`fitrepTraitBlockMap.eo = 34`).
 - **Block 3 designator:** Required **four-digit** officer designator (`FitrepSchema` / `refineOfficerDesignator`). Empty designator does not produce an enlisted-style warning.
 - **Promotion gates:** EO (**Block 34** label in messages) and Bearing/Character (**Block 35**) both gate Promotable-or-higher, matching Chapter 9 policy (`refinePromotionRecommendation` with `bearingKey: "bearing"`).
 - **Retention (Block 47):** Omitted (same as CHIEFEVAL).
 - **Block 43 substantiation (1610/2 footnote):** 1.0 marks, **three or more** 2.0 marks, and any **2.0 in Block 34** (climate/EO) — same pattern as EVAL but with officer block numbers in messages.
-- **Narrative limits:** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit` (all report types).
+- **Narrative limits:** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit` (all report types) — APEX-measured, see [§4 provenance](#block-43-comments-on-performance).
 - **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
 
 ### UI behavior (parity with EVAL)
@@ -158,4 +254,58 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 - `EvaluationForm` shows errors only on touched+blurred fields until Save/Verify (`revealAllErrors`).
 - Summary group attach preserves `report_type` (no longer forced to `EVAL`).
 - `ValidationResultsModal` groups issues by block category with BUPERSINST 1610.10H subtitle.
+
+---
+
+## 6. Summary Groups & Forced Distribution (Blocks 45–46)
+
+### 6.1 Summary-group membership — Table 1-4 (enlisted), Table 1-3 (officer)
+
+⚠️ **Table 1-3 is the OFFICER table (W-1 through O-6); Table 1-4 is the ENLISTED table (E-1 through E-9).** Code and docs previously cited 1-3 for the enlisted NOB-exclusion rule; that was wrong. Both tables carry the same NOB sentence, so the rule was right and the citation was not.
+
+Enlisted reports group together only when **all** of these match (Table 1-4, p. 1-22):
+
+| Blk | Label | Remark (verbatim) |
+|---|---|---|
+| 2 | Rate | "Group by current paygrade, regardless of rating." |
+| **5** | **Duty/Competitive Status** | **"For enlisted, group ACT and TAR together, group INACT, AT/ADOS separately."** |
+| 6 | UIC | RSs with several UICs may group together; else Block 6 matches the RS's primary UIC in Block 26 |
+| 8 | Promotion Status | "Group by promotion status." |
+| 15 | To | "Group by ending date of report." |
+| 17-18 | Type of Report | "Group by type of report." |
+| **21** | **Billet** | **"Group by entry in this block."** |
+| 22 | Reporting Senior | "Group by reporting senior." |
+| 45EV / 48CE | Promotion Recommendation | "Must have Observed promotion recommendation. **Do not include NOB promotion recommendations in a summary group.**" |
+
+Officers (Table 1-3, p. 1-19) additionally group by **Block 3 designator** (competitive-designator category) and group **strictly by the Block 5 box marked** — *"Active, TAR, and INACT officers are separated in different summary groups by the entry in block 5"* — i.e. **no ACT/TAR merge for officers.**
+
+- **Code Enforcement:** `lib/summaryGroupEligibility.ts` (`isEvalEligibleForSummaryGroup`, `dutyStatusBucket`).
+- ⚠️ **Blocks 5, 6 and 21 are enforced only when the summary GROUP carries the value, and `public.summary_groups` has a column for none of the three.** Migration 002 defines `name, reporting_senior_id, period_to, grade_rate, promotion_status, command_employment, report_type, status` — no `uic`, `duty_status` or `billet_subcategory`. Until a migration adds them and the create-group form collects them, those three discriminators never fire against live data. Block 3 designator is not modelled at all.
+
+### 6.2 Forced distribution — Table 1-2
+
+Encl (2), ch. 1, para 1-2, p. 1-17, verbatim:
+
+> "**Early Promote** (all paygrades except non-LDO O-1 and O-2…). – **Twenty percent** of each summary group (rounded up to nearest whole number)."
+>
+> "**Early Promote and Must Promote Combined** (percent of summary group, rounded up to nearest whole number): E1-E4 – No limit · E5-E6 – 60% · E7-E9 – 50% · W1-W2 – No limit · W3-W5 – 50% · LDO O1-O2 – No limit · O3 – 60% · O4 – 50% · O5-O6 – 40%"
+
+| Band | EP cap | EP+MP combined cap |
+|---|---|---|
+| E1–E4 | 20% | **No limit** |
+| E5–E6 | 20% | **60%** |
+| **E7–E9** | 20% | **50%** |
+| W1–W2 | 20% | **No limit** |
+| W3–W5 | 20% | **50%** |
+| LDO O1–O2 | 20% | **No limit** |
+| O3 | 20% | **60%** |
+| O4 | 20% | **50%** |
+| O5–O6 | 20% | **40%** |
+
+- `EP max = ceil(0.20 · N)`; `MP max = ceil(cap · N) − ceil(0.20 · N)`; `N` = observed (non-NOB) group size. This reproduces all 30 rows of Table 1-2 — asserted row-by-row in `tests/unit/forcedDistribution.test.ts`.
+- **Note 1 (p. 1-18), the one genuine special case:** *"All summary groups of two can receive one Early Promote and Must Promote."* At `N=2` the 50% and 40% tiers otherwise yield a combined max of 1.
+- **Note 2's** Must-Promote declines at N=6/16/26 in the 50% tier need no special case; they fall out of the arithmetic.
+- **Promotable is never capped.** The p. 1-17 "Upper Limits" section quoted above sets ceilings on *Early Promote* and on *Early Promote + Must Promote Combined* only — Promotable appears in neither, for any band. (Do **not** cite Table 1-2's "No Limit" cell for this: that column is headed `Promotable / O1-O2 (ALL EXCEPT LDO)`, so the cell is the non-LDO O-1/O-2 entry, not a general statement.)
+- **Not modelled, and this gap fails OPEN:** the LDO / non-LDO O-1/O-2 split. Non-LDO O-1/O-2 *"are prohibited from receiving a promotion recommendation higher than Promotable"* (p. 1-16, note 2) — Table 1-2 accordingly lists them under the Promotable column only and omits them from the Early Promote column header (`E1-E9 / LDO O1-O2 / W1-W5 / O3-O6`). Distinguishing them needs the Block 3 designator, which `checkForcedDistribution` is not given, so O-1/O-2 are treated as the LDO case: **a non-LDO ENS/LTJG summary group is handed `earlyPromoteMax = ceil(0.2N)` and is reported compliant while taking Early Promote and Must Promote marks the instruction prohibits outright.** A deliberate false negative — guessing the designator would produce false rejections — that closes only when the caller passes Block 3 down.
+- **Code Enforcement:** `lib/forcedDistribution.ts` (`COMBINED_CAP_BY_PAYGRADE`, `checkForcedDistribution`).
 

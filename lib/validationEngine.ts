@@ -338,12 +338,20 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //     leave traits blank, so the rule does not apply.
   const grades = (evalData.trait_grades || {}) as Record<string, string>;
   const traitKeys = Object.keys(activeTraitMap) as string[];
-  const onesBlocks = traitKeys
-    .filter((k) => grades[k] === "1.0")
-    .map((k) => `Block ${activeTraitMap[k]}`);
-  const twoBlocks = traitKeys
-    .filter((k) => grades[k] === "2.0")
-    .map((k) => `Block ${activeTraitMap[k]}`);
+  // The instruction counts TRAITS, and a trait is a block on the form — so count distinct
+  // blocks, not map keys. The FITREP map has eight keys for seven blocks (the legacy `work`
+  // key and `eo` both address Block 34), which would otherwise let one physical trait be
+  // tallied twice and named twice in the message.
+  const blocksGraded = (grade: string) =>
+    Array.from(
+      new Set(
+        traitKeys
+          .filter((k) => grades[k] === grade)
+          .map((k) => `Block ${activeTraitMap[k]}`),
+      ),
+    );
+  const onesBlocks = blocksGraded("1.0");
+  const twoBlocks = blocksGraded("2.0");
   const twoCount = twoBlocks.length;
 
   const substReasons: string[] = [];
@@ -415,6 +423,43 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
           severity: "error",
         });
       }
+    });
+  }
+
+  // 12. Three or more 2.0 trait grades bar Promotable outright.
+  //     BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, p. 1-16 ("EVAL BLOCK 45 /
+  //     [FITREP/CHIEFEVAL] BLOCK 48"), verbatim:
+  //       "A Promotable promotion recommendation allows up to two traits, excluding Character
+  //        or Equal Opportunity to be assessed as Progressing (2.0) and still maintain an
+  //        overall evaluation and promotion recommendation of Promotable. This means a member
+  //        who receives one or two 2.0 trait grades cannot receive a promotion recommendation
+  //        higher than Promotable."
+  //     "Up to two" therefore means a THIRD 2.0 removes Promotable itself — the case the Zod
+  //     refinement (`refinePromotionRecommendation`) never covered: it caps at Promotable for
+  //     any 2.0 but never bars Promotable on count.
+  //     Every trait is counted, i.e. "excluding Character or Equal Opportunity" is read as
+  //     naming which traits the two-mark allowance covers, not as removing them from the tally.
+  //     The other reading gives the same verdict on every input, because a 2.0 in Character or
+  //     Climate/EO is already barred at ONE mark by the Zod gate — so nothing turns on it.
+  //     (Weak support, not proof: Encl (1), para 13a, p. 9 writes the threshold as a bare
+  //     "three 2.0 grades". That is a substantiation requirement rather than a promotion bar,
+  //     and it lists Character/Climate-EO separately, which arguably cuts the other way.)
+  //     (Not cited: Encl (2) para 6-3 uses the same "three 2.0 trait grades" wording but is
+  //     scoped to Observed reports carrying an NOB promotion recommendation — a case this
+  //     rule excludes via `!bv.not_observed`.)
+  //     Same threshold and same `twoCount` already used by the Block 43 substantiation rule.
+  if (
+    twoCount >= 3 &&
+    !bv.not_observed &&
+    ["Promotable", "Must Promote", "Early Promote"].includes(
+      evalData.promotion_recommendation,
+    )
+  ) {
+    errors.push({
+      field: "promotion_recommendation",
+      block: 45,
+      message: `${twoCount} trait grades of 2.0 (${twoBlocks.join(", ")}) bar a promotion recommendation of Promotable or higher — a Promotable recommendation allows at most two 2.0 trait grades (BUPERSINST 1610.10H, Encl (2), ch. 1, p. 1-16).`,
+      severity: "error",
     });
   }
 
