@@ -476,7 +476,35 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(num(f.continuity.detail.recordGapCount)).toBe(1);
     expect(r.continuityGap).toBe(true);
     expect(r.continuityAdvisory).toMatch(/reporting continuity/i);
-    expect(r.warnings.some((w) => /even a single day/i.test(w))).toBe(true);
+    expect(r.warnings.some((w) => /reporting continuity/i.test(w))).toBe(true);
+  });
+
+  // REGRESSION PIN — BUPERSINST 1610.10H para 17-6 says missing reports "do not
+  // disqualify a member before a selection board". APEX shipped the exact inversion
+  // ("even a single day ... enough to disqualify a candidate"). Never reintroduce it.
+  it("states the 17-6 rule, never the disqualification inversion", () => {
+    const advisory = r.continuityAdvisory ?? "";
+    expect(advisory).toMatch(/do NOT disqualify you before a selection board/i);
+    expect(advisory).toMatch(/1610\.10H para 17-6/);
+    expect(advisory).not.toMatch(/even a single day/i);
+    expect(advisory).not.toMatch(/enough to disqualify/i);
+    // it must name the remedy the instruction provides, at its real threshold
+    expect(advisory).toMatch(/E-5 or above within the past 5 years/i);
+    expect(advisory).toMatch(/PERS-32/);
+    expect(advisory).toMatch(/17-6a/);
+    expect(advisory).toMatch(/letter in lieu/i);
+    expect(advisory).toMatch(/17-6b/);
+    // ...and the CONDITIONS on each remedy. A Sailor who mails a bare copy without
+    // 17-6a's signed cover letter, or a letter that omits 17-6b's "why" and its
+    // blocks 1-19 / 22-26 data, gets the submission bounced. Naming the paragraph
+    // without its requirements fails the Sailor the same way withholding it did.
+    expect(advisory).toMatch(/all required signatures, initials and dates/i);
+    expect(advisory).toMatch(/signed cover letter/i);
+    expect(advisory).toMatch(/filed in your official record/i);
+    expect(advisory).toMatch(/explaining why it could not be obtained/i);
+    expect(advisory).toMatch(/blocks 1-19 and 22-26/i);
+    // the advisory is what gets pushed into warnings, verbatim
+    expect(r.warnings).toContain(advisory);
   });
 });
 
@@ -866,7 +894,7 @@ describe("v1.1 review fixes — robustness guards", () => {
     const without = run({ evals: [ev({})] });
     expect(withFuture.factors).toEqual(without.factors); // continuity included
     expect(withFuture.warnings).toContain(
-      "Excluded 1 reports dated after the board date.",
+      "Excluded 1 report dated after the board date.",
     );
   });
 
@@ -890,7 +918,7 @@ describe("v1.1 review fixes — robustness guards", () => {
     const r = run({ psr });
     expect(byKey(r).leadership.score).toBeCloseTo(20, 1); // dated NCM only
     expect(r.warnings).toContain(
-      "1 entries with missing dates were excluded from scoring — add dates in Record Entry.",
+      "1 entry with missing dates was excluded from scoring — add dates in Record Entry.",
     );
   });
 
@@ -951,7 +979,7 @@ describe("mutation kills — board-date boundary on the future-eval filter", () 
     expect(num(f.performance.detail.nObserved)).toBe(1);
     expect(num(f.continuity.detail.coveredDays)).toBeGreaterThan(0);
     expect(r.warnings).not.toContain(
-      "Excluded 1 reports dated after the board date.",
+      "Excluded 1 report dated after the board date.",
     );
   });
 
@@ -963,7 +991,7 @@ describe("mutation kills — board-date boundary on the future-eval filter", () 
     expect(f.performance.detail.no_data).toBe(true);
     expect(num(f.continuity.detail.coveredDays)).toBe(0);
     expect(r.warnings).toContain(
-      "Excluded 1 reports dated after the board date.",
+      "Excluded 1 report dated after the board date.",
     );
   });
 });
@@ -982,7 +1010,7 @@ describe("mutation kills — dateless tours and dateless PFA passes", () => {
     expect(num(l.detail.L1)).toBe(50); // only the dated leadership tour counts
     expect(num(l.detail.seaMonths72)).toBe(0); // the dateless sea tour adds nothing
     expect(r.warnings).toContain(
-      "1 entries with missing dates were excluded from scoring — add dates in Record Entry.",
+      "1 entry with missing dates was excluded from scoring — add dates in Record Entry.",
     );
   });
 

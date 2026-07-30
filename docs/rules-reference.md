@@ -123,12 +123,24 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 
 ### CHIEFEVAL (NAVPERS 1616/27, Paygrade E7–E9)
 
-- **Trait keys (Blocks 33–39):** `deckplate_leadership`, `professionalism`, `mission_accomplishment`, `human_development`, `eo_climate`, `teamwork`, `leadership` — see `CHIEFEVAL_TRAIT_KEYS` and `chiefEvalTraitBlockMap`.
-- **Promotion gates:** Same 1.0 / 2.0 / Must-Early caps as EVAL, but EO gate applies only to **`eo_climate` (Block 37)** — there is no separate Bearing trait on CHIEFEVAL (`ChiefEvalSchema` + `refinePromotionRecommendation`).
+- **Trait keys (Blocks 33–39),** transcribed from `public/chiefEvalBlank.pdf` (REV 05-2025) — form categories COMPETENCY 33–34, CHARACTER 35–37, CULTURE 38–39:
+
+  | Block | Trait | Key |
+  |---|---|---|
+  | 33 | Technical Mastery | `technical_mastery` |
+  | 34 | Institutional Expertise | `institutional_expertise` |
+  | 35 | Professionalism | `professionalism` |
+  | 36 | Integrity | `integrity` |
+  | 37 | **Accountability** (3.0 gate) | `accountability` |
+  | 38 | Deckplate Leadership | `deckplate_leadership` |
+  | 39 | Team Effectiveness | `team_effectiveness` |
+
+  See `CHIEFEVAL_TRAIT_KEYS` and `chiefEvalTraitBlockMap`. **The string "Equal Opportunity" appears nowhere on 1616/27** — that is the instruction's wording for the FITREP/EVAL trait, not a CHIEFEVAL trait name (navy-reference §3.1).
+- **Promotion gates:** Same 1.0 / 2.0 / Must-Early caps as EVAL, but the 3.0 advancement gate applies to **`accountability` (Block 37)** — 1610.10H Encl (2) ch. 1, p. 1-16: *"Command or Organizational Climate and Equal Opportunity (FITREP/EVAL) and **Accountability (CHIEFEVAL)** must be evaluated as 3.0 or higher…"*. There is no separate Bearing trait on CHIEFEVAL (`ChiefEvalSchema` + `refinePromotionRecommendation`).
 - **Retention (Block 47):** Omitted from schema, UI (`Block42Signatures`), and validation payload.
 - **Block 43 / 40 substantiation (1616/27 REV 05-2025 footnote):** **Every** 1.0 **and every** 2.0 in Blocks 33–39 must be substantiated in comments (stricter than enlisted EVAL). Implemented in `validationEngine.ts` rule 10.
 - **Inline BUPERS:** `lib/bupersGuidelines.json` includes `trait_grades.*` keys for all CPO traits; trait anchor panels use `TRAIT_STANDARDS_LOOKUP` in `lib/traitStandards.ts`.
-- **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
+- **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`, `tests/unit/navyDoctrinePins.test.ts` (pins the seven traits, their block numbers, and every consumer)
 
 ### Officer FITREP (NAVPERS 1610/2, Paygrade W2–O6)
 

@@ -24,7 +24,14 @@ export interface TraitStandard {
   block: number;
   title: string; // trait name as printed (e.g. "Professional Knowledge")
   definition: string; // the sub-caption printed under the trait name
-  anchors: Record<AnchorGrade, string[]>;
+  // NAVPERS 1616/26 (EVAL) and 1610/2 (FITREP) print 1.0 / 3.0 / 5.0 anchor
+  // columns per trait. NAVPERS 1616/27 (CHIEFEVAL) does NOT — see `standards`.
+  anchors?: Record<AnchorGrade, string[]>;
+  // NAVPERS 1616/27 prints ONE bullet list per trait and no per-grade anchor
+  // columns, so there is nothing on the form to populate `anchors` with. These
+  // are the printed bullets, verbatim. Never synthesize per-grade anchors for a
+  // form that does not print them.
+  standards?: string[];
 }
 
 // Column headers across the trait grid (1.0-5.0) plus NOB.
@@ -73,7 +80,11 @@ export function getSubstantiationNote(
 
 export const ANCHOR_GRADES: readonly AnchorGrade[] = ["1.0", "3.0", "5.0"];
 
-export const TRAIT_STANDARDS: Record<TraitKey, TraitStandard> = {
+// 1616/26 prints anchor columns for every trait, so `anchors` is required here.
+export const TRAIT_STANDARDS: Record<
+  TraitKey,
+  TraitStandard & { anchors: Record<AnchorGrade, string[]> }
+> = {
   knowledge: {
     block: 33,
     title: "Professional Knowledge",
@@ -251,58 +262,116 @@ export const TRAIT_STANDARDS: Record<TraitKey, TraitStandard> = {
   },
 };
 
+// NAVPERS 1616/27 (CHIEFEVAL, REV 05-2025) — "EVALUATION & COUNSELING RECORD (E7-E9)".
+//
+// SEVEN performance traits, Blocks 33-39, grouped on the form into three printed
+// categories: COMPETENCY (33-34), CHARACTER (35-37), CULTURE (38-39). Blocks 33-36
+// print on page 1, Blocks 37-39 on page 2.
+//
+// Transcribed block-by-block from the text layer of public/chiefEvalBlank.pdf
+// (`pdftotext -layout`), which is the blank form itself — not from the instruction
+// and not from memory. Cross-checked against docs/navy-reference.md §3.1, which
+// agrees on all seven labels and block numbers.
+//
+// The 3.0 advancement gate attaches to Block 37 = ACCOUNTABILITY (1610.10H Encl (2)
+// ch. 1, "FITREP-CHIEFEVAL BLOCK 48", p. 1-16; docs/navy-reference.md §3.2). There is
+// NO trait named "Equal Opportunity" or "Command Climate" on this form — the string
+// "EQUAL OPPORTUNITY" does not appear anywhere on 1616/27. That is the instruction's
+// wording for the FITREP/EVAL trait, not a CHIEFEVAL trait name.
+//
+// This form prints no 1.0/3.0/5.0 anchor columns, so these entries carry `standards`
+// (the printed bullets) and deliberately omit `anchors`.
 const CHIEFEVAL_TRAIT_STANDARDS: Record<string, TraitStandard> = {
-  deckplate_leadership: {
+  technical_mastery: {
     block: 33,
-    title: "Deckplate Leadership",
-    definition: "Visible leadership, mentorship, and deckplate impact on Sailors",
-    anchors: {
-      "1.0": ["Limited deckplate presence; minimal impact on Sailor development"],
-      "3.0": ["Visible leader; builds credible teams; honors and develops Sailors"],
-      "5.0": ["Exceptional deckplate leader; drives culture and measurable team success"],
-    },
+    title: "Technical Mastery",
+    definition: "Competency",
+    standards: [
+      "Technical expert in rating and community",
+      "Uses technical knowledge and experience to produce well trained teams able to execute the command mission with excellence",
+      "Applies knowledge, skills, and abilities to meet any mission.",
+    ],
+  },
+  institutional_expertise: {
+    block: 34,
+    title: "Institutional Expertise",
+    definition: "Competency",
+    standards: [
+      "Understands how unit mission supports the naval mission and the National Military Strategy",
+      "Recognizes when to engage to ensure mission success",
+      "Knows and teaches customs and traditions, understands naval history.",
+    ],
   },
   professionalism: {
-    block: 34,
-    title: "Professionalism (incl. PFA)",
-    definition: "Conduct, bearing, standards, and physical readiness",
-    anchors: {
-      "1.0": ["Conduct or readiness below standards"],
-      "3.0": ["Meets Navy standards for conduct, appearance, and PFA"],
-      "5.0": ["Role model for professionalism and physical readiness"],
-    },
-  },
-  mission_accomplishment: {
     block: 35,
-    title: "Mission Accomplishment",
-    definition: "Initiative, accountability, and mission-focused outcomes",
-    anchors: {
-      "1.0": ["Fails to meet mission expectations"],
-      "3.0": ["Reliable mission accomplishment and initiative"],
-      "5.0": ["Consistently exceeds mission goals with innovation"],
-    },
+    title: "Professionalism",
+    definition: "Character",
+    standards: [
+      "Promotes the attributes that define the Profession of Arms",
+      "Success measured by Sailors' achievements",
+      "Conduct in alignment with Core Values",
+      "Actively teaches, upholds, and enforces standards",
+      "Role model for GOAD",
+    ],
   },
-  human_development: {
+  integrity: {
     block: 36,
-    title: "Human Development",
-    definition: "Developing subordinates' professional and personal growth",
-    anchors: {
-      "1.0": ["Neglects development of others"],
-      "3.0": ["Actively supports Sailor growth and career development"],
-      "5.0": ["Inspires exceptional growth across the command"],
-    },
+    title: "Integrity",
+    definition: "Character",
+    standards: [
+      "Abides by an uncompromising code of integrity",
+      "Takes full responsibility for actions",
+      "Sets a positive tone and builds trust",
+    ],
   },
-  eo_climate: {
+  accountability: {
     block: 37,
-    title: "Equal Opportunity / Command Climate",
-    definition: "EO, climate, and inclusion — promotion gate trait on CHIEFEVAL",
-    anchors: {
-      "1.0": ["Actions harm command climate or EO goals"],
-      "3.0": ["Fosters positive climate; meets EO expectations"],
-      "5.0": ["Exemplary climate and EO leadership"],
-    },
+    title: "Accountability",
+    definition: "Character — 3.0 advancement gate trait on the CHIEFEVAL",
+    standards: [
+      "Mission-focused, accountable for outcomes",
+      "Learning mindset, providing command solutions",
+      "Holds self and peers accountable",
+      "Actively self-assesses and has a strong commitment to self correction.",
+    ],
+  },
+  deckplate_leadership: {
+    block: 38,
+    title: "Deckplate Leadership",
+    definition: "Culture",
+    standards: [
+      "Visible, sets the tone",
+      "Understands personnel programs and policies.",
+      "Builds credible combat teams",
+      "Honors and rewards team members",
+      "Drives Sailors to be better",
+    ],
+  },
+  team_effectiveness: {
+    block: 39,
+    title: "Team Effectiveness",
+    definition: "Culture",
+    standards: [
+      "Proactive leader invested in all Sailors",
+      "Anticipates problems, overcomes challenges, delivers best outcomes",
+      "Innovates at the lowest level possible.",
+      "Behavior and performance are key factors in the attainment of team successes, the personal development of all team members.",
+    ],
   },
 };
+
+/** Block order for the CHIEFEVAL trait grid — Blocks 33-39, page 1 then page 2. */
+export const CHIEFEVAL_TRAIT_ORDER = [
+  "technical_mastery",
+  "institutional_expertise",
+  "professionalism",
+  "integrity",
+  "accountability",
+  "deckplate_leadership",
+  "team_effectiveness",
+] as const;
+
+export { CHIEFEVAL_TRAIT_STANDARDS };
 
 const FITREP_EXTRA_STANDARDS: Record<string, TraitStandard> = {
   tactical_performance: {

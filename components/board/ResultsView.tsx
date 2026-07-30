@@ -52,8 +52,10 @@ const CAVEAT = (() => {
  * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
  * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
  * selection board, but missing reports can make the work of the board more
- * difficult." (Verified against the LIVE CH-2, ModDate 27 May 2026 — CH-2
- * revised Encl (2) chapter 3 only, so chapter 17 is unrevised and current.)
+ * difficult." (Verified against the LIVE CH-2, whose transmittal revises Encl (2)
+ * chapter 3 only, so chapter 17 is unrevised and current. The timestamped fetch
+ * record is in lib/boardConfidence/rubric.ts — MyNavyHR re-posts the file, so its
+ * page count and hash are a log entry, not a check.)
  *
  * Runs stored before that correction persisted the inverted claim into BOTH
  * `input.meta.continuity_advisory` AND `input.warnings` (rubric.ts pushes the
@@ -75,12 +77,15 @@ const CONTINUITY_ADVISORY =
   "undocumented performance, and the board evaluates the record with what is " +
   "available. At a minimum, try to recover any missing report covering " +
   "significant duty in the grades of E-5 or above within the past 5 years: " +
-  "send a signed copy of the original to PERS-32 (para 17-6a), or, if it " +
-  "cannot be obtained, submit a one-page letter in lieu of the report to " +
-  "PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular " +
-  "report continuity, and it may not evaluate your own performance or " +
-  "recommend you for promotion). Verify your reporting continuity on BOL and " +
-  "NSIPS.";
+  "send PERS-32 a copy of the original that displays all required signatures, " +
+  "initials and dates, together with a signed cover letter asking that the " +
+  "duplicate report be filed in your official record (para 17-6a); or, if the " +
+  "report cannot be obtained, send PERS-32 a one-page letter in lieu of the " +
+  "report explaining why it could not be obtained and supplying what would have " +
+  "appeared in blocks 1-19 and 22-26 (para 17-6b, Exhibit 17-4 — accepted only " +
+  "to fill a gap in Regular report continuity, and it may not evaluate your own " +
+  "performance or recommend you for promotion). Verify your reporting " +
+  "continuity on BOL and NSIPS.";
 
 const bandLabelFor = (vote: number) =>
   BANDS.find((b) => b.vote === vote)?.label ?? "";

@@ -8,7 +8,7 @@ Status: **APPROVED FOR BUILD** · Version 1.5 · 2026-07-18
 
 > **v1.5 (board emphasis, continuity advisory, tunable rubric, upload-driven records):** four normative changes.
 > **(1) LaDR board emphasis** — new `advancement_consideration` LaDR category (migration 004 check constraint extended) capturing the LaDR's "Considerations for advancement from E6 to E7 / E7 to E8 / E8 to E9" sections, where the board's stated selection emphasis lives. `parseLadr` extracts each numbered item from those sections (label `E{n} board: <first sentence>`, full text in `detail.notes`, `detail.board_emphasis = true`, `applies_to_paygrades` = the target grade). `LADR_CATEGORY_WEIGHTS.advancement_consideration = 30` — the heaviest category. Item assembly flags `board_emphasis` when `detail.board_emphasis` is set, the category is `advancement_consideration`, or the milestone exists only at E7+ while the member targets E7+; emphasized items count `×board_emphasis_multiplier` (default 2) inside their category in `scoreLadr`.
-> **(2) Continuity GRADED + disqualification advisory** (corrected — not a hard gate). Continuity remains a graded factor (an uncovered reporting run > `continuity_gap_days`, default 90, still costs −15 in the continuity factor; the §7.2 Example 3 stays pinned at 10.2). It is **never forced to 0** — this tool does not decide selection. When a GENUINE reporting break is detected (internal or trailing gap — the pre-first-report leading span is excluded, so a Sailor with a short but unbroken record is not flagged), `RubricResult.continuityGap`/`continuityAdvisory` fire a prominent, paygrade-agnostic advisory: a real selection board can treat ANY gap in the record — even a single day — as disqualifying. Advisory only; the score is unchanged.
+> **(2) Continuity GRADED + disqualification advisory** (corrected — not a hard gate). Continuity remains a graded factor (an uncovered reporting run > `continuity_gap_days`, default 90, still costs −15 in the continuity factor; the §7.2 Example 3 stays pinned at 10.2). It is **never forced to 0** — this tool does not decide selection. When a GENUINE reporting break is detected (internal or trailing gap — the pre-first-report leading span is excluded, so a Sailor with a short but unbroken record is not flagged), `RubricResult.continuityGap`/`continuityAdvisory` fire a prominent advisory stating what **BUPERSINST 1610.10H para 17-6** actually says: *"Missing FITREPs, CHIEFEVALs, or EVALs **do not disqualify** a member before a selection board, but missing reports can make the work of the board more difficult."* The advisory names the instruction's own threshold (significant duty at **E-5 or above within the past 5 years**) and its remedy (**17-6a** duplicate to PERS-32, or **17-6b** letter in lieu, Exhibit 17-4). Advisory only; the score is unchanged. *(Corrected: this previously told the Sailor a single day could disqualify them — the exact inversion of 17-6.)*
 > **(3) Tunable rubric** — `board_rubric_config` table (migration 007): factor `weights` (normalized to sum 100 at run time; defaults reproduce §7 exactly), `continuity_gap_days`, `board_emphasis_multiplier`. Select-only to authenticated; **writes are service-role/dashboard only** (profiles roles are self-asserted, so no in-app admin UI). `runBoardAnalysis` loads the single `active` row (defaults on absence/malformed values) and snapshots the exact config into `input.meta.rubric_config` — every stored run is reproducible under the config that scored it.
 > **(4) Upload-driven record entry** — uploads now feed the determination instead of being storage-only: `POST /api/board-confidence/record-extract` (multipart, same in-memory/no-persist invariants as brag-sheet extract) runs `suggestRecordFromText` heuristics (`lib/boardConfidence/recordExtract.ts`: award names → rubric levels, NEC code–title rows, degree tiers, PFA cycles) over a stored doc; the form's per-document "Extract to record" button merges deduped suggestions into the editable rows as `verified_in_ompf = false` — nothing is scored until the member reviews and saves.
 
@@ -53,8 +53,10 @@ verbatim in the `input.disclaimer` field of every `board_analyses` row.
 > a self-assessment aid. It is not affiliated with, endorsed by, or predictive of any
 > U.S. Navy selection board, Navy Personnel Command, or BUPERS process. Scores are
 > computed by a fixed, published rubric modeled on the officer-brief confidence vote
-> bands (100/75/50/25/0); enlisted (CPO) selection boards score records by rating
-> panel and vote slates, so this model is an approximation, not actual board
+> bands (100/75/50/25/0), which the Navy publishes for officer boards only; enlisted
+> (CPO) selection boards brief and vote each record individually within a rating
+> panel and scattergram the results, and no numeric vote scale is published for
+> enlisted boards — so this model is an approximation, not actual board
 > procedure. Only your official record (OMPF, PSR, and a Letter to the Board) exists
 > to a real board. Verify your record on BOL and NSIPS, and consult your command
 > career counselor, before any board.
@@ -64,7 +66,9 @@ verbatim in the `input.disclaimer` field of every `board_analyses` row.
 | Element | Status |
 |---|---|
 | Confidence voting 100/75/50/25/0, scattergram, crunch second review | **Verified** for officer statutory + LDO/CWO ISP boards (PERS-80 promotion brief) |
-| CPO boards: CAPT president, rating panels, "slates voted vice individual records" | **Verified** (PERS-803 brief) — per-record 0–100 vote is therefore a **modeled approximation** (hence the disclaimer) |
+| CPO boards: rating panels ("tanks"); records briefed and voted **individually**, then scattergrammed | **Verified** (PERS-803 brief, "Board Process": *"All records are then brought to tank for individual briefing and voting."*) — per-record 0–100 vote is a **modeled approximation** (hence the disclaimer) |
+| ~~"Slates voted vice individual records"~~ | ❌ **CORRECTED — this was never true.** It was marked *Verified (PERS-803)* against the very brief that says the opposite. "Slate" appears in **no** Navy source: zero hits in the PERS-803 brief, the FY-27 precept, and both FY-27 convening orders (navy-reference §1.3) |
+| ~~"CPO boards: CAPT president"~~ | ❌ **CORRECTED.** Board presidents are **RDML/RADM**; CAPT/CDR/CWO appear on rosters as "M" (member), never "P" (navy-reference §1.5) |
 | Board sees only OMPF FC 30–38 + PSR + LTB; live ESR/FLTMPS/ETJ/PRIMS invisible | **Verified** (NPC Selection Board Review page) — motivates `UNVERIFIED_MULT` |
 | PSR Part III per-eval rows: rec, ITA, summary-group breakdown, RSCA | **Verified** (NPC Personnel Records Review + LDO/CWO brief) |
 | "Trait average at or above summary group AND RSCA; consistent/improving; break out among peers" as the #1 factor | **Verified** (LDO/CWO brief "What the Board Considers") |
@@ -1107,9 +1111,11 @@ DETERMINISM/TESTABILITY: no randomness, no clock reads (T is an input), integer 
 
 Final 0-100 score maps to the board-style confidence vote (bands verified for
 officer statutory and LDO/CWO in-service procurement boards; PERS-803 CPO boards
-score by rating panel and vote slates, so this is explicitly labeled "modeled on the
-officer-brief confidence bands," not actual CPO-board math — the UI must carry this
-disclaimer):
+brief and vote each record individually within a rating panel, which groups several
+rating communities rather than one panel per rating, and scattergram the
+results, and publish no numeric vote scale, so this is explicitly labeled "modeled on
+the officer-brief confidence bands," not actual CPO-board math — the UI must carry
+this disclaimer):
 
 - Final ≥ 85.0 → vote 100 — "Clearly at the top": profile of records swept up in the tentative-select motion on the first pass.
 - 70.0 ≤ Final < 85.0 → vote 75 — "Competitive": strong record; selects when quota allows.

@@ -62,15 +62,21 @@ const traitBlockMap: Record<string, number> = {
   leadership: 39, // Leadership
 };
 
-// CPO trait block map — NAVPERS 1616/27 (CHIEFEVAL)
+// CPO trait block map — NAVPERS 1616/27 (CHIEFEVAL, REV 05-2025), transcribed from
+// public/chiefEvalBlank.pdf. See lib/traitStandards.ts / docs/navy-reference.md §3.1.
 const chiefEvalTraitBlockMap: Record<string, number> = {
-  deckplate_leadership: 33,
-  professionalism: 34,
-  mission_accomplishment: 35,
-  human_development: 36,
-  eo_climate: 37, // EO/Character gate for CHIEFEVAL
-  teamwork: 38,
-  leadership: 39,
+  technical_mastery: 33,
+  institutional_expertise: 34,
+  professionalism: 35,
+  integrity: 36,
+  // 1610.10H Encl (2) ch. 1, p. 1-16: "Command or Organizational Climate and Equal
+  // Opportunity (FITREP/EVAL) and Accountability (CHIEFEVAL) must be evaluated as
+  // 3.0 or higher to maintain eligibility for advancement and receive a
+  // recommendation of Promotable." On 1616/27 that gate is Block 37 ACCOUNTABILITY —
+  // there is no separately-named EO trait on the E7–E9 form (navy-reference §3.2).
+  accountability: 37,
+  deckplate_leadership: 38,
+  team_effectiveness: 39,
 };
 
 // Officer trait block map — NAVPERS 1610/2 (FITREP, REV 05-2025 layout)
@@ -341,7 +347,7 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   const twoCount = twoBlocks.length;
 
   const substReasons: string[] = [];
-  const eoKey = isChiefEval ? "eo_climate" : "eo";
+  const eoKey = isChiefEval ? "accountability" : "eo";
   const eoBlock = isChiefEval ? 37 : isFitrep ? 34 : 35;
 
   if (isChiefEval) {

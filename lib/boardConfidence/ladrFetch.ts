@@ -2,7 +2,8 @@
 //
 // On-demand LaDR ingestion from Navy COOL (v1.4 — ADDITIVE to the curated
 // scripts/seed-ladr.ts path, which stays the higher-fidelity source; spec
-// §10.4). Fetches https://www.cool.osd.mil/usn/LaDR/{rating}_e1_e9.pdf,
+// §10.4). Fetches https://www.cool.osd.mil/usn/LaDR/{rating}_e7.pdf (see
+// fetchLadrPdf for why not the combined _e1_e9 file),
 // extracts text in memory (never persisted), parses the cover version and a
 // CONSERVATIVE milestone set (every row flagged detail.source =
 // 'auto_extracted'), and stores a NEW versioned ladr_documents row — never
@@ -22,6 +23,40 @@ import type { LadrCategory } from "./types";
 const COOL_BASE = "https://www.cool.osd.mil/usn/LaDR";
 const BROWSER_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+/**
+ * Full browser-navigation header set, shared by both Navy fetchers so they cannot
+ * drift apart.
+ *
+ * `mynavyhr.navy.mil` sits behind AkamaiGHost, which rejects requests that do not
+ * look like a browser navigation. Measured 2026-07-29 against the live FY-27 precept
+ * PDF: `curl -A "<Chrome UA>"` returns **403** (511 bytes); adding this full set
+ * returns **200** (235,468 bytes, sha256 e01a9ec5…, matching the reference doc's
+ * provenance table). Dropping any single member of the set — including
+ * `Accept-Encoding` — puts it back to 403.
+ *
+ * NOTE: undici already gets 200 with User-Agent alone, because its TLS/HTTP
+ * fingerprint and default headers differ from curl's — the shipped fetchers are NOT
+ * currently failing. This set is sent explicitly so the 200 depends on our own
+ * request rather than on a transitive undici default that could change under us.
+ * undici still decompresses the response itself when Accept-Encoding is supplied,
+ * and the `%PDF-` magic check downstream would catch it if that ever stopped.
+ *
+ * See docs/navy-reference.md §0 (network reality).
+ */
+export const BROWSER_HEADERS: Readonly<Record<string, string>> = Object.freeze({
+  "User-Agent": BROWSER_UA,
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Upgrade-Insecure-Requests": "1",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+});
+
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 const MONTHS = [
@@ -72,15 +107,36 @@ async function agent(): Promise<Agent> {
 export async function fetchLadrPdf(rating: string): Promise<LadrFetchResult> {
   if (!isKnownRating(rating))
     return { status: "error", message: `Unknown rating "${rating}".` };
-  const sourceUrl = `${COOL_BASE}/${rating.toLowerCase()}_e1_e9.pdf`;
+  // Fetch the E7 LaDR, not the combined `_e1_e9` file.
+  //
+  // `_e1_e9.pdf` does not exist for every rating, and Navy COOL answers a missing PDF
+  // with **403, not 404**. Measured across all 82 APEX ratings on 2026-07-29:
+  // `_e1_e9.pdf` 403s for SEVENTEEN of them — AWF, AWO, AWR, AWS, AWV, EOD, LN, MU, ND,
+  // SB, SO (which publish `_e2_e9`/`_e3_e9`/`_e4_e9` instead) plus EMN, ETN, ETR, ITS,
+  // MMN, MMW. `_e7.pdf` returns 200 for 76 of the 82, covers every rating the first
+  // eleven were failing on, and avoids the ~185-page combined payload.
+  //
+  // Still unresolved (reported, not fixed): the six nuclear/submarine ratings have no
+  // `<rating>_e7.pdf`. EMN/ETN/MMN split by platform on COOL (`emn_ss_e7.pdf` /
+  // `emn_sw_e7.pdf`, plus MMN's `_elt_` variant) and APEX has no platform input to
+  // choose between them; ETR, ITS and MMW appear nowhere in COOL's index under any
+  // filename. Those six report "no LaDR at the published path" instead of a bare
+  // `HTTP 403` — worded as an observation, because a 403 is equally what a WAF rule
+  // or a datacenter-IP filter returns and APEX cannot tell the two apart.
+  //
+  // See docs/navy-reference.md §4.3-§4.4 (which states `_e7.pdf` exists for all
+  // prefixes — that is not correct; these six are the exceptions).
+  const sourceUrl = `${COOL_BASE}/${rating.toLowerCase()}_e7.pdf`;
   try {
     const { fetch: undiciFetch } = await import("undici");
     const res = await undiciFetch(sourceUrl, {
       dispatcher: await agent(),
-      headers: { "User-Agent": BROWSER_UA },
+      headers: { ...BROWSER_HEADERS },
       signal: AbortSignal.timeout(60_000),
     });
-    if (res.status === 404) return { status: "not_found" };
+    // COOL returns 403 for a PDF that is not published, so both codes mean "no LaDR
+    // at this path" — surfacing a raw "HTTP 403" told the user nothing actionable.
+    if (res.status === 404 || res.status === 403) return { status: "not_found" };
     if (!res.ok) return { status: "error", message: `HTTP ${res.status}` };
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length > MAX_PDF_BYTES)

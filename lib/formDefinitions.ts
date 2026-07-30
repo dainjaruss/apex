@@ -158,7 +158,8 @@ export const getChiefEvalSeed = () => {
     uic: "00000",
     ship_station: "",
     promotion_status: "Regular",
-    // CPO traits start ungraded — rater grades each (BUPERSINST 1610.10H Ch. 10).
+    // CPO traits start ungraded — rater grades each (BUPERSINST 1610.10H Encl (2)
+    // ch. 1, the block-by-block guide; ch. 10 is INACT Navy Reservist reports).
     trait_grades: {},
     comments: "",
     career_recommendations: ["", ""],

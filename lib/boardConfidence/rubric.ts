@@ -549,7 +549,9 @@ export function scoreBoardConfidence(
   const evals = inputs.evals.filter((e) => monthsBefore(e.period_to, T) >= 0);
   const futureCount = inputs.evals.length - evals.length;
   if (futureCount > 0)
-    warnings.push(`Excluded ${futureCount} reports dated after the board date.`);
+    warnings.push(
+      `Excluded ${futureCount} report${futureCount === 1 ? "" : "s"} dated after the board date.`,
+    );
 
   // v1.1 review fix: dateless awards/tours cannot be placed in any lookback
   // window — exclude them from scoring rather than let NaN comparisons decide.
@@ -570,7 +572,7 @@ export function scoreBoardConfidence(
   };
   if (dateless > 0)
     warnings.push(
-      `${dateless} entries with missing dates were excluded from scoring — add dates in Record Entry.`,
+      `${dateless} ${dateless === 1 ? "entry" : "entries"} with missing dates ${dateless === 1 ? "was" : "were"} excluded from scoring — add dates in Record Entry.`,
     );
 
   const perf = scorePerformance(evals, T);
@@ -632,14 +634,47 @@ export function scoreBoardConfidence(
   const final = round1HalfAway(clamp(raw - adverseAdjustment, 0, 100));
 
   // v1.5: continuity is GRADED (already reflected in the continuity factor),
-  // never a hard zero — this tool does not decide selection. But a detected
-  // reporting gap is surfaced as a prominent, paygrade-agnostic advisory,
-  // because a real selection board can treat ANY break in reporting continuity
-  // as disqualifying. This is advisory only; it does not alter the score.
+  // never a hard zero — this tool does not decide selection. A detected reporting
+  // gap raises an advisory that states the governing rule rather than inverting it.
+  //
+  // BUPERSINST 1610.10H para 17-6, verbatim: "Missing FITREPs, CHIEFEVALs, or EVALs
+  // do not disqualify a member before a selection board, but missing reports can
+  // make the work of the board more difficult. As a minimum, a member should attempt
+  // to obtain any missing report covering significant duty in the grades of E-5 or
+  // above within the past 5 years."
+  //
+  // Verified against the LIVE current revision, not the stale bundled copy in
+  // my_tools/: BUPERSINST 1610.10H CH-2 from MyNavyHR, para 17-6 at Encl (2) p. 17-2.
+  // CH-2's transmittal revises "enclosure 2, page 3-1 through 3-2a and 3-6 through
+  // 3-7a" — chapter 3 only — and p. 17-2 still carries the unrevised 30 Jul 2025
+  // footer, so chapter 17 is untouched by CH-2 and this citation is current.
+  //
+  // TIMESTAMP, NOT A CHECK — MyNavyHR re-posts this file and every byte-level
+  // identifier below rots. Do not treat a mismatch as evidence of anything.
+  //   fetched 2026-07-29: 173 pp., ModDate 27 May 2026, sha256 ec644362…
+  //   re-posted by 2026-07-30: 174 pp., ModDate  1 Jun 2026, sha256 5e71ca59…
+  // Chapter 17 is identical in both. The CH-2 transmittal itself is signed 26 May
+  // 2026 (an earlier note here said 27 May — that was the PDF ModDate, not the
+  // signature date).
+  //
+  // The FY-27 precept agrees from the board's side (App A 7.a): a gap is "a period of
+  // undocumented performance", and "if there is missing information in the record,
+  // board members shall evaluate the record with what is available" (App A 7).
+  //
+  // Both remedies carry requirements the earlier copy compressed away, and a Sailor
+  // who follows a compressed version gets the submission bounced:
+  //   17-6a  the copy must display ALL required signatures, initials and dates, AND
+  //          go in with a signed cover letter requesting the duplicate report be
+  //          filed in the official record. A bare copy is not a submission.
+  //   17-6b  the letter must say WHY the report could not be obtained and supply what
+  //          would have appeared in blocks 1-19 and 22-26. Accepted only to fill a gap
+  //          in REGULAR report continuity; may not evaluate the member's own
+  //          performance or carry a self-recommendation.
+  // See docs/navy-reference.md §3.7. Advisory only; it does not alter the score.
   const recordGapCount = Number(cont.detail.recordGapCount ?? 0);
   const continuityGap = recordGapCount > 0;
   const continuityAdvisory = continuityGap
-    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. A selection board can treat ANY gap in the record — even a single day — as enough to disqualify a candidate. Verify your reporting continuity on BOL and NSIPS and be prepared to explain any break.`
+    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of undocumented performance, and the board evaluates the record with what is available. At a minimum, try to recover any missing report covering significant duty in the grades of E-5 or above within the past 5 years: send PERS-32 a copy of the original that displays all required signatures, initials and dates, together with a signed cover letter asking that the duplicate report be filed in your official record (para 17-6a); or, if the report cannot be obtained, send PERS-32 a one-page letter in lieu of the report explaining why it could not be obtained and supplying what would have appeared in blocks 1-19 and 22-26 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular report continuity, and it may not evaluate your own performance or recommend you for promotion). Verify your reporting continuity on BOL and NSIPS.`
     : null;
   if (continuityAdvisory) warnings.push(continuityAdvisory);
 

@@ -201,13 +201,15 @@ APEX stores ISO `YYYY-MM-DD` strings (columns `period_from`/`period_to` are Post
 
 | Block | EVAL (APEX key → column) | CHIEFEVAL (APEX key → column) | FITREP (APEX key → column) |
 |---|---|---|---|
-| 33 | `knowledge` → `PROF` | `deckplate_leadership` → `LEAD` | `knowledge` → `PROF` |
-| 34 | `work` → `QUAL` | `professionalism` → `TAC` ⚠ | `eo` → `EO` |
-| 35 | `eo` → `EO` | `mission_accomplishment` → `PROF` ⚠ | `bearing` → `MIL` |
-| 36 | `bearing` → `MIL` | `human_development` → `MIS` ⚠ | `teamwork` → `TEAM` |
-| 37 | `accomplishment` → `PA` | `eo_climate` → `EO` | `accomplishment` → `MIS` |
-| 38 | `teamwork` → `TEAM` | `teamwork` → `TEAM` | `leadership` → `LEAD` |
-| 39 | `leadership` → `LEAD` | `leadership` → `MIL` ⚠ | `tactical_performance` → `TAC` |
+| 33 | `knowledge` → `PROF` | `technical_mastery` → `LEAD` | `knowledge` → `PROF` |
+| 34 | `work` → `QUAL` | `institutional_expertise` → `TAC` ⚠ | `eo` → `EO` |
+| 35 | `eo` → `EO` | `professionalism` → `PROF` ⚠ | `bearing` → `MIL` |
+| 36 | `bearing` → `MIL` | `integrity` → `MIS` ⚠ | `teamwork` → `TEAM` |
+| 37 | `accomplishment` → `PA` | `accountability` → `EO` | `accomplishment` → `MIS` |
+| 38 | `teamwork` → `TEAM` | `deckplate_leadership` → `TEAM` | `leadership` → `LEAD` |
+| 39 | `leadership` → `LEAD` | `team_effectiveness` → `MIL` ⚠ | `tactical_performance` → `TAC` |
+
+> The CHIEFEVAL **keys** are the real NAVPERS 1616/27 (REV 05-2025) traits, transcribed from `public/chiefEvalBlank.pdf`. The **block → column** pairings are unchanged and remain positional/unverified — see the ⚠ note above.
 | unused | `MIS`, `TAC` → NULL | `QUAL`, `PA` → NULL | `QUAL`, `PA` → NULL |
 
 ⚠ **CHIEFEVAL caveat**: the column-per-block map comes from navfit99-js's Chief form, whose trait *labels* (Deckplate Leadership, Institutional/Technical Expertise, Professionalism, Loyalty, Character, Active Communication, Sense of Heritage) are an older 1616/27 revision than APEX's trait set. The positional mapping (block 33 stored in `LEAD`, 34 in `TAC`, 35 in `PROF`, 36 in `MIS`, 37 in `EO`, 38 in `TEAM`, 39 in `MIL`) is the best available evidence but **must be verified against a real NAVFIT 98A v30+ Chief report before shipping** (Open Question 2). EVAL and FITREP maps carry no such caveat — FITREP's map aligns column semantics and APEX keys exactly.

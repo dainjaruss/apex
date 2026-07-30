@@ -18,15 +18,19 @@ export const TRAIT_KEYS = [
   "leadership",
 ] as const;
 
-// CPO trait keys — NAVPERS 1616/27 Block 33–39 labels per BUPERSINST 1610.10H Ch. 10.
+// CPO trait keys — NAVPERS 1616/27 (REV 05-2025) Blocks 33–39, in printed order,
+// transcribed from public/chiefEvalBlank.pdf. Form categories: COMPETENCY (33–34),
+// CHARACTER (35–37), CULTURE (38–39). The 3.0 advancement gate is Block 37
+// ACCOUNTABILITY — the CHIEFEVAL has no "Equal Opportunity" or "Command Climate"
+// trait. See lib/traitStandards.ts and docs/navy-reference.md §3.1–§3.2.
 export const CHIEFEVAL_TRAIT_KEYS = [
-  "deckplate_leadership",
-  "professionalism",
-  "mission_accomplishment",
-  "human_development",
-  "eo_climate",
-  "teamwork",
-  "leadership",
+  "technical_mastery", // 33
+  "institutional_expertise", // 34
+  "professionalism", // 35
+  "integrity", // 36
+  "accountability", // 37 — 3.0 gate
+  "deckplate_leadership", // 38
+  "team_effectiveness", // 39
 ] as const;
 
 // Officer trait keys — NAVPERS 1610/2 Block 33–39 + tactical_performance (officer-only).
@@ -536,7 +540,7 @@ export const EvalSchema = z
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ChiefEvalSchema — NAVPERS 1616/27 (E7–E9)
-// CPO-specific trait keys; EO gate on eo_climate (Block 37); no retention field.
+// CPO-specific trait keys; 3.0 gate on accountability (Block 37); no retention field.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ChiefEvalSchema = z
@@ -664,13 +668,13 @@ export const ChiefEvalSchema = z
         `Counselor must be ${COUNSELOR_MAX} characters or fewer to fit the form (Block 31)`,
       ),
     trait_grades: z.object({
-      deckplate_leadership: TRAIT_GRADE.optional(),
+      technical_mastery: TRAIT_GRADE.optional(),
+      institutional_expertise: TRAIT_GRADE.optional(),
       professionalism: TRAIT_GRADE.optional(),
-      mission_accomplishment: TRAIT_GRADE.optional(),
-      human_development: TRAIT_GRADE.optional(),
-      eo_climate: TRAIT_GRADE.optional(),
-      teamwork: TRAIT_GRADE.optional(),
-      leadership: TRAIT_GRADE.optional(),
+      integrity: TRAIT_GRADE.optional(),
+      accountability: TRAIT_GRADE.optional(),
+      deckplate_leadership: TRAIT_GRADE.optional(),
+      team_effectiveness: TRAIT_GRADE.optional(),
     }),
     comments: z
       .string()
@@ -702,8 +706,8 @@ export const ChiefEvalSchema = z
     refineReportingSeniorDesignator(data.reporting_senior_designator, ctx);
     refineDateCounseled(data.date_counseled, ctx);
     refinePromotionRecommendation(data, ctx, {
-      eoKey: "eo_climate",
-      eoBlockLabel: "Equal Opportunity / Command Climate (Block 37)",
+      eoKey: "accountability",
+      eoBlockLabel: "Accountability (Block 37)",
     });
   });
 

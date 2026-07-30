@@ -116,7 +116,8 @@ export interface BragLeadership {
   budget_managed?: string;              // feeds Block 43
   instructor_roles: BragBullet[];       // feeds Block 43 (instructor performance)
   mentoring: BragBullet[];              // counseling/mentoring given — feeds Block 43; substantiates
-                                        // CHIEFEVAL human_development / EVAL leadership traits
+                                        // CHIEFEVAL deckplate_leadership (Blk 38, "drives Sailors to be
+                                        // better") / EVAL leadership traits
   retention_efforts: BragBullet[];      // feeds Block 43; results inform Block 47 retention (EVAL only)
 }
 
