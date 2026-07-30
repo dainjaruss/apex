@@ -12,14 +12,19 @@
 //
 // THE HARD INVARIANT: the coach never generates or suggests a trait grade, and
 // never writes Block 45. It assesses the narrative against grades a human has
-// already set. Enforced in three places, not just the prompt:
-//   1. CoachOutputSchema has no grade or Block 45 field, and Zod's default
-//      strip semantics discard any the model emits (trait_grades, block_45,
-//      suggested_grade, promotion_recommendation) unread.
-//   2. suggestsGrade() deletes prose that recommends one — a schema cannot see
-//      "this reads like a 5.0" inside a rationale string.
-//   3. evidence is never model text: the model returns a SENTENCE INDEX and the
-//      server substitutes the Sailor's own sentence, so a quote cannot be
+// already set. What actually enforces that, stated precisely:
+//   1. STRUCTURE (absolute). CoachOutputSchema has no grade field and no Block
+//      45 field, and Zod's default strip semantics discard any the model emits
+//      — trait_grades, suggested_grade, block_45, promotion_recommendation —
+//      unread. This closes the FIELD form of both halves completely.
+//   2. PROSE (pattern-matched, not absolute). A schema cannot see "this reads
+//      like a 5.0" inside a rationale string, so
+//      suggestsGradeOrRecommendation() deletes free text that recommends a
+//      grade or a Block 45 category. It matches known phrasings over a prompt
+//      that refuses such requests; an unanticipated construction reaches the
+//      user. Do not describe this as a guarantee.
+//   3. EVIDENCE (absolute). The model returns a SENTENCE ID and the server
+//      substitutes the Sailor's own sentence, so a quotation cannot be
 //      fabricated.
 
 import { generateText, Output } from "ai";
@@ -31,7 +36,7 @@ import {
   getSubstantiationNote,
   TRAIT_STANDARDS_LOOKUP,
 } from "@/lib/traitStandards";
-import { runFullValidation } from "@/lib/validationEngine";
+import { getTraitMap, runFullValidation } from "@/lib/validationEngine";
 import type { Evaluation, ValidationIssue } from "@/types";
 
 // Same env vars as board-confidence and brag-sheet autofill (one AI config
@@ -70,7 +75,22 @@ export interface CoachPayloadTrait {
   definition: string;
   grade: string;
   grade_meaning: string;
-  anchors: Record<string, string[]>;
+  // EVAL (1616/26) and FITREP (1610/2) print per-grade anchor columns;
+  // CHIEFEVAL (1616/27) prints ONE bullet list per trait and no columns. Post
+  // #26 the standards table models that difference, so exactly one of these is
+  // present per trait. Emitting `anchors: std.anchors` unconditionally would
+  // have serialized `undefined` for every CHIEFEVAL trait — JSON.stringify
+  // drops the key — and silently handed the model a trait with no standards at
+  // all to judge against.
+  anchors?: Record<string, string[]>;
+  standards?: string[];
+}
+
+/** One addressable unit of the narrative. The `id` is explicit for a reason —
+ *  see splitSentences. */
+export interface CoachSentence {
+  id: number;
+  text: string;
 }
 
 export interface CoachPayload {
@@ -81,23 +101,35 @@ export interface CoachPayload {
     lines_used: number;
     fits: boolean;
   };
-  sentences: string[];
+  sentences: CoachSentence[];
   traits: CoachPayloadTrait[];
   issues: ValidationIssue[];
   substantiation_note: string;
 }
 
 /**
- * Sentence ids for the model to point at. Navy narratives are half prose and
+ * Split the narrative into addressable units. Navy narratives are half prose and
  * half bullet lines, so split on newlines first and only then on sentence
  * terminators — a bullet with no period is still one addressable unit.
+ *
+ * Each unit carries an EXPLICIT `id`. This used to be a bare string array whose
+ * position was the id, and the prompt said so ("the index is the id") — but
+ * nothing in the JSON said so, and across 31 live runs the model inferred
+ * 1-based ids about half the time: rationales cited `sentences.5` against a
+ * 5-sentence narrative where the valid ids are 0-4. Every such citation failed
+ * to resolve and applyCoachGate deleted the whole finding, so a Sailor could
+ * lose two of three traits with nothing on screen saying anything had been
+ * suppressed. Tellingly, the separate `evidence_sentence` INTEGER was correct
+ * (0-based) in the same responses — the model reads an explicit number reliably
+ * and guesses at an implicit one. So state the id.
  */
-export function splitSentences(text: string): string[] {
+export function splitSentences(text: string): CoachSentence[] {
   return text
     .split(/\r?\n+/)
     .flatMap((line) => line.split(/(?<=[.!?])\s+/))
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((text, id) => ({ id, text }));
 }
 
 /**
@@ -145,18 +177,26 @@ export function narrativeIssues(req: CoachRequest): ValidationIssue[] {
  */
 export function coachPayload(req: CoachRequest): CoachPayload {
   const fit = checkCommentFit(req.comments, req.pitch);
+  // Block numbers come from the report-type-aware map, never from the merged
+  // standards lookup: on FITREP that lookup reports Block 39 for BOTH
+  // `leadership` (really 38) and `tactical_performance`, which rendered two
+  // cards headed "39" on the same screen.
+  const blocks = getTraitMap(req.report_type);
   const traits: CoachPayloadTrait[] = [];
   for (const [key, grade] of Object.entries(req.trait_grades)) {
     const std = TRAIT_STANDARDS_LOOKUP[key];
     if (!std || !grade || grade === "NOB") continue;
+    // A trait with neither anchors nor standards has nothing to judge against;
+    // coaching it would be the model inventing the yardstick.
+    if (!std.anchors && !std.standards?.length) continue;
     traits.push({
       key,
-      block: std.block,
+      block: blocks[key] ?? std.block,
       title: std.title,
       definition: std.definition,
       grade,
       grade_meaning: GRADE_SCALE_NOTE[grade] ?? "",
-      anchors: std.anchors,
+      ...(std.anchors ? { anchors: std.anchors } : { standards: std.standards }),
     });
   }
   return {
@@ -209,9 +249,21 @@ export interface CoachFinding {
   suggestion: string | null;
 }
 
+/** A graded trait the run produced no finding for — because the model skipped it
+ *  or every candidate finding failed a gate. Reported so a suppressed trait is
+ *  visible instead of silently missing from the panel. */
+export interface UnassessedTrait {
+  trait: string;
+  block: number;
+  title: string;
+  grade: string;
+}
+
 export interface CoachResult {
   findings: CoachFinding[];
   notes: string[];
+  /** Every graded trait not covered by `findings`. */
+  unassessed: UnassessedTrait[];
   /** How many model items the gates removed — surfaced, never hidden. */
   dropped: number;
 }
@@ -227,10 +279,13 @@ export interface CoachResult {
 
 const TRAILING_CITATION_RE = /\s*\[([^\]]+)\]\s*\.?\s*$/;
 
-/** Every path a model may legitimately cite for this narrative. */
+/** Every path a model may legitimately cite for this narrative. Sentence paths
+ *  are built from the explicit `id` the payload carries, not from array
+ *  position — the two agree, and the point is that only one of them is a
+ *  contract the model can actually see. */
 export function citationPaths(payload: CoachPayload): Set<string> {
   const paths = new Set<string>(["budget", "substantiation_note"]);
-  payload.sentences.forEach((_, i) => paths.add(`sentences.${i}`));
+  for (const s of payload.sentences) paths.add(`sentences.${s.id}`);
   for (const t of payload.traits) paths.add(`traits.${t.key}`);
   payload.issues.forEach((_, i) => paths.add(`issues.${i}`));
   return paths;
@@ -249,11 +304,16 @@ function checkCitation(text: string, valid: Set<string>): string | null {
   return kept.length > 0 ? kept : null;
 }
 
-// ── Grade-advice guard (invariant enforcement #2) ────────────────────────────
+// ── Prose guard (invariant enforcement #2) ──────────────────────────────────
+// A BACKSTOP, not a proof. It matches the phrasings a model actually reaches
+// for; an unanticipated construction gets through, which is why the prompt
+// refuses these requests up front and why the claim is stated as
+// pattern-matching everywhere it appears.
+//
 // Narrow on purpose. "The 5.0 in Block 39 is not substantiated" is exactly the
 // finding this feature exists to produce, so mentioning a grade is fine and
-// only the recommending forms are removed. False negatives are recoverable
-// (a reviewer sees prose); false positives delete the useful output.
+// only the recommending forms are removed. False negatives are recoverable (a
+// human reads the prose); false positives delete the useful output.
 const GRADE_ADVICE_RES: RegExp[] = [
   /\bshould\s+(?:be|have been|receive|get)\b[^.]{0,40}\b(?:[1-5]\.0|NOB)\b/i,
   /\b(?:consider|recommend|recommending|suggest|suggesting)\b[^.]{0,40}\b(?:[1-5]\.0|NOB)\b/i,
@@ -263,9 +323,33 @@ const GRADE_ADVICE_RES: RegExp[] = [
   /\breads?\s+like\s+(?:a\s+)?(?:[1-5]\.0|NOB)\b/i,
 ];
 
-/** True when the text recommends, or nudges toward, a trait grade. */
-export function suggestsGrade(text: string): boolean {
-  return GRADE_ADVICE_RES.some((re) => re.test(text));
+// Block 45 is the other half of the invariant and had no prose guard at all —
+// only the schema, which can strip a `block_45` KEY but never sees a promotion
+// recommendation written into a rationale. The coach has no business in Block
+// 45 in any form, so any mention of the block is dropped outright, and the five
+// category names are dropped in recommending forms only (a Sailor's own "2.0
+// (Progressing)" mark must still be discussable).
+const BLOCK_45_RES: RegExp[] = [
+  /\bblocks?\s*4[56]\b/i,
+  /\bpromotion recommendation\b/i,
+  /\bpromote (?:ahead of peers|now)\b/i,
+  // The multi-word categories are never legitimate coach vocabulary — Block 43
+  // substantiation has no reason to name one — so they go regardless of framing.
+  /\b(?:Early Promote|Must Promote|Significant Problems)\b/i,
+  // "Promotable" is also an ordinary adjective, so it needs a recommending frame.
+  /\b(?:should|would|recommend|recommending|suggest|suggesting|consider|support|supports|deserves?|warrants?|merits?|earns?|justifies)\b[^.]{0,40}\bPromotable\b/i,
+  /\bPromotable\b[^.]{0,30}\b(?:is|would be|seems)\s+(?:more\s+)?(?:appropriate|justified|warranted|defensible|supportable|accurate)\b/i,
+];
+
+/**
+ * True when the text recommends a trait grade or strays into Block 45.
+ *
+ * Pattern-matching, deliberately. It cannot prove the absence of grade or
+ * promotion advice in free text — it removes the constructions we have seen and
+ * the ones adversarial probing produced.
+ */
+export function suggestsGradeOrRecommendation(text: string): boolean {
+  return [...GRADE_ADVICE_RES, ...BLOCK_45_RES].some((re) => re.test(text));
 }
 
 /**
@@ -295,24 +379,25 @@ export function applyCoachGate(
       continue;
     }
     const rationale = checkCitation(f.rationale, valid);
-    if (!rationale || suggestsGrade(rationale)) {
+    if (!rationale || suggestsGradeOrRecommendation(rationale)) {
       dropped++;
       continue;
     }
-    // Evidence is the Sailor's own sentence, resolved by index — the model
-    // never supplies the text, so it cannot invent a quotation.
+    // Evidence is the Sailor's own sentence, resolved by the id the payload
+    // published — the model never supplies the text, so it cannot invent a
+    // quotation.
     const i = f.evidence_sentence === null ? null : Math.trunc(f.evidence_sentence);
     const evidence =
-      i !== null && i >= 0 && i < payload.sentences.length
-        ? payload.sentences[i]
-        : null;
+      i === null ? null : (payload.sentences.find((s) => s.id === i)?.text ?? null);
     if (f.verdict === "substantiated" && evidence === null) {
       dropped++;
       continue;
     }
     const suggestionText = checkCitation(f.suggestion, valid);
     const suggestion =
-      suggestionText && !suggestsGrade(suggestionText) ? suggestionText : null;
+      suggestionText && !suggestsGradeOrRecommendation(suggestionText)
+        ? suggestionText
+        : null;
     if (!suggestion) dropped++;
 
     seen.add(f.trait);
@@ -331,11 +416,23 @@ export function applyCoachGate(
   const notes: string[] = [];
   for (const n of out.narrative_notes) {
     const kept = checkCitation(n, valid);
-    if (kept && !suggestsGrade(kept)) notes.push(kept);
+    if (kept && !suggestsGradeOrRecommendation(kept)) notes.push(kept);
     else dropped++;
   }
 
-  return { findings, notes, dropped };
+  // Reconcile against what was actually asked about. A trait the model skipped
+  // or the gates removed must show as unassessed, not vanish: a panel with two
+  // cards where three traits were graded reads as "the other one is fine".
+  const unassessed: UnassessedTrait[] = payload.traits
+    .filter((t) => !seen.has(t.key))
+    .map((t) => ({
+      trait: t.key,
+      block: t.block,
+      title: t.title,
+      grade: t.grade,
+    }));
+
+  return { findings, notes, unassessed, dropped };
 }
 
 // ── Model call ───────────────────────────────────────────────────────────────
@@ -378,6 +475,7 @@ export async function runEvalCoach(
     payload,
     findings: [],
     notes: [note],
+    unassessed: [],
     dropped: 0,
   });
   if (payload.sentences.length === 0) return empty(EMPTY_NARRATIVE_NOTE);
@@ -399,10 +497,17 @@ this narrative substantiate that grade?
 
 INPUT — one JSON object:
 { report_type, budget, sentences, traits, issues, substantiation_note }
-- sentences: the narrative split into numbered units. The index is the id.
+- sentences: the narrative split into units, each { "id": <number>, "text": ... }.
+  USE THE id FIELD. Ids start at 0. Never count positions yourself and never
+  renumber from 1 — a citation to an id that is not in the payload is deleted
+  along with everything attached to it.
 - traits: one entry per GRADED trait — key, block number, title, definition, the
-  grade the human assigned, what that grade means on the scale, and the printed
-  1.0 / 3.0 / 5.0 anchor bullets for that trait.
+  grade the human assigned, and what that grade means on the scale. The printed
+  performance standards come in one of two shapes, because the forms differ:
+  "anchors" (EVAL and FITREP: separate bullet lists for the 1.0, 3.0 and 5.0
+  columns) or "standards" (CHIEFEVAL: one bullet list, no per-grade columns).
+  Judge against whichever the trait carries. Never invent the other shape, and
+  never infer per-grade wording for a form that does not print it.
 - issues: what APEX's rules engine already found for this narrative and these
   grades.
 - budget: the physical size of the block — characters per line, maximum lines,
@@ -417,26 +522,32 @@ ABSOLUTE RULES
    grades are human judgment and are already set; your job is to say whether the
    WRITING supports them. Text that recommends a grade is machine-detected and
    deleted.
-2. NEVER write or propose Block 45 (promotion recommendation), Block 46, or any
-   other block. Block 43 only.
+2. NEVER write, propose, name or hint at a Block 45 promotion recommendation
+   ("Early Promote", "Must Promote", "Promotable", "Progressing", "Significant
+   Problems", "PROMOTE AHEAD OF PEERS"), and never comment on Block 46 or any
+   block other than 43. If asked for one, refuse in the rationale and cite
+   normally.
 3. Ground everything in the payload. The anchors in traits[].anchors are the
    only performance standards you may use. If a rule is not in this payload it
    does not exist for you — do not recall Navy policy from memory, and do not
    cite instructions, chapters, or paragraph numbers.
 4. CITE. Every rationale, every suggestion, and every narrative_note must END
    with the payload paths it rests on, in square brackets. Valid paths are
-   exactly: sentences.<i>, traits.<key>, issues.<i>, budget,
-   substantiation_note. Example: "Nothing here names what you produced or the
-   standard you held it to. [traits.work, sentences.2]". Citations are
-   machine-checked after you respond and any item citing a path that does not
-   resolve is DELETED — a claim you cannot cite is a claim you lose.
+   exactly: sentences.<id> (the id FIELD of that sentence), traits.<key>,
+   issues.<i>, budget, substantiation_note. Example: "Nothing here names what
+   you produced or the standard you held it to. [traits.work, sentences.2]".
+   Citations are machine-checked after you respond and any item citing a path
+   that does not resolve is DELETED — a claim you cannot cite is a claim you
+   lose, and the Sailor loses the whole finding with it.
 5. Do not quote the narrative. To point at a sentence set evidence_sentence to
-   its index; APEX inserts the Sailor's own text. Use null when no sentence
+   its id; APEX inserts the Sailor's own text. Use null when no sentence
    supports the trait.
 
 HOW TO JUDGE
 - substantiated: one specific sentence gives a concrete, verifiable action or
-  result that matches this trait's anchors at the level the human graded.
+  result that matches this trait's printed standards at the level the human
+  graded. A low grade is substantiated by evidence of the SHORTFALL, not by
+  evidence of good work.
 - partial: the narrative touches the trait but stays generic, unquantified, or
   carries less weight than the grade claims.
 - unsupported: no sentence addresses this trait at all, or what is there works
@@ -461,10 +572,11 @@ OUTPUT — one JSON object only, no markdown fences, no prose before or after:
 {
   "findings": [
     { "trait": "<key from traits>", "verdict": "substantiated" | "partial" |
-      "unsupported", "evidence_sentence": <sentence index or null>,
-      "rationale": "... [traits.<key>, sentences.<i>]",
+      "unsupported", "evidence_sentence": <a sentence id, or null>,
+      "rationale": "... [traits.<key>, sentences.<id>]",
       "suggestion": "... [traits.<key>]" }
   ],
   "narrative_notes": ["... [budget]"]
 }
-One finding per graded trait, in payload order.`;
+Emit exactly one finding for EVERY trait in traits, in payload order. A trait you
+omit is shown to the Sailor as unassessed.`;

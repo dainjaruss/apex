@@ -19,7 +19,7 @@ import { FIELD_FIT } from "@/lib/commentFit";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
 import { FORM_PANEL, evalFieldId } from "@/lib/formStyles";
-import type { CoachFinding } from "@/lib/evalCoach/coach";
+import type { CoachFinding, UnassessedTrait } from "@/lib/evalCoach/coach";
 
 interface Block43CommentsProps {
   evalData: Evaluation;
@@ -149,6 +149,7 @@ export default function Block43Comments({
 interface CoachResponse {
   findings: CoachFinding[];
   notes: string[];
+  unassessed: UnassessedTrait[];
   dropped: number;
   model: string;
   budget: { lines_used: number; max_lines: number; chars_per_line: number };
@@ -348,6 +349,27 @@ function NarrativeCoach({
                 )}
               </div>
             ))}
+
+            {/* Reconciliation, not decoration: without this a trait the model
+                skipped or the gates dropped just has no card, which reads as
+                "that one is fine". */}
+            {result.unassessed.length > 0 && (
+              <div
+                className="rounded-lg border p-3"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <p className="text-xs font-bold mb-1">Not assessed this run</p>
+                <p className="text-xs apex-text-muted">
+                  {result.unassessed
+                    .map((u) => `${u.block}: ${u.title} (graded ${u.grade})`)
+                    .join(" · ")}
+                </p>
+                <p className="text-xs apex-text-muted mt-1">
+                  No conclusion either way — run it again to get a reading on
+                  {result.unassessed.length === 1 ? " this trait." : " these traits."}
+                </p>
+              </div>
+            )}
 
             <p className="text-xs apex-text-muted">
               {result.model} · advisory only, nothing stored

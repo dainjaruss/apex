@@ -1,13 +1,19 @@
 // tests/unit/evalCoach.test.ts
 //
 // The Block 43 narrative coach (docs/EVAL-COACH.md): the hard invariant (no
-// trait grade, no Block 45 — enforced by the schema AND by the prose guard),
-// citation-or-delete against an invented path, evidence that cannot be
-// fabricated, the deterministic short-circuits, and the route's auth / consent
-// / keyless-degrade / NEVER-PERSIST behaviour. No live API calls: the pure
-// module takes an injected callModel, and the route suite mocks ai.generateText.
+// trait grade, no Block 45 — the SCHEMA half is absolute, the PROSE half is
+// pattern-matching and is tested as such), citation-or-delete against an
+// invented path, evidence that cannot be fabricated, sentence ids published
+// explicitly so the model cannot renumber them, coverage reconciliation, the
+// report-type seams (#26 anchors/standards, FITREP block numbers), provider
+// JSON-Schema compatibility, the deterministic short-circuits, and the route's
+// auth / consent / input-cap / keyless-degrade / NEVER-PERSIST behaviour. No
+// live API calls: the pure module takes an injected callModel, and the route
+// suite mocks ai.generateText.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { z } from "zod";
+import { readFileSync } from "fs";
 
 const h = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -37,7 +43,7 @@ import {
   NO_GRADES_NOTE,
   runEvalCoach,
   splitSentences,
-  suggestsGrade,
+  suggestsGradeOrRecommendation,
   type CoachRequest,
 } from "@/lib/evalCoach/coach";
 import { GET, POST } from "@/app/api/eval-coach/route";
@@ -77,8 +83,8 @@ describe("coachPayload", () => {
   it("carries only graded traits the standards table knows, never NOB", () => {
     const keys = coachPayload(REQ).traits.map((t) => t.key);
     expect(keys).toEqual(["knowledge", "work", "leadership"]);
-    // Unknown keys are skipped, not guessed at — that is what makes the
-    // inbound CHIEFEVAL trait-key rename a non-event here.
+    // Unknown keys are skipped, not guessed at — that is what kept the
+    // CHIEFEVAL trait-key rename (#26) from mismatching anchors here.
     expect(keys).not.toContain("not_a_real_trait");
     expect(keys).not.toContain("teamwork"); // NOB
   });
@@ -88,7 +94,7 @@ describe("coachPayload", () => {
       ...REQ,
       trait_grades: { knowledge: "1.0", eo: "2.0" },
     });
-    expect(p.traits[0].anchors["3.0"].length).toBeGreaterThan(0);
+    expect(p.traits[0].anchors?.["3.0"].length).toBeGreaterThan(0);
     expect(p.budget).toMatchObject({ chars_per_line: 90, max_lines: 18 });
     // The Block 43 substantiation rule is validationEngine's, not a second copy.
     expect(
@@ -102,12 +108,29 @@ describe("coachPayload", () => {
     ).toBe(true);
   });
 
-  it("splits bullets and sentences into addressable units", () => {
+  it("splits bullets and sentences into units carrying an EXPLICIT 0-based id", () => {
+    // The id must be a field in the JSON, not the array position. Position was
+    // the contract once, the prompt said so, and the model silently renumbered
+    // from 1 on roughly half of live runs — every citation then failed to
+    // resolve and the finding was deleted.
     expect(splitSentences("- LED 42 SAILORS\nRAN THE WATCHBILL. FIXED IT.")).toEqual([
-      "- LED 42 SAILORS",
-      "RAN THE WATCHBILL.",
-      "FIXED IT.",
+      { id: 0, text: "- LED 42 SAILORS" },
+      { id: 1, text: "RAN THE WATCHBILL." },
+      { id: 2, text: "FIXED IT." },
     ]);
+  });
+
+  it("publishes the sentence id contract to the model, and cites by that id", () => {
+    const p = coachPayload(REQ);
+    for (const s of p.sentences) expect(typeof s.id).toBe("number");
+    expect(p.sentences.map((s) => s.id)).toEqual([0, 1]);
+    // Serialized shape is what the model actually reads.
+    expect(JSON.parse(JSON.stringify(p)).sentences[0]).toEqual({
+      id: 0,
+      text: p.sentences[0].text,
+    });
+    expect(COACH_SYSTEM_PROMPT).toMatch(/USE THE id FIELD\. Ids start at 0\./);
+    expect(citationPaths(p).has("sentences.0")).toBe(true);
   });
 });
 
@@ -148,14 +171,14 @@ describe("invariant: the coach never produces a trait grade or Block 45", () => 
       "Mark it 2.0.",
       "This reads like a 5.0.",
     ])
-      expect(suggestsGrade(bad), bad).toBe(true);
+      expect(suggestsGradeOrRecommendation(bad), bad).toBe(true);
 
     for (const good of [
       "The 5.0 you set in Block 39 is not substantiated by any sentence here.",
       "Your 1.0 mark requires specific substantiation in this block.",
       "Nothing here supports the grade you assigned.",
     ])
-      expect(suggestsGrade(good), good).toBe(false);
+      expect(suggestsGradeOrRecommendation(good), good).toBe(false);
   });
 
   it("drops the finding when the rationale recommends a grade, and nulls the suggestion when it does", () => {
@@ -181,9 +204,45 @@ describe("invariant: the coach never produces a trait grade or Block 45", () => 
     expect(gated.dropped).toBe(3);
   });
 
-  it("never instructs the model to produce a grade", () => {
+  it("deletes prose that strays into Block 45", () => {
+    // The schema half of the Block 45 invariant only ever covered a block_45
+    // KEY. Free-text promotion advice inside a rationale was prompt-defended
+    // only — the model refused every probe, but nothing enforced it.
+    for (const bad of [
+      "Your narrative supports a Must Promote. [traits.work]",
+      "This warrants Early Promote.",
+      "Block 45 should read Promotable.",
+      "Close with PROMOTE AHEAD OF PEERS.",
+      "I recommend Significant Problems here.",
+      "Your promotion recommendation should match this.",
+    ])
+      expect(suggestsGradeOrRecommendation(bad), bad).toBe(true);
+
+    // A Sailor's own 2.0 mark is labelled "Progressing" on the printed scale
+    // and must stay discussable.
+    for (const good of [
+      "Your 2.0 (Progressing) mark in Block 34 has no supporting sentence.",
+      "The narrative is progressing toward specificity but is not there yet.",
+    ])
+      expect(suggestsGradeOrRecommendation(good), good).toBe(false);
+  });
+
+  it("never instructs the model to produce a grade or a promotion recommendation", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/NEVER state, suggest, recommend/);
-    expect(COACH_SYSTEM_PROMPT).toMatch(/NEVER write or propose Block 45/);
+    expect(COACH_SYSTEM_PROMPT).toMatch(
+      /NEVER write, propose, name or hint at a Block 45/,
+    );
+  });
+
+  it("does not claim the prose guard is absolute", () => {
+    // The guard is pattern-matching over a refusing prompt. Three places used
+    // to assert a guarantee it cannot provide; if that language comes back,
+    // this fails.
+    const src = readFileSync("lib/evalCoach/coach.ts", "utf8");
+    expect(src).toMatch(/PROSE \(pattern-matched, not absolute\)/);
+    expect(readFileSync("docs/EVAL-COACH.md", "utf8")).toMatch(
+      /pattern-matching, not a proof/i,
+    );
   });
 });
 
@@ -261,7 +320,7 @@ describe("citation-or-delete", () => {
 // ── evidence ────────────────────────────────────────────────────────────────
 
 describe("evidence is the Sailor's own sentence", () => {
-  it("resolves by index — the model never supplies quoted text", () => {
+  it("resolves by the published id — the model never supplies quoted text", () => {
     const p = coachPayload(REQ);
     const gated = applyCoachGate(
       { findings: [finding({ evidence_sentence: 1 })], narrative_notes: [] },
@@ -284,6 +343,104 @@ describe("evidence is the Sailor's own sentence", () => {
     );
     expect(gated.findings.map((f) => f.trait)).toEqual(["knowledge"]);
     expect(gated.findings[0].evidence).toBeNull();
+  });
+});
+
+// ── coverage reconciliation ─────────────────────────────────────────────────
+
+describe("every graded trait is accounted for", () => {
+  it("reports traits the model skipped as unassessed, not as absent", () => {
+    const p = coachPayload(REQ);
+    const gated = applyCoachGate(
+      { findings: [finding()], narrative_notes: [] },
+      p,
+    );
+    expect(gated.findings.map((f) => f.trait)).toEqual(["knowledge"]);
+    expect(gated.unassessed).toEqual([
+      { trait: "work", block: 34, title: "Quality of Work", grade: "4.0" },
+      { trait: "leadership", block: 39, title: "Leadership", grade: "5.0" },
+    ]);
+  });
+
+  it("surfaces 1-based sentence-id drift instead of silently deleting the trait", () => {
+    // The exact live failure: a 2-sentence narrative, the model citing
+    // sentences.1 and sentences.2 (1-based) where the valid ids are 0 and 1.
+    // The citation gate still deletes the finding — that part is correct, the
+    // claim really is uncited — but the trait must not vanish from the panel.
+    const p = coachPayload(REQ);
+    const gated = applyCoachGate(
+      {
+        findings: [
+          finding({ rationale: "Off-by-one citation. [sentences.2]" }),
+          finding({ trait: "work", rationale: "Also off by one. [sentences.2]" }),
+        ],
+        narrative_notes: [],
+      },
+      p,
+    );
+    expect(gated.findings).toEqual([]);
+    expect(gated.unassessed.map((u) => u.trait)).toEqual([
+      "knowledge",
+      "work",
+      "leadership",
+    ]);
+    expect(gated.dropped).toBe(2);
+  });
+});
+
+// ── report-type seams ───────────────────────────────────────────────────────
+
+describe("form differences the standards table models", () => {
+  it("CHIEFEVAL traits carry printed `standards`, never an empty anchors key", () => {
+    // #26 made `anchors` optional: 1616/27 prints one bullet list per trait and
+    // no per-grade columns. `anchors: std.anchors` would serialize to nothing
+    // and hand the model a trait with no yardstick at all.
+    const p = coachPayload({
+      report_type: "CHIEFEVAL",
+      pitch: "10",
+      comments: "LED THE MESS.",
+      trait_grades: { technical_mastery: "4.0", accountability: "3.0" },
+    });
+    expect(p.traits.map((t) => t.key)).toEqual([
+      "technical_mastery",
+      "accountability",
+    ]);
+    for (const t of p.traits) {
+      expect(t.standards?.length).toBeGreaterThan(0);
+      expect(t).not.toHaveProperty("anchors");
+      expect(JSON.stringify(t)).not.toContain("anchors");
+    }
+    expect(p.traits[1].block).toBe(37); // the CHIEFEVAL 3.0 advancement gate
+  });
+
+  it("FITREP block numbers come from the report-type map, not the merged lookup", () => {
+    // TRAIT_STANDARDS_LOOKUP reports block 39 for BOTH leadership and
+    // tactical_performance, which rendered two cards headed "39".
+    const p = coachPayload({
+      report_type: "FITREP",
+      pitch: "10",
+      comments: "COMMANDED THE WATCH.",
+      trait_grades: { leadership: "4.0", tactical_performance: "5.0" },
+    });
+    expect(p.traits.map((t) => [t.key, t.block])).toEqual([
+      ["leadership", 38],
+      ["tactical_performance", 39],
+    ]);
+    const blocks = p.traits.map((t) => t.block);
+    expect(new Set(blocks).size).toBe(blocks.length);
+  });
+});
+
+// ── provider schema compatibility ───────────────────────────────────────────
+
+describe("CoachOutputSchema survives conversion to JSON Schema", () => {
+  it("emits no numeric bounds — the live endpoint rejects the whole request", () => {
+    // z.number().int() makes zod emit safe-integer minimum/maximum, and the
+    // provider answers 400: "For 'integer' type, properties maximum, minimum
+    // are not supported". Every mocked test passed while the feature was dead
+    // against the real endpoint. This catches that class with no network.
+    const json = JSON.stringify(z.toJSONSchema(CoachOutputSchema));
+    expect(json).not.toMatch(/"(?:minimum|maximum|exclusiveMinimum|exclusiveMaximum)"/);
   });
 });
 
@@ -370,6 +527,24 @@ describe("POST /api/eval-coach", () => {
     const { consent, ...noConsent } = validBody;
     expect((await POST(postReq(noConsent))).status).toBe(400);
     expect((await POST(postReq({ ...validBody, consent: false }))).status).toBe(400);
+  });
+
+  it("400 on an oversized trait-grade VALUE — unknown keys are free, padding is not", async () => {
+    process.env.BOARD_NARRATIVE_BASE_URL = "https://example.invalid/v1";
+    const padded = {
+      ...validBody,
+      trait_grades: { knowledge: "5.0".padEnd(320_000, "x") },
+    };
+    expect((await POST(postReq(padded))).status).toBe(400);
+    expect(h.generateText).not.toHaveBeenCalled();
+
+    // Key count genuinely cannot amplify: unknown keys are dropped downstream.
+    const manyKeys = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [`junk_${i}`, "5.0"]),
+    );
+    const res = await POST(postReq({ ...validBody, trait_grades: manyKeys }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).findings).toEqual([]);
   });
 
   it("degrades to 503 when the server is keyless — never throws, never fabricates", async () => {

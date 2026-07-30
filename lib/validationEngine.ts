@@ -111,8 +111,15 @@ export function getBlockForField(field: string): number | undefined {
 
 /**
  * Returns the active trait block map for the given report_type.
+ *
+ * Exported because it is the ONLY report-type-aware trait→block mapping in the
+ * repo. `TRAIT_STANDARDS_LOOKUP` merges all three forms into one flat record, so
+ * its `block` field collides where forms disagree — on FITREP `leadership` is
+ * Block 38 and `tactical_performance` is Block 39, but the merged lookup reports
+ * 39 for both. Anything rendering a block number next to a trait must resolve it
+ * here, not from the merged table.
  */
-function getTraitMap(reportType?: string): Record<string, number> {
+export function getTraitMap(reportType?: string): Record<string, number> {
   if (reportType === "CHIEFEVAL") return chiefEvalTraitBlockMap;
   if (reportType === "FITREP") return fitrepTraitBlockMap;
   return traitBlockMap;

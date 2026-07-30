@@ -4,6 +4,9 @@ import {
   TRAIT_GRADE_LABELS,
   GRADE_SCALE_NOTE,
   ANCHOR_GRADES,
+  SUBSTANTIATION_NOTE_CHIEFEVAL,
+  SUBSTANTIATION_NOTE_EVAL,
+  SUBSTANTIATION_NOTE_FITREP,
   TraitKey,
 } from "../../lib/traitStandards";
 
@@ -63,5 +66,21 @@ describe("NAVPERS 1616/26 trait standards", () => {
     expect(TRAIT_STANDARDS.knowledge.anchors["1.0"]).toContain(
       "Marginal knowledge of rating, specialty or job",
     );
+  });
+
+  it("does not invent a Block 43 obligation for 5.0 marks", () => {
+    // The printed Blk 43 footnote covers 1.0 marks, three or more 2.0s, and a
+    // 2.0 in Block 35. Written explanations of 1.0 AND 5.0 belong to the Block
+    // 42/49 certifications, and para 13-4 never mentions 5.0 at all
+    // (docs/navy-reference.md §3.11). This string used to open with the 5.0
+    // claim, and the narrative coach repeated it to a user as fact.
+    for (const note of [
+      SUBSTANTIATION_NOTE_EVAL,
+      SUBSTANTIATION_NOTE_CHIEFEVAL,
+      SUBSTANTIATION_NOTE_FITREP,
+    ])
+      expect(note).not.toMatch(/5\.0/);
+    expect(SUBSTANTIATION_NOTE_EVAL).toMatch(/all 1\.0 marks/i);
+    expect(SUBSTANTIATION_NOTE_EVAL).toMatch(/block 35/i);
   });
 });

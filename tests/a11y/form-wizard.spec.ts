@@ -61,6 +61,21 @@ test.describe("eval form wizard (EVAL / CHIEFEVAL / FITREP)", () => {
     // depend on a live model.
     test(`a11y · EVAL Block 43 narrative + coach · ${theme}`, async ({ page }) => {
       await preparePage(page, theme);
+      // The coach probes GET /api/eval-coach on mount and renders nothing when
+      // the server has no model configured. Stub that ONE probe so the surface
+      // renders on any runner, keyless CI included. This used to be a
+      // test.skip() on a hidden coach — a test that passes by not running, which
+      // is exactly the vacuous-pass pattern this epic keeps hitting. No model
+      // call occurs either way: the first click opens the consent disclosure.
+      await page.route("**/api/eval-coach", async (route) =>
+        route.request().method() === "GET"
+          ? route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({ available: true, model: "a11y-stub" }),
+            })
+          : route.abort(),
+      );
       await page.goto("/evaluations/new", { waitUntil: "domcontentloaded" });
       await page
         .getByText("Initializing form template...")
@@ -80,17 +95,9 @@ test.describe("eval form wizard (EVAL / CHIEFEVAL / FITREP)", () => {
         .getByRole("heading", { name: /43: Comments on Performance/i })
         .waitFor({ state: "visible", timeout: 30_000 });
 
-      // The coach probes GET /api/eval-coach on mount and renders nothing when
-      // the server has no model configured — so wait for it, and skip rather
-      // than fail on a keyless server.
+      // No skip: with the probe stubbed the surface must be here on every runner.
       const coach = page.getByRole("button", { name: /Review my narrative/i });
-      const configured = await coach
-        .waitFor({ state: "visible", timeout: 30_000 })
-        .then(() => true)
-        .catch(() => false);
-      test.skip(!configured, "No model configured — the coach surface is hidden.");
-
-      // First click always opens the consent disclosure (no model call).
+      await coach.waitFor({ state: "visible", timeout: 30_000 });
       await coach.click();
       await page
         .getByRole("button", { name: /I understand/i })

@@ -36,9 +36,11 @@ const BodySchema = z.object({
   report_type: z.enum(["EVAL", "CHIEFEVAL", "FITREP"]),
   pitch: z.enum(["10", "12"]).default("10"),
   comments: z.string().max(5000),
-  // Unknown keys are dropped downstream by TRAIT_STANDARDS_LOOKUP, so this is
-  // the whole validation the map needs.
-  trait_grades: z.record(z.string(), z.string()).default({}),
+  // Unknown KEYS are dropped downstream by TRAIT_STANDARDS_LOOKUP, so key count
+  // cannot amplify the payload. Values were unbounded, though, and a known key
+  // holding a 320 KB value was forwarded verbatim to the provider. A grade is
+  // "5.0" or "NOB" — nothing legitimate comes near 8 characters.
+  trait_grades: z.record(z.string(), z.string().max(8)).default({}),
   // Server-enforced consent gate. There is no stored consent row to check
   // (this route owns no table), so the acknowledgement travels with the request
   // that carries the text — see docs/EVAL-COACH.md.
