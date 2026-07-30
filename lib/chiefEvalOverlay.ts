@@ -438,7 +438,10 @@ export async function generateChiefEvalOverlayPdf(
     }
   }
 
-  // NOTE: Block 47 (Retention) is omitted on CHIEFEVAL per BUPERSINST 1610.10H Ch. 10.
+  // NOTE: 1616/27 prints no Retention block at all. Retention is EVAL 1616/26 Block
+  // 47; Block 47 on the CHIEFEVAL is the second Career Milestone Recommendation. (The
+  // earlier note here cited "1610.10H Ch. 10" — chapter 10 is INACT Navy Reservist
+  // reports; the block-by-block guide is Encl (2) ch. 1.)
 
   narrative(
     page2,

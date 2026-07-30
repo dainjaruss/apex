@@ -39,6 +39,15 @@ describe("BOARD_DISCLAIMER — enlisted board procedure (navy-reference §1.3)",
     expect(BOARD_DISCLAIMER).toMatch(/scattergram/i);
   });
 
+  it("does not narrow a panel to a single rating (§1.5)", () => {
+    // PERS-803's example panels each span SEVERAL rating communities — Admin/Supply,
+    // Nuke/SPECWAR, Aviation, Surface Ops/Engineering, Submarine, Combat Systems/IW.
+    // "within a rating panel" alone reads as one panel per rating to a Navy reader,
+    // which is narrower than the brief.
+    expect(BOARD_DISCLAIMER).toMatch(/groups several rating communities/i);
+    expect(BOARD_DISCLAIMER).toMatch(/rather than one panel per rating/i);
+  });
+
   it("scopes the 100/75/50/25/0 confidence bands to officer boards (§1.4)", () => {
     expect(BOARD_DISCLAIMER).toMatch(/100\/75\/50\/25\/0/);
     expect(BOARD_DISCLAIMER).toMatch(/officer boards only/i);
@@ -181,6 +190,13 @@ const REQUIRED_HEADERS = [
 ];
 
 const fetchSpy = vi.fn();
+// Only section 5 (the LaDR route) needs these; nothing else in this file touches
+// Supabase, so the module mock is inert for the rest.
+vi.mock("@/lib/supabaseClient", () => ({
+  getRouteUserId: vi.fn(async () => "user-1"),
+  createAdminClient: vi.fn(() => ({})),
+  createBrowserClient: vi.fn(() => ({})),
+}));
 vi.mock("undici", () => ({
   fetch: (...args: unknown[]) => fetchSpy(...args),
   Agent: class {
@@ -267,5 +283,43 @@ describe("fetchLadrPdf — Navy COOL URL and 403 handling", () => {
     expect((await fetchLadrPdf("IT")).status).toBe("not_found");
     fetchSpy.mockResolvedValue({ status: 500, ok: false });
     expect((await fetchLadrPdf("IT")).status).toBe("error");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The 403 message states what a 403 PROVES, not what we wish it meant
+// ---------------------------------------------------------------------------
+// COOL answers a missing PDF with 403 — but so does a WAF rule, a rate limit, or a
+// datacenter-IP filter. "Navy COOL publishes no E7 LaDR for ND." is therefore a claim
+// APEX cannot observe: if COOL ever blocks the deployment, every Sailor is told the
+// Navy publishes nothing for their rating. For a tool whose whole premise is not
+// asserting things the Navy did not say, that is the same failure class as the
+// fabricated traits — just at the network layer.
+describe("LaDR fetch route — 403 is reported as an observation, not a conclusion", () => {
+  beforeEach(() => fetchSpy.mockReset());
+
+  const post = async (rating: string) => {
+    const { POST } = await import("@/app/api/board-confidence/ladr-fetch/route");
+    const res = await POST({ json: async () => ({ rating }) } as any);
+    return { status: res.status, body: await res.json() };
+  };
+
+  it("never tells a Sailor the Navy publishes no LaDR for their rating", async () => {
+    fetchSpy.mockResolvedValue({ status: 403, ok: false });
+    const { body } = await post("ND");
+    expect(body.error).not.toMatch(/publishes no/i);
+    expect(body.error).toMatch(/returned no E7 LaDR for ND at the published path/i);
+    expect(body.error).toMatch(/HTTP 403/);
+    // ...and says out loud that a 403 is ambiguous.
+    expect(body.error).toMatch(/blocked request rather than a missing document/i);
+  });
+
+  it("drops the nuclear-ratings aside for ratings it does not apply to", async () => {
+    fetchSpy.mockResolvedValue({ status: 403, ok: false });
+    expect((await post("ND")).body.error).not.toMatch(/splits ND by platform/i);
+    // ...but keeps it where it is a measured fact: emn_ss_e7.pdf really does exist.
+    const emn = (await post("EMN")).body.error;
+    expect(emn).toMatch(/splits EMN by platform/i);
+    expect(emn).toMatch(/emn_ss_e7\.pdf/);
   });
 });

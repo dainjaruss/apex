@@ -39,14 +39,29 @@ export async function POST(req: NextRequest) {
       return fail("Unknown or missing rating.", 400);
 
     const fetched = await fetchLadrPdf(rating);
-    if (fetched.status === "not_found")
+    // Say what the response PROVES, not what we would like it to mean. COOL answers
+    // a missing PDF with 403, but 403 is also what a WAF rule, a rate limit or a
+    // datacenter-IP filter returns — so "the Navy publishes no LaDR for your rating"
+    // is a claim APEX cannot observe, and it is exactly the class of claim this tool
+    // exists not to make. Report the observation and let the Sailor check COOL.
+    if (fetched.status === "not_found") {
+      const r = rating.toUpperCase();
+      // Measured 2026-07-29: COOL has no plain <rating>_e7.pdf for the nuclear
+      // ratings; EMN/ETN/MMN are split by platform (emn_ss_e7.pdf returns 200) and
+      // APEX has no platform input to pick between them. That IS observable, so it
+      // stays; the "Navy publishes none" conclusion is not, so it goes.
+      const platformSplit = ["EMN", "ETN", "MMN"].includes(r)
+        ? ` COOL splits ${r} by platform — try ${r.toLowerCase()}_ss_e7.pdf or ${r.toLowerCase()}_sw_e7.pdf; APEX has no platform input to choose between them.`
+        : "";
       return fail(
-        `Navy COOL publishes no E7 LaDR for ${rating.toUpperCase()}. Nuclear ratings ` +
-          `(EMN, ETN, MMN) are split by platform on COOL and cannot be fetched by ` +
-          `rating alone; ETR, ITS and MMW have no published LaDR at all. You can ` +
-          `still run the analysis without LaDR milestones.`,
+        `Navy COOL returned no E7 LaDR for ${r} at the published path (HTTP 403 — ` +
+          `which is also what COOL returns for a rating it does not publish, so this ` +
+          `may be a blocked request rather than a missing document).${platformSplit} ` +
+          `You can still run the analysis without LaDR milestones, and you can check ` +
+          `cool.osd.mil directly.`,
         404,
       );
+    }
     if (fetched.status === "error") {
       console.error("LaDR fetch failed:", rating, fetched.message);
       return fail("Could not download the LaDR from Navy COOL.", 502);

@@ -2,7 +2,8 @@
 //
 // On-demand LaDR ingestion from Navy COOL (v1.4 — ADDITIVE to the curated
 // scripts/seed-ladr.ts path, which stays the higher-fidelity source; spec
-// §10.4). Fetches https://www.cool.osd.mil/usn/LaDR/{rating}_e1_e9.pdf,
+// §10.4). Fetches https://www.cool.osd.mil/usn/LaDR/{rating}_e7.pdf (see
+// fetchLadrPdf for why not the combined _e1_e9 file),
 // extracts text in memory (never persisted), parses the cover version and a
 // CONSERVATIVE milestone set (every row flagged detail.source =
 // 'auto_extracted'), and stores a NEW versioned ladr_documents row — never
@@ -119,7 +120,9 @@ export async function fetchLadrPdf(rating: string): Promise<LadrFetchResult> {
   // `<rating>_e7.pdf`. EMN/ETN/MMN split by platform on COOL (`emn_ss_e7.pdf` /
   // `emn_sw_e7.pdf`, plus MMN's `_elt_` variant) and APEX has no platform input to
   // choose between them; ETR, ITS and MMW appear nowhere in COOL's index under any
-  // filename. Those six now report "no LaDR published" instead of a bare `HTTP 403`.
+  // filename. Those six report "no LaDR at the published path" instead of a bare
+  // `HTTP 403` — worded as an observation, because a 403 is equally what a WAF rule
+  // or a datacenter-IP filter returns and APEX cannot tell the two apart.
   //
   // See docs/navy-reference.md §4.3-§4.4 (which states `_e7.pdf` exists for all
   // prefixes — that is not correct; these six are the exceptions).

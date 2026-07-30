@@ -643,21 +643,38 @@ export function scoreBoardConfidence(
   // to obtain any missing report covering significant duty in the grades of E-5 or
   // above within the past 5 years."
   //
-  // Verified 2026-07-29 against the LIVE current revision, not the stale bundled copy
-  // in my_tools/: BUPERSINST 1610.10H CH-2 fetched from MyNavyHR (173 pp., ModDate
-  // 27 May 2026, sha256 ec644362…), para 17-6 at Encl (2) p. 17-2. CH-2's transmittal
-  // revised Encl (2) chapter 3 only; p. 17-2 still carries the unrevised 30 Jul 2025
+  // Verified against the LIVE current revision, not the stale bundled copy in
+  // my_tools/: BUPERSINST 1610.10H CH-2 from MyNavyHR, para 17-6 at Encl (2) p. 17-2.
+  // CH-2's transmittal revises "enclosure 2, page 3-1 through 3-2a and 3-6 through
+  // 3-7a" — chapter 3 only — and p. 17-2 still carries the unrevised 30 Jul 2025
   // footer, so chapter 17 is untouched by CH-2 and this citation is current.
+  //
+  // TIMESTAMP, NOT A CHECK — MyNavyHR re-posts this file and every byte-level
+  // identifier below rots. Do not treat a mismatch as evidence of anything.
+  //   fetched 2026-07-29: 173 pp., ModDate 27 May 2026, sha256 ec644362…
+  //   re-posted by 2026-07-30: 174 pp., ModDate  1 Jun 2026, sha256 5e71ca59…
+  // Chapter 17 is identical in both. The CH-2 transmittal itself is signed 26 May
+  // 2026 (an earlier note here said 27 May — that was the PDF ModDate, not the
+  // signature date).
+  //
   // The FY-27 precept agrees from the board's side (App A 7.a): a gap is "a period of
   // undocumented performance", and "if there is missing information in the record,
   // board members shall evaluate the record with what is available" (App A 7).
-  // Remedies are 17-6a (duplicate to PERS-32) and 17-6b (letter in lieu, Exhibit
-  // 17-4), which is accepted only to fill a gap in REGULAR report continuity.
+  //
+  // Both remedies carry requirements the earlier copy compressed away, and a Sailor
+  // who follows a compressed version gets the submission bounced:
+  //   17-6a  the copy must display ALL required signatures, initials and dates, AND
+  //          go in with a signed cover letter requesting the duplicate report be
+  //          filed in the official record. A bare copy is not a submission.
+  //   17-6b  the letter must say WHY the report could not be obtained and supply what
+  //          would have appeared in blocks 1-19 and 22-26. Accepted only to fill a gap
+  //          in REGULAR report continuity; may not evaluate the member's own
+  //          performance or carry a self-recommendation.
   // See docs/navy-reference.md §3.7. Advisory only; it does not alter the score.
   const recordGapCount = Number(cont.detail.recordGapCount ?? 0);
   const continuityGap = recordGapCount > 0;
   const continuityAdvisory = continuityGap
-    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of undocumented performance, and the board evaluates the record with what is available. At a minimum, try to recover any missing report covering significant duty in the grades of E-5 or above within the past 5 years: send a signed copy of the original to PERS-32 (para 17-6a), or, if it cannot be obtained, submit a one-page letter in lieu of the report to PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular report continuity, and it may not evaluate your own performance or recommend you for promotion). Verify your reporting continuity on BOL and NSIPS.`
+    ? `${recordGapCount} gap${recordGapCount === 1 ? "" : "s"} in reporting continuity (a missing period longer than ${config.continuity_gap_days} days) ${recordGapCount === 1 ? "was" : "were"} detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of undocumented performance, and the board evaluates the record with what is available. At a minimum, try to recover any missing report covering significant duty in the grades of E-5 or above within the past 5 years: send PERS-32 a copy of the original that displays all required signatures, initials and dates, together with a signed cover letter asking that the duplicate report be filed in your official record (para 17-6a); or, if the report cannot be obtained, send PERS-32 a one-page letter in lieu of the report explaining why it could not be obtained and supplying what would have appeared in blocks 1-19 and 22-26 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular report continuity, and it may not evaluate your own performance or recommend you for promotion). Verify your reporting continuity on BOL and NSIPS.`
     : null;
   if (continuityAdvisory) warnings.push(continuityAdvisory);
 

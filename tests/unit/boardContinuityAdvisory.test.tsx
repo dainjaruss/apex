@@ -82,9 +82,18 @@ describe("continuity gap advisory — BUPERSINST 1610.10H para 17-6", () => {
     expect(text).toContain("BUPERSINST 1610.10H para 17-6");
     // A Sailor must learn there is a fix, not only that there is a problem.
     expect(text).toContain("E-5 or above within the past 5 years");
-    expect(text).toContain("PERS-32 (para 17-6a)");
+    expect(text).toContain("para 17-6a");
     expect(text).toContain("letter in lieu of the report");
     expect(text).toContain("para 17-6b");
+    // ...and enough of it to actually follow. 17-6a requires the copy to display all
+    // required signatures/initials/dates AND a signed cover letter requesting the
+    // duplicate be filed; 17-6b requires the letter to say why and to supply blocks
+    // 1-19 and 22-26. A Sailor who follows a compressed version gets bounced.
+    expect(text).toContain("all required signatures, initials and dates");
+    expect(text).toContain("signed cover letter");
+    expect(text).toContain("filed in your official record");
+    expect(text).toContain("explaining why it could not be obtained");
+    expect(text).toContain("blocks 1-19 and 22-26");
   });
 
   it("prefers a current run's own advisory so the two texts cannot drift", () => {

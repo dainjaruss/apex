@@ -248,7 +248,9 @@ update public.board_precepts set active = false where cycle <> 'FY27 Active-Duty
   are out of scope (spec §12).
 - Admin-on-behalf analysis is deferred: `profiles` roles are self-asserted in
   this app, so the server cannot trust them for cross-user access.
-- CPO boards brief and vote each record individually within a rating panel and
-  scattergram the results; the Navy publishes no numeric vote scale for enlisted
-  boards, so the banding is an explicitly labeled approximation borrowed from the
-  officer brief.
+- CPO boards brief and vote each record individually within a rating panel, which
+  groups several rating communities rather than one panel per rating (PERS-803
+  example panels: Admin/Supply, Nuke/SPECWAR, Aviation, Surface Ops/Engineering,
+  Submarine, Combat Systems/Info Warfare) — and scattergram the
+  results; the Navy publishes no numeric vote scale for enlisted boards, so the
+  banding is an explicitly labeled approximation borrowed from the officer brief.

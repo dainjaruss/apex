@@ -494,6 +494,15 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(advisory).toMatch(/17-6a/);
     expect(advisory).toMatch(/letter in lieu/i);
     expect(advisory).toMatch(/17-6b/);
+    // ...and the CONDITIONS on each remedy. A Sailor who mails a bare copy without
+    // 17-6a's signed cover letter, or a letter that omits 17-6b's "why" and its
+    // blocks 1-19 / 22-26 data, gets the submission bounced. Naming the paragraph
+    // without its requirements fails the Sailor the same way withholding it did.
+    expect(advisory).toMatch(/all required signatures, initials and dates/i);
+    expect(advisory).toMatch(/signed cover letter/i);
+    expect(advisory).toMatch(/filed in your official record/i);
+    expect(advisory).toMatch(/explaining why it could not be obtained/i);
+    expect(advisory).toMatch(/blocks 1-19 and 22-26/i);
     // the advisory is what gets pushed into warnings, verbatim
     expect(r.warnings).toContain(advisory);
   });

@@ -19,7 +19,17 @@ import type { Narrative } from "@/lib/boardConfidence/narrative";
 // The word "slate" appears nowhere in the PERS-803 brief, the FY-27 enlisted precept,
 // or either FY-27 convening order. The 100/75/50/25/0 confidence scale is published
 // in the PERS-80 OFFICER brief only — no numeric vote scale is published for enlisted
-// boards. See docs/navy-reference.md §1.3 and §1.4.
+// boards.
+//
+// "within a rating panel" alone read NARROWER than the source: PERS-803's own example
+// panels each span SEVERAL rating communities (Admin/Supply, Nuke/SPECWAR, Aviation,
+// Surface Ops/Engineering, Submarine, Combat Systems/Info Warfare), so a Navy reader
+// could take it to mean one panel per rating. Widened to say what the brief shows.
+// The gloss deliberately does NOT equate "panel" with "tank": §1.3 uses "panel" and
+// "tank group" as adjacent distinct nouns (records are assigned within panels; the
+// TANK GROUP votes to approve the recommended selects, by majority). Nothing in the
+// disclaimer needs the word, so it does not assert the identity.
+// See docs/navy-reference.md §1.3, §1.4 and §1.5.
 export const BOARD_DISCLAIMER =
   "UNOFFICIAL TOOL — NOT A SELECTION BOARD. The APEX Record Readiness Review is " +
   "a self-assessment aid. It is not affiliated with, endorsed by, or predictive of any " +
@@ -27,7 +37,8 @@ export const BOARD_DISCLAIMER =
   "computed by a fixed, published rubric modeled on the officer-brief confidence vote " +
   "bands (100/75/50/25/0), which the Navy publishes for officer boards only; enlisted " +
   "(CPO) selection boards brief and vote each record individually within a rating " +
-  "panel and scattergram the results, and no numeric vote scale is published for " +
+  "panel (which groups several rating communities rather than one panel per " +
+  "rating) and scattergram the results, and no numeric vote scale is published for " +
   "enlisted boards — so this model is an approximation, not actual board " +
   "procedure. Only your official record (OMPF, PSR, and a Letter to the Board) exists " +
   "to a real board. Verify your record on BOL and NSIPS, and consult your command " +

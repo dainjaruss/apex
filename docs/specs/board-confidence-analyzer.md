@@ -1111,7 +1111,8 @@ DETERMINISM/TESTABILITY: no randomness, no clock reads (T is an input), integer 
 
 Final 0-100 score maps to the board-style confidence vote (bands verified for
 officer statutory and LDO/CWO in-service procurement boards; PERS-803 CPO boards
-brief and vote each record individually within a rating panel and scattergram the
+brief and vote each record individually within a rating panel, which groups several
+rating communities rather than one panel per rating, and scattergram the
 results, and publish no numeric vote scale, so this is explicitly labeled "modeled on
 the officer-brief confidence bands," not actual CPO-board math — the UI must carry
 this disclaimer):
