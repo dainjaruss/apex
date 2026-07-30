@@ -299,7 +299,11 @@ export async function assembleRubricInputs(
           // against the board date. Both live on ladr_milestones.detail, which
           // is already jsonb — no migration. Absent typical_months stays absent:
           // the readiness layer refuses to guess a duration.
-          const typicalMonths = Number(m.detail?.typical_months);
+          // NOT Number(): Number(null) === 0 and Number("") === 0, so an explicit
+          // jsonb null would arrive as typical_months: 0 and the readiness layer
+          // would classify the milestone "achievable before the board" with a
+          // certainty it does not have. Absent must stay absent.
+          const rawMonths: unknown = m.detail?.typical_months;
           return {
             milestone_id: m.id,
             category: m.category,
@@ -307,7 +311,10 @@ export async function assembleRubricInputs(
             verified_in_ompf: entry.verified_in_ompf,
             board_emphasis,
             item: m.item,
-            typical_months: Number.isFinite(typicalMonths) ? typicalMonths : null,
+            typical_months:
+              typeof rawMonths === "number" && Number.isFinite(rawMonths) && rawMonths > 0
+                ? rawMonths
+                : null,
             blocked_unless:
               typeof m.detail?.blocked_unless === "string" ? m.detail.blocked_unless : null,
           };

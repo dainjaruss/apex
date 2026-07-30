@@ -663,106 +663,115 @@ export function scoreBoardConfidence(
 // ---------------------------------------------------------------------------
 
 /**
- * The composite on its full-float scale: Σcontribution − A, clamped to [0,100].
- * This is `RubricResult.final` BEFORE the terminal 1-decimal rounding, and it is
- * the scale bandDeltas measures on — rounding first would quantize away the
- * ranking between small candidates.
+ * The composite on its full-float scale: Σcontribution − A, UNCLAMPED.
+ * This is `RubricResult.final` before the [0,100] clamp and the terminal
+ * 1-decimal rounding, and it is the scale bandDeltas measures on.
+ *
+ * Neither the clamp nor the rounding may be applied first. Rounding quantizes
+ * away the ranking between small candidates. Clamping is worse: with a large
+ * adverse adjustment (2 adverse items + a PFA failure gives A = 40) the base
+ * AND every candidate all clamp to 0, so every delta is 0 and the Sailor in the
+ * most trouble gets an empty action plan. Clamp only for display.
  */
 export function compositeRaw(r: RubricResult): number {
-  return clamp(
-    r.factors.reduce((a, f) => a + f.contribution, 0) - r.adverseAdjustment,
-    0,
-    100,
-  );
+  return r.factors.reduce((a, f) => a + f.contribution, 0) - r.adverseAdjustment;
 }
 
+/**
+ * Only real improvements. There is deliberately NO `award_verify` / `ladr_verify`
+ * candidate: `verified_in_ompf` is a self-ticked box (RecordEntryForm), so it is
+ * an HONESTY axis, not a verification axis. Scoring it inverts correct doctrine
+ * (a board sees only your OMPF) into an integrity penalty — ticking every box and
+ * changing nothing else is worth double-digit points, while disclosing honestly
+ * ("met, not yet in OMPF") can cost points. Confirming an OMPF entry belongs in
+ * the plan as an unscored reminder; see ReadinessReport.confirmInOmpf. Taking
+ * UNVERIFIED_MULT and the esrFlags term out of the score itself is P2 arithmetic.
+ */
 export type BandDeltaKind =
-  | "award_verify"   // an unverified award → verified in OMPF
   | "ladr_answer"    // an unanswered LaDR row → answered "met"
-  | "ladr_meet"      // a not_met LaDR row → met
-  | "ladr_verify";   // a met-but-unverified LaDR row → verified in OMPF
+  | "ladr_meet";     // a not_met LaDR row → met
 
 export interface BandDelta {
-  id: string;                  // stable within a run: "award:2", "ladr:<uuid>:meet"
+  id: string;                  // stable within a run: "ladr:<uuid>:meet"
   kind: BandDeltaKind;
   area: FactorKey;             // the factor the flip primarily lands in
-  label: string;               // award title / LaDR milestone text
+  label: string;               // LaDR milestone text
   milestoneId: string | null;
   /**
    * TRUE marginal composite points: compositeRaw(re-scored with this ONE input
    * flipped) − compositeRaw(base). Recomputed, never estimated — answering an
-   * unanswered LaDR row moves both the numerator and the answered/applicable
-   * confidence denominator, and it also moves completeness (ladr90, esrFlags)
-   * and precept (category ratios), so nothing short of a full re-score is right.
-   * May be NEGATIVE: recording an unverified entry costs completeness points.
+   * unanswered LaDR row moves the numerator, the answered/applicable confidence
+   * denominator, record completeness (ladr90, esrFlags) AND the precept
+   * indicators at once, so nothing short of a full re-score is right.
+   *
+   * May be NEGATIVE. Measured example: −29/120 exactly, decomposing as
+   * development +0.625, completeness +0.800, precept −1.667 — the negative is
+   * entirely the `warfighting` precept indicator falling 1.0 → 0.833 as an
+   * unverified row dilutes ratios.qual_warfare. (An earlier note in this repo
+   * blamed the esrFlags unverified-count term; that term is real but contributes
+   * −0.2 and is swamped — completeness nets POSITIVE on this flip.)
    */
   delta: number;
 }
 
 /**
  * ponytail: hard ceiling of 60 full re-scores per call. A curated LaDR is 20–30
- * rows and a full award list is well under 30, so 60 covers every real record
- * with headroom; the cap exists so a pathological auto-extracted LaDR cannot
- * turn one page render into thousands of re-scores. Candidates are taken in
- * input order (awards, then LaDR rows). Raise it, or pre-rank candidates by
- * scoreLadr's factor-local marginal_points before slicing, if a rating ever
- * legitimately exceeds it.
+ * rows, so 60 covers every real record with headroom; the cap exists so a
+ * pathological auto-extracted LaDR cannot turn one page render into thousands of
+ * re-scores — and each re-score is itself O(n) in LaDR rows, so this is the
+ * difference between O(n²) and unbounded. Candidates are PRE-RANKED by points at
+ * stake before slicing (see stakeOf): slicing in raw input order silently dropped
+ * the single highest-value candidate — a board-emphasis advancement_consideration
+ * row ranking #1 at +5.43 vanished behind 60 filler rows worth −0.17 each.
  */
 export const BAND_DELTA_CANDIDATE_CAP = 60;
 
-/** Pure: the marginal composite value of each single-input improvement, ranked. */
+/**
+ * Cheap upper bound on what a row is worth, used ONLY to order candidates before
+ * the cap. Never reported — `delta` is always the true re-score.
+ */
+const stakeOf = (it: LadrItemInput, emphasisMult: number): number =>
+  LADR_CATEGORY_WEIGHTS[it.category] * (it.board_emphasis ? emphasisMult : 1);
+
+/**
+ * Pure: the marginal composite value of each single-input improvement, ranked.
+ *
+ * `config` is REQUIRED and must be the config `result` was scored under. Running
+ * it against the defaults while the operator has tuned `board_rubric_config`
+ * produces deltas that are wrong by multiples and can invert the ranking.
+ */
 export function bandDeltas(
   result: RubricResult,
   inputs: RubricInputs,
-  config: RubricConfig = DEFAULT_RUBRIC_CONFIG,
+  config: RubricConfig,
 ): BandDelta[] {
   const base = compositeRaw(result);
-  const swap = <E,>(arr: E[], i: number, next: E): E[] =>
-    arr.map((x, j) => (j === i ? next : x));
 
-  type Candidate = Omit<BandDelta, "delta"> & { flipped: RubricInputs };
+  type Candidate = Omit<BandDelta, "delta"> & { flipped: RubricInputs; stake: number };
   const candidates: Candidate[] = [];
 
-  const awards = inputs.psr.awards ?? [];
-  awards.forEach((aw, i) => {
-    if (aw.verified_in_ompf) return;
+  inputs.ladr.forEach((it, i) => {
+    if (it.status !== "unanswered" && it.status !== "not_met") return;
     candidates.push({
-      id: `award:${i}`,
-      kind: "award_verify",
-      area: "leadership",
-      label: aw.title,
-      milestoneId: null,
+      // "answer" is a checklist row that has never been touched; "meet" is one
+      // the Sailor has explicitly marked not met. Same flip, different advice.
+      id: `ladr:${it.milestone_id}:${it.status === "unanswered" ? "answer" : "meet"}`,
+      kind: it.status === "unanswered" ? "ladr_answer" : "ladr_meet",
+      area: "development",
+      label: it.item || it.milestone_id,
+      milestoneId: it.milestone_id,
+      stake: stakeOf(it, config.board_emphasis_multiplier),
       flipped: {
         ...inputs,
-        psr: { ...inputs.psr, awards: swap(awards, i, { ...aw, verified_in_ompf: true }) },
+        ladr: inputs.ladr.map((x, j) => (j === i ? { ...x, status: "met" as const } : x)),
       },
     });
   });
 
-  inputs.ladr.forEach((it, i) => {
-    const flip = (patch: Partial<LadrItemInput>): RubricInputs => ({
-      ...inputs,
-      ladr: swap(inputs.ladr, i, { ...it, ...patch }),
-    });
-    const common = {
-      area: "development" as FactorKey,
-      label: it.item || it.milestone_id,
-      milestoneId: it.milestone_id,
-    };
-    if (it.status === "unanswered") {
-      // Answered "met" but still unverified — the honest minimal flip; the
-      // OMPF-verification step is its own candidate once the row reads met.
-      candidates.push({ id: `ladr:${it.milestone_id}:answer`, kind: "ladr_answer", ...common, flipped: flip({ status: "met" }) });
-    } else if (it.status === "not_met") {
-      candidates.push({ id: `ladr:${it.milestone_id}:meet`, kind: "ladr_meet", ...common, flipped: flip({ status: "met" }) });
-    } else if (it.status === "met" && !it.verified_in_ompf) {
-      candidates.push({ id: `ladr:${it.milestone_id}:verify`, kind: "ladr_verify", ...common, flipped: flip({ verified_in_ompf: true }) });
-    }
-  });
-
   return candidates
+    .sort((a, b) => b.stake - a.stake)
     .slice(0, BAND_DELTA_CANDIDATE_CAP)
-    .map(({ flipped, ...rest }) => ({
+    .map(({ flipped, stake: _stake, ...rest }) => ({
       ...rest,
       delta: compositeRaw(scoreBoardConfidence(flipped, config)) - base,
     }))

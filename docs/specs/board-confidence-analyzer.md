@@ -1441,3 +1441,168 @@ Reused, not re-derived: `computeTraitAverage` / `computeSummaryGroupAverage` /
 `createAdminClient` / `getRouteUserId` / `createBrowserClient`
 (`lib/supabaseClient.ts`), `has_oversight` (SQL), `AppShell` / `RoleGuard` /
 `AccessDeniedPanel`, `apex-*` tokens (`app/globals.css`).
+
+---
+
+## 14. NORMATIVE READINESS CONTRACT — v2 (`lib/boardConfidence/readiness.ts`)
+
+> Added 2026-07-29. Source: epic *Record Readiness Review v2* §3.4b, as revised
+> after the domain review of PR #21 returned BLOCKER. This section is normative
+> for the readiness layer; §7 remains normative for the scoring rubric, which the
+> readiness layer does not modify.
+
+### 14.1 Why the layer exists
+
+§7 computes `contribution = (weight/100) · S_f · conf_f`, sums six factors and
+thresholds the total against fixed bands **with no renormalization by
+`Σ(weight·conf)`**. The denominator is always a full 100 while the achievable
+maximum varies per user, so `conf = 0` ("APEX has no data") and `S = 0, conf = 1`
+("the record is weak") are numerically identical. Measured consequences:
+
+| Record | Result |
+|---|---|
+| 6 consecutive annual EVALs, all **Early Promote**, PSR/LaDR never filled | 40.5 — *Not competitive this cycle* |
+| 5 annual EVALs, all **Promotable**, every section filled | 57.3 — *Crunch — middle band* |
+| Nothing entered at all | 1.0 — *Drop-from-consideration risk* |
+| 6× EP + MSM + 4 years sea duty, rating has no curated LaDR | scored mid-band, **empty action plan** |
+
+The permanent fix is renormalization (P2 arithmetic). Until then the readiness
+layer **suppresses the verdict** rather than reporting one the arithmetic cannot
+support, and ships a ranked plan in its place.
+
+### 14.2 The two gates on emitting a score
+
+`score` is `{ value, band, label }` **only** when BOTH hold; otherwise it is
+`null` and `scoreNote` carries the plain-language reason.
+
+1. **Blind-spot gate (primary).** No score while any factor with `weight > 0` has
+   `confidence === 0`. Zero confidence is a blind spot, not low coverage: the
+   factor's full weight enters the composite as points the Sailor is charged for
+   and cannot earn. A weighted average cannot express this — the flawless record
+   above cleared the coverage floor at 0.79.
+2. **Coverage floor (backstop).** `coverage.measured = Σ(weight·conf)/100`, and
+   `score` is null below `COVERAGE_FLOOR` (default **0.75**, exported and
+   overridable per run). Coverage is **not 0** for an empty record: continuity,
+   completeness and precept report `conf = 1` unconditionally, so nothing-entered
+   already reads 0.30 (0.22 with no precept loaded). The honest range is
+   0.30 → 1.00, and 0.75 encodes "at most a quarter of the weighted record may be
+   scored as zeros it did not earn".
+
+**No curated LaDR is a first-run condition, not a permanent one.** Only 2 of 82
+ratings ship a verified seed (`ratings.ts` lists 82; 3 seed files exist and BM
+self-declares `source: "representative"`), and the Sailor fetches theirs from Navy
+COOL in one click. `scoreNote` must say so rather than implying the tool cannot
+help them.
+
+### 14.3 Evidence tiers
+
+Nothing in this tool is OMPF-verified. Evals are selected
+`.eq("created_by", subjectUserId)` (subject-drafted); "finalized" is an APEX
+workflow state with no OMPF relationship; `rsca` is self-typed into
+`member_board_records.eval_context`; `verified_in_ompf` is a self-ticked box; the
+shipped precept is `"(modeled)"` with `source_url: null`.
+
+| value | UI label | `evidenceNote` |
+|---|---|---|
+| `self_reported` | From your entries | "You entered this. APEX has not checked it against your OMPF, PSR, or NSIPS." |
+| `peer_compared` | From your entries, compared to your summary group | "You entered this. The comparison uses evaluations other APEX users entered for the same summary group — those are not checked against any official record either." |
+| `not_entered` | Not entered | "You have not entered this yet, so APEX left it out." |
+
+- **Only `performance` may be `peer_compared`**, and only when
+  `summary_group_average != null && group_size >= 2`. Continuity touches no peer
+  data at all; tagging it from another factor's inputs is fabricated provenance.
+  A group of one is a comparison with oneself.
+- **Never render the three as a quality ladder.** `not_entered` is a data state.
+
+### 14.4 Statuses
+
+`strong` / `on_track` / `needs_attention` / `not_enough_entered`.
+
+`adequate` is **retired**: in eval vocabulary "adequate"/"satisfactory" is where
+3.0 lives (*Meets Standards*), which to an E7 candidate reads as "you will not be
+selected". `not_enough_entered` is a separate axis, never the bottom rung.
+
+### 14.5 String gating — every sentence must be supported by its data
+
+- **Continuity status keys on `recordGapCount` / `continuityGap`, never on
+  `f.score`.** The score carries the pre-first-report leading-span penalty, which
+  §7 (v1.5) deliberately stopped treating as a real break. Reading it told a
+  three-year Sailor with three consecutive Must Promotes and nothing missing that
+  their record had a hole in it because they had not yet enlisted.
+- **Precept is `not_enough_entered` unless EVERY active flag has computable
+  underlying data.** `scorePrecept` emits 0 for a flag whose inputs are absent,
+  and a 0 from absence is indistinguishable from a 0 from a genuine gap — which
+  told a Sailor with four years of sea duty that their record showed little of
+  what the board emphasizes, purely because their rating has no curated LaDR.
+- **No string may describe what the precept emphasizes while `source_url` is
+  null.** Prefix instead: *"Emphasis areas are entered by an APEX Admin and are
+  not taken from the board's convening order."* The area is named **"Board
+  emphasis areas"**, never "alignment" — APEX maps five booleans to five crude
+  indicators.
+- **No string may assert a comparison nothing computes** (no "your weakest area";
+  nothing ranks areas against each other).
+- **No engine internals** (`P1`–`P4`, `aP`, `wSum`, `coveredDays`,
+  `availableSubweight`, `ratio_*`) in any user-facing string; they stay on
+  `detail` behind "show the math".
+- **Roles must exist.** `permissions.ts` defines Sailor / Rater / Senior Rater /
+  Reporting Senior / Admin — there is no "command administrator".
+- `ReadinessReport` **must carry `BOARD_DISCLAIMER`** (§1.1 requires it on every
+  results view).
+
+### 14.6 `bandDeltas` — marginal value
+
+`bandDeltas(result, inputs, config)` re-runs the **whole composite** once per
+candidate and returns the true marginal points. Estimation is not permitted:
+answering an unanswered LaDR row moves the numerator, the `answered/applicable`
+confidence denominator, record completeness (`ladr90`, `esrFlags`) **and** the
+precept indicators simultaneously.
+
+- **`config` is REQUIRED.** Running against the defaults while
+  `board_rubric_config` is tuned produces deltas wrong by multiples and can
+  invert the ranking.
+- **Deltas are measured on the UNCLAMPED composite** (`Σcontribution − A`).
+  Clamping first makes every delta 0 once `A` exceeds the raw sum (2 adverse
+  items + a PFA failure gives `A = 40`), blanking the plan for the Sailor in the
+  most trouble. Clamp only for display.
+- **Candidates are pre-ranked by points at stake before the cap**
+  (`BAND_DELTA_CANDIDATE_CAP`, default 60 re-scores). Slicing in raw input order
+  silently dropped a board-emphasis `advancement_consideration` row ranking #1 at
+  +5.43 behind 60 filler rows worth −0.17 each.
+- Deltas **may be negative**. Measured: −29/120 exactly, decomposing as
+  development +0.625, completeness **+0.800**, precept **−1.667** — the negative
+  is entirely the `warfighting` indicator diluting as an unverified row joins its
+  category. The plan filters to `worth > 0`.
+
+### 14.7 `verified_in_ompf` must not produce scored actions
+
+The doctrine is correct and sourced — a board sees only the OMPF — but
+`verified_in_ompf` is a **self-ticked box**, so it is an *honesty* axis, not a
+*verification* axis. Correct doctrine applied to an unverifiable input inverts
+into an integrity penalty: ticking every box and changing nothing else is worth
+double-digit points, while disclosing honestly ("met, not yet in OMPF") can cost
+points.
+
+`bandDeltas` therefore emits **no** `award_verify` / `ladr_verify` candidates.
+Unconfirmed entries surface as `ReadinessReport.confirmInOmpf` — an **unscored**
+list with no `worth`. Removing `UNVERIFIED_MULT` and the `esrFlags` term from the
+score itself is P2 arithmetic.
+
+Action text must not quote the payout for a self-report answer.
+
+### 14.8 Time
+
+`monthsToBoard` is derived from `opts.asOf` (the caller's "today") and
+`inputs.boardDate`. The engine reads **no clock**.
+
+- `asOf` is a **trust boundary** — a route hands it in. Malformed values are
+  rejected (they would make `monthsBefore` return `NaN` and silently push every
+  action to `next_cycle`).
+- Absent or malformed, `asOf` defaults to **the board date**, giving
+  `monthsToBoard = 0` so nothing is promised as achievable. It must NOT default
+  to the latest evaluation `period_to`: that is always in the past and therefore
+  overstates the time remaining.
+- `horizon` uses `typical_months` / `blocked_unless` from `ladr_milestones.detail`
+  (already jsonb — no migration). `blocked_unless` takes precedence. **Absent
+  `typical_months`, no duration is guessed**: the item is `next_cycle` with
+  `horizonBasis: "unknown_duration"`. `Number()` must not be used to read it —
+  `Number(null) === 0`, which would claim the milestone is achievable today.
