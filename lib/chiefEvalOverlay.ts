@@ -1,23 +1,39 @@
 // lib/chiefEvalOverlay.ts
 //
 // High-fidelity PDF generation by OVERLAYING our data onto the official
-// NAVPERS 1616/27 (CHIEFEVAL, REV 05-2025) blank.
+// NAVPERS 1616/27 (CHIEFEVAL, REV 05-2025) blank in public/chiefEvalBlank.pdf.
 //
-// Trait rows carry the real 1616/27 Blocks 33-39 (Technical Mastery, Institutional
-// Expertise, Professionalism, Integrity, Accountability, Deckplate Leadership, Team
-// Effectiveness), split 4/3 across pages as the form prints them, and Block 47
-// (Retention) is omitted — N/A for career E7-E9 Sailors.
+// ── How 1616/27 records a trait grade ────────────────────────────────────────
+// It does NOT use the 1.0/2.0/3.0/4.0/5.0 checkbox grid that 1616/26 and 1610/2 use.
+// Each trait row (Blocks 33-39) is three columns — PERFORMANCE TRAITS | PERFORMANCE
+// GRADE | PERFORMANCE COMMENTS — and the PERFORMANCE GRADE column holds:
+//   • a bare bold "NOB" label near the top of the column, with NO square around it, and
+//   • ONE bordered cell in the column's bottom-right corner, 24.9 x 17.8 pt,
+//     PRE-PRINTED with "0.0".
+// A whole-page census at 300 dpi finds fourteen 15.1 x 12.5 pt checkboxes on the form
+// and not one of them is in a trait row: twelve are page-1 header boxes (Blocks 5,
+// 10-13, 16-19) and two are Block 49's statement-intent boxes. So the grade is a
+// NUMERAL TYPED INTO A CELL, not an X in one of six columns, and the cell's pre-printed
+// "0.0" has to be covered before the value is written (see lib/pdfBoxText.ts).
 //
-// ponytail: the non-trait coordinate grid below is INHERITED FROM 1616/26 and is NOT
-// verified against 1616/27. It is measurably wrong on at least the grade columns:
-// 1616/27 carries an extra left rail printing the COMPETENCY/CHARACTER/CULTURE trait
-// categories, which shifts the grade grid ~80pt right (the "NOB" label sits at x≈150.7
-// on 1616/27 vs x≈70.6 on 1616/26). Only GRADE_COLS_*[0] can be derived from the text
-// layer; columns 1-5 are graphic boxes with no text to measure, so the whole grid needs
-// calibrating against a rendered page. Trait Y centres and the 4/3 page split ARE
-// derived from the form (see p1.traitCy). Upgrade path: render both pages and re-measure
-// GRADE_COLS_P1/P2 and the block boxes before this output is treated as filing-ready.
+// ── How an unobserved trait is marked ────────────────────────────────────────
+// "NOB" goes in the same cell, as text. The form itself demonstrates the convention:
+// Block 41 (Individual promotion recommendation) is an identical bordered cell and
+// 1616/27 pre-prints "NOB" inside it as that cell's default value, exactly as it
+// pre-prints "0.0" in the grade cells and "0.00" in the average cells. A trait row
+// offers no other writable target — the bold "NOB" beside the cell is a legend, not a
+// box — so an unobserved trait is recorded by typing NOB where the numeral would go.
 //
+// ── Coordinates ─────────────────────────────────────────────────────────────
+// Every constant below is MEASURED from public/chiefEvalBlank.pdf, not inherited from
+// 1616/26. Method, re-runnable in a minute:
+//   pdftotext -bbox-layout public/chiefEvalBlank.pdf   (label and default-value bboxes,
+//     converted to pdf-lib's bottom-left origin as 792 - y)
+//   pdftoppm -gray -r 300 public/chiefEvalBlank.pdf    (rule and box detection: scan for
+//     rows/columns of dark pixels, then walk outward from a seed point to the enclosing
+//     cell walls)
+// tests/unit/chiefEvalTraitTable.test.ts re-asserts the trait cells and the header
+// checkboxes against the same measurements by parsing the generated content stream.
 
 import {
   PDFDocument,
@@ -25,9 +41,6 @@ import {
   PDFPage,
   rgb,
   StandardFonts,
-  pushGraphicsState,
-  popGraphicsState,
-  translate,
 } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
@@ -36,10 +49,16 @@ import { Evaluation } from "@/types";
 import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
+import { Box, drawInBox } from "./pdfBoxText";
 
 const BLACK = rgb(0, 0, 0);
-const FORM_RIGHT = 565.2;
-const FORM_LEFT = 17.3;
+
+// Inner edges of the form's outer rules, and the left origin for text set inside a
+// full-width cell (2.5pt clear of the rule).
+const FORM_LEFT = 31.7;
+const FORM_RIGHT = 578.9;
+const TEXT_X = 34.2;
+const NARRATIVE_WIDTH = FORM_RIGHT - TEXT_X;
 
 function dutyIndex(s: string): number | null {
   const u = (s || "").toUpperCase();
@@ -50,15 +69,23 @@ function dutyIndex(s: string): number | null {
   return null;
 }
 
-function gradeIndex(grade?: string): number | null {
-  if (!grade) return null;
-  if (grade.toUpperCase() === "NOB") return 0;
-  const n = parseInt(grade, 10);
-  return n >= 1 && n <= 5 ? n : null;
+/**
+ * A trait grade as 1616/27 prints it in the grade cell: one decimal ("4.0", matching
+ * the pre-printed "0.0"), or the literal "NOB". Anything else renders nothing, which
+ * leaves the form's own "0.0" showing — an ungraded trait, not a fabricated 0.0.
+ */
+export function formatTraitGrade(grade?: string): string | null {
+  const v = (grade || "").trim();
+  if (!v) return null;
+  if (v.toUpperCase() === "NOB") return "NOB";
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n.toFixed(1) : null;
 }
 
-const REC_COLS = [
-  "NOB",
+// Block 48 Summary Group Breakdown columns, left to right as the form prints them.
+// There is no NOB column: 1616/27 breaks the group down over the five observed
+// recommendations only.
+const BREAKDOWN_COLS = [
   "Significant Problems",
   "Progressing",
   "Promotable",
@@ -66,160 +93,190 @@ const REC_COLS = [
   "Early Promote",
 ];
 
-function recIndex(r?: string): number | null {
-  const i = REC_COLS.indexOf(r || "");
-  return i >= 0 ? i : null;
-}
-
-// Coordinate map matching 1616/27 layout (same grid geometry as 1616/26)
+// ─────────────────────────────────────────────────────────────────────────────
+// Measured coordinate map — NAVPERS 1616/27 (REV 05-2025).
+// Boxes are cell interiors {x0,y0,x1,y1}; *Cx/*Cy are checkbox centres; *_x with a
+// *Baseline is a text origin.
+// ─────────────────────────────────────────────────────────────────────────────
 const C = {
-  GRADE_COLS_P1: [80.6, 209.5, 245.5, 381.6, 418.3, 555.8],
-  GRADE_COLS_P2: [80.6, 209.5, 245.5, 383.0, 418.3, 555.8],
-
   p1: {
-    name_x: 23.5,
-    grade_x: 279.0,
-    desig_x: 355.0,
-    dodid_x: 452.0,
-    identityBaseline: 755.3,
+    // Blocks 1-4, cell row y[746.6, 769.4]; labels occupy y[757.1, 766.0].
+    name_x: 34.0,
+    grade_x: 306.0,
+    desig_x: 372.0,
+    dodid_x: 472.5,
+    identityBaseline: 749.5,
 
-    dutyCx: [31.5, 107.5, 187.0, 248.5],
-    dutyCy: 721.2,
+    // Block 5 — boxes sit BELOW their ACT/TAR/INACT/AT-ADOS labels on 1616/27.
+    dutyCx: [51.5, 81.0, 109.8, 137.9],
+    dutyCy: 731.3,
 
-    uic_x: 337.5,
-    ship_x: 382.0,
-    promo_x: 524.5,
-    datereported_x: 546.5,
-    row69Baseline: 721.5,
+    // Blocks 6-9, cell row y[722.9, 746.4].
+    uic_x: 183.0,
+    ship_x: 234.0,
+    promo_x: 429.5,
+    datereported_x: 509.0,
+    row69Baseline: 725.8,
 
-    periodicCx: 31.5,
-    detachIndCx: 107.5,
-    promoFrockCx: 226.5,
-    specialCx: 326.5,
-    occasionCy: 686.0,
+    // Blocks 10-13 (Occasion for Report) — box to the RIGHT of each label.
+    // Block 12 on 1616/27 is "Detachment of Reporting Senior", NOT the EVAL's
+    // "Promotion/Frocking"; APEX has no field for it, so it is deliberately left
+    // unmarked (see the p1 occasion section below).
+    periodicCx: 132.8,
+    detachIndCx: 208.4,
+    detachRsCx: 298.4,
+    specialCx: 356.0,
+    occasionCy: 707.5,
 
-    from_x: 440.0,
-    to_x: 512.0,
-    periodBaseline: 686.0,
+    // Blocks 14-15, values set right of each label inside the Period of Report cell.
+    from_x: 407.5,
+    to_x: 505.5,
+    periodBaseline: 701.5,
 
-    notObservedCx: 31.5,
-    regularCx: 107.5,
-    concurrentCx: 187.0,
-    notObservedCy: 650.0,
-    regularCy: 650.0,
-    concurrentCy: 650.0,
+    // Blocks 16-19 (Type of Report). Block 19 "Ops Cdr" is 1616/27-only; APEX has no
+    // field for it, so its box is left unmarked.
+    notObservedCx: 100.4,
+    regularCx: 174.6,
+    concurrentCx: 243.7,
+    typeCy: 683.0,
 
-    pfa_x: 325.0,
-    billet_x: 388.0,
-    pfaBilletBaseline: 651.0,
+    // Blocks 20-21, cell row y[673.9, 697.4].
+    pfa_x: 333.5,
+    billet_x: 472.5,
+    pfaBilletBaseline: 677.0,
 
-    rsName_x: 23.5,
-    rsGrade_x: 212.0,
-    rsDesig_x: 268.0,
-    rsTitle_x: 343.0,
-    rsUic_x: 432.0,
-    rsDodid_x: 488.0,
-    rsBaseline: 616.0,
+    // Blocks 22-27, cell row y[648.7, 673.7].
+    rsName_x: 34.0,
+    rsGrade_x: 184.5,
+    rsDesig_x: 234.8,
+    rsTitle_x: 286.0,
+    rsUic_x: 417.8,
+    rsDodid_x: 472.5,
+    rsBaseline: 651.8,
 
-    b28_x: FORM_LEFT,
-    b28_topBaseline: 574.0,
-    b28_lines: 4,
-    b28_cpl: 91,
+    // Block 28 — cell y[601.2, 648.5], label bottom 638.7. 3 lines at ~11.6pt lead.
+    b28_x: TEXT_X,
+    b28_topBaseline: 632.0,
+    b28_lines: FIELD_FIT.command_achievements.maxLines,
+    b28_cpl: FIELD_FIT.command_achievements.charsPerLine,
 
-    b29b_x: FORM_LEFT,
-    b29_firstBaseline: 486.0,
+    // Block 29 — the 29A abbreviation box is x[32.4, 149.0] y[578.2, 590.6] and shares
+    // its printed line with the first line of the 29B narrative, which resumes to its
+    // right and then wraps to the full width down to the cell bottom at 539.5.
+    b29b_x: TEXT_X,
+    b29_firstBaseline: 581.5,
     b29b_lines: getPrimaryDutiesFieldFit("CHIEFEVAL").maxLines,
     b29b_cpl: getPrimaryDutiesFieldFit("CHIEFEVAL").charsPerLine,
     b29_abbrevSize: 9.5,
-    b29b_contX: FORM_LEFT,
+    b29b_contX: TEXT_X,
 
-    dateCounseled_x: 23.5,
-    counselor_x: 88.0,
-    counselor_width: 145.0,
-    counselBaseline: 400.0,
+    // Blocks 30-31, cell row y[517.0, 539.0].
+    dateCounseled_x: 213.2,
+    counselor_x: 291.7,
+    counselor_width: 132.0,
+    counselBaseline: 520.0,
 
-    // NAVPERS 1616/27 prints FOUR traits on page 1 (Blocks 33-36) and three on
-    // page 2 (Blocks 37-39) — unlike 1616/26, which splits 5/2. These y centres are
-    // derived from the blank form's own text layer: the "NOB" label of each trait
-    // row, measured with `pdftotext -bbox-layout public/chiefEvalBlank.pdf`,
-    // converted to pdf-lib's bottom-left origin (792 - y) and offset +10.7pt, the
-    // NOB-label-to-grade-box delta calibrated on 1616/26 in lib/pdfOverlay.ts.
-    traitCy: {
-      technical_mastery: 492.1, // Block 33
-      institutional_expertise: 381.2, // Block 34
-      professionalism: 270.3, // Block 35
-      integrity: 159.4, // Block 36
-    } as Record<string, number>,
+    // Blocks 33-36 grade cells — COMPETENCY 33-34, CHARACTER 35-36.
+    traitCell: {
+      technical_mastery: { x0: 233.8, y0: 380.9, x1: 258.7, y1: 398.6 }, // 33
+      institutional_expertise: { x0: 233.8, y0: 270.0, x1: 258.7, y1: 287.8 }, // 34
+      professionalism: { x0: 233.8, y0: 159.1, x1: 258.7, y1: 176.9 }, // 35
+      integrity: { x0: 233.8, y0: 46.8, x1: 258.7, y1: 64.6 }, // 36
+    } as Record<string, Box>,
   },
 
   p2: {
-    name_x: 23.5,
-    grade_x: 279.0,
-    desig_x: 355.0,
-    dodid_x: 452.0,
-    identityBaseline: 755.3,
+    // Blocks 1-4 repeat identically on page 2.
+    name_x: 34.0,
+    grade_x: 306.0,
+    desig_x: 372.0,
+    dodid_x: 472.5,
+    identityBaseline: 749.5,
 
-    traitCy: {
-      accountability: 722.5, // Block 37 — 3.0 advancement gate
-      deckplate_leadership: 611.6, // Block 38
-      team_effectiveness: 500.7, // Block 39
-    } as Record<string, number>,
+    // Blocks 37-39 grade cells — CHARACTER 37, CULTURE 38-39.
+    traitCell: {
+      accountability: { x0: 233.8, y0: 611.3, x1: 258.7, y1: 629.0 }, // 37 — 3.0 gate
+      deckplate_leadership: { x0: 233.8, y0: 500.4, x1: 258.7, y1: 518.2 }, // 38
+      team_effectiveness: { x0: 233.8, y0: 389.5, x1: 258.7, y1: 407.3 }, // 39
+    } as Record<string, Box>,
 
-    traitAvg_x: 528.0,
-    traitAvg_y: 538.5,
+    // Block 40 REPORTING SENIOR COMMENTS — cell y[277.2, 380.6], label bottom 370.9.
+    // ponytail: 1616/27's comment box holds EIGHT lines at 10-pitch (seven at 12), not
+    // the eighteen lib/commentFit.checkCommentFit still allows — that 18 is the 1616/26
+    // Block 43 number. Rendering is clamped to what the box physically holds; the
+    // measuring canvas and validation still promise 18. Upgrade path: make
+    // checkCommentFit report per-form capacity so the UI stops over-promising.
+    b40_x: TEXT_X,
+    b40_topBaseline: 363.0,
+    b40_lines10: 8,
+    b40_lines12: 7,
 
-    rec1_x: FORM_LEFT,
-    rec1_y: 512.0,
-    rec2_x: 300.0,
-    rec2_y: 512.0,
+    // Block 41 Individual — one bordered cell, pre-printed "NOB", value set left.
+    b41_cell: { x0: 92.6, y0: 239.0, x1: 211.2, y1: 253.2 } as Box,
 
-    b43_x: FORM_LEFT,
-    b43_topBaseline: 462.0,
-    b43_lines: 18,
+    // Blocks 43/45 averages — pre-printed "0.00". Block 44 (RSCA) is the reporting
+    // senior's cumulative average, which APEX does not hold; its cell is left showing
+    // the form's own 0.00 rather than a fabricated figure.
+    b43_memberTraitCell: { x0: 236.9, y0: 222.5, x1: 273.6, y1: 244.3 } as Box,
+    b45_groupSummaryCell: { x0: 364.3, y0: 223.2, x1: 393.8, y1: 235.7 } as Box,
 
-    b44_x: FORM_LEFT,
-    b44_topBaseline: 220.0,
-    b44_lines: 2,
-    b44_cpl: 91,
+    // Blocks 46-47 Career Milestone Recommendations — one line each, right of the
+    // wrapped "46. First / Recommendation" label which ends at x 444.3.
+    rec_x: 447.0,
+    rec1Baseline: 243.3,
+    rec2Baseline: 225.3,
+    rec_width: 126.0,
 
-    promoRecCx: [47.5, 126.5, 222.5, 313.5, 411.5, 511.5],
-    promoRecCy: 142.5,
-    promoSummaryCy: 119.0,
+    // Block 48 Summary Group Breakdown — five empty cells, y[190.8, 205.4].
+    b48_cells: [
+      { x0: 141.8, y0: 190.8, x1: 171.4, y1: 205.4 },
+      { x0: 199.4, y0: 190.8, x1: 229.0, y1: 205.4 },
+      { x0: 249.8, y0: 190.8, x1: 279.4, y1: 205.4 },
+      { x0: 301.7, y0: 190.8, x1: 331.2, y1: 205.4 },
+      { x0: 355.0, y0: 190.8, x1: 384.5, y1: 205.4 },
+    ] as Box[],
 
-    rsAddr_x: 204.0,
-    rsAddr_topBaseline: 82.0,
-    rsAddr_lines: 3,
-    rsAddr_cpl: 40,
-    rsAddr_width: 215.0,
+    // Block 49 statement intent — box to the right of each phrase.
+    intendCx: 255.2,
+    doNotIntendCx: 334.4,
+    memberStmtCy: 168.2,
 
-    doNotIntendCx: 433.2,
-    intendCx: 494.5,
-    memberStmtCy: 96.5,
+    // Signature dates. 1616/27 prints three: Block 49 (member), Block 50 (reporting
+    // senior) and Block 52 (regular RS on a concurrent report). There is no senior
+    // rater block on this form, so bv.senior_rater_signature_date has no home here.
+    b49_dateCell: { x0: 518.2, y0: 156.2, x1: 575.5, y1: 174.0 } as Box,
+    b50_dateCell: { x0: 302.2, y0: 113.8, x1: 370.3, y1: 131.5 } as Box,
+    b52_dateCell: { x0: 302.2, y0: 50.4, x1: 370.3, y1: 68.2 } as Box,
 
-    summaryAvg_x: 135.0,
-    summaryAvg_y: 47.0,
-
-    date49_x: 25.0,
-    date49_y: 47.0,
-    date50_x: 205.0,
-    date50_y: 47.0,
-    date51_x: 433.0,
-    date51_y: 47.0,
-    date52_x: 522.0,
-    date52_y: 47.0,
+    // Block 51 Reporting Senior Address — cell x[373.4, 579.1], label bottom 144.8,
+    // "Phone:" top 90.0.
+    rsAddr_x: 376.5,
+    rsAddr_topBaseline: 138.0,
+    rsAddr_lines: FIELD_FIT.reporting_senior_address.maxLines,
+    rsAddr_cpl: FIELD_FIT.reporting_senior_address.charsPerLine,
+    rsAddr_width: 203.0,
   },
 };
 
 /**
- * Trait keys this overlay has grade-box coordinates for, derived from the coordinate
+ * Trait keys this overlay has grade-cell coordinates for, derived from the coordinate
  * map itself (page 1 then page 2, in block order). Pinned against
  * CHIEFEVAL_TRAIT_KEYS in tests so a future trait rename cannot silently stop
  * stamping grades onto the PDF.
  */
 export const OVERLAY_TRAIT_KEYS: readonly string[] = Object.freeze([
-  ...Object.keys(C.p1.traitCy),
-  ...Object.keys(C.p2.traitCy),
+  ...Object.keys(C.p1.traitCell),
+  ...Object.keys(C.p2.traitCell),
 ]);
+
+/** The measured grade cell for a trait, or undefined if the map has none. */
+export function traitGradeCell(
+  key: string,
+): { page: 1 | 2; box: Box } | undefined {
+  if (C.p1.traitCell[key]) return { page: 1, box: C.p1.traitCell[key] };
+  if (C.p2.traitCell[key]) return { page: 2, box: C.p2.traitCell[key] };
+  return undefined;
+}
 
 export async function generateChiefEvalOverlayPdf(
   evaluation: Evaluation,
@@ -243,12 +300,14 @@ export async function generateChiefEvalOverlayPdf(
   const bv = evaluation.block_values || {};
   const tg = (evaluation.trait_grades || {}) as Record<string, string | undefined>;
 
+  // An "X" centred on a measured 15.1 x 12.5 pt checkbox. Courier's cap height is
+  // 0.583 em, so centring the cap box puts the glyph in the middle of the square.
+  const MARK_SIZE = 11;
   const mark = (pg: PDFPage, cx: number, cy: number) => {
-    const s = 11;
     pg.drawText("X", {
-      x: cx - 3.4,
-      y: cy - 3.8,
-      size: s,
+      x: cx - courier.widthOfTextAtSize("X", MARK_SIZE) / 2,
+      y: cy - (MARK_SIZE * 0.583) / 2,
+      size: MARK_SIZE,
       font: courier,
       color: BLACK,
     });
@@ -269,7 +328,7 @@ export async function generateChiefEvalOverlayPdf(
     if (maxWidth && maxWidth > 0) {
       const w = font.widthOfTextAtSize(v, s);
       if (w > maxWidth) {
-        s = Math.max(6, Math.floor((s * maxWidth) / w * 10) / 10);
+        s = Math.max(6, Math.floor(((s * maxWidth) / w) * 10) / 10);
       }
     }
     pg.drawText(v, { x, y, size: s, font, color: BLACK });
@@ -282,7 +341,7 @@ export async function generateChiefEvalOverlayPdf(
     topBaseline: number,
     cpl: number,
     maxLines: number,
-    boxWidth = FORM_RIGHT - FORM_LEFT,
+    boxWidth = NARRATIVE_WIDTH,
   ) => {
     const v = (str || "").trim();
     if (!v) return;
@@ -311,7 +370,7 @@ export async function generateChiefEvalOverlayPdf(
     leadSize: number,
     leadChars: number,
     contX = x,
-    boxWidth = FORM_RIGHT - FORM_LEFT,
+    boxWidth = NARRATIVE_WIDTH,
   ) => {
     const leadStr = (lead || "").toUpperCase().trim();
     if (!leadStr && !body) return;
@@ -354,15 +413,19 @@ export async function generateChiefEvalOverlayPdf(
 
   if (bv.periodic) mark(page1, p1.periodicCx, p1.occasionCy);
   if (bv.detachment_individual) mark(page1, p1.detachIndCx, p1.occasionCy);
-  if (bv.promotion_frocking) mark(page1, p1.promoFrockCx, p1.occasionCy);
   if (bv.special) mark(page1, p1.specialCx, p1.occasionCy);
+  // Block 12 (p1.detachRsCx) is intentionally not stamped. The only APEX key for this
+  // slot is bv.promotion_frocking, which the UI labels "12: Promotion/Frocking" — that
+  // is EVAL 1616/26's block 12. 1616/27 prints "Detachment of Reporting Senior" here,
+  // so marking it would put an occasion on the record the rater never selected. Needs a
+  // per-report-type occasion label in components/blocks/Block1Name.tsx first.
 
   text(page1, formatNavpersDate(evaluation.period_from), p1.from_x, p1.periodBaseline);
   text(page1, formatNavpersDate(evaluation.period_to), p1.to_x, p1.periodBaseline);
 
-  if (bv.not_observed) mark(page1, p1.notObservedCx, p1.notObservedCy);
-  if (bv.regular_report) mark(page1, p1.regularCx, p1.regularCy);
-  if (bv.concurrent_report) mark(page1, p1.concurrentCx, p1.concurrentCy);
+  if (bv.not_observed) mark(page1, p1.notObservedCx, p1.typeCy);
+  if (bv.regular_report) mark(page1, p1.regularCx, p1.typeCy);
+  if (bv.concurrent_report) mark(page1, p1.concurrentCx, p1.typeCy);
 
   text(page1, up(bv.physical_readiness), p1.pfa_x, p1.pfaBilletBaseline);
   text(page1, up(bv.billet_subcategory), p1.billet_x, p1.pfaBilletBaseline);
@@ -390,52 +453,81 @@ export async function generateChiefEvalOverlayPdf(
   );
 
   text(page1, formatNavpersDate(bv.date_counseled), p1.dateCounseled_x, p1.counselBaseline);
-  text(page1, up(bv.counselor), p1.counselor_x, p1.counselBaseline, 12, courier, p1.counselor_width);
+  text(page1, up(bv.counselor), p1.counselor_x, p1.counselBaseline, 10, courier, p1.counselor_width);
 
-  // CPO trait grades, Blocks 33-36 (page 1) — COMPETENCY 33-34, CHARACTER 35-36.
-  const p1Trait = (key: string, grade?: string) => {
-    const gi = gradeIndex(grade);
-    if (gi != null && p1.traitCy[key] != null) mark(page1, C.GRADE_COLS_P1[gi], p1.traitCy[key]);
-  };
-  p1Trait("technical_mastery", tg.technical_mastery);
-  p1Trait("institutional_expertise", tg.institutional_expertise);
-  p1Trait("professionalism", tg.professionalism);
-  p1Trait("integrity", tg.integrity);
+  // ───────────────── TRAIT GRADES, Blocks 33-39 ─────────────────
+  // The numeral (or NOB) goes INSIDE the row's one bordered grade cell, over the "0.0"
+  // the blank pre-prints there.
+  const GRADE_SIZE = 11;
+  for (const key of OVERLAY_TRAIT_KEYS) {
+    const cell = traitGradeCell(key);
+    if (!cell) continue;
+    drawInBox(
+      cell.page === 1 ? page1 : page2,
+      formatTraitGrade(tg[key]),
+      cell.box,
+      courier,
+      { size: GRADE_SIZE },
+    );
+  }
 
   // ───────────────── PAGE 2 ─────────────────
   const p2 = C.p2;
-  const p2Trait = (key: string, grade?: string) => {
-    const gi = gradeIndex(grade);
-    if (gi != null && p2.traitCy[key] != null) mark(page2, C.GRADE_COLS_P2[gi], p2.traitCy[key]);
-  };
-  // Blocks 37-39 (page 2) — CHARACTER 37, CULTURE 38-39.
-  p2Trait("accountability", tg.accountability);
-  p2Trait("deckplate_leadership", tg.deckplate_leadership);
-  p2Trait("team_effectiveness", tg.team_effectiveness);
 
+  // Block 43 — the member's trait average, over the pre-printed 0.00.
   const indivAvg = computeTraitAverage(evaluation.trait_grades).average;
-  text(page2, indivAvg != null ? indivAvg.toFixed(2) : "", p2.traitAvg_x, p2.traitAvg_y);
+  drawInBox(
+    page2,
+    indivAvg != null ? indivAvg.toFixed(2) : null,
+    p2.b43_memberTraitCell,
+    courier,
+    { size: 11 },
+  );
 
-  const recs = evaluation.career_recommendations || [];
-  narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80);
-  narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80);
-
+  // Block 40 — reporting senior comments. Qualifications and achievements go here too;
+  // 1616/27 has no separate block for them (migration 010).
   const pitch = (bv.comment_pitch || "10") as "10" | "12";
-  const cpl43 = pitch === "10" ? 90 : 84;
-  narrative(page2, evaluation.comments, p2.b43_x, p2.b43_topBaseline, cpl43, p2.b43_lines);
+  narrative(
+    page2,
+    evaluation.comments,
+    p2.b40_x,
+    p2.b40_topBaseline,
+    pitch === "10" ? 90 : 84,
+    pitch === "10" ? p2.b40_lines10 : p2.b40_lines12,
+  );
 
-  narrative(page2, bv.qualifications, p2.b44_x, p2.b44_topBaseline, p2.b44_cpl, p2.b44_lines);
+  // Block 41 — individual promotion recommendation, over the pre-printed "NOB".
+  drawInBox(
+    page2,
+    up(evaluation.promotion_recommendation),
+    p2.b41_cell,
+    courier,
+    { size: 10, align: "left" },
+  );
 
-  const ri = recIndex(evaluation.promotion_recommendation);
-  if (ri != null) mark(page2, p2.promoRecCx[ri], p2.promoRecCy);
+  // Block 45 — summary group average, over the pre-printed 0.00.
+  drawInBox(
+    page2,
+    evaluation.summary_group_average != null
+      ? evaluation.summary_group_average.toFixed(2)
+      : null,
+    p2.b45_groupSummaryCell,
+    courier,
+    { size: 10 },
+  );
 
+  // Blocks 46-47 — Career Milestone Recommendations, one line each.
+  const recs = evaluation.career_recommendations || [];
+  text(page2, up(recs[0]), p2.rec_x, p2.rec1Baseline, 10, courier, p2.rec_width);
+  text(page2, up(recs[1]), p2.rec_x, p2.rec2Baseline, 10, courier, p2.rec_width);
+
+  // Block 48 — summary group breakdown. A NOB report is not part of a summary group,
+  // so it gets no breakdown.
   if (evaluation.promotion_recommendation !== "NOB" && evaluation.summary_group_distribution) {
     const dist = evaluation.summary_group_distribution;
-    for (let i = 1; i < REC_COLS.length; i++) {
-      const n = String(dist[REC_COLS[i]] ?? 0);
-      const w = courier.widthOfTextAtSize(n, 11);
-      text(page2, n, p2.promoRecCx[i] - w / 2, p2.promoSummaryCy, 11);
-    }
+    BREAKDOWN_COLS.forEach((col, i) =>
+      drawInBox(page2, String(dist[col] ?? 0), p2.b48_cells[i], courier, { size: 10 }),
+    );
   }
 
   // NOTE: 1616/27 prints no Retention block at all. Retention is EVAL 1616/26 Block
@@ -443,6 +535,7 @@ export async function generateChiefEvalOverlayPdf(
   // earlier note here cited "1610.10H Ch. 10" — chapter 10 is INACT Navy Reservist
   // reports; the block-by-block guide is Encl (2) ch. 1.)
 
+  // Block 51 — reporting senior address, above the printed Phone:/DSN: lines.
   narrative(
     page2,
     up(bv.reporting_senior_address),
@@ -453,21 +546,15 @@ export async function generateChiefEvalOverlayPdf(
     p2.rsAddr_width,
   );
 
+  // Block 49 — statement intent.
   const stmt = (bv.member_statement_intent || "").toUpperCase();
-  if (stmt.includes("NOT") || stmt.includes("DO NOT")) mark(page2, p2.doNotIntendCx, p2.memberStmtCy);
+  if (stmt.includes("NOT")) mark(page2, p2.doNotIntendCx, p2.memberStmtCy);
   else if (stmt.includes("INTEND")) mark(page2, p2.intendCx, p2.memberStmtCy);
 
-  text(
-    page2,
-    evaluation.summary_group_average != null ? evaluation.summary_group_average.toFixed(2) : "",
-    p2.summaryAvg_x,
-    p2.summaryAvg_y,
-  );
-
-  text(page2, bv.senior_rater_signature_date, p2.date49_x, p2.date49_y);
-  text(page2, bv.reporting_senior_signature_date, p2.date50_x, p2.date50_y);
-  text(page2, bv.member_signature_date, p2.date51_x, p2.date51_y);
-  text(page2, bv.concurrent_rs_signature_date, p2.date52_x, p2.date52_y);
+  // Signature dates — Blocks 49, 50 and 52, in the form's own YYMMMDD notation.
+  drawInBox(page2, formatNavpersDate(bv.member_signature_date), p2.b49_dateCell, courier, { size: 10 });
+  drawInBox(page2, formatNavpersDate(bv.reporting_senior_signature_date), p2.b50_dateCell, courier, { size: 10 });
+  drawInBox(page2, formatNavpersDate(bv.concurrent_rs_signature_date), p2.b52_dateCell, courier, { size: 10 });
 
   return await pdf.save();
 }
