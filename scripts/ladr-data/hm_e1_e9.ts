@@ -6,6 +6,280 @@
  * L-series HM NEC codes with their CIN under detail.course.
  */
 import type { LadrSeed } from "../seed-ladr";
+import { considerations } from "./advancement";
+
+// "CONSIDERATIONS FOR ADVANCEMENT", appended below as advancement_consideration
+// milestones — HM CAREER PATH (active component), pp.
+// 2-5 of hm_e1_e9.pdf (sha256 fdbf96d5…e7e7aa — the same hash already recorded
+// in document.source_hash below, so this transcription and the existing
+// dataset came from the identical issue; cover "July 2026", career-path pages
+// footed "Revised: May 2025"). HM prints the section again for SELRES with
+// different text; that is NOT transcribed — see advancement.ts.
+//
+// Unlike IT/BM, HM prints no per-step "Sea/Shore assignment considerations"
+// heading. Its sea/shore guidance is rating-level (Rating Notes 2 and 4,
+// transcribed below and flagged detail.sea_shore_scope = "rating"). Note 2's
+// accompanying table of no-sea-duty NECs is tabular and is not reproduced here.
+const HM_COMPONENT = "HM CAREER PATH (active component)";
+const HM_REVISION = "May 2025";
+const HM_SEA_SHORE =
+  "HM is a shore-centric rate. The HM rating promotes by rate, not by NEC. Traditional sea shore flow for Hospital Corpsman is 36/36, however, assignment and distribution is typically dictated by billet availability. Many NEC’s within the rating have minimal or no sea duty opportunity while some are sea centric. Many NECs are closed looped which are distributable skillsets of personnel who are projected and assigned to consecutive tours within that NEC skill area. In lieu of traditional sea duty, sailors should refer to the Special Notes* at the end of this document for other opportunities. … In the absence of sea duty and OCONUS opportunities Sailors should pursue Sea/Shore special programs or commands that support the Navy and Navy Medicine mission. See Special Notes.";
+
+const hmAdvancement = [
+  ...considerations(
+    {
+      step: "E6 to E7",
+      paygrade: 7,
+      component: HM_COMPONENT,
+      seaShore: HM_SEA_SHORE,
+      seaShoreScope: "rating",
+      preamble:
+        "Experience of increased responsibility and complexity in primary Hospital Corpsman or NEC responsibility assignments. Demonstrated impact in non-traditional billets outside of the Hospital Corps (ex. Recruiting, state department, RDC, etc).",
+      pageRevision: HM_REVISION,
+    },
+    [
+      {
+        item: "Advanced knowledge / known Subject Matter Expert",
+        tier: "fully_qualified",
+        notes:
+          "Must have demonstrated advanced knowledge and be a known Subject Matter Expert.",
+      },
+      {
+        item: "Documented leadership results and impact on command mission",
+        tier: "fully_qualified",
+        notes:
+          "Must have documented results of leadership, demonstrate leadership skills, and impact on command mission within primary duty (may be assigned to medical or non-medical role).",
+      },
+      {
+        item: "Technical expertise on platform served",
+        tier: "fully_qualified",
+        notes:
+          "Must demonstrate technical expertise on platform served with documented impact.",
+      },
+      {
+        item: "Primary Warfare qualification",
+        tier: "fully_qualified",
+        notes:
+          "Must have qualified on primary Warfare (if assigned to a qualifying command and per required timeline). (Currently no availability on T-AH or PRECOM Platforms for warfare qualification).",
+        examples: [
+          "Currently no availability on T-AH or PRECOM Platforms for warfare qualification",
+        ],
+      },
+      {
+        item: "Sustained superior leadership developing HMs/Sailors",
+        tier: "fully_qualified",
+        notes:
+          "Should demonstrate sustained superior leadership and competency in developing HM’s/Sailors/or other services as measured by qualifications, advancement results, retention/attrition, and the extent to which the candidate trains and educates peer/subordinates on technical proficiency.",
+      },
+      {
+        item: "Sailor of the Year finalist at Echelon 2/3",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to SOY finalists at Echelon 2 and Echelon 3 (i.e. winners at : NMFL, NMFP, NMFDC, NSW Group, MARFORCOM/PAC, SURFPAC/LANT, AIRPAC/LANT, SUBLANT/PAC, NECC, CNIC Regions, NAVIFOR, NETC).",
+        examples: [
+          "i.e. winners at : NMFL, NMFP, NMFDC, NSW Group, MARFORCOM/PAC, SURFPAC/LANT, AIRPAC/LANT, SUBLANT/PAC, NECC, CNIC Regions, NAVIFOR, NETC",
+        ],
+      },
+      {
+        item: "Qualifications outside normal job scope/rate",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given for those who earn qualifications outside their normal job scope/rate to enhance unit mission readiness. Some examples include but NOT limited to: OOD-U/W, SSL, ATTWO, COW, DOOW, PILOT, MTT, 3MC, DCTT, CONN, SCUBA Supervisor, Air Diving Supervisor, Jump Master, RSO/Range OIC, etc....",
+        examples: [
+          "Some examples include but NOT limited to: OOD-U/W, SSL, ATTWO, COW, DOOW, PILOT, MTT, 3MC, DCTT, CONN, SCUBA Supervisor, Air Diving Supervisor, Jump Master, RSO/Range OIC, etc....",
+        ],
+      },
+      {
+        item: "Instructor NEC with ATS or MTS qualification",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given for candidates with the instructor NEC who have qualified for Afloat Training Specialist or Master Training Specialist. Failure of enlisted personnel to obtain MTS qualification when a valid program does not exist shall not be interpreted as an indication of unsatisfactory or adverse leadership.",
+      },
+      {
+        item: "Challenging duty or special program assignment",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to personnel assigned to challenging duty or special program assignments with document impact to mission.",
+      },
+      {
+        item: "Professional certification/licensure",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those who have professional certification/licensure, especially if aligned with NEC or rating.",
+      },
+      {
+        item: "Lead/facilitate professional or personal development programs",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those who lead and facilitate professional or personal development programs.",
+      },
+      {
+        item: "Rank-specific mess or FCPOA position",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those who hold rank specific mess or FCPOA position with impact to command morale and welfare.",
+      },
+      {
+        item: "Documented impact in process improvement",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those with documented impact in process improvement.",
+      },
+    ],
+  ),
+  ...considerations(
+    {
+      step: "E7 to E8",
+      paygrade: 8,
+      component: HM_COMPONENT,
+      seaShore: HM_SEA_SHORE,
+      seaShoreScope: "rating",
+      preamble:
+        "Experience of increased responsibility and complexity in primary assignments to include demonstration in non-traditional billet.",
+      pageRevision: HM_REVISION,
+    },
+    [
+      {
+        item: "Preceding E7 FULLY QUALIFIED criteria",
+        tier: "fully_qualified",
+        notes: "Must meet preceding E7 FULLY QUALIFIED criteria.",
+      },
+      {
+        item: "CPO-LDC completed",
+        tier: "fully_qualified",
+        notes: "Must have completed CPO-LDC.",
+      },
+      {
+        item: "Ability to lead Chiefs and develop Junior Officers",
+        tier: "fully_qualified",
+        notes:
+          "Must have demonstrated the ability to lead Chiefs, and develop Junior Officers.",
+      },
+      {
+        item: "Preceding E7 BEST QUALIFIED criteria",
+        tier: "best_qualified",
+        notes: "Consideration of preceding E7 BEST QUALIFIED criteria.",
+      },
+      {
+        item: "Billeted CSEL position under a Milestone CO",
+        tier: "best_qualified",
+        notes:
+          "Special Consideration should be given to those filling billeted CSEL positions under Milestone COs.",
+      },
+      {
+        item: "Rating involvement in rating modernization functions",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to HMs who demonstrate rating involvement through participation in important rating modernization functions, including but not limited to: Occupational Standards Review, PQS Development, Selection Board, Navy Tactics Techniques and Procedures Revisions, Naval Publication revisions, Joint Publication Revisions, Advancement Exam Readiness Review, Course Curriculum Development, Rating Strategy Councils, NEC Enlisted Technical Leader, Defense Committee on Trauma, Executive Medical Department Enlisted Course (EMDEC) Facilitation and Training.",
+        examples: [
+          "including but not limited to: Occupational Standards Review, PQS Development, Selection Board, Navy Tactics Techniques and Procedures Revisions, Naval Publication revisions, Joint Publication Revisions, Advancement Exam Readiness Review, Course Curriculum Development, Rating Strategy Councils, NEC Enlisted Technical Leader, Defense Committee on Trauma, Executive Medical Department Enlisted Course (EMDEC) Facilitation and Training",
+        ],
+      },
+      {
+        item: "Challenging duty and special duty assignment",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to personnel assigned to challenging duty and special duty assignments with document impact to mission.",
+      },
+      {
+        item: "ELD Facilitator with documented impact",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to ELD-Facilitators with documented impact.",
+      },
+      {
+        item: "TCCC Instructor with documented impact",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to TCCC-Instructors with documented impact.",
+      },
+      {
+        item: "Facilitating/instructing continuing medical education",
+        tier: "best_qualified",
+        notes:
+          "Consideration for those who seek out and perform duties in facilitating and instructing continuing medical education with documented impact.",
+      },
+      {
+        item: "Selected to lead CPO Initiation or committee",
+        tier: "best_qualified",
+        notes:
+          "Consideration for those selected to lead CPO Initiation or committee.",
+      },
+      {
+        item: "Mess or CPOA position contributing to morale and welfare",
+        tier: "best_qualified",
+        notes:
+          "Consideration for those who hold a mess or CPOA position with impact to contributing to command morale and welfare.",
+      },
+    ],
+  ),
+  ...considerations(
+    {
+      step: "E8 to E9",
+      paygrade: 9,
+      component: HM_COMPONENT,
+      seaShore: HM_SEA_SHORE,
+      seaShoreScope: "rating",
+      preamble:
+        "Proven ability to lead and direct junior enlisted, chiefs, officers and civilians in tough, highly visible, and challenging environments.",
+      pageRevision: HM_REVISION,
+    },
+    [
+      {
+        item: "Preceding E8 FULLY QUALIFIED criteria",
+        tier: "fully_qualified",
+        notes: "Must meet preceding E8 FULLY QUALIFIED criteria.",
+      },
+      {
+        item: "Senior Enlisted Academy completed",
+        tier: "fully_qualified",
+        notes: "Must have completed Senior Enlisted Academy.",
+      },
+      {
+        item: "Ability to lead Chiefs, Senior Chiefs and develop Officers",
+        tier: "fully_qualified",
+        notes:
+          "Must have demonstrated the ability to lead Chiefs, Senior Chiefs, and develop Officers.",
+      },
+      {
+        item: "Documented progression in leadership roles",
+        tier: "fully_qualified",
+        notes:
+          "Must have documented progression in leadership roles, with documented impact. (i.e. Div LCPO to Dept LCPO, Bn LCPO to Regt SEL etc)",
+        examples: ["i.e. Div LCPO to Dept LCPO, Bn LCPO to Regt SEL etc"],
+      },
+      {
+        item: "Preceding E8 BEST QUALIFIED criteria",
+        tier: "best_qualified",
+        notes: "Consideration of preceding E8 BEST QUALIFIED criteria.",
+      },
+      {
+        item: "Billeted CSEL position under a Milestone CO",
+        tier: "best_qualified",
+        notes:
+          "Special Consideration should be given to those filling billeted CSEL positions under Milestone COs.",
+      },
+      {
+        item: "Executive Medical Department Enlisted Course (EMDEC)",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those who have completed Executive Medical Department Enlisted Course (EMDEC).",
+      },
+      {
+        item: "DHA Intermediate Executive Skills Course",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those assigned to DHA MTFs who have completed the Defense Health Agency Intermediate Executive Skills Course.",
+      },
+      {
+        item: "Documented completion of the CMC/COB PQS",
+        tier: "best_qualified",
+        notes:
+          "Consideration should be given to those who have documented completion of the CMC/COB PQS. Hospital Corpsmen (HMs) assigned to submarines should be allowed to complete the CMC/COB PQS and apply directly to the CMC Program, bypassing the COB pathway. Sailors serving in a COB role contribute to a strain on undermanned HM skillsets. However, Sailors selected for the CMC program do not impact manning levels, as their rating is officially changed.",
+      },
+    ],
+  ),
+];
 
 export const hmE1E9: LadrSeed = {
   document: {
@@ -116,7 +390,7 @@ export const hmE1E9: LadrSeed = {
     },
     {
       category: "skill_training_required",
-      item: "Hospital Corpsman Basic (\"A\" School)",
+      item: 'Hospital Corpsman Basic ("A" School)',
       item_code: "B-300-0010",
       applies_to_paygrades: [1, 2, 3],
     },
@@ -246,5 +520,6 @@ export const hmE1E9: LadrSeed = {
       item_code: "NAVEDTRA 14295B",
       applies_to_paygrades: [3, 4, 5],
     },
+    ...hmAdvancement,
   ],
 };
