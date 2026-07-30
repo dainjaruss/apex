@@ -294,12 +294,22 @@ export async function assembleRubricInputs(
               targetPaygrade >= 7 &&
               m.applies_to_paygrades.length > 0 && // Math.min() of [] is Infinity
               Math.min(...m.applies_to_paygrades) >= 7);
+          // v2: carry the milestone's identity and its (optional) timing hints
+          // into the engine so the readiness plan can name the row and place it
+          // against the board date. Both live on ladr_milestones.detail, which
+          // is already jsonb — no migration. Absent typical_months stays absent:
+          // the readiness layer refuses to guess a duration.
+          const typicalMonths = Number(m.detail?.typical_months);
           return {
             milestone_id: m.id,
             category: m.category,
             status: entry.status,
             verified_in_ompf: entry.verified_in_ompf,
             board_emphasis,
+            item: m.item,
+            typical_months: Number.isFinite(typicalMonths) ? typicalMonths : null,
+            blocked_unless:
+              typeof m.detail?.blocked_unless === "string" ? m.detail.blocked_unless : null,
           };
         });
     }
