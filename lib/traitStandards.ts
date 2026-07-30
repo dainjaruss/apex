@@ -70,6 +70,16 @@ export const SUBSTANTIATION_NOTE_FITREP =
 /** @deprecated Use getSubstantiationNote(reportType) */
 export const SUBSTANTIATION_NOTE = SUBSTANTIATION_NOTE_EVAL;
 
+// The block carrying the substantiating narrative differs per form. Read off each blank:
+//   1616/26 "43. COMMENTS ON PERFORMANCE"
+//   1616/27 "40. REPORTING SENIOR COMMENTS ON PERFORMANCE."
+//   1610/2  "41. COMMENTS ON PERFORMANCE"
+export function getCommentsBlock(reportType?: string): number {
+  if (reportType === "CHIEFEVAL") return 40;
+  if (reportType === "FITREP") return 41;
+  return 43;
+}
+
 export function getSubstantiationNote(
   reportType?: string,
 ): string {

@@ -4,22 +4,36 @@
 // NAVPERS 1610/2 (FITREP, REV 05-2025) blank.
 //
 // Maps the Officer trait layout — the SEVEN traits printed at Blocks 33-39, five on
-// page 1 and two on page 2 — and omits Block 47 (Retention).
+// page 1 and two on page 2. 1610/2 has no retention block at all (that is EVAL Block 47);
+// on this form Block 47 is "Typed name, grade, command, UIC, and signature of Regular
+// Reporting Senior on Concurrent Report".
 //
-// ponytail: ONLY the trait grid below (GRADE_COLS_P1/P2 and both `traitCy` maps) has
-// been measured against public/fitrepBlank.pdf. Every other coordinate in `C` is
-// inherited and UNVERIFIED — before this file was corrected, its coordinate block was
-// byte-identical to lib/chiefEvalOverlay.ts across 77 lines, which is impossible for two
-// different NAVPERS forms: it was copied, never measured. Rendering a fully populated
-// report shows the consequences (identity row over its own labels, comments over the
-// Block 41 header, promotion-recommendation X in the wrong column, trait average printed
-// inside Block 39's descriptor instead of the "Member Trait Average" field, signature
-// dates below Block 47). 1610/2 also numbers its non-trait blocks differently from the
-// EVAL this was copied from — comments are Block 41, not 43; Block 44 is the Reporting
-// Senior Address, not Qualifications. Upgrade path: re-measure the remaining fields the
-// same way the grid was (300 dpi raster scan for the box/rule positions), and decide how
-// values should sit over the placeholders the blank pre-prints ("0.00" in the trait
-// average fields, an "X" in Block 42 NOB) before writing on top of them.
+// ponytail: ONLY the trait grid below (GRADE_COLS_P1/P2 and both `traitCy` maps) has been
+// measured against public/fitrepBlank.pdf. Every other coordinate in `C` is inherited and
+// UNVERIFIED.
+//
+// Root cause, for whoever picks this up: lib/pdfOverlay.ts (EVAL) wraps its page draw in a
+// rigid translate (OFFSET_P1 = {dx: 13, dy: -11}), so its constants are expressed in
+// PRE-translate space. This file and lib/chiefEvalOverlay.ts both import
+// `pushGraphicsState`/`translate` from pdf-lib and never call either — they inherited the
+// pre-translate constants and dropped the calibration that made them correct. Rendering a
+// fully populated report shows the damage: identity row over its own labels, comments over
+// the Block 41 header, promotion-recommendation X in the wrong column, trait average
+// printed inside Block 39's descriptor instead of the "Member Trait Average" field
+// (measured at 133.7, 100.5 — the constants say 528.0, 538.5), signature dates below
+// Block 47. 1610/2 also numbers its non-trait blocks differently from the EVAL this was
+// copied from: comments are Block 41, not 43, and Block 44 is the Reporting Senior
+// Address, not Qualifications.
+//
+// Upgrade path, page 1: 1610/2 page 1 is 1616/26 page 1 rigidly shifted by (+1.9, +10.8)
+// pt (verified on five independent landmark clusters), so delete the invented page-1
+// constants, reuse pdfOverlay's proven ones, and wrap page 1 in translate(14.9, -0.2)
+// using the import already sitting at the top of this file. Page 2 genuinely differs and
+// needs its ~15 fields measured the way the grid was (300 dpi raster scan for box/rule
+// positions). Where a value lands on a placeholder the blank pre-prints ("0.00" in both
+// average fields, an "X" in Block 42 NOB), the decided approach is: draw a white
+// rectangle, then the text — reversible, never edits the official blank, and keeps the
+// artifact byte-diffable against public/fitrepBlank.pdf.
 //
 
 import {
@@ -433,7 +447,8 @@ export async function generateFitrepOverlayPdf(
     }
   }
 
-  // NOTE: Block 47 (Retention) is omitted on FITREP per BUPERSINST 1610.10H Ch. 10.
+  // NOTE: no retention field is drawn — 1610/2 has no retention block. (Retention is
+  // EVAL Block 47; 1610/2 Block 47 is the concurrent-report Reporting Senior block.)
 
   narrative(
     page2,

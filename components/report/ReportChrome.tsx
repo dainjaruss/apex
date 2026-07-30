@@ -77,9 +77,12 @@ export function ReportBanner({
         <Stat
           label="Trait Avg (40)"
           value={
-            evaluation.trait_average
+            // `!= null`, not truthiness: a cleared average (migration 011 nulls it on
+            // the records it corrected) must read "—", not "0.00" — which is
+            // indistinguishable from an ungraded draft. Matches Group Avg below.
+            evaluation.trait_average != null
               ? evaluation.trait_average.toFixed(2)
-              : "0.00"
+              : "—"
           }
           accent="apex-report-stat-success"
         />

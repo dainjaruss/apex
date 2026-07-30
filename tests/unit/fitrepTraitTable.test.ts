@@ -13,6 +13,7 @@ import path from "path";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import Block33to39Traits from "../../components/blocks/Block33to39Traits/Block33to39Traits";
+import { ReportBanner } from "../../components/report/ReportChrome";
 import {
   PDFDocument,
   PDFArray,
@@ -133,13 +134,57 @@ describe("NAVPERS 1610/2 trait average divisor", () => {
     expect(r.average).toBe(5);
   });
 
-  it("ignores a stray legacy `work` grade left on an officer record", () => {
-    // Migration 011 strips these, but the math must not depend on that having run.
-    const r = computeTraitAverage({
-      ...graded(["5.0", "5.0", "5.0", "5.0", "5.0", "5.0", "3.0"]),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
-    expect(r.gradedCount).toBe(7);
+  // KNOWN GAP, pinned deliberately. `computeTraitAverage` counts whatever it finds in
+  // `TRAIT_KEYS` (lib/traitAverage.ts), a cross-form superset that still contains `work`
+  // because `work` is a real EVAL trait at 1616/26 Block 34. The divisor is therefore NOT
+  // report-type aware: a FITREP that still carries `work` averages over 8 while only 7
+  // marks print on the page.
+  //
+  // Migration 011 is what closes this — it strips `work` from officer records, and
+  // FitrepSchema stops new ones being written. The exposure is anything that bypasses
+  // both: a hosted record before 011 runs, a backup restore, a direct DB write.
+  //
+  // This asserts the real numbers rather than the ones we would like, so that making the
+  // divisor report-type aware BREAKS this test and forces a deliberate update instead of
+  // passing silently. Fixing it properly means threading report_type through ~8
+  // production call sites across all three forms — its own change, not this one.
+  it("counts a stray legacy `work` grade — divisor is not report-type aware", () => {
+    const clean = graded(["5.0", "5.0", "5.0", "5.0", "5.0", "5.0", "3.0"]);
+    expect(computeTraitAverage(clean)).toMatchObject({
+      average: 4.71,
+      gradedCount: 7,
+      gradedSum: 33,
+    });
+
+    // The same seven marks, plus an orphaned EVAL trait the form does not have.
+    expect(computeTraitAverage({ ...clean, work: "1.0" })).toMatchObject({
+      average: 4.25,
+      gradedCount: 8,
+      gradedSum: 34,
+    });
+  });
+
+  it("shows a cleared average as a gap, not as 0.00", () => {
+    // Migration 011 nulls `trait_average` on the records it corrected, on the stated
+    // grounds that a visible gap beats a number that quietly changed. That only holds
+    // if the header actually renders the null as a gap — a truthiness check here would
+    // print "0.00", indistinguishable from an ungraded draft.
+    const banner = (avg: number | null) =>
+      render(
+        React.createElement(ReportBanner, {
+          evaluation: {
+            member_name: "CHEN, DAVID T",
+            status: "draft",
+            trait_average: avg,
+          } as unknown as Evaluation,
+        }),
+      ).container.textContent || "";
+
+    expect(banner(null)).toContain("—");
+    expect(banner(null)).not.toContain("0.00");
+    expect(banner(4.71)).toContain("4.71");
+    // 0 is the "nothing graded" sentinel and must still print as a number.
+    expect(banner(0)).toContain("0.00");
   });
 });
 

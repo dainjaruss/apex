@@ -33,6 +33,14 @@
 --
 -- The `::numeric` cast on `number` below is load-bearing: at the time this migration
 -- runs the array still contains the non-integer block "39.1", so `::int` would abort.
+--
+-- SCOPE: this corrects Blocks 33-39 only. The rest of the row is still EVAL-shaped and
+-- is knowingly left that way — 1610/2 numbers its non-trait blocks differently from the
+-- 1616/26 the row was cloned from (comments are Block 41, not 43; Block 44 is the
+-- Reporting Senior Address, not Qualifications; the trait average field is unnumbered),
+-- and the real form STOPS AT 47 while the row runs to 51. Correcting 40-51 means
+-- redoing the non-trait half of the form and belongs with the overlay-geometry work
+-- tracked in lib/fitrepOverlay.ts's header comment, not with the trait table.
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -86,11 +94,24 @@ WHERE f.form_code = 'FITREP_W2_O6'
 -- it changed.
 --
 -- Removing it changes the individual trait average (the divisor drops from 8 to 7), so
--- the stored `trait_average` is nulled rather than silently recomputed: the report
--- shows "—" until it is reopened and the average is recomputed from the seven real
--- traits. A visible gap beats a number that quietly changed under a signed report.
--- Each affected evaluation also gets an audit row, which the report's Audit tab
--- already renders.
+-- the stored `trait_average` is nulled rather than silently recomputed. A visible gap
+-- beats a number that quietly changed under a signed report.
+--
+-- What that null actually buys, precisely — the audit row is the durable record, not
+-- the null:
+--   * The read-only report header renders a null average as "—"
+--     (components/report/ReportChrome.tsx, `!= null`). That is the visible gap.
+--   * Opening the report in the EDITOR recomputes and writes a value on mount
+--     (Block33to39Traits.tsx), which is the intended recovery. In the edge case where
+--     `work` was the only graded trait, this migration leaves `trait_grades = {}`,
+--     `computeTraitAverage` returns null, and the editor stores literal 0 — the
+--     "nothing graded" sentinel, which is the correct state for that record.
+--   * So the null is transient by design. The audit row below is what survives, and it
+--     is the only place the removed grade and the previous average are recoverable.
+--     The Audit tab truncates the details cell to roughly 50 characters; the full JSON
+--     is on the cell's `title` (hover). `note` is kept short deliberately so the
+--     truncated preview still carries signal — jsonb orders keys by length, so the
+--     shortest key renders first.
 --
 -- Idempotent, and rows are selected by KEY SHAPE (`jsonb_exists(trait_grades,'work')`)
 -- rather than by date — a second run matches nothing.
@@ -101,12 +122,12 @@ SELECT
   NULL,
   'DOCTRINE_CORRECTION',
   jsonb_build_object(
-    'migration',        '011_fitrep_trait_correction',
-    'reason',           'NAVPERS 1610/2 (REV 05-2025) prints seven traits at Blocks 33-39 and has no "Quality of Work" trait. The grade recorded against it has been removed.',
-    'removed_trait',    'work',
-    'removed_grade',    e.trait_grades -> 'work',
-    'previous_trait_average', to_jsonb(e.trait_average),
-    'trait_average_action',   'cleared — recomputed over the seven 1610/2 traits when the report is next opened'
+    'note',      'NAVPERS 1610/2 has no Quality of Work trait',
+    'grade',     e.trait_grades -> 'work',
+    'trait',     'work',
+    'effect',    'grade removed; trait_average cleared, recomputed over the seven 1610/2 traits when the report is next opened',
+    'migration', '011_fitrep_trait_correction',
+    'prior_avg', to_jsonb(e.trait_average)
   )
 FROM public.evaluations e
 WHERE e.report_type = 'FITREP'
