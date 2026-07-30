@@ -162,16 +162,38 @@ export function citationPaths(payload: NarrativePayload): Set<string> {
 }
 
 /**
- * Keep an item only if it cites at least one real path, and strip the brackets
- * from what the Sailor reads — the citation proves grounding, it is not copy.
- * Returns null when the item cites nothing that resolves.
+ * Keep an item only if EVERY path in its trailing citation group resolves, and
+ * strip only that trailing group — the citation proves grounding, it is not copy.
+ * Returns null when the item is unciteable.
+ *
+ * Two things this deliberately does NOT do, both of which it used to:
+ *
+ * 1. It does not accept an item because *some* path resolves. One valid path
+ *    laundered every fabricated claim beside it:
+ *      "You failed your PFA and hold no warfare device.
+ *       [areas.performance, awards.fabricated]"  → survived intact.
+ *    The system prompt promises the model that an item citing a path not in the
+ *    payload is deleted; enforcing anything weaker than that promise is an
+ *    invitation to append one safe citation to a fabricated sentence.
+ *
+ * 2. It does not strip every bracketed span in the item. Navy roadmap text
+ *    routinely carries bracketed NEC and CIN codes, so a global strip ate real
+ *    content: `Complete "Advanced Network Analyst [NEC 742A]". [actions.x]`
+ *    rendered as `Complete "Advanced Network Analyst ".` Only the trailing
+ *    group is a citation — the prompt requires the citation to END the item —
+ *    so prose brackets are neither counted nor removed.
  */
+const TRAILING_CITATION_RE = /\s*\[([^\]]+)\]\s*\.?\s*$/;
+
 function checkCitation(text: string, valid: Set<string>): string | null {
-  const cited: string[] = [];
-  for (const m of Array.from(text.match(CITATION_RE) ?? []))
-    for (const part of m.slice(1, -1).split(",")) cited.push(part.trim());
-  if (!cited.some((c) => valid.has(c))) return null;
-  return text.replace(CITATION_RE, "").replace(/\s{2,}/g, " ").trim();
+  const m = text.match(TRAILING_CITATION_RE);
+  if (!m || m.index === undefined) return null; // no citation at all
+  const cited = m[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (cited.length === 0 || !cited.every((c) => valid.has(c))) return null;
+  return text.slice(0, m.index).trim();
 }
 
 /**
@@ -285,6 +307,14 @@ export function narrativePayload(
 
 const MAX_ITEMS = 5;
 
+/** Interleave in order, so no one list can starve the others out of the cap. */
+function roundRobin(...lists: string[][]): string[] {
+  const out: string[] = [];
+  for (let i = 0; lists.some((l) => i < l.length); i++)
+    for (const l of lists) if (i < l.length) out.push(l[i]);
+  return out;
+}
+
 /**
  * Deterministic readiness-derived text. No I/O, no clock, no engine internals,
  * and no number a reader could sum back into the suppressed composite — it is
@@ -307,11 +337,17 @@ export function fallbackNarrative(
   }
   gaps.push(...warnings);
 
-  const recommendations = [
-    ...report.actions.map((a) => a.action),
-    ...report.coverage.missing.map((m) => m.howTo),
-    ...(report.confirmInOmpf ? [report.confirmInOmpf.note] : []),
-  ].slice(0, MAX_ITEMS);
+  // Round-robin, NOT concatenate-then-slice. Concatenating put every action
+  // first, so a record with 5+ actions lost the coverage.missing guidance
+  // entirely (measured: actions=8, missing=2 → zero howTo shown) — defeating
+  // the routing of `not_enough_entered` into recommendations at exactly the
+  // moment it matters most. A Sailor with an unfilled PSR and eight open
+  // milestones was never told to fill in the PSR.
+  const recommendations = roundRobin(
+    report.actions.map((a) => a.action),
+    report.coverage.missing.map((m) => m.howTo),
+    report.confirmInOmpf ? [report.confirmInOmpf.note] : [],
+  ).slice(0, MAX_ITEMS);
 
   return {
     strengths: strengths.slice(0, MAX_ITEMS),

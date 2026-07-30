@@ -447,6 +447,45 @@ describe("BLOCKER B2 — a three-year Sailor must not be told their record has g
     );
   });
 
+  it("the leadership and precept evidence gates are real gates, not `true`", () => {
+    // The same fix was extended to leadership (and to the precept check that
+    // shares it), so both need their own guard — mutating either arm to `true`
+    // must fail here.
+    const noSections: RubricInputs = {
+      boardDate: T,
+      evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.2)),
+      psr: { ...emptyPsr, entered: true }, // tours AND awards both null
+      ladr: [],
+      preceptFlags: ["warfighting", "leadership_positions"],
+    };
+    const r = scoreBoardConfidence(noSections, CFG);
+    expect(r.factors.find((f) => f.key === "leadership")!.confidence).toBe(0);
+
+    const areas = Object.fromEntries(
+      report(noSections).areas.map((a) => [a.key, a.status]),
+    );
+    expect(areas.leadership).toBe("not_enough_entered");
+    // precept: `warfighting` reads a LaDR ratio that does not exist and
+    // `leadership_positions` reads the leadership section, which is empty.
+    expect(areas.precept).toBe("not_enough_entered");
+
+    // ...and both DO report evidence once the sections are entered.
+    const withSections: RubricInputs = {
+      ...noSections,
+      psr: {
+        ...noSections.psr,
+        tours: [{ title: "Sea Tour", start: "2021-01-01", end: null, sea_duty: true, leadership: true }],
+        awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2024-01-01", verified_in_ompf: true }],
+      },
+      preceptFlags: ["leadership_positions", "sea_duty"],
+    };
+    const filled = Object.fromEntries(
+      report(withSections).areas.map((a) => [a.key, a.status]),
+    );
+    expect(filled.leadership).not.toBe("not_enough_entered");
+    expect(filled.precept).not.toBe("not_enough_entered");
+  });
+
   it("a genuine break between two reports still reports needs_attention", () => {
     // Both reports sit inside the 1826-day window, with three uncovered years
     // between them — an INTERNAL break, not the pre-first-report leading span.

@@ -14,7 +14,7 @@ Status: **APPROVED FOR BUILD** · Version 1.5 · 2026-07-18
 
 > **v1.3.1 (no Vercel service required):** the narrative additionally supports a DIRECT OpenAI-compatible mode — `BOARD_NARRATIVE_BASE_URL` (+ optional `BOARD_NARRATIVE_API_KEY`, `BOARD_NARRATIVE_MODEL` = native id) via `@ai-sdk/openai-compatible`, taking precedence over the gateway. Covers xAI/Grok directly, OpenRouter, Groq, and local Ollama — zero Vercel involvement, fit for the self-hosted deployments the NAVFIT export's JRE requirement implies. Gateway mode remains available from any host.
 >
-> **v1.3 (provider-agnostic AI + ephemeral uploads):** narrative generation moved from the Anthropic SDK to the **Vercel AI SDK via the AI Gateway** — `generateText` + `Output.object(NarrativeSchema)`, model chosen by `BOARD_NARRATIVE_MODEL` (any gateway `provider/model` string, e.g. `anthropic/claude-opus-4.8` (default) or `xai/grok-4.5`), credentials `AI_GATEWAY_API_KEY` or Vercel OIDC; keyless/fallback semantics and the §4.3.4 no-PII payload unchanged. Record-document uploads (ESR / PSR / OMPF field codes 30–38) added to the Record Entry tab: PII-redaction advisory with a confirmation checkbox gating the upload, typed filenames (`TYPE__name`), reference-only (never parsed/scored), and **session-ephemeral** — `lib/auth.ts` destroys the caller's `board-docs` objects at logout (before `auth.signOut()`, RLS requires the session) and sweeps leftovers at the next login; purge failures never block auth.
+> **v1.3 (provider-agnostic AI + ephemeral uploads):** narrative generation moved from the Anthropic SDK to the **Vercel AI SDK via the AI Gateway** — `generateText` + `Output.object(NarrativeSchema)`, model chosen by `BOARD_NARRATIVE_MODEL` (any gateway `provider/model` string, e.g. `anthropic/claude-opus-5` (default) or `xai/grok-4.5`), credentials `AI_GATEWAY_API_KEY` or Vercel OIDC; keyless/fallback semantics and the §4.3.4 no-PII payload unchanged. Record-document uploads (ESR / PSR / OMPF field codes 30–38) added to the Record Entry tab: PII-redaction advisory with a confirmation checkbox gating the upload, typed filenames (`TYPE__name`), reference-only (never parsed/scored), and **session-ephemeral** — `lib/auth.ts` destroys the caller's `board-docs` objects at logout (before `auth.signOut()`, RLS requires the session) and sweeps leftovers at the next login; purge failures never block auth.
 
 > **v1.2 (full-requirements reconciliation):** explicit informed consent — `member_board_records.consented_at`, first-use modal (`components/board/BoardConsentModal.tsx`), server-enforced 403 on `POST /analyze` until recorded; two additional disclaimer layers (persistent page footer + score-dial tooltip carrying the modeled-bands caveat); citation-style grounding added to `NARRATIVE_SYSTEM_PROMPT` (every narrative item cites the payload path it derives from; development commentary must name each LaDR category below 1.0); HM added as a third seed rating, transcribed from the real July 2026 Navy COOL PDF; docs/BOARD-CONFIDENCE.md + README entry added.
 Companion spec style: `docs/specs/navfit98-field-mapping.md`
@@ -1707,6 +1707,22 @@ independent values. P1b must add a dev-mode assert:
 compositeRaw(scoreBoardConfidence(inputs, config)) === compositeRaw(result)
 ```
 
+#### P2 — `scoreLeadership` treats section PRESENCE as scored rows
+
+`keepDated` (scoreBoardConfidence) drops dateless tours and awards but returns an
+**empty array, not null**, and `scoreLeadership` gates on `if (psr.tours)` — `[]`
+is truthy. So a record whose tours are all dateless pushes the L1/L3 subweights
+anyway and scores `conf 0.7, score 0`, which the readiness layer renders as
+**"needs_attention"**: a deficiency verdict derived from zero usable rows.
+
+This means §14.5's "read what the engine scored" substitution for `leadership`
+(and the `precept` check that shares it) is **equivalent to the old raw-input
+guard, not better** — both report evidence in this case. Continuity's
+substitution *is* strictly better, because `detail.coveredDays` is computed from
+the filtered set. The root fix is arithmetic — `scoreLeadership` must distinguish
+"section absent" from "section present but nothing datable" — and belongs in P2
+alongside the other scoring corrections.
+
 #### P1b — smaller items
 
 - `areas[].detail.contribution` reconstructs the suppressed score and band
@@ -1746,8 +1762,13 @@ specific rather than the nine hardcoded generic strings it replaced. Their
 **Citation-or-delete.** Every strengths/gaps/recommendations item must cite a
 payload path in brackets; the valid set is generated from the payload actually
 sent (`coverage.*`, `monthsToBoard`, `areas.<key>`, `coverage.missing.<key>`,
-`actions.<id>`, `unmet.<milestone_id>`). Items citing nothing that resolves are
-**deleted**; a `factor_commentary` entry that cannot be cited falls back to the
+`actions.<id>`, `unmet.<milestone_id>`). Items are deleted unless **every** path in the
+trailing citation group resolves — accepting an item because *some* path
+resolved let one valid citation launder every fabricated claim beside it, and
+enforced strictly less than the prompt promises the model. Only the **trailing**
+group is treated as a citation (the prompt requires the citation to end the
+item), so bracketed NEC and CIN codes in Navy roadmap prose are neither counted
+nor stripped; a `factor_commentary` entry that cannot be cited falls back to the
 deterministic text (the schema requires all six keys, so it cannot be dropped).
 Surviving brackets are stripped before display — the citation proves grounding,
 it is not copy. The prior prompt demanded citations to paths such as

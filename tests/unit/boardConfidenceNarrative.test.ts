@@ -225,6 +225,98 @@ describe("no score leakage — the narrative may not reconstruct the suppressed 
   });
 });
 
+describe("guards that ship with this change", () => {
+  // N8 — a suppressed record must not be advertised to the model as scored.
+  it("`scored` tracks the readiness gate, it is not hardcoded true", () => {
+    const empty: RubricInputs = {
+      boardDate: "2026-09-01",
+      evals: [],
+      psr: { entered: false, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(empty, CFG);
+    const rep = buildReadinessReport(r, empty, CFG);
+    expect(rep.score).toBeNull();
+    expect(narrativePayload(rep, r).scored).toBe(false);
+    expect(narrativePayload(fixtureReport, fixtureResult).scored).toBe(true);
+  });
+
+  // N12 — the headline rule of §14.4: missing data is never a deficiency.
+  it("never routes `not_enough_entered` into gaps", () => {
+    const thin: RubricInputs = {
+      boardDate: "2026-09-01",
+      evals: [],
+      psr: { entered: true, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
+      ladr: [],
+      preceptFlags: ["warfighting"],
+    };
+    const r = scoreBoardConfidence(thin, CFG);
+    const rep = buildReadinessReport(r, thin, CFG);
+    const unknown = rep.areas.filter((a) => a.status === "not_enough_entered");
+    expect(unknown.length).toBeGreaterThan(0);
+
+    const n = fallbackNarrative(rep);
+    for (const a of unknown) expect(n.gaps.join(" ")).not.toContain(a.summary);
+    // ...and the guidance for them is offered instead.
+    expect(n.recommendations.length).toBeGreaterThan(0);
+  });
+
+  // N13 — only `strong` is a strength; `on_track` is middling, not praise.
+  it("keys strengths on `strong` alone, never on `on_track`", () => {
+    const onTrackOnly = {
+      ...fixtureReport,
+      areas: fixtureReport.areas.map((a) => ({ ...a, status: "on_track" as const })),
+    };
+    expect(fallbackNarrative(onTrackOnly).strengths).toEqual([]);
+
+    const allStrong = {
+      ...fixtureReport,
+      areas: fixtureReport.areas.map((a) => ({ ...a, status: "strong" as const })),
+    };
+    expect(fallbackNarrative(allStrong).strengths).toHaveLength(5); // six areas, capped at MAX_ITEMS
+  });
+
+  // N14 — a milestone with no threaded text must not reach the model as item: "".
+  it("drops unnamed milestones from the payload rather than sending empty text", () => {
+    const unnamed: RubricInputs = {
+      ...fixtureInputs,
+      ladr: [
+        { milestone_id: "no-name", category: "credential", status: "not_met", verified_in_ompf: false },
+        { milestone_id: "named", category: "credential", status: "not_met", verified_in_ompf: false, item: "CompTIA Security+" },
+      ],
+    };
+    const r = scoreBoardConfidence(unnamed, CFG);
+    const rep = buildReadinessReport(r, unnamed, CFG);
+    const ids = narrativePayload(rep, r).unmet.map((u) => u.milestone_id);
+    expect(ids).toEqual(["named"]);
+    expect(r.ladrUnmet!.map((u) => u.milestone_id)).toContain("no-name"); // the engine still knows
+  });
+
+  // A long action list must not starve the "enter this section" guidance.
+  it("interleaves recommendations so many actions cannot crowd out missing-data guidance", () => {
+    const many = {
+      ...fixtureReport,
+      actions: Array.from({ length: 8 }, (_, i) => ({
+        ...fixtureReport.actions[0],
+        id: `a-${i}`,
+        action: `ACTION ${i}`,
+      })),
+      coverage: {
+        ...fixtureReport.coverage,
+        missing: [
+          { area: "leadership" as const, label: "your tours and awards", unlocks: "leadership assessment", howTo: "MISSING-HOWTO-1" },
+          { area: "precept" as const, label: "the board emphasis areas", unlocks: "the board emphasis check", howTo: "MISSING-HOWTO-2" },
+        ],
+      },
+    };
+    const recs = fallbackNarrative(many).recommendations.join(" | ");
+    // Concatenate-then-slice showed zero of these; both must survive the cap.
+    expect(recs).toContain("MISSING-HOWTO-1");
+    expect(recs).toContain("MISSING-HOWTO-2");
+  });
+});
+
 describe("the payload names unmet milestones — this is what makes output specific", () => {
   it("carries public Navy COOL milestone names, and no point values", () => {
     const payload = narrativePayload(fixtureReport, fixtureResult);
@@ -254,7 +346,7 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
     expect(paths.has("development.detail.categories.qual_warfare")).toBe(false);
   });
 
-  it("keeps cited items, strips the brackets, and deletes unciteable ones", () => {
+  it("keeps cited items, strips the trailing citation, and deletes unciteable ones", () => {
     const deterministic = fallbackNarrative(fixtureReport);
     const gated = applyCitationGate(
       {
@@ -270,15 +362,54 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
     );
 
     expect(gated.strengths).toEqual(["Your reporting periods run without a break."]);
-    // No surviving item still shows a bracketed path to the Sailor.
     const items = [
       ...gated.strengths,
       ...gated.gaps,
       ...gated.recommendations,
       ...Object.values(gated.factor_commentary),
     ];
-    for (const t of items) expect(t).not.toMatch(/\[|\]/);
+    // No surviving item still shows a bracketed PATH to the Sailor.
+    for (const t of items) expect(t).not.toMatch(/\[(areas|actions|unmet|coverage)\./);
     expect(items.join(" ")).not.toContain("Invented claim");
+  });
+
+  it("EVERY cited path must resolve — one valid path may not launder a fabrication", () => {
+    // A model that appends one safe citation to a fabricated sentence walked
+    // straight through the old `some()` check, while the system prompt promised
+    // the model that any item citing an unknown path is deleted.
+    const deterministic = fallbackNarrative(fixtureReport);
+    const gated = applyCitationGate(
+      {
+        ...citedNarrative(),
+        strengths: [
+          "You failed your PFA and hold no warfare device. [areas.performance, awards.fabricated]",
+          "Both of these resolve. [areas.performance, areas.continuity]",
+        ],
+      },
+      payload(),
+      deterministic,
+    );
+    expect(gated.strengths).toEqual(["Both of these resolve."]);
+  });
+
+  it("leaves bracketed NEC/CIN codes in the prose alone — only the trailing group is a citation", () => {
+    // PR #22 transcribed 80 milestones whose text carries bracketed codes; a
+    // global strip ate them: `Complete "X [NEC 742A]".` → `Complete "X ".`
+    const deterministic = fallbackNarrative(fixtureReport);
+    const gated = applyCitationGate(
+      {
+        ...citedNarrative(),
+        recommendations: [
+          'Complete "Advanced Network Analyst [NEC 742A]". [actions.ladr:m-cert:meet]',
+          'Prose bracket with no citation at all [NEC 742A].',
+        ],
+      },
+      payload(),
+      deterministic,
+    );
+    expect(gated.recommendations).toEqual([
+      'Complete "Advanced Network Analyst [NEC 742A]".',
+    ]);
   });
 
   it("falls back to deterministic text for an unciteable factor_commentary entry", () => {

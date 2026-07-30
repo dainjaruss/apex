@@ -406,6 +406,14 @@ function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs)
   switch (key) {
     case "performance":
       return Number(f.detail.nObserved ?? 0) > 0;
+    // leadership and development test their OWN confidence, which makes these
+    // two arms provably unable to change any output at the default
+    // AREA_EVIDENCE_FLOOR: hasEvidence is consulted only by statusOf, whose very
+    // next non-continuity check is `confidence < AREA_EVIDENCE_FLOOR`, and
+    // conf === 0 implies conf < 0.25. A mutation of either arm to `true` is an
+    // EQUIVALENT mutant — no test can kill it, and none should be written to try.
+    // They are kept because AREA_EVIDENCE_FLOOR is an exported tunable: set it to
+    // 0 and these arms become the only thing separating "no data" from "graded".
     case "leadership":
       return f.confidence > 0;
     case "development":
