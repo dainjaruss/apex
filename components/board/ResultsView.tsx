@@ -48,6 +48,40 @@ const CAVEAT = (() => {
     : BOARD_DISCLAIMER;
 })();
 
+/**
+ * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
+ * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
+ * selection board, but missing reports can make the work of the board more
+ * difficult." (Verified against the LIVE CH-2, ModDate 27 May 2026 — CH-2
+ * revised Encl (2) chapter 3 only, so chapter 17 is unrevised and current.)
+ *
+ * Runs stored before that correction persisted the inverted claim into BOTH
+ * `input.meta.continuity_advisory` AND `input.warnings` (rubric.ts pushes the
+ * advisory into warnings too), and this view renders both verbatim from the
+ * immutable snapshot. Correcting the engine does not correct those rows, so the
+ * retracted claim is filtered HERE too — the last place it can reach a Sailor.
+ */
+const RETRACTED_CONTINUITY_CLAIM = /even a single day/i;
+
+/**
+ * Used only when the run's own advisory is absent or predates the correction. A
+ * current run's advisory is preferred, so live text has one source and cannot
+ * drift; this copy tracks `continuityAdvisory` in `lib/boardConfidence/rubric.ts`
+ * minus the gap count and day threshold, which this component does not hold.
+ */
+const CONTINUITY_ADVISORY =
+  "Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a " +
+  "selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of " +
+  "undocumented performance, and the board evaluates the record with what is " +
+  "available. At a minimum, try to recover any missing report covering " +
+  "significant duty in the grades of E-5 or above within the past 5 years: " +
+  "send a signed copy of the original to PERS-32 (para 17-6a), or, if it " +
+  "cannot be obtained, submit a one-page letter in lieu of the report to " +
+  "PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular " +
+  "report continuity, and it may not evaluate your own performance or " +
+  "recommend you for promotion). Verify your reporting continuity on BOL and " +
+  "NSIPS.";
+
 const bandLabelFor = (vote: number) =>
   BANDS.find((b) => b.vote === vote)?.label ?? "";
 
@@ -283,13 +317,23 @@ export default function ResultsView({
   // the final clamps to 0). numeric arrives as a string from PostgREST.
   const adverse = selected ? Number(selected.adverse_adjustment ?? 0) : 0;
 
-  const warnings: string[] = selected?.input?.warnings ?? [];
+  // rubric.ts pushes the continuity advisory into warnings as well, so a
+  // pre-correction row carries the retracted claim twice. The advisory block
+  // below states the rule correctly; this drops the stale duplicate.
+  const warnings: string[] = (selected?.input?.warnings ?? []).filter(
+    (w) => !RETRACTED_CONTINUITY_CLAIM.test(w),
+  );
 
-  // v1.5 continuity advisory — read from the stored run's meta snapshot.
+  // v1.5 continuity advisory — read from the stored run's meta snapshot, unless
+  // that snapshot predates the para 17-6 correction.
   const meta = (selected?.input?.meta ?? {}) as Record<string, unknown>;
   const continuityGap = meta.continuity_gap === true;
+  const storedAdvisory = meta.continuity_advisory;
   const continuityAdvisory =
-    typeof meta.continuity_advisory === "string" ? meta.continuity_advisory : null;
+    typeof storedAdvisory === "string" &&
+    !RETRACTED_CONTINUITY_CLAIM.test(storedAdvisory)
+      ? storedAdvisory
+      : CONTINUITY_ADVISORY;
 
   return (
     <div className="space-y-6">
@@ -359,9 +403,8 @@ export default function ResultsView({
               <p className="font-bold uppercase tracking-wider text-red-300">
                 Reporting continuity gap detected
               </p>
-              <p className="text-xs">
-                {continuityAdvisory ??
-                  "A gap in reporting continuity was found. A selection board can treat any break in the record — even a single day — as disqualifying. Verify your continuity on BOL and NSIPS."}
+              <p className="text-xs" data-testid="continuity-advisory">
+                {continuityAdvisory}
               </p>
             </div>
           )}
