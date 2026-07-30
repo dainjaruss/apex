@@ -107,6 +107,40 @@ const STATUS_STYLE = {
   },
 } as const;
 
+/**
+ * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
+ * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
+ * selection board, but missing reports can make the work of the board more
+ * difficult." (Verified against the LIVE CH-2, ModDate 27 May 2026 — CH-2
+ * revised Encl (2) chapter 3 only, so chapter 17 is unrevised and current.)
+ *
+ * Runs stored before that correction persisted the inverted claim into BOTH
+ * `input.meta.continuity_advisory` AND `input.warnings`, and this screen renders
+ * both verbatim from the immutable snapshot. Correcting the engine does not
+ * correct those rows, so the retracted claim is filtered HERE too, at the render
+ * boundary — the last place it can reach a Sailor.
+ */
+const RETRACTED_CONTINUITY_CLAIM = /even a single day/i;
+
+/**
+ * Used only when the run's own advisory is absent or predates the correction. A
+ * current run's advisory is preferred, so live text has one source and cannot
+ * drift; this copy tracks `continuityAdvisory` in `lib/boardConfidence/rubric.ts`
+ * minus the gap count and day threshold, which this component does not hold.
+ */
+const CONTINUITY_ADVISORY =
+  "Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a " +
+  "selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of " +
+  "undocumented performance, and the board evaluates the record with what is " +
+  "available. At a minimum, try to recover any missing report covering " +
+  "significant duty in the grades of E-5 or above within the past 5 years: " +
+  "send a signed copy of the original to PERS-32 (para 17-6a), or, if it " +
+  "cannot be obtained, submit a one-page letter in lieu of the report to " +
+  "PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular " +
+  "report continuity, and it may not evaluate your own performance or " +
+  "recommend you for promotion). Verify your reporting continuity on BOL and " +
+  "NSIPS.";
+
 /** Ordered plan buckets. Keyed on horizonBasis first — see rule 6 in the header. */
 const BUCKET_ORDER = [
   "unlock",
@@ -450,12 +484,19 @@ export default function ResultsView({
   };
 
   const report = selected?.input?.readiness ?? null;
-  const warnings: string[] = selected?.input?.warnings ?? [];
   const adverse = selected ? Number(selected.adverse_adjustment ?? 0) : 0;
   const meta = (selected?.input?.meta ?? {}) as Record<string, unknown>;
   const continuityGap = meta.continuity_gap === true;
+  const stored = meta.continuity_advisory;
   const continuityAdvisory =
-    typeof meta.continuity_advisory === "string" ? meta.continuity_advisory : null;
+    typeof stored === "string" && !RETRACTED_CONTINUITY_CLAIM.test(stored)
+      ? stored
+      : CONTINUITY_ADVISORY;
+  // rubric.ts pushes the advisory into warnings as well, so a pre-correction row
+  // carries the retracted claim twice. The advisory block above says it right.
+  const warnings: string[] = (selected?.input?.warnings ?? []).filter(
+    (w) => !RETRACTED_CONTINUITY_CLAIM.test(w),
+  );
   const showLadrFetch = !ladrLoaded;
   // No active precept ⇒ rubric excludes the factor (weight 0, ×100/90
   // redistribution) and coverage counts 5 areas. Read from the run's own
@@ -572,9 +613,8 @@ export default function ResultsView({
               <p className="font-bold uppercase tracking-wider text-red-300">
                 Reporting continuity gap detected
               </p>
-              <p className="text-xs">
-                {continuityAdvisory ??
-                  "A gap in reporting continuity was found. A selection board can treat any break in the record — even a single day — as disqualifying. Verify your continuity on BOL and NSIPS."}
+              <p className="text-xs" data-testid="continuity-advisory">
+                {continuityAdvisory}
               </p>
             </div>
           )}

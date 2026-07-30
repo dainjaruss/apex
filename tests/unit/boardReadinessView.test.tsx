@@ -420,6 +420,55 @@ describe("ResultsView — unsaved edits are never silently unscored", () => {
   });
 });
 
+describe("ResultsView — the continuity advisory states the rule, not its inverse", () => {
+  // BUPERSINST 1610.10H para 17-6: "Missing FITREPs, CHIEFEVALs, or EVALs do not
+  // disqualify a member before a selection board." APEX asserted the opposite.
+  // It survived a full domain review by living in a fallback branch nobody
+  // rendered, and it is ALSO persisted verbatim into every pre-correction
+  // board_analyses row — twice, since rubric.ts pushes the advisory into
+  // `warnings` as well. These pin both paths.
+  const RETRACTED =
+    "A selection board can treat ANY gap in the record — even a single day — as enough to disqualify a candidate.";
+
+  const gapRow = (advisory: string | null, warnings: string[] = []) => {
+    const row = rowFor(partlyEntered);
+    row.input.meta = {
+      continuity_gap: true,
+      ...(advisory ? { continuity_advisory: advisory } : {}),
+    };
+    row.input.warnings = warnings;
+    return row;
+  };
+
+  it("never renders the retracted claim from a pre-correction snapshot", () => {
+    renderWith(gapRow(RETRACTED, [RETRACTED, "Excluded 1 report."]));
+    expect(document.body.textContent).not.toMatch(/even a single day/i);
+    expect(document.body.textContent).not.toMatch(/enough to disqualify/i);
+    // The other data notice is untouched — this filters one retracted claim,
+    // not every warning.
+    expect(document.body.textContent).toContain("Excluded 1 report.");
+  });
+
+  it("says what para 17-6 says, and names the remedy", () => {
+    renderWith(gapRow(null));
+    const text = screen.getByTestId("continuity-advisory").textContent ?? "";
+    expect(text).toContain("do NOT disqualify you before a selection board");
+    expect(text).toContain("BUPERSINST 1610.10H para 17-6");
+    // A Sailor must learn there is a fix, not only that there is a problem.
+    expect(text).toContain("E-5 or above within the past 5 years");
+    expect(text).toContain("PERS-32 (para 17-6a)");
+    expect(text).toContain("letter in lieu of the report");
+    expect(text).toContain("para 17-6b");
+  });
+
+  it("prefers a current run's own advisory so the two texts cannot drift", () => {
+    const current =
+      "2 gaps in reporting continuity (a missing period longer than 90 days) were detected in the record. Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a selection board (BUPERSINST 1610.10H para 17-6).";
+    renderWith(gapRow(current, [current]));
+    expect(screen.getByTestId("continuity-advisory").textContent).toBe(current);
+  });
+});
+
 describe("ResultsView — empty and first-run states", () => {
   it("invites a brand-new user to run without a complete record first", () => {
     renderWith(null);
