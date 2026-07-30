@@ -642,6 +642,12 @@ export function scoreBoardConfidence(
   // make the work of the board more difficult. As a minimum, a member should attempt
   // to obtain any missing report covering significant duty in the grades of E-5 or
   // above within the past 5 years."
+  //
+  // Verified 2026-07-29 against the LIVE current revision, not the stale bundled copy
+  // in my_tools/: BUPERSINST 1610.10H CH-2 fetched from MyNavyHR (173 pp., ModDate
+  // 27 May 2026, sha256 ec644362…), para 17-6 at Encl (2) p. 17-2. CH-2's transmittal
+  // revised Encl (2) chapter 3 only; p. 17-2 still carries the unrevised 30 Jul 2025
+  // footer, so chapter 17 is untouched by CH-2 and this citation is current.
   // The FY-27 precept agrees from the board's side (App A 7.a): a gap is "a period of
   // undocumented performance", and "if there is missing information in the record,
   // board members shall evaluate the record with what is available" (App A 7).
