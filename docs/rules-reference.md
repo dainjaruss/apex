@@ -161,19 +161,27 @@ The controlling paragraph, quoted verbatim so it can be checked:
 
 ### Block 43: Comments on Performance
 
-- **Rule:** Comment text must fit strictly within the physical boundaries of Block 43 on the NAVPERS 1616/26 sheet. Using a monospace Courier New font, the capacity is capped at exactly **18 lines** under:
+- **Rule:** Comment text must fit strictly within the physical boundaries of the comments block **on the form actually being written**. The block number and its capacity are both per form — the line count is *not* a shared constant:
+
+  | Form | Comments block | 10-pitch (90 CPL) | 12-pitch (84 CPL) |
+  |---|---|---|---|
+  | NAVPERS 1616/26 (EVAL) | 43 | **16 lines** | **15 lines** |
+  | NAVPERS 1616/27 (CHIEFEVAL) | 40 | **8 lines** | **7 lines** |
+  | NAVPERS 1610/2 (FITREP) | 41 | **19 lines** | **18 lines** |
+
   - **10-Pitch:** Max 90 characters per line (CPL).
   - **12-Pitch:** Max 84 characters per line (CPL).
   - Continuation sheets are not accepted.
+  - ⚠️ APEX previously enforced a flat **18 lines on all three forms**. 18 was the EVAL's figure and was wrong even there. On a CHIEFEVAL it is more than double the printed block, so an 18-line narrative passed validation, the reporting senior signed, and the printed 1616/27 showed 8 lines with no marker. Capacity now resolves through `getCommentCapacity(reportType, pitch)`; nothing may hardcode a line count.
 - **Provenance — read this before citing the numbers.** The three figures have two different sources, and only one of them is the instruction:
 
   | Element | Source | Status |
   |---|---|---|
   | The 10-pitch / 12-pitch concept | **BUPERSINST 1610.10H, Encl (2), para 13-2a(1)**, p. 13-1, verbatim: *"NAVFIT98A reports with 10- or 12-pitch will still be accepted."* | ✅ Verified in the instruction |
   | No continuation sheets | **Encl (1), para 13a "Basic 'Do's and Don'ts.'"**, p. 9, verbatim: *"Continuation sheets and enclosures are not allowed, except…"* (the exceptions are member statements, flag endorsements, civilian/foreign letter reports, letter-extensions, and classified letter-supplements). Encl (2) states the same rule in **different wording** at para **13-2b(1)**, p. 13-2: *"Continuation sheets will not be accepted. Limit comments to the space on the form."* | ✅ Verified in the instruction |
-  | **18 lines · 90 CPL · 84 CPL** | ⚠️ **APEX's own measured constraint.** Derived from the rendered official 1616/26 box and NAVFIT98A's 10/12-pitch capacity — see `docs/milestone/01-pdf-sections-a-and-b.md` ("Comment-box dimensions not published … Measured the rendered official 1616/26 box"). | ❌ **Not in the instruction** |
+  | **The per-form line counts · 90 CPL · 84 CPL** | ⚠️ **APEX's own measured constraint.** Measured off the blank forms in `public/`: each comment block's printed bounding rules are read out of that PDF's own content stream (all three forms stroke at 0.72 pt, so the box interior is the rule centreline ±0.36), and capacity is the number of Courier lines whose descender still clears the box floor at that form's rendered size and leading. Full arithmetic for all three forms is in the `COMMENT_CAPACITY` comment in `lib/commentFit.ts`; `tests/unit/commentCapacity.test.ts` re-checks it by rendering real PDFs and reading the baselines back. | ❌ **Not in the instruction** |
 
-  ⚠️ The previous citation attributed all three numbers to "Chapter 13". **They appear nowhere in the 171-page instruction** — targeted greps for `18 lines`, `90`/`84 characters`, `characters per line`, and `Courier` return a single hit, the pitch sentence quoted above. **The constraint is sound and must not be removed** — it is what makes the rendered PDF match the printed form — but it is an APEX measurement, not doctrine. Do not present it to a user as an instruction requirement.
+  ⚠️ The previous citation attributed all three numbers to "Chapter 13". **They appear nowhere in the 171-page instruction** — targeted greps for `18 lines`, `90`/`84 characters`, `characters per line`, and `Courier` return a single hit, the pitch sentence quoted above. **The constraint is sound and must not be removed** — it is what makes the rendered PDF match the printed form — but it is an APEX measurement, not doctrine. Do not present it to a user as an instruction requirement. The blank forms in `public/` outrank this document: if they disagree, re-measure.
 - **Code Enforcement:** `lib/commentFit.ts` (Monospace text wrapper and limit check).
 
 ---
@@ -245,7 +253,7 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 - **Promotion gates:** EO (**Block 34** label in messages) and Bearing/Character (**Block 35**) both gate Promotable-or-higher, matching Chapter 9 policy (`refinePromotionRecommendation` with `bearingKey: "bearing"`).
 - **Retention (Block 47):** Omitted (same as CHIEFEVAL).
 - **Block 43 substantiation (1610/2 footnote):** 1.0 marks, **three or more** 2.0 marks, and any **2.0 in Block 34** (climate/EO) — same pattern as EVAL but with officer block numbers in messages.
-- **Narrative limits:** Monospace 18-line dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit` (all report types) — APEX-measured, see [§4 provenance](#block-43-comments-on-performance).
+- **Narrative limits:** Monospace dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit`, with the line count resolved per form by `getCommentCapacity`. 1610/2 Block 41 holds **19 lines at 10-pitch, 18 at 12-pitch** — not the EVAL's 16/15 and not the CHIEFEVAL's 8/7. APEX-measured, see [§4 provenance](#block-43-comments-on-performance).
 - **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
 
 ### UI behavior (parity with EVAL)

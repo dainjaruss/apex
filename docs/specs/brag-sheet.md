@@ -154,10 +154,13 @@ validated by `runFullValidation`.
   (validationEngine.ts:195–205, 276–291) and the PDF overlays call — generate-until-
   fit is therefore true WYSIWYG.
 - **Known doc conflict (follow-up, not this feature):** the prose in
-  `lib/bupersGuidelines.json` `comments.rules` says "16 lines for 10-pitch, 12 lines
-  for 12-pitch"; the code authority (`checkCommentFit`) enforces 18 lines at 90/84
-  CPL. This spec follows the code. Correcting the JSON rule text is a separate
-  one-line follow-up commit.
+  `lib/bupersGuidelines.json` `comments.rules` said "16 lines for 10-pitch, 12 lines
+  for 12-pitch"; the code authority (`checkCommentFit`) enforced 18 lines at 90/84
+  CPL. **Resolved 2026-07-30 by measuring the blank forms, and the JSON's 10-pitch
+  figure was the closer one:** 1616/26 Block 43 holds **16** lines at 10-pitch and 15 at
+  12-pitch; 1616/27 Block 40 holds 8 / 7; 1610/2 Block 41 holds 19 / 18. The flat 18 was
+  wrong on every form. Capacity now comes from `getCommentCapacity(report_type, pitch)`;
+  the JSON rule text has been corrected to match.
 - Block 41 caps come from `types/navpers.ts`: `CAREER_REC_SLOTS = 2`,
   `CAREER_REC_MAX = 20`; Block 31 `COUNSELOR_MAX = 22`;
   `PROMOTION_RECOMMENDATIONS` is the Block 45 enum.
@@ -612,7 +615,9 @@ export interface LadrMilestoneStatus {   // from member_board_records.ladr_check
 // Server-computed, appended to the model payload (NOT client input). Single source
 // of truth: derived from lib/commentFit.ts constants so prompt and validator
 // cannot drift.
-//   comments:        { chars_per_line: pitch==="10"?90:84, max_lines: 18, target_lines: 17 }
+//   comments:        { chars_per_line: pitch==="10"?90:84,
+//                      max_lines: getCommentCapacity(report_type, pitch) → 16/15 EVAL,
+//                      8/7 CHIEFEVAL, 19/18 FITREP, target_lines: max_lines - 1 }
 //   primary_duties:  getPrimaryDutiesFieldFit(report_type)  → 91 CPL × 3 (EVAL) / 4
 //                    (CHIEFEVAL/FITREP), first_line_lead: 20
 //   primary_duty_abbrev: { max_chars: PRIMARY_DUTY_ABBREV_MAX }        // 14
@@ -1061,9 +1066,11 @@ STYLE (BUPERSINST 1610.10H, Chapter 13)
   or below → developmental language, no promotion push.
 
 BLOCK-BY-BLOCK (write to budgets; every value below is enforced after you respond)
-- comments (Block 43): budgets.comments.chars_per_line (90 at 10-pitch, 84 at
-  12-pitch) × 18 lines maximum. TARGET budgets.comments.target_lines (17) to
-  leave the reporting senior editing room. Structure: one opener line
+- comments (the comments block — 43 on an EVAL, 40 on a CHIEFEVAL, 41 on a
+  FITREP): budgets.comments.chars_per_line (90 at 10-pitch, 84 at 12-pitch) ×
+  budgets.comments.max_lines maximum. That maximum is the PHYSICAL size of this
+  form's block and differs sharply between forms — read it, never assume 18.
+  TARGET budgets.comments.target_lines to leave the reporting senior editing room. Structure: one opener line
   establishing scope (personnel led, budget, equipment value — from
   brag.leadership), grouped accomplishment bullets prefixed "- ", one closing
   promotion-language line. Substantiate any trait_hint'd accomplishment
@@ -1135,7 +1142,7 @@ never pad, never invent.
   "period_from": "2025-03-16", "period_to": "2026-03-15",
   "pitch": "10",
   "budgets": {                       // computed at request time from lib/commentFit.ts —
-    "comments": { "chars_per_line": 90, "max_lines": 18, "target_lines": 17 },
+    "comments": { "chars_per_line": 90, "max_lines": 16, "target_lines": 15 },
     "primary_duties": { "chars_per_line": 91, "max_lines": 3, "first_line_lead": 20 },
     "primary_duty_abbrev": { "max_chars": 14 },
     "command_achievements": { "chars_per_line": 91, "max_lines": 3 },
@@ -1595,7 +1602,7 @@ small ones in the page file is permitted):
       the source row in the editor). `citation_failures` render as struck-through
       ghost rows with "removed — citation did not resolve".
     - **Fit meter** — for comments/29B/28/44: `linesUsed / maxLines` bar from
-      `fit_reports` (e.g. "16 / 18 lines at 90 CPL"), green under target, amber at
+      `fit_reports` (e.g. "14 / 16 lines at 90 CPL" on an EVAL), green under target, amber at
       max, red on overflow. 29A shows a char counter (`n/14`) driven by its own
       `fit_reports.primary_duty_abbrev` entry (overflow state and disabled Accept
       apply to it exactly as to the line-based blocks); 41 shows `n/20 × 2`.
@@ -1655,7 +1662,8 @@ Implemented in `runAutofill` (§4.6); this section is the single source of truth
    requires a PFA comment in Block 29 (BUPERSINST 1610.10H)." }`.
 4. **FIT CHECKS** (`lib/commentFit` — the same wrap as screen + PDF, true
    WYSIWYG):
-   - `comments` → `checkCommentFit(text, req.pitch)` (18 lines, 90/84 CPL)
+   - `comments` → `checkCommentFit(text, req.pitch, req.report_type)` (90/84 CPL ×
+     `getCommentCapacity` — 16/15 EVAL, 8/7 CHIEFEVAL, 19/18 FITREP)
    - `primary_duties` → `measureTextFit(text, 91, getPrimaryDutiesFieldFit(report_type).maxLines, 20)`
    - `command_achievements` → `measureTextFit(text, 91, 3)`
    - `qualifications` → `measureTextFit(text, 91, 2)` (EVAL only)
@@ -1668,7 +1676,7 @@ Implemented in `runAutofill` (§4.6); this section is the single source of truth
      drop the offending entry with a `MissingInfoFlag{ block: 41 }`.
 5. **OVERFLOW HANDLING** — any failed fit from step 4: **one** automatic model
    retry with concrete feedback per failed block, e.g.
-   `"comments used 21/18 lines at 90 CPL — cut 3 lines"` (from
+   `"comments used 21/16 lines at 90 CPL — cut 5 lines"` on an EVAL (from
    `fit.linesUsed`/`maxLines`/`charsPerLine`). The retry output re-enters the
    pipeline at step 1 (parse) and steps 2–4 re-run. Still overflowing → return
    anyway with `overflow: true`, `truncation_preview =
@@ -1787,7 +1795,8 @@ pipeline-only behavior is under test.
   takes an injected `callModel` and never calls `generateText` itself, §4.6.)
 - **Budgets single-source:** the serialized prompt's `budgets` deep-equal
   `computeBudgets(...)`, and `computeBudgets("EVAL","10")` /
-  `("CHIEFEVAL","12")` match the commentFit constants (90/84 CPL, 18 lines, 29B
+  `("CHIEFEVAL","12")` match the commentFit constants (90/84 CPL, per-form comment
+  capacity — 16 lines for EVAL@10, 7 for CHIEFEVAL@12 — 29B
   3-vs-4 lines, lead 20, 14, 91×3, 91×2, 2×20). `qualifications` budget absent for
   CHIEFEVAL/FITREP.
 - **PII sentinel:** plant a 10-digit `dod_id` in the fixture; assert the

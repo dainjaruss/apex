@@ -26,6 +26,7 @@ import type {
 import {
   checkCommentFit,
   FIELD_FIT,
+  getCommentCapacity,
   getPrimaryDutiesFieldFit,
   measureTextFit,
   PRIMARY_DUTY_ABBREV_MAX,
@@ -67,8 +68,20 @@ export const BRAG_AI_ENV: AiEnvConfig = {
 // per-instance, so on serverless it caps nothing globally — a shared limiter or
 // a job queue is the fix if this ever gets real traffic.
 export const AUTOFILL_TIMEOUT_MS = 240_000;
-export const COMMENTS_MAX_LINES = 18; // = checkCommentFit cap
-export const COMMENTS_TARGET_LINES = 17;
+
+// Comment-block capacity is per form (getCommentCapacity): 17 lines on 1616/26, 8 on
+// 1616/27, 19 on 1610/2 at 10-pitch. These were a flat COMMENTS_MAX_LINES = 18 /
+// COMMENTS_TARGET_LINES = 17, which on a CHIEFEVAL budgeted the model more than twice
+// the block's printed size.
+export const commentsMaxLines = (
+  reportType: AutofillRequest["report_type"],
+  pitch: "10" | "12",
+) => getCommentCapacity(reportType, pitch);
+/** One line of editing room held back for the reporting senior. */
+export const commentsTargetLines = (
+  reportType: AutofillRequest["report_type"],
+  pitch: "10" | "12",
+) => Math.max(1, commentsMaxLines(reportType, pitch) - 1);
 
 /** Model output failed the schema parse twice (§7 step 1) — route answers 502. */
 export class AutofillModelError extends Error {
@@ -323,15 +336,15 @@ export function computeBudgets(
   reportType: AutofillRequest["report_type"],
   pitch: "10" | "12",
 ): AutofillBudgets {
-  const comments = checkCommentFit("", pitch); // 90/84 CPL × 18 lines
+  const comments = checkCommentFit("", pitch, reportType); // 90/84 CPL x per-form lines
   const pd = getPrimaryDutiesFieldFit(reportType);
   const ca = FIELD_FIT.command_achievements;
   const quals = FIELD_FIT.qualifications;
   return {
     comments: {
       chars_per_line: comments.charsPerLine,
-      max_lines: COMMENTS_MAX_LINES,
-      target_lines: COMMENTS_TARGET_LINES,
+      max_lines: comments.maxLines,
+      target_lines: commentsTargetLines(reportType, pitch),
     },
     primary_duties: {
       chars_per_line: pd.charsPerLine,
@@ -604,7 +617,11 @@ function validatePass(
   const ca = FIELD_FIT.command_achievements;
   const quals = FIELD_FIT.qualifications;
   const fits: Record<string, CommentFitResult> = {
-    comments: checkCommentFit(out.blocks.comments.text, req.pitch),
+    comments: checkCommentFit(
+      out.blocks.comments.text,
+      req.pitch,
+      req.report_type,
+    ),
     primary_duty_abbrev: measureTextFit(
       out.blocks.primary_duty_abbrev.text,
       PRIMARY_DUTY_ABBREV_MAX,
@@ -845,9 +862,12 @@ STYLE (BUPERSINST 1610.10H, Chapter 13)
   or below → developmental language, no promotion push.
 
 BLOCK-BY-BLOCK (write to budgets; every value below is enforced after you respond)
-- comments (Block 43): budgets.comments.chars_per_line (90 at 10-pitch, 84 at
-  12-pitch) × 18 lines maximum. TARGET budgets.comments.target_lines (17) to
-  leave the reporting senior editing room. Structure: one opener line
+- comments (the comments block — 43 on an EVAL, 40 on a CHIEFEVAL, 41 on a
+  FITREP): budgets.comments.chars_per_line (90 at 10-pitch, 84 at 12-pitch) ×
+  budgets.comments.max_lines maximum. That maximum is the PHYSICAL size of this
+  form's block and differs sharply between forms — read it, never assume 18.
+  TARGET budgets.comments.target_lines to leave the reporting senior editing
+  room. Structure: one opener line
   establishing scope (personnel led, budget, equipment value — from
   brag.leadership), grouped accomplishment bullets prefixed "- ", one closing
   promotion-language line. Substantiate any trait_hint'd accomplishment

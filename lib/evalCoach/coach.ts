@@ -176,7 +176,10 @@ export function narrativeIssues(req: CoachRequest): ValidationIssue[] {
  * has nothing to substantiate.
  */
 export function coachPayload(req: CoachRequest): CoachPayload {
-  const fit = checkCommentFit(req.comments, req.pitch);
+  // Per-form capacity. budget.max_lines is handed to the model as "the physical size of
+  // the block" — while this said 18 for every form, the coach was telling a Chief to
+  // fill ten lines of NAVPERS 1616/27 that do not exist on the printed form.
+  const fit = checkCommentFit(req.comments, req.pitch, req.report_type);
   // Block numbers come from the report-type-aware map, never from the merged
   // standards lookup: on FITREP that lookup reports Block 39 for BOTH
   // `leadership` (really 38) and `tactical_performance`, which rendered two

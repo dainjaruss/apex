@@ -18,6 +18,7 @@ import {
   FIELD_FIT,
   getPrimaryDutiesFieldFit,
 } from "./commentFit";
+import { getCommentsBlock } from "./traitStandards";
 
 // Static lookup table mapping field names to NAVPERS block numbers
 const fieldBlockMap: Record<string, number> = {
@@ -204,14 +205,23 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     }
   }
 
-  // 3. Courier narrative comment fit/overflow check (Block 43)
+  // 3. Courier narrative comment fit/overflow check. Capacity AND block number are both
+  //    per form: EVAL 43 / CHIEFEVAL 40 / FITREP 41, and 16 / 8 / 19 lines at 10-pitch.
+  //    This used to check every form against the EVAL's line count and label the error
+  //    "Block 43", so a CHIEFEVAL passed validation at 18 lines and the printed form
+  //    silently dropped ten of them.
   const pitch = evalData.block_values?.comment_pitch || "10";
-  const fitResult = checkCommentFit(evalData.comments || "", pitch);
+  const fitResult = checkCommentFit(
+    evalData.comments || "",
+    pitch,
+    evalData.report_type,
+  );
   if (!fitResult.fit) {
+    const commentsBlock = getCommentsBlock(evalData.report_type);
     errors.push({
       field: "comments",
-      block: 43,
-      message: `Comment text exceeds maximum physical box capacity of ${fitResult.maxLines} lines (currently wrapped to ${fitResult.linesUsed} lines at ${pitch}-pitch).`,
+      block: commentsBlock,
+      message: `Comment text exceeds the physical capacity of Block ${commentsBlock} on this form — ${fitResult.maxLines} lines at ${pitch}-pitch (currently wrapped to ${fitResult.linesUsed}). Anything past line ${fitResult.maxLines} will not print.`,
       severity: "error",
     });
   }

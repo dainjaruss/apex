@@ -50,7 +50,12 @@ import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
+import {
+  wrapTextToWidth,
+  FIELD_FIT,
+  getPrimaryDutiesFieldFit,
+  getCommentCapacity,
+} from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
 
@@ -194,9 +199,18 @@ const C = {
     rec2_x: 300.0,
     rec2_y: 512.0,
 
+    // Block 41 comments (1610/2 numbers this block 41, not 43 — the name is legacy).
+    // 462.0 was inherited from the EVAL overlay and put line 1's cap height at 467.6,
+    // straight through the form's own printed instruction header (baselines 460.08 and
+    // 452.88, lowest descender 451.86). 444.0 is measured off fitrepBlank.pdf: it clears
+    // that header by 1.8 pt and leaves the box floor at y=226.44 far enough below to hold
+    // getCommentCapacity("FITREP", pitch) lines — 19 at 10-pitch, 18 at 12-pitch.
+    //
+    // ponytail: one measured constant, not a calibration pass. The REST of this file's
+    // page-2 map is still the uncalibrated inheritance described at the top; this moves
+    // only the constant the comment capacity is defined against.
     b43_x: FORM_LEFT,
-    b43_topBaseline: 462.0,
-    b43_lines: 18,
+    b43_topBaseline: 444.0,
 
     b44_x: FORM_LEFT,
     b44_topBaseline: 220.0,
@@ -431,7 +445,14 @@ export async function generateFitrepOverlayPdf(
 
   const pitch = (bv.comment_pitch || "10") as "10" | "12";
   const cpl43 = pitch === "10" ? 90 : 84;
-  narrative(page2, evaluation.comments, p2.b43_x, p2.b43_topBaseline, cpl43, p2.b43_lines);
+  narrative(
+    page2,
+    evaluation.comments,
+    p2.b43_x,
+    p2.b43_topBaseline,
+    cpl43,
+    getCommentCapacity(evaluation.report_type, pitch),
+  );
 
   narrative(page2, bv.qualifications, p2.b44_x, p2.b44_topBaseline, p2.b44_cpl, p2.b44_lines);
 

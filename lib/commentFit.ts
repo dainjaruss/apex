@@ -115,15 +115,94 @@ export function measureTextFit(
 }
 
 /**
- * Checks whether the given text fits in Block 43 comments space (18 lines maximum)
- * under the selected Courier pitch (10-pitch = 90 CPL, 12-pitch = 84 CPL).
+ * Comment-block capacity in PRINTED LINES, per report type and Courier pitch.
+ *
+ * This was a single hardcoded 18 for every form. 18 came from NAVPERS 1616/26 and was
+ * never true even there; on 1616/27 it is more than double the real capacity, so a Chief
+ * could pass validation, sign, and lose ten lines off the printed record with no marker.
+ *
+ * MEASURED off the blank forms in public/ — the forms outrank this comment. Method, per
+ * form: read the comment box's own printed top/bottom rules out of the blank's content
+ * stream (rule centrelines ± half the 0.72 pt stroke = the box interior), then walk the
+ * renderer's own text model down from the first typed baseline and count the lines whose
+ * DESCENDER still clears the box floor. The renderer's model (narrative() in the three
+ * overlays) is: size = min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)), leading = 1.18 x
+ * size, Courier descender = 0.157 em (pdf-lib's own Courier Descender, -157/1000).
+ *
+ *   NAVPERS 1616/26 (EVAL) Block 43 — box interior y[253.48, 468.04], first baseline
+ *     436.00 (constant 450.0 through pdfOverlay's page-2 translate, dy -14).
+ *     10-pitch: size 10.0166, leading 11.8196, descender 1.573.
+ *       (436.00 - 1.573 - 253.48) / 11.8196 = 15.31 -> floor 15, +1 = 16 lines.
+ *       Line 16 baseline 258.71 (descender 257.13, clears by 3.65 pt); line 17 baseline
+ *       246.89 — 8.17 pt BELOW the box, printed over the Block 44 header.
+ *     12-pitch: size 10.7278, leading 12.6588, descender 1.684.
+ *       (436.00 - 1.684 - 253.48) / 12.6588 = 14.29 -> 15 lines.
+ *     17 lines would need a first baseline of 444.16 or higher, and the printed
+ *     instruction header's descender sits at 452.26 — under 2.5 pt of clearance. 16 is
+ *     the form's answer, not an artefact of where the renderer happens to start.
+ *
+ *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 — box interior y[277.56, 380.52], first
+ *     baseline 363.0. This form's overlay uses a wider narrative box, so the same
+ *     formula yields size 9.9576 / leading 11.750 at 10-pitch.
+ *       (363.0 - 1.563 - 277.56) / 11.750 = 7.14 -> 8 lines. Line 8's descender lands at
+ *       279.19, 1.63 pt inside; line 9's BASELINE is 269.00, 8.56 pt below the floor.
+ *     12-pitch: size 10.6647, leading 12.5844 ->
+ *       (363.0 - 1.674 - 277.56) / 12.5844 = 6.65 -> 7 lines.
+ *     Independently reproduces the 8 / 7 measured on PR #34 (b40_lines10 / b40_lines12).
+ *
+ *   NAVPERS 1610/2 (FITREP) Block 41 — box interior y[226.44, 469.08], first baseline
+ *     444.0 (fitrepOverlay b43_topBaseline; the old 462.0 printed line 1 on top of the
+ *     form's own instruction header, whose descender is at 451.86).
+ *     10-pitch: (444.0 - 1.573 - 226.44) / 11.8196 = 18.27 -> 19 lines.
+ *     12-pitch: (444.0 - 1.684 - 226.44) / 12.6588 = 17.05 -> 18 lines.
+ *     Both hold across the entire legal band for that baseline (444.0 up to 446.0, where
+ *     line 1 starts colliding with the header), so neither is knife-edge.
+ *
+ * tests/unit/commentCapacity.test.ts renders real PDFs off these blanks and asserts every
+ * line lands inside the measured box, so the renderer and this table cannot drift apart
+ * without that test going red.
+ */
+const COMMENT_CAPACITY: Record<string, { "10": number; "12": number }> = {
+  EVAL: { "10": 16, "12": 15 }, // 1616/26 Block 43
+  CHIEFEVAL: { "10": 8, "12": 7 }, // 1616/27 Block 40
+  FITREP: { "10": 19, "12": 18 }, // 1610/2  Block 41
+};
+
+/**
+ * Printed-line capacity of the comment block for this form at this pitch.
+ *
+ * Same shape as traitStandards' getCommentsBlock(): an unknown or absent report type
+ * falls back to the enlisted EVAL, the form APEX defaults to everywhere else. That
+ * fallback is never more generous than CHIEFEVAL's real capacity would be, so it cannot
+ * invent room a form does not have.
+ */
+export function getCommentCapacity(
+  reportType: string | undefined,
+  pitch: "10" | "12" | 10 | 12,
+): number {
+  const form = COMMENT_CAPACITY[reportType ?? ""] ?? COMMENT_CAPACITY.EVAL;
+  return Number(pitch) === 10 ? form["10"] : form["12"];
+}
+
+/**
+ * Checks whether the given text fits the comment block of `reportType` at the selected
+ * Courier pitch (10-pitch = 90 CPL, 12-pitch = 84 CPL).
+ *
+ * `reportType` is REQUIRED on purpose. It used to be absent and every caller silently got
+ * the EVAL's line count; making it a parameter the compiler demands is what proves no
+ * caller is still asking the wrong form's question.
  */
 export function checkCommentFit(
   text: string,
   pitch: "10" | "12" | 10 | 12,
+  reportType: string | undefined,
 ): CommentFitResult {
   const charsPerLine = Number(pitch) === 10 ? 90 : 84;
-  return measureTextFit(text, charsPerLine, 18);
+  return measureTextFit(
+    text,
+    charsPerLine,
+    getCommentCapacity(reportType, pitch),
+  );
 }
 
 /**

@@ -28,7 +28,7 @@ import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT } from "./commentFit";
+import { wrapTextToWidth, FIELD_FIT, getCommentCapacity } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
 import { generateChiefEvalOverlayPdf } from "./chiefEvalOverlay";
@@ -188,10 +188,13 @@ const C = {
     rec2_x: 218,
     rec2_y: 499,
 
-    // block 43 comments (big box; 18 lines) — top baseline clears the 2-line instruction header
+    // Block 43 comments — top baseline clears the 2-line instruction header. The line
+    // count is NOT a constant here: it is getCommentCapacity("EVAL", pitch), the number
+    // of lines this baseline actually keeps inside the printed box (16 at 10-pitch, 15 at
+    // 12-pitch). It used to say 18, and lines 17-18 printed 8 and 20 pt BELOW the box,
+    // over the Block 44 header.
     b43_x: 22,
     b43_topBaseline: 450,
-    b43_lines: 18,
 
     // block 44 qualifications (2 lines)
     b44_x: 22,
@@ -562,7 +565,7 @@ export async function generateOverlayPdf(
     p2.b43_x,
     p2.b43_topBaseline,
     cpl43,
-    p2.b43_lines,
+    getCommentCapacity(evaluation.report_type, pitch),
   );
 
   // block 44 qualifications

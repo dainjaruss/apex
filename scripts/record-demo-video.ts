@@ -1329,7 +1329,7 @@ async function main() {
           ],
           [
             "Blocks 43/44",
-            "Narratives wrap exactly at pitch width — 90 chars × 18 lines",
+            "Narratives wrap exactly at pitch width — 90 chars × this form's line count",
           ],
           [
             "Block 43",

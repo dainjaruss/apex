@@ -239,7 +239,9 @@ describe("buildCallModel — generateText call shape (mocked 'ai')", () => {
 describe("computeBudgets — pinned to the commentFit constants", () => {
   it('EVAL @ 10-pitch matches the §4.6 payload budgets verbatim', () => {
     expect(computeBudgets("EVAL", "10")).toEqual({
-      comments: { chars_per_line: 90, max_lines: 18, target_lines: 17 },
+      // 16 = NAVPERS 1616/26 Block 43 at 10-pitch, measured off the blank
+      // (tests/unit/commentCapacity.test.ts). This budget said 18 for every form.
+      comments: { chars_per_line: 90, max_lines: 16, target_lines: 15 },
       primary_duties: { chars_per_line: 91, max_lines: 3, first_line_lead: 20 },
       primary_duty_abbrev: { max_chars: 14 },
       command_achievements: { chars_per_line: 91, max_lines: 3 },
@@ -250,10 +252,12 @@ describe("computeBudgets — pinned to the commentFit constants", () => {
 
   it("CHIEFEVAL @ 12-pitch: 84 CPL, 4-line 29B, and NO qualifications budget", () => {
     const b = computeBudgets("CHIEFEVAL", "12") as any;
+    // 1616/27's Block 40 is less than half the EVAL's Block 43: 7 lines at 12-pitch.
+    // Budgeting the model 18 here was the coach's licence to over-write the block.
     expect(b.comments).toEqual({
       chars_per_line: 84,
-      max_lines: 18,
-      target_lines: 17,
+      max_lines: 7,
+      target_lines: 6,
     });
     expect(b.primary_duties).toEqual({
       chars_per_line: 91,
@@ -606,9 +610,12 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     return out;
   };
 
-  it("retries once with concrete 21/18 feedback, then returns flagged with preview + dropped lines", async () => {
-    const fit = checkCommentFit(overComments, "10");
+  it("retries once with concrete 21/16 feedback, then returns flagged with preview + dropped lines", async () => {
+    const fit = checkCommentFit(overComments, "10", "EVAL");
     expect(fit.linesUsed).toBe(21); // fixture sanity
+    // NAVPERS 1616/26 Block 43 holds 16 lines at 10-pitch — measured off the blank in
+    // tests/unit/commentCapacity.test.ts. Not 18, and not the CHIEFEVAL's or FITREP's.
+    expect(fit.maxLines).toBe(16);
 
     const cm = scriptedModel(overflowOutput(), overflowOutput());
     const res = await runAutofill(makeReq(), cm);
@@ -616,17 +623,17 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     // Exactly one overflow retry (≤3 calls total per run).
     expect(cm).toHaveBeenCalledTimes(2);
     const retryPrompt = cm.mock.calls[1][0];
-    expect(retryPrompt).toContain("21/18");
+    expect(retryPrompt).toContain("21/16");
     expect(JSON.parse(retryPrompt).retry_feedback).toBeDefined();
 
     const report = res.fit_reports.comments;
     expect(report.overflow).toBe(true);
     expect(report.fit.linesUsed).toBe(21);
     expect(report.truncation_preview).toBe(
-      fit.wrappedLines.slice(0, 18).join("\n"),
+      fit.wrappedLines.slice(0, 16).join("\n"),
     );
-    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(18));
-    expect(report.dropped_lines).toHaveLength(3);
+    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(16));
+    expect(report.dropped_lines).toHaveLength(5);
     // The server never trims the text itself.
     expect(res.blocks.comments.text).toBe(overComments);
 

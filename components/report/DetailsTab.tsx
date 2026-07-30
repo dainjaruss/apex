@@ -5,6 +5,7 @@
 import React from "react";
 import { Evaluation } from "@/types";
 import { checkCommentFit } from "@/lib/commentFit";
+import { getCommentsBlock } from "@/lib/traitStandards";
 import { SIGNATURE_BLOCKS, SignatureBlockMeta } from "@/lib/signatures";
 
 export type OnSign = (block: number, label: string, signer: string) => void;
@@ -211,15 +212,21 @@ function TraitRatingsSection({ e }: { e: Evaluation }) {
 
 function NarrativeSection({ e }: { e: Evaluation }) {
   const pitch = e.block_values?.comment_pitch || "10";
-  const fit = checkCommentFit(e.comments || "", pitch);
+  const fit = checkCommentFit(e.comments || "", pitch, e.report_type);
   return (
     <div className={PANEL}>
       <div className="flex items-center justify-between mb-4 border-b apex-report-divider pb-2">
         <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-          Block 43: Narrative Comments
+          Block {getCommentsBlock(e.report_type)}: Narrative Comments
         </h3>
-        <span className="text-[10px] apex-report-faint font-mono">
-          Pitch Selected: {pitch}-Pitch | Lines: {fit.linesUsed} / 18
+        <span
+          className={`text-[10px] font-mono ${fit.fit ? "apex-report-faint" : "apex-text-field-error font-bold"}`}
+        >
+          Pitch Selected: {pitch}-Pitch | Lines: {fit.linesUsed} /{" "}
+          {fit.maxLines}
+          {fit.fit
+            ? ""
+            : ` — ${fit.linesUsed - fit.maxLines} line(s) will not print`}
         </span>
       </div>
       <div className="apex-narrative-viewer">
