@@ -6,7 +6,6 @@ import Link from "next/link";
 import { signUpWithEmail } from "@/lib/auth";
 import {
   NAVY_RANKS,
-  ROLES,
   registerSchema,
   type RegisterFormData,
   type RegisterFieldErrors,
@@ -265,21 +264,26 @@ function ProfessionalFields({
         placeholder="USS NEVERSAIL"
         error={fieldErrors.command}
       />
-      <FormSelect
-        id="reg-role"
-        label="Preferred Evaluation Role"
-        value={formData.role}
-        onChange={(e) => onChange("role", e.target.value)}
-        fieldClass={fieldClass("role")}
-        error={fieldErrors.role}
-        containerClassName="space-y-1.5 md:col-span-2"
-      >
-        {ROLES.map((role) => (
-          <option key={role} value={role}>
-            {ROLE_LABELS[role] || role}
-          </option>
-        ))}
-      </FormSelect>
+      {/* No role picker. It wrote straight into signUp metadata, which
+          public.handle_new_user() copied into profiles.preferred_role — i.e. a
+          self-service Admin account. Migration 009 pins every new account to
+          'Sailor' in the database; this notice states that honestly. */}
+      <div className="space-y-1.5 md:col-span-2">
+        <label className="apex-label" htmlFor="reg-role">
+          Evaluation Role
+        </label>
+        <div
+          id="reg-role"
+          className="apex-input opacity-70 cursor-not-allowed"
+          aria-readonly="true"
+        >
+          {ROLE_LABELS.Sailor}
+        </div>
+        <p className="text-xs apex-text-subtle">
+          Every new account starts as a Sailor. Rater, Senior Rater, Reporting
+          Senior and Admin are assigned by your command after registration.
+        </p>
+      </div>
     </>
   );
 }
@@ -380,7 +384,9 @@ function useRegisterForm() {
     rank: "SN" as (typeof NAVY_RANKS)[number],
     uic: "",
     command: "",
-    role: "Sailor" as (typeof ROLES)[number],
+    // Fixed. registerSchema still validates the field; the DB ignores it either
+    // way (migration 009), so there is nothing for the user to choose.
+    role: "Sailor" as const,
     email: "",
     password: "",
   });
@@ -424,7 +430,6 @@ function useRegisterForm() {
         uic: result.data.uic,
         navyRank: result.data.rank,
         command: result.data.command,
-        preferredRole: result.data.role,
       });
       setIsSubmitted(true);
     } catch (error: unknown) {
@@ -493,11 +498,7 @@ export default function RegisterPage() {
           <NavyBranding sidebar onLightSurface className="mt-2" />
         </div>
 
-        {serverError && (
-          <div className="apex-banner-error">
-            {serverError}
-          </div>
-        )}
+        {serverError && <div className="apex-banner-error">{serverError}</div>}
 
         <RegisterForm
           formData={formData}

@@ -34,7 +34,9 @@ function StatCard({
           >
             {label}
           </p>
-          <p className="text-3xl font-black tabular-nums apex-heading">{value}</p>
+          <p className="text-3xl font-black tabular-nums apex-heading">
+            {value}
+          </p>
           {sub && (
             <p className="text-[10px]" style={{ color: "var(--subtle)" }}>
               {sub}
@@ -243,7 +245,9 @@ function formatTimeAgo(dateStr: string): string {
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export default function AnalyticsDashboard() {
   const [evals, setEvals] = useState<Evaluation[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<
+    Pick<Profile, "id" | "preferred_role">[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -253,10 +257,17 @@ export default function AnalyticsDashboard() {
           .from("evaluations")
           .select("*")
           .order("updated_at", { ascending: false }),
-        supabase.from("profiles").select("*"),
+        // Was `profiles.select("*")` — a full dump of every DoD ID, email, UIC
+        // and command behind a client-side-only role gate. This panel only ever
+        // consumed preferred_role and the row count, so the four-column
+        // directory view (migration 009) covers it with no loss of function.
+        supabase.from("profiles_directory").select("id, preferred_role"),
       ]);
       if (evalRes.data) setEvals(evalRes.data as Evaluation[]);
-      if (profileRes.data) setProfiles(profileRes.data as Profile[]);
+      if (profileRes.data)
+        setProfiles(
+          profileRes.data as Pick<Profile, "id" | "preferred_role">[],
+        );
       setLoading(false);
     };
     fetch();

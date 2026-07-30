@@ -52,13 +52,18 @@ function createMiddlewareClient(
   );
 }
 
-function getRedirectTarget(user: any, path: string): string | null {
+// Exported for unit test: the prefix list has drifted behind new features twice
+// (/board-confidence and /brag-sheet shipped without an entry here), so the list
+// is asserted directly rather than through a mocked Supabase round-trip.
+export function getRedirectTarget(user: any, path: string): string | null {
   const protectedPrefixes = [
     "/dashboard",
     "/profile",
     "/evaluations",
     "/admin",
     "/summary-groups",
+    "/board-confidence",
+    "/brag-sheet",
   ];
   const authRoutes = ["/login", "/register", "/"];
 

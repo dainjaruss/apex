@@ -25,6 +25,12 @@ const ALL_ROLES: Role[] = [
   "Admin",
 ];
 
+// Exactly what public.profiles_directory exposes (migration 009).
+type DirectoryUser = Pick<
+  Profile,
+  "id" | "first_name" | "last_name" | "preferred_role"
+>;
+
 function roleBadgeClass(role: string) {
   if (role === "Admin")
     return "bg-red-950/40 text-red-300 border-red-900/50";
@@ -36,9 +42,8 @@ function roleBadgeClass(role: string) {
 export default function AdminPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
-  const [users, setUsers] = useState<Profile[]>([]);
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -57,35 +62,19 @@ export default function AdminPage() {
 
       if (profile) setCurrentUser(profile as Profile);
 
+      // profiles_directory, not profiles: migration 009 narrows base-table reads
+      // to the caller's own row. Rank, email, UIC and command are no longer
+      // readable across users — see the notice rendered below the roster.
       const { data: allUsers } = await supabase
-        .from("profiles")
-        .select("*")
+        .from("profiles_directory")
+        .select("id, first_name, last_name, preferred_role")
         .order("last_name", { ascending: true });
 
-      if (allUsers) setUsers(allUsers as Profile[]);
+      if (allUsers) setUsers(allUsers as DirectoryUser[]);
       setLoading(false);
     };
     load();
   }, [router]);
-
-  const handleRoleChange = async (userId: string, newRole: Role) => {
-    setSaving(userId);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ preferred_role: newRole, assigned_roles: [newRole] })
-      .eq("id", userId);
-
-    if (!error) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === userId
-            ? { ...u, preferred_role: newRole, assigned_roles: [newRole] }
-            : u,
-        ),
-      );
-    }
-    setSaving(null);
-  };
 
   if (loading) {
     return (
@@ -117,8 +106,7 @@ export default function AdminPage() {
     return (
       u.last_name.toLowerCase().includes(q) ||
       u.first_name.toLowerCase().includes(q) ||
-      u.preferred_role.toLowerCase().includes(q) ||
-      (u.email || "").toLowerCase().includes(q)
+      u.preferred_role.toLowerCase().includes(q)
     );
   });
 
@@ -134,7 +122,7 @@ export default function AdminPage() {
       topbarSearch={{
         value: searchQuery,
         onChange: setSearchQuery,
-        placeholder: "Search users by name, email, or role…",
+        placeholder: "Search users by name or role…",
       }}
     >
       <AnalyticsDashboard />
@@ -142,11 +130,42 @@ export default function AdminPage() {
       <div className="admin-divider my-8" />
 
       <div className="mb-6">
-        <h1 className="apex-page-title">User & role management</h1>
+        <h1 className="apex-page-title">User roster</h1>
         <p className="apex-page-subtitle">
-          Assign roles to control evaluation workflow permissions across the
-          chain of command.
+          Who holds which evaluation role across the chain of command.
         </p>
+      </div>
+
+      {/* Honest degradation. This page used to read every column of every
+          profile and offer a role <select>, both behind a client-side-only role
+          check on a self-asserted role. Migration 009 removes both capabilities
+          at the database. Restoring them needs a real admin trust model (a
+          server-side authority check on a role the user cannot grant
+          themselves), which is deliberately out of scope here. */}
+      <div
+        className="apex-card p-4 mb-6 border"
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--muted)",
+        }}
+        role="note"
+      >
+        <h2 className="apex-section-title">Reduced capability</h2>
+        <ul
+          className="text-xs mt-1 space-y-1 list-disc pl-4"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <li>
+            <strong>Rank, email, UIC and command are not shown.</strong> They
+            are protected profile fields and are no longer readable across users
+            from the browser.
+          </li>
+          <li>
+            <strong>Role assignment is disabled here.</strong> Roles are changed
+            server-side only. The previous in-page control depended on a role
+            the holder could grant themselves, so it was not an authority check.
+          </li>
+        </ul>
       </div>
 
       <div className="apex-card p-4 mb-6 space-y-2">
@@ -179,28 +198,18 @@ export default function AdminPage() {
       </div>
 
       <div className="apex-card overflow-x-auto">
-        <table className="apex-data-table min-w-[720px]">
+        <table className="apex-data-table min-w-[360px]">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Rank</th>
-              <th>Email</th>
               <th>Current role</th>
-              <th>Assign role</th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.map((user) => (
               <tr key={user.id}>
                 <td className="font-semibold">
-                  {user.last_name}, {user.first_name}{" "}
-                  {user.middle_initial || ""}
-                </td>
-                <td style={{ color: "var(--muted-foreground)" }}>
-                  {user.navy_rank || "—"}
-                </td>
-                <td style={{ color: "var(--muted-foreground)" }}>
-                  {user.email || "—"}
+                  {user.last_name}, {user.first_name}
                 </td>
                 <td>
                   <span
@@ -208,33 +217,6 @@ export default function AdminPage() {
                   >
                     {user.preferred_role}
                   </span>
-                </td>
-                <td>
-                  <select
-                    value={user.preferred_role}
-                    onChange={(e) =>
-                      handleRoleChange(user.id, e.target.value as Role)
-                    }
-                    disabled={
-                      saving === user.id || user.id === currentUser?.id
-                    }
-                    className="apex-select max-w-[200px] py-1.5 text-xs"
-                    aria-label={`Preferred role for ${user.email || `${user.first_name} ${user.last_name}`.trim() || "user"}`}
-                  >
-                    {ALL_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  {saving === user.id && (
-                    <span
-                      className="ml-2 text-[10px] animate-pulse"
-                      style={{ color: "var(--accent-cyan)" }}
-                    >
-                      Saving…
-                    </span>
-                  )}
                 </td>
               </tr>
             ))}

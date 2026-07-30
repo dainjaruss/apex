@@ -14,11 +14,11 @@ Production env vars are already configured on Vercel. Re-check only when rotatin
 
 Vercel **Production** (and Preview for e2e against preview):
 
-| Variable | Required | Notes |
-|----------|----------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Public anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes (server) | API routes that sign, route, lock, finalize |
+| Variable                        | Required     | Notes                                       |
+| ------------------------------- | ------------ | ------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes          | Project URL                                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes          | Public anon key                             |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Yes (server) | API routes that sign, route, lock, finalize |
 
 Local development: copy `.env.example` → `.env.local` and fill keys.
 
@@ -42,10 +42,35 @@ Seed E2E fixtures: `npm run db:seed` (uses `E2E_TEST_PASSWORD` in `.env.local`).
 
 ## Security notes
 
-- Middleware redirects unauthenticated users from `/dashboard`, `/profile`, `/evaluations`, `/admin`, `/summary-groups`
+- Middleware redirects unauthenticated users from `/dashboard`, `/profile`, `/evaluations`, `/admin`, `/summary-groups`, `/board-confidence`, `/brag-sheet`
 - Admin UI additionally gated by `RoleGuard` / permissions
 - Response headers: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` (see `next.config.mjs`)
 - Never commit `SUPABASE_SERVICE_ROLE_KEY` or `.env.local`
+
+### Profile roles and PII (migration 009)
+
+`preferred_role` and `assigned_roles` decide who may sign a Reporting Senior block
+and lock a report, so they are **granted, never self-declared**:
+
+- `authenticated` holds **no** table-level `UPDATE` on `public.profiles`; only the
+  identity columns (`first_name`, `last_name`, `middle_initial`, `dod_id`, `uic`,
+  `navy_rank`, `command`) are granted back. Naming either role column in an
+  `UPDATE` payload — even unchanged — fails the whole statement with `42501`.
+- `public.handle_new_user()` ignores `raw_user_meta_data->>'preferred_role'` and
+  pins every new account to `Sailor`. Registration no longer offers a role picker.
+- **Changing a role is a service-role operation** (SQL editor or a service-key
+  script). There is deliberately no in-app path; `/admin` shows the roster
+  read-only and says so. A real admin role-assignment UI needs a server-side
+  authority check on a role the holder cannot grant themselves — not built yet.
+
+Profile reads are own-row only. Cross-user lookups go through
+`public.profiles_directory`, a four-column view (`id`, `first_name`, `last_name`,
+`preferred_role`) granted `SELECT` to `authenticated`. It is intentionally a
+**security-definer view** (`security_invoker` left off) so it can see past the
+own-row policy; Supabase's linter flags this and the flag is expected. `dod_id`,
+`email`, `uic` and `command` must never be added to it.
+
+Applying 009 to a project is a manual step — see the migration header.
 
 ## CI
 
