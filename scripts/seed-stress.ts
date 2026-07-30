@@ -14,6 +14,7 @@ import {
   FORM_DEFINITION_ID,
 } from "../tests/fixtures/validEval";
 import { Evaluation } from "../types";
+import { participantsThrough } from "../lib/routing";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -856,6 +857,18 @@ async function upsertUser(u: (typeof STRESS_USERS)[number]) {
     user_metadata: meta,
   });
   if (error) throw new Error(`createUser ${u.email}: ${error.message}`);
+
+  // REQUIRED since migration 009: public.handle_new_user() no longer trusts
+  // raw_user_meta_data->>'preferred_role', so the trigger just made this profile
+  // a 'Sailor' regardless of `meta`. Roles are service-role-only now — set it
+  // explicitly or a fresh seed produces nothing but Sailors.
+  const { error: roleError } = await admin
+    .from("profiles")
+    .update({ preferred_role: u.role, assigned_roles: [u.role] })
+    .eq("id", data.user.id);
+  if (roleError)
+    throw new Error(`role assign ${u.email}: ${roleError.message}`);
+
   console.log(`  created user ${u.email} (${u.role})`);
   return data.user.id;
 }
@@ -1063,8 +1076,17 @@ async function seedStressEvals(users: Record<string, string>) {
       routing_stage: stageInfo.stage,
       status: stageInfo.status,
       summary_group_id: summaryGroupId,
-      participants:
-        stageInfo.stage === "sailor" ? [creatorId] : [creatorId, holderId],
+      // The accumulated custody prefix, not a synthesized {creator, holder}
+      // pair. The old two-element form meant that at senior_rater or
+      // reporting_senior the Rater was missing from participants[], so walking
+      // 42→49→51→50 broke at the second signature: canSignBlock requires the
+      // signer to actually be in this evaluation's chain.
+      participants: participantsThrough(stageInfo.stage!, {
+        sailor: creatorId,
+        rater: users["rater.it@franklyn.dev"],
+        senior_rater: users["senior.rater1@franklyn.dev"],
+        reporting_senior: users[def.rsEmail],
+      }),
       member_name: memberName,
       dod_id: sailorUser.dodId,
       grade_rate: template.rate,
@@ -1124,9 +1146,19 @@ async function seedStressEvals(users: Record<string, string>) {
     .from("evaluations")
     .insert(evalsToInsert)
     .select(
-      "id, member_name, grade_rate, routing_stage, promotion_recommendation, summary_group_id",
+      "id, member_name, grade_rate, routing_stage, promotion_recommendation, summary_group_id, current_holder_id",
     );
   if (error) throw new Error(`evaluations insert: ${error.message}`);
+
+  // Record which account holds each eval. scripts/record-demo-video.ts signs
+  // Block 50 as a specific CO and used to take the FIRST reporting_senior row by
+  // insert order — a 403 mid-recording whenever that row belonged to a different
+  // ship's CO. With holder_email it can select the right eval explicitly.
+  const emailById = new Map(Object.entries(users).map(([em, id]) => [id, em]));
+  const summaryRows = inserted!.map((e: any) => ({
+    ...e,
+    holder_email: emailById.get(e.current_holder_id) ?? null,
+  }));
 
   console.log(
     `  successfully seeded ${inserted!.length} detailed stress test evaluations across 10 summary groups!`,
@@ -1142,7 +1174,7 @@ async function seedStressEvals(users: Record<string, string>) {
     JSON.stringify(
       {
         count: inserted!.length,
-        evaluations: inserted,
+        evaluations: summaryRows,
         seededAt: new Date().toISOString(),
       },
       null,

@@ -24,7 +24,11 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "child_process";
 import { resolve } from "path";
 
-const CONTAINER = `apex-rls-test-${process.pid}`;
+// Unique per run. vitest runs files in worker THREADS, so process.pid alone is
+// not unique across a full-suite run, and a crashed earlier run can leave a
+// container squatting the name — both surfaced as an intermittent beforeAll
+// failure in `npm run verify` while the file passed in isolation.
+const CONTAINER = `apex-rls-test-${process.pid}-${Date.now().toString(36)}`;
 const MIGRATIONS = resolve(process.cwd(), "supabase/migrations");
 
 const hasDocker = (() => {
@@ -127,28 +131,44 @@ function asAuthenticated(uid: string, sql: string): string {
 
 describe.skipIf(!hasDocker)("migration 009 — profiles privilege state", () => {
   beforeAll(() => {
-    docker([
-      "run",
-      "--rm",
-      "-d",
-      "--name",
-      CONTAINER,
-      "-e",
-      "POSTGRES_PASSWORD=probe",
-      "postgres:17-alpine",
-    ]);
+    // Clear a squatter from a previous crashed run before claiming the name.
+    try {
+      docker(["rm", "-f", CONTAINER]);
+    } catch {
+      /* nothing to remove */
+    }
+    try {
+      docker([
+        "run",
+        "--rm",
+        "-d",
+        "--name",
+        CONTAINER,
+        "-e",
+        "POSTGRES_PASSWORD=probe",
+        "postgres:17-alpine",
+      ]);
+    } catch (err: any) {
+      throw new Error(
+        `docker run failed: ${err.stdout ?? ""}${err.stderr ?? err.message}`,
+      );
+    }
 
-    // Wait for readiness rather than sleeping a fixed amount.
+    // Wait for readiness rather than sleeping a fixed amount. Generous, because
+    // this competes with the rest of the suite for CPU during `npm run verify`.
     let ready = false;
-    for (let i = 0; i < 60 && !ready; i++) {
+    let lastErr = "";
+    for (let i = 0; i < 120 && !ready; i++) {
       try {
         docker(["exec", CONTAINER, "pg_isready", "-U", "postgres"]);
         ready = true;
-      } catch {
+      } catch (err: any) {
+        lastErr = `${err.stdout ?? ""}${err.stderr ?? err.message}`;
         execFileSync("sleep", ["1"]);
       }
     }
-    if (!ready) throw new Error("postgres container never became ready");
+    if (!ready)
+      throw new Error(`postgres container never became ready: ${lastErr}`);
 
     docker([
       "exec",
@@ -302,6 +322,36 @@ describe.skipIf(!hasDocker)("migration 009 — profiles privilege state", () => 
           ),
         ).toMatch(/does not exist/i);
       }
+    });
+
+    it("is the ONLY view exposing profile PII to authenticated", () => {
+      // Asserting only about profiles_directory left the barn door open: adding
+      // a second, wide-open view (`create view profiles_full as select * from
+      // profiles`) re-leaks every DoD ID and passes every other test here.
+      // Restricted to views/matviews on purpose — a base table that happens to
+      // own a dod_id column (public.evaluations does) is not a profiles leak.
+      const leaking = docker([
+        "exec",
+        "-i",
+        CONTAINER,
+        "psql",
+        "-tA",
+        "-U",
+        "postgres",
+        "-d",
+        "apex",
+        "-c",
+        `select c.relname || '.' || a.attname
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           join pg_attribute a on a.attrelid = c.oid
+                and not a.attisdropped and a.attnum > 0
+          where n.nspname = 'public'
+            and c.relkind in ('v','m')
+            and a.attname in ('dod_id','email','uic','command','assigned_roles')
+            and has_column_privilege('authenticated', c.oid, a.attnum, 'SELECT');`,
+      ]).trim();
+      expect(leaking).toBe("");
     });
 
     it("cannot be written through, even if someone re-grants ALL on it", () => {

@@ -133,6 +133,13 @@ $$ language plpgsql security definer set search_path = public, pg_temp;
 -- `alter function` rather than `create or replace`: it is one line each and does
 -- not duplicate five function bodies into this file, where they would silently
 -- drift from the definitions in 002/004/006.
+--
+-- !! REPLAY CAVEAT -- `create or replace function` RESETS proconfig. Re-applying
+-- 002, 004 or 006 out of band therefore silently strips search_path from the four
+-- functions pinned below. (handle_new_user is redefined in part A2 above, so it
+-- carries its own `set search_path` and survives a 001 replay.) This project has
+-- a documented history of out-of-band replays: after replaying ANY earlier
+-- migration against a live project, re-run 009. It is idempotent and self-healing.
 
 alter function public.has_oversight(uuid)
     set search_path = public, pg_temp;

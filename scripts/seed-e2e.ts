@@ -9,6 +9,9 @@ import {
   buildValidEval,
   FORM_DEFINITION_ID,
 } from "../tests/fixtures/validEval";
+import { participantsThrough } from "../lib/routing";
+import { canSignBlock } from "../lib/permissions";
+import type { Evaluation, Profile } from "../types";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -173,7 +176,20 @@ async function upsertUser(u: (typeof E2E_USERS)[number]) {
     user_metadata: meta,
   });
   if (error) throw new Error(`createUser ${u.email}: ${error.message}`);
-  console.log(`  created ${u.email}`);
+
+  // REQUIRED since migration 009: public.handle_new_user() no longer trusts
+  // raw_user_meta_data->>'preferred_role' (it was a self-service Admin account),
+  // so the trigger just made this profile a 'Sailor' regardless of `meta`. Roles
+  // are now service-role-only — set it explicitly or a fresh seed produces eight
+  // Sailors and every routing/signing demo breaks.
+  const { error: roleError } = await admin
+    .from("profiles")
+    .update({ preferred_role: u.role, assigned_roles: [u.role] })
+    .eq("id", data.user.id);
+  if (roleError)
+    throw new Error(`role assign ${u.email}: ${roleError.message}`);
+
+  console.log(`  created ${u.email} (${u.role})`);
   return data.user.id;
 }
 
@@ -202,6 +218,59 @@ async function deleteE2eEvals() {
   console.log(`  removed ${ids.length} existing E2E eval(s)`);
 }
 
+/** Roster role for each seeded user id, keyed the way `users` is keyed. */
+const ROLE_BY_USER_KEY: Record<string, string> = {
+  sailor: "Sailor",
+  rater: "Rater",
+  seniorRater: "Senior Rater",
+  reportingSenior: "Reporting Senior",
+  admin: "Admin",
+  it1Williams: "Sailor",
+  itcsRodriguez: "Senior Rater",
+  ltChen: "Reporting Senior",
+};
+
+/**
+ * Every full-chain showcase record must have a real signer for blocks 42, 49, 50
+ * and 51 among the seeded roster. Throws with the offending block if not.
+ *
+ * This is the check that would have caught the showcase records being signable
+ * by nobody: they were self-authored with `participants: [author]`, and
+ * canSignBlock rejects a reviewer signature from the report's own subject.
+ */
+function assertShowcaseSignable(
+  drafts: Array<[string, Record<string, unknown>]>,
+  users: Record<string, string>,
+) {
+  const roster: Profile[] = Object.entries(users)
+    .filter(([key]) => ROLE_BY_USER_KEY[key])
+    .map(([key, id]) => ({
+      id,
+      first_name: key,
+      last_name: key,
+      preferred_role: ROLE_BY_USER_KEY[key] as Profile["preferred_role"],
+      assigned_roles: [ROLE_BY_USER_KEY[key]],
+    }));
+
+  for (const [name, draft] of drafts) {
+    for (const block of [42, 49, 50, 51]) {
+      const signers = roster.filter((p) =>
+        canSignBlock(p, block, draft as unknown as Evaluation),
+      );
+      if (signers.length === 0) {
+        throw new Error(
+          `Seed guard: "${name}" Block ${block} is signable by NOBODY on the seeded roster. ` +
+            `created_by=${draft.created_by} participants=${JSON.stringify(draft.participants)}. ` +
+            `Reviewer blocks need a chain participant who is not the subject and holds the role.`,
+        );
+      }
+    }
+  }
+  console.log(
+    `  chain check: ${drafts.length} showcase records fully signable`,
+  );
+}
+
 async function seedEvals(users: Record<string, string>) {
   const sailorId = users.sailor;
   const raterId = users.rater;
@@ -228,12 +297,47 @@ async function seedEvals(users: Record<string, string>) {
     form_definition_id: FORM_DEFINITION_ID,
   });
 
+  // ── Showcase records (CHIEFEVAL / FITREP) ────────────────────────────────
+  // These are the demo records a human opens and signs end to end, so they are
+  // parked in the state the real workflow reaches immediately before signing:
+  // routed all the way up and then put into 'debrief' by the Reporting Senior
+  // (exactly where tests/e2e/full-eval-workflow.spec.ts signs its four blocks).
+  //
+  // `created_by` is the evaluated MEMBER — that is what it means in this model
+  // (canPerformAction 'sign_block_51' reads it as the subject). The reviewers
+  // must therefore be other people: canSignBlock refuses a reviewer signature
+  // from created_by, so the old shape — self-authored with `participants:
+  // [author]` — was signable by NOBODY on blocks 42/49/50/52, and routing to
+  // yourself could not fix it. Each reviewer must also hold the right role:
+  // 42 → Rater, 49 → Senior Rater, 50 → Reporting Senior.
+  //
+  // participants comes from participantsThrough() rather than a literal, so it
+  // is by construction what app/api/eval-route/route.ts would have produced.
+  const showcaseCustody = (
+    member: string,
+    seniorRaterFor: string,
+    rsFor: string,
+  ) => ({
+    created_by: member,
+    routing_stage: "debrief" as const,
+    current_holder_id: rsFor, // the RS holds it through the debrief
+    previous_holder_id: seniorRaterFor,
+    participants: participantsThrough("debrief", {
+      sailor: member,
+      rater: raterId,
+      senior_rater: seniorRaterFor,
+      reporting_senior: rsFor,
+    }),
+  });
+
+  const williamsId = users.it1Williams || users.sailor;
+  const rodriguezId = users.itcsRodriguez || users.seniorRater;
+  const chenId = users.ltChen || users.reportingSenior;
+
   const chiefEvalDraft = buildValidEval({
-    created_by: seniorRaterId,
-    current_holder_id: seniorRaterId,
-    previous_holder_id: null,
-    routing_stage: "sailor",
-    participants: [seniorRaterId],
+    // Member is the Senior Rater herself, so block 49 goes to the OTHER
+    // Senior Rater on the roster (Rodriguez, ITCS).
+    ...showcaseCustody(seniorRaterId, rodriguezId, reportingSeniorId),
     member_name: "SMITH, BETTY L (CHIEF)",
     form_definition_id: "c1616270-cafe-4b08-9df2-5d8f28d8b4cd",
     report_type: "CHIEFEVAL",
@@ -241,11 +345,9 @@ async function seedEvals(users: Record<string, string>) {
   });
 
   const fitrepDraft = buildValidEval({
-    created_by: reportingSeniorId,
-    current_holder_id: reportingSeniorId,
-    previous_holder_id: null,
-    routing_stage: "sailor",
-    participants: [reportingSeniorId],
+    // Member is the Reporting Senior himself, so block 50 goes to the OTHER
+    // Reporting Senior on the roster (Chen, LT).
+    ...showcaseCustody(reportingSeniorId, seniorRaterId, chenId),
     member_name: "JONES, CARL R (OFFICER)",
     form_definition_id: "f1610020-cafe-4b08-9df2-5d8f28d8b4cd",
     report_type: "FITREP",
@@ -264,16 +366,17 @@ async function seedEvals(users: Record<string, string>) {
     retention: undefined,
   });
 
-  const williamsId = users.it1Williams || users.sailor;
-  const rodriguezId = users.itcsRodriguez || users.seniorRater;
-  const chenId = users.ltChen || users.reportingSenior;
-
   const williamsDraft = buildValidEval({
+    // Mid-chain on purpose (the "in review" queue item), so only Block 42 is
+    // signable — correct for an eval that has not reached the later stages.
     created_by: williamsId,
     current_holder_id: raterId,
     previous_holder_id: williamsId,
     routing_stage: "rater",
-    participants: [williamsId, raterId],
+    participants: participantsThrough("rater", {
+      sailor: williamsId,
+      rater: raterId,
+    }),
     member_name: "WILLIAMS, SARAH K (IT1)",
     form_definition_id: FORM_DEFINITION_ID,
     report_type: "EVAL",
@@ -281,11 +384,8 @@ async function seedEvals(users: Record<string, string>) {
   });
 
   const rodriguezDraft = buildValidEval({
-    created_by: rodriguezId,
-    current_holder_id: rodriguezId,
-    previous_holder_id: null,
-    routing_stage: "sailor",
-    participants: [rodriguezId],
+    // Member is a Senior Rater, so block 49 goes to the other one (Smith).
+    ...showcaseCustody(rodriguezId, seniorRaterId, reportingSeniorId),
     member_name: "RODRIGUEZ, MARCOS E (ITCS)",
     form_definition_id: "c1616270-cafe-4b08-9df2-5d8f28d8b4cd",
     report_type: "CHIEFEVAL",
@@ -304,11 +404,8 @@ async function seedEvals(users: Record<string, string>) {
   });
 
   const chenDraft = buildValidEval({
-    created_by: chenId,
-    current_holder_id: chenId,
-    previous_holder_id: null,
-    routing_stage: "sailor",
-    participants: [chenId],
+    // Member is a Reporting Senior, so block 50 goes to the other one (Jones).
+    ...showcaseCustody(chenId, seniorRaterId, reportingSeniorId),
     member_name: "CHEN, DAVID T (LT)",
     form_definition_id: "f1610020-cafe-4b08-9df2-5d8f28d8b4cd",
     report_type: "FITREP",
@@ -326,6 +423,20 @@ async function seedEvals(users: Record<string, string>) {
     trait_average: 4.13,
     retention: undefined,
   });
+
+  // Guard the demo. canSignBlock requires the signer to be in the evaluation's
+  // chain and never the subject, so it is easy to seed a record that looks fine
+  // and is signable by nobody — which is exactly what the showcase CHIEFEVAL and
+  // FITREP records were. Fail the seed here rather than during a demo.
+  assertShowcaseSignable(
+    [
+      ["SMITH, BETTY L (CHIEF)", chiefEvalDraft],
+      ["JONES, CARL R (OFFICER)", fitrepDraft],
+      ["RODRIGUEZ, MARCOS E (ITCS)", rodriguezDraft],
+      ["CHEN, DAVID T (LT)", chenDraft],
+    ],
+    users,
+  );
 
   const { data: inserted, error } = await admin
     .from("evaluations")
@@ -360,7 +471,15 @@ async function seedEvals(users: Record<string, string>) {
   const chenFitrep = inserted!.find(
     (e) => e.member_name === "CHEN, DAVID T (LT)",
   );
-  if (!routing || !recycle || !chiefEval || !fitrep || !williamsEval || !rodriguezChiefEval || !chenFitrep) {
+  if (
+    !routing ||
+    !recycle ||
+    !chiefEval ||
+    !fitrep ||
+    !williamsEval ||
+    !rodriguezChiefEval ||
+    !chenFitrep
+  ) {
     throw new Error("Failed to locate seeded eval IDs");
   }
 
@@ -408,11 +527,15 @@ async function main() {
     const id = await upsertUser(u);
     if (u.email === "sailor@franklyn.dev") normalized.sailor = id;
     else if (u.email === "rater@franklyn.dev") normalized.rater = id;
-    else if (u.email === "seniorrater@franklyn.dev") normalized.seniorRater = id;
-    else if (u.email === "reportingsenior@franklyn.dev") normalized.reportingSenior = id;
+    else if (u.email === "seniorrater@franklyn.dev")
+      normalized.seniorRater = id;
+    else if (u.email === "reportingsenior@franklyn.dev")
+      normalized.reportingSenior = id;
     else if (u.email === "admin@franklyn.dev") normalized.admin = id;
-    else if (u.email === "it1.williams@franklyn.dev") normalized.it1Williams = id;
-    else if (u.email === "itcs.rodriguez@franklyn.dev") normalized.itcsRodriguez = id;
+    else if (u.email === "it1.williams@franklyn.dev")
+      normalized.it1Williams = id;
+    else if (u.email === "itcs.rodriguez@franklyn.dev")
+      normalized.itcsRodriguez = id;
     else if (u.email === "lt.chen@franklyn.dev") normalized.ltChen = id;
   }
 

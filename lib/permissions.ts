@@ -201,7 +201,16 @@ export function canPerformAction(
       case "sign_block_49":
       case "sign_block_50":
       case "sign_block_52":
-        // Rater / Senior Rater / Reporting Senior signatures — must be the assigned reviewer
+        // Rater / Senior Rater / Reporting Senior signatures — must be the assigned reviewer.
+        // ponytail: LOOSER THAN THE SERVER, deliberately not unified yet. The
+        // `view_all_evaluations` arm returns true for a Reporting Senior on a
+        // report they have no relation to, and there is no self-signing ban
+        // here. canSignBlock() is the authority (app/api/sign → authorizeSigner
+        // → service-role write) and refuses both, so this cannot authorize
+        // anything; it only decides whether some UI affordance renders.
+        // Two authz functions that disagree is a maintenance trap — collapsing
+        // this case onto canSignBlock is a follow-up, kept out of a P0 security
+        // PR because it changes what several screens display.
         return (
           evaluation.reviewer_id === user.id ||
           hasPermission(role, "view_all_evaluations")

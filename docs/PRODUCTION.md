@@ -90,9 +90,33 @@ they belong to that report's chain (`reviewer_id`, `current_holder_id`, or
 `participants[]`), and they can never be signed by the report's `created_by` — with
 no Admin bypass. Member blocks (32/51) remain `created_by`-or-Admin.
 
-The Sign button in `components/report/DetailsTab.tsx` is rendered for every unsigned
-block to anyone who can view the report; the 403 from `/api/sign` is the real gate,
-and it names which condition failed.
+`DetailsTab` takes a `canSign` predicate so it hides buttons the server would
+reject, but that is an affordance only — `/api/sign` re-checks and its 403 names
+which condition failed. `canPerformAction` is looser than `canSignBlock` and is
+UI-only; unifying them is a follow-up (see the `ponytail:` note in
+`lib/permissions.ts`).
+
+### Seeding custody
+
+`participants[]` is what makes a report signable: it is seeded as `[creator]` on
+insert (`lib/evaluationService.ts` `saveDraft`) and appended to by
+`app/api/eval-route/route.ts`. The column defaults to `'{}'` and has no INSERT
+trigger, so anything that writes evaluations directly must build it correctly.
+
+Seed scripts call `participantsThrough()` (`lib/routing.ts`) instead of writing
+the array literally — it reproduces the accumulated prefix the routing API
+produces for a given stage. Writing a literal is how the CHIEFEVAL/FITREP
+showcase records ended up **signable by nobody**: self-authored with
+`participants: [author]`, and a reviewer block can never be signed by the
+report's own subject.
+
+`npm run db:seed` fails loudly if any showcase record has a block with no
+possible signer on the roster, and `tests/unit/seedChainSignable.test.ts` walks
+42 → 49 → 51 → 50 over the same custody shape.
+
+Since migration 009 the seed scripts must also set `preferred_role` explicitly
+after `auth.admin.createUser` — `handle_new_user` no longer honours the role in
+signup metadata, so a fresh seed would otherwise produce nothing but Sailors.
 
 ## CI
 
