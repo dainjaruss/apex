@@ -17,7 +17,7 @@ const ENV_CONFIG: AiEnvConfig = {
   name: "board-narrative",
 };
 
-const DEFAULT_MODEL = "anthropic/claude-opus-4.8";
+const DEFAULT_MODEL = "anthropic/claude-opus-5";
 
 const ENV_KEYS = [
   "AI_GATEWAY_API_KEY",

@@ -21,6 +21,7 @@ import {
   scoreBoardConfidence,
 } from "@/lib/boardConfidence/rubric";
 import { generateNarrative } from "@/lib/boardConfidence/narrative";
+import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
 import {
   BOARD_DISCLAIMER,
   type BoardAnalysisRow,
@@ -65,6 +66,10 @@ export interface AssembledInputs {
     ladr_document_id: string | null;
     ladr_version: string | null;
     precept_cycle: string | null;
+    // v2: null means the active precept's emphasis flags were hand-entered
+    // rather than taken from a convening order — the readiness layer prefixes
+    // every precept string to say so.
+    precept_source_url: string | null;
     eval_count_total: number; // finalized rows found
     eval_count_excluded: number; // dod_id-mismatch exclusions (§2)
   };
@@ -343,6 +348,7 @@ export async function assembleRubricInputs(
       ladr_document_id: ladrDocumentId,
       ladr_version: ladrVersion,
       precept_cycle: precept?.cycle ?? null,
+      precept_source_url: precept?.source_url ?? null,
       eval_count_total: (evalRows ?? []).length,
       eval_count_excluded: excludedCount,
     },
@@ -394,11 +400,23 @@ export async function runBoardAnalysis(
   const assembled = await assembleRubricInputs(admin, subjectUserId, boardDate);
   const rubricConfig = await loadRubricConfig(admin);
   const result = scoreBoardConfidence(assembled.inputs, rubricConfig);
-  const { narrative, source, model, fallbackReason } = await generateNarrative(result, {
-    preceptFlags: assembled.inputs.preceptFlags,
-    targetPaygrade: assembled.meta.target_paygrade,
-    ratingAbbrev: assembled.meta.rating_abbrev,
+  // v2: the narrative is written from the READINESS report, not the raw rubric —
+  // it must not be able to print (or let a reader reconstruct) a composite the
+  // readiness gates have suppressed. asOf is deliberately omitted here: this
+  // module has no clock, so monthsToBoard is 0 and nothing is promised as
+  // achievable on duration grounds until a caller supplies the real date.
+  const report = buildReadinessReport(result, assembled.inputs, rubricConfig, {
+    preceptSourceUrl: assembled.meta.precept_source_url,
   });
+  const { narrative, source, model, fallbackReason } = await generateNarrative(
+    report,
+    result,
+    {
+      preceptFlags: assembled.inputs.preceptFlags,
+      targetPaygrade: assembled.meta.target_paygrade,
+      ratingAbbrev: assembled.meta.rating_abbrev,
+    },
+  );
 
   // 2. Persist the immutable run snapshot.
   const { data: inserted, error: insertError } = await admin
