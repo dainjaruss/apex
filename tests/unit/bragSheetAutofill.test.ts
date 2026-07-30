@@ -707,6 +707,35 @@ describe("runAutofill — parse rule (§7 step 1, invariant §1.2 item 2)", () =
     expect(cm).toHaveBeenCalledTimes(3);
     expect(res.fit_reports.comments.overflow).toBe(false);
   });
+
+  // The whole run gets ONE deadline. Per call, AUTOFILL_TIMEOUT_MS bounds each
+  // hop and nothing overall: 3 × 240s = 720s, past the 300s platform ceiling, so
+  // the retry path returns the host's 504 — no abort, no audit row — instead of
+  // our 500. Regress to a per-call AbortSignal.timeout and this identity fails.
+  it("shares ONE AbortSignal across all 3 calls (bounds the request, not the hop)", async () => {
+    const overflowing = (() => {
+      const out = baseOutput();
+      const long = Array.from({ length: 21 }, (_, i) => `- LINE ${i + 1} X`).join("\n");
+      out.blocks.comments = { text: long, items: [{ text: long, sources: [CIT] }] };
+      return out;
+    })();
+    const seen: (AbortSignal | undefined)[] = [];
+    // parse retry, then overflow retry — the only path that reaches 3 calls.
+    const outputs: unknown[] = [{ nope: true }, overflowing, baseOutput()];
+    let n = 0;
+    const cm = vi.fn(async (_prompt: string, deadline?: AbortSignal) => {
+      seen.push(deadline);
+      return outputs[n++];
+    });
+
+    await runAutofill(makeReq(), cm);
+
+    expect(seen).toHaveLength(3);
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    // The same object every time — not a fresh timeout per call.
+    expect(seen[1]).toBe(seen[0]);
+    expect(seen[2]).toBe(seen[0]);
+  });
 });
 
 // v1.1 review fix: brag_sheets.last_autofill is untrusted JSONB — the page

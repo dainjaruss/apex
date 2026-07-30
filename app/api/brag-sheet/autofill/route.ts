@@ -16,6 +16,14 @@ import { DEFAULT_NARRATIVE_MODEL } from "@/lib/boardConfidence/narrative";
 import { AutofillModelError, BRAG_AI_ENV } from "@/lib/bragSheet/autofill";
 import { runBragAutofill } from "@/lib/bragSheet/service";
 
+// A real autofill is a ~12k-output-token generation (105–184s measured, n=8) and
+// runAutofill bounds the whole run at AUTOFILL_TIMEOUT_MS = 240s. Production
+// auto-deploys to Vercel (docs/PRODUCTION.md), whose default ceiling is 300s —
+// and only 10–15s without Fluid Compute, which would 504 every call. Pin it so
+// the limit never depends on an unseen project setting: 240s of run budget plus
+// 60s for this route to return its own 500 and write the audit row.
+export const maxDuration = 300;
+
 const fail = (error: string, status: number) =>
   NextResponse.json({ error }, { status });
 

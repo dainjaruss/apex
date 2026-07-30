@@ -889,12 +889,15 @@ Exports:
 ```ts
 export const AUTOFILL_SYSTEM_PROMPT: string;                    // verbatim below
 export const BRAG_AI_ENV: AiEnvConfig;                          // §4.1
-export const AUTOFILL_TIMEOUT_MS = 60_000;
+export const AUTOFILL_TIMEOUT_MS = 240_000;  // budget for the WHOLE run, not per call
 export const COMMENTS_MAX_LINES = 18;                           // = checkCommentFit cap
 export const COMMENTS_TARGET_LINES = 17;
 
 export const BragSheetDataSchema: z.ZodType<BragSheetData>;     // JSON re-import + row validation
 export const AutofillModelOutputSchema: z.ZodType<AutofillModelOutput>;
+export const AutofillProviderSchema: Schema<AutofillModelOutput>; // the SAME schema, serialized
+                                        // with shared `definitions` instead of inlined copies —
+                                        // this is what goes on the wire (model call, below)
 export const AutofillResponseSchema: z.ZodType<AutofillResponse>; // v1.1 review fix — the page
                                         // safeParses stored brag_sheets.last_autofill against
                                         // this before rendering the review panel (§6)
@@ -964,10 +967,10 @@ if (!resolved) /* route answers 503 — no model call, no fallback draft */;
 const { output } = await generateText({
   model: resolved.model,
   maxRetries: 1,
-  abortSignal: AbortSignal.timeout(AUTOFILL_TIMEOUT_MS),
+  abortSignal: deadline,          // ONE signal, created by runAutofill, shared by all ≤3 calls
   system: AUTOFILL_SYSTEM_PROMPT,
   prompt: JSON.stringify(payload),
-  output: Output.object({ schema: AutofillModelOutputSchema }),
+  output: Output.object({ schema: AutofillProviderSchema }),
 });
 ```
 
@@ -976,6 +979,21 @@ convention, tested). Pipeline retries (parse retry, overflow retry — §7 steps
 and 5) re-call with `prompt = JSON.stringify({ ...payload, retry_feedback:
 [<concrete strings>] })`. Total model calls per run ≤ 3 (initial + parse retry +
 overflow retry).
+
+**Grammar budget (normative).** `Output.object` resolves its schema through
+`asSchema`, which defaults to `useReferences: false`; zod then serializes with
+`reused: "inline"`, stamping a full copy of `GeneratedBlock`/`GeneratedItem` into
+all seven block keys. The endpoint compiles each copy into its own grammar
+productions and rejects the request with *"The compiled grammar is too large"* —
+before the model sees it. `AutofillProviderSchema` is therefore
+`zodSchema(AutofillModelOutputObject, { useReferences: true })`: identical shape,
+one shared `definitions` entry per reused subtree, 3778B → 2358B.
+
+**Run deadline (normative).** `AUTOFILL_TIMEOUT_MS` bounds the whole run, not
+each call: `runAutofill` constructs one `AbortSignal.timeout` and passes it to
+every `callModel`. Per call it would bound nothing — 3 × 240s = 720s, past the
+300s platform ceiling, so the retry path would return the host's 504 with no
+abort and no audit row. The route pins `maxDuration = 300` to match.
 
 #### `AUTOFILL_SYSTEM_PROMPT` (verbatim — this exact text, no edits)
 
