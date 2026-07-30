@@ -338,12 +338,20 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //     leave traits blank, so the rule does not apply.
   const grades = (evalData.trait_grades || {}) as Record<string, string>;
   const traitKeys = Object.keys(activeTraitMap) as string[];
-  const onesBlocks = traitKeys
-    .filter((k) => grades[k] === "1.0")
-    .map((k) => `Block ${activeTraitMap[k]}`);
-  const twoBlocks = traitKeys
-    .filter((k) => grades[k] === "2.0")
-    .map((k) => `Block ${activeTraitMap[k]}`);
+  // The instruction counts TRAITS, and a trait is a block on the form — so count distinct
+  // blocks, not map keys. The FITREP map has eight keys for seven blocks (the legacy `work`
+  // key and `eo` both address Block 34), which would otherwise let one physical trait be
+  // tallied twice and named twice in the message.
+  const blocksGraded = (grade: string) =>
+    Array.from(
+      new Set(
+        traitKeys
+          .filter((k) => grades[k] === grade)
+          .map((k) => `Block ${activeTraitMap[k]}`),
+      ),
+    );
+  const onesBlocks = blocksGraded("1.0");
+  const twoBlocks = blocksGraded("2.0");
   const twoCount = twoBlocks.length;
 
   const substReasons: string[] = [];
@@ -412,10 +420,15 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   //        higher than Promotable."
   //     "Up to two" therefore means a THIRD 2.0 removes Promotable itself — the case the Zod
   //     refinement (`refinePromotionRecommendation`) never covered: it caps at Promotable for
-  //     any 2.0 but never bars Promotable on count. Para 6-3 states the same threshold as a
-  //     plain, unqualified count ("three 2.0 trait grades"), which is why every trait is
+  //     any 2.0 but never bars Promotable on count.
+  //     Encl (1), para 13a, p. 9 states the same threshold as a plain, unqualified count —
+  //     "substantiate all 1.0 grades, three 2.0 grades, and any grade below 3.0 in character,
+  //     or command or organizational climate/equal opportunity" — which is why every trait is
   //     counted here; a 2.0 in Character or Climate/EO is separately barred at 1 by the Zod
   //     gate, so the two readings of "excluding Character or Equal Opportunity" agree.
+  //     (Not cited: Encl (2) para 6-3 uses the same "three 2.0 trait grades" wording but is
+  //     scoped to Observed reports carrying an NOB promotion recommendation — a case this
+  //     rule excludes via `!bv.not_observed`.)
   //     Same threshold and same `twoCount` already used by the Block 43 substantiation rule.
   if (
     twoCount >= 3 &&

@@ -56,6 +56,27 @@ describe("samePaygrade (the gate)", () => {
     expect(samePaygrade("SN", "IT1")).toBe(false);
   });
 
+  // BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 2 GRADE/RATE" (p. 1-1) and
+  // "BLOCK 23 GRADE" (p. 1-11) both spell the warrant grades CWO5, CWO4, CWO3, CWO2, WO1.
+  // Without an explicit rule these fall through to the rating-suffix heuristic and decode as
+  // enlisted paygrades ("CWO2" -> E-5, "WO1" -> E-6), which then applies the wrong forced-
+  // distribution band: a false 60% cap where the instruction says "No limit", and no cap at
+  // all for the W3-W5 50% band this PR added.
+  it("decodes warrant officer grades in both the instruction and registration spellings", () => {
+    expect(paygradeOf("WO1")).toBe("W-1");
+    expect(paygradeOf("CWO2")).toBe("W-2");
+    expect(paygradeOf("CWO3")).toBe("W-3");
+    expect(paygradeOf("CWO4")).toBe("W-4");
+    expect(paygradeOf("CWO5")).toBe("W-5");
+    // Registration-list spellings (RANK_LABELS uses WO2-WO5) resolve to the same bands.
+    expect(paygradeOf("WO3")).toBe("W-3");
+    expect(samePaygrade("CWO3", "WO3")).toBe(true);
+    expect(samePaygrade("CWO2", "W-2")).toBe(true);
+    // Not warrant officers — the enlisted/officer paths must be untouched.
+    expect(paygradeOf("PO1")).toBe("E-6");
+    expect(paygradeOf("IT2")).toBe("E-5");
+  });
+
   it("matches the same paygrade written differently", () => {
     expect(samePaygrade("PO1", "E-6")).toBe(true);
     expect(samePaygrade("IT1", "PO1")).toBe(true);

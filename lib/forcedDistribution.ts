@@ -23,7 +23,10 @@
 // Promote." — the only case the percentage arithmetic does not already produce (the 50% and 40%
 // tiers yield a combined max of 1 at N=2).
 //
-// Promotable is NOT capped (Table 1-2's Promotable column reads "No Limit").
+// Promotable is NOT capped: the "Upper Limits" section quoted above sets ceilings on Early
+// Promote and on Early Promote + Must Promote Combined only — Promotable appears in neither,
+// for any band. (Table 1-2's last column is headed "Promotable / O1-O2 (ALL EXCEPT LDO)", so
+// its "No Limit" cell is that one band's entry, not a general statement; it is not the evidence.)
 // N = the OBSERVED (non-NOB) summary-group size.
 //
 // The two inequalities reproduce all 30 rows of Table 1-2 exactly: EP max = ceil(0.20·N) and
@@ -31,10 +34,14 @@
 // arithmetic; no special case is needed. "Must Promote recommendations may be increased by one
 // for each Early Promote quota not used" is likewise captured by checking the combined total.
 //
-// Verified 2026-07-29 against BUPERSINST 1610.10H CH-2 (26 May 2026), fetched from MyNavyHR.
-// CH-2 revised only Encl (2) pp. 3-1..3-2a and 3-6..3-7a (chapter 3); pp. 1-16..1-22 — the
-// Block 45/46 gates, the forced-distribution limits, and Tables 1-2/1-3/1-4 — are byte-identical
-// to the bundled CH-1 copy at my_tools/BUPERSINST 1610.10.pdf.
+// Verified 2026-07-29 against the LIVE BUPERSINST 1610.10H CH-2 (26 May 2026), fetched from
+// MyNavyHR with the app's own undici client (curl 403s there). CH-2 revised only Encl (2)
+// pp. 3-1..3-2a and 3-6..3-7a (chapter 3); pp. 1-16..1-22 — the Block 45/46 gates, the
+// forced-distribution limits, and Tables 1-2/1-3/1-4 — are textually identical to the bundled
+// CH-1 copy at my_tools/BUPERSINST 1610.10.pdf, differing only by one OCR artifact on p. 1-16
+// (the heading "[FITREP/CHIEFEVAL]" scans as "IFITREP/CHIEFEVALI" in the bundled copy).
+// NOT byte-identical — the two PDFs differ in page count and page size. See
+// docs/rules-reference.md §0.2 for the method and the live file's fetch-day sha256.
 
 import { paygradeOf } from "./paygrade";
 
@@ -43,13 +50,17 @@ import { paygradeOf } from "./paygrade";
  * `null` = the instruction states "No limit" for that band. Transcribed verbatim from the
  * p. 1-17 table quoted above.
  *
- * Not modelled: the instruction splits O-1/O-2 by designator — LDO O1-O2 get "No limit" on the
- * combined cap and are eligible for Early Promote, while NON-LDO O-1/O-2 may not be recommended
- * higher than Promotable at all ("Ensign and lieutenant junior grade FITREPs for designators,
- * other than LDO (6XXX), are prohibited from receiving a promotion recommendation higher than
- * Promotable." — p. 1-16, note 2). Splitting them needs the Block 3 designator, which this
- * function is not given, so O-1/O-2 are treated as the LDO case and the non-LDO prohibition is
- * left explicitly unchecked rather than guessed at.
+ * Not modelled — and this gap FAILS OPEN: the instruction splits O-1/O-2 by designator. LDO
+ * O1-O2 get "No limit" on the combined cap and are eligible for Early Promote, while NON-LDO
+ * O-1/O-2 may receive ONLY Promotable ("Ensign and lieutenant junior grade FITREPs for
+ * designators, other than LDO (6XXX), are prohibited from receiving a promotion recommendation
+ * higher than Promotable." — p. 1-16, note 2; Table 1-2 accordingly lists non-LDO O1-O2 under
+ * the Promotable column only, and excludes them from the Early Promote column). Splitting them
+ * needs the Block 3 designator, which this function is not given, so O-1/O-2 are treated as the
+ * LDO case: a non-LDO ENS/LTJG group is handed earlyPromoteMax = ceil(0.2N) and will be reported
+ * COMPLIANT while taking Early Promote and Must Promote marks the instruction prohibits outright.
+ * That is a deliberate false-negative — guessing the designator would produce false rejections —
+ * and it closes only when the caller passes Block 3 down.
  */
 const COMBINED_CAP_BY_PAYGRADE: Record<string, number | null> = {
   "E-1": null,

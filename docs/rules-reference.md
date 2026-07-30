@@ -32,9 +32,23 @@ All citations below have been rewritten to that form. Where a page number is giv
 
 ⚠️ **The bundled PDF is stale.** It carries Change Transmittal 1 (16 Dec 2025); the current instruction is **CH-2, 26 May 2026**. Re-download before treating the bundled file as the citation of record.
 
-**What CH-2 actually changed (verified 2026-07-29 by diffing both PDFs' text layers):** CH-2's transmittal reads *"Revised enclosure 2, page 3-1 through 3-2a and 3-6 through 3-7a"* — i.e. **chapter 3 (Regular Reports) only**. The two documents are otherwise identical. Consequences:
+**What CH-2 actually changed.** CH-2's transmittal reads *"Revised enclosure 2, page 3-1 through 3-2a and 3-6 through 3-7a"* — i.e. **chapter 3 (Regular Reports) only**.
 
-- Every citation in this file (Encl (2) ch. 1 block rules, ch. 13 comments guidance, Tables 1-2/1-3/1-4) is **byte-identical** in CH-1 and CH-2, so the bundled PDF remains accurate *for these rules*.
+<details>
+<summary>How this was verified (re-run this rather than trusting the claim)</summary>
+
+Fetched 2026-07-29 with the app's own client — `undici` plus a browser `User-Agent`, as in `lib/boardConfidence/preceptFetch.ts`. **`curl` with a User-Agent alone gets a 403 from `mynavyhr.navy.mil`; the shipped fetch path gets a 200.** Source: `https://www.mynavyhr.navy.mil/Portals/55/Reference/Instructions/BUPERS/BUPERSINST%201610.10.pdf` — **174 pp., ModDate 1 Jun 2026, sha256 `5e71ca59…dc9058`**. That hash is a *timestamp of what was posted that day*, not a check: MyNavyHR re-posts the file (a previous fetch on the same day returned 173 pp., ModDate 27 May 2026), so a mismatch means "re-posted", not "tampered".
+
+Comparison method: `pdftotext -layout` on both copies, split into pages, keyed by each page's own printed `<page> Enclosure (n)` footer, whitespace-normalized, compared page-for-page. 154 pages carry a matching label in both.
+
+- **Substantive differences are confined to Encl (2) ch. 3** — pages `3-1`, `3-2`, `3-6`, `3-7`, plus `3-2a` and `3-7a` which exist only in CH-2. Exactly what the transmittal says.
+- Eleven other pages differ **only by OCR noise** — both files are Adobe Paper Capture scans, so e.g. p. 1-16 renders the block heading `[FITREP/CHIEFEVAL]` as `IFITREP/CHIEFEVALI` in the bundled copy and drops it in the live one. Same underlying text, different scan.
+- So **"byte-identical" is the wrong word** and was wrong before: the two PDFs differ in page count, page size, and OCR output. The accurate claim is *textually identical outside Encl (2) ch. 3*.
+</details>
+
+Consequences:
+
+- Every citation in this file (Encl (1) para 13a, Encl (2) ch. 1 block rules, ch. 13 comments guidance, Tables 1-2/1-3/1-4) is textually identical in CH-1 and CH-2, so the bundled PDF remains accurate *for these rules*.
 - Anything touching **report continuity, periodic-report requirements, or Regular-report periods** must use CH-2, not the bundled copy.
 
 ### 0.3 When 1430.16 governs, not 1610.10H
@@ -94,16 +108,16 @@ The Block 45 → PMA conversion (Early Promote 4.0, Must Promote 3.8, Promotable
 
 ## 2. Chronological & Context Rules (Block 14 - 32)
 
-### Block 14/15: Period of Report
+### Blocks 14-15: Period of Report
 
 - **Rule:** Period To (`period_to`) must not fall before Period From (`period_from`). Date fields must follow the ISO-8601 (`YYYY-MM-DD`) format locally.
-- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 14/15 PERIOD OF REPORT", p. 1-5. (ISO-8601 storage is an APEX convention; the form prints YYMMMDD.)
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCKS 14-15 PERIOD OF REPORT", p. 1-4. (ISO-8601 storage is an APEX convention; the form prints YYMMMDD.)
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.superRefine` bounds evaluation).
 
 ### Block 30: Date Counseled
 
 - **Rule:** Date Counseled must follow the official Navy date format `YYMMMDD` (e.g. `25JAN15`) or match standard counseling exceptions (`NOT REQ`, `NOT PERF`).
-- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 30 DATE COUNSELED", p. 1-12.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 30 DATE COUNSELED", p. 1-13.
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.superRefine` regex testing).
 
 ---
@@ -155,10 +169,10 @@ The controlling paragraph, quoted verbatim so it can be checked:
   | Element | Source | Status |
   |---|---|---|
   | The 10-pitch / 12-pitch concept | **BUPERSINST 1610.10H, Encl (2), para 13-2a(1)**, p. 13-1, verbatim: *"NAVFIT98A reports with 10- or 12-pitch will still be accepted."* | ✅ Verified in the instruction |
-  | No continuation sheets | **Encl (2), para 13-2 "Basic Do's and Don'ts"**, verbatim: *"Continuation sheets and enclosures are not allowed, except…"* (the exceptions are member statements, flag endorsements, civilian/foreign letter reports, letter-extensions, and classified letter-supplements) | ✅ Verified in the instruction |
+  | No continuation sheets | **Encl (1), para 13a "Basic 'Do's and Don'ts.'"**, p. 9, verbatim: *"Continuation sheets and enclosures are not allowed, except…"* (the exceptions are member statements, flag endorsements, civilian/foreign letter reports, letter-extensions, and classified letter-supplements). Encl (2) states the same rule in **different wording** at para **13-2b(1)**, p. 13-2: *"Continuation sheets will not be accepted. Limit comments to the space on the form."* | ✅ Verified in the instruction |
   | **18 lines · 90 CPL · 84 CPL** | ⚠️ **APEX's own measured constraint.** Derived from the rendered official 1616/26 box and NAVFIT98A's 10/12-pitch capacity — see `docs/milestone/01-pdf-sections-a-and-b.md` ("Comment-box dimensions not published … Measured the rendered official 1616/26 box"). | ❌ **Not in the instruction** |
 
-  ⚠️ The previous citation attributed all three numbers to "Chapter 13". **They appear nowhere in the 173-page instruction** — targeted greps for `18 lines`, `90`/`84 characters`, `characters per line`, and `Courier` return a single hit, the pitch sentence quoted above. **The constraint is sound and must not be removed** — it is what makes the rendered PDF match the printed form — but it is an APEX measurement, not doctrine. Do not present it to a user as an instruction requirement.
+  ⚠️ The previous citation attributed all three numbers to "Chapter 13". **They appear nowhere in the 171-page instruction** — targeted greps for `18 lines`, `90`/`84 characters`, `characters per line`, and `Courier` return a single hit, the pitch sentence quoted above. **The constraint is sound and must not be removed** — it is what makes the rendered PDF match the printed form — but it is an APEX measurement, not doctrine. Do not present it to a user as an instruction requirement.
 - **Code Enforcement:** `lib/commentFit.ts` (Monospace text wrapper and limit check).
 
 ---
@@ -290,7 +304,7 @@ Encl (2), ch. 1, para 1-2, p. 1-17, verbatim:
 - `EP max = ceil(0.20 · N)`; `MP max = ceil(cap · N) − ceil(0.20 · N)`; `N` = observed (non-NOB) group size. This reproduces all 30 rows of Table 1-2 — asserted row-by-row in `tests/unit/forcedDistribution.test.ts`.
 - **Note 1 (p. 1-18), the one genuine special case:** *"All summary groups of two can receive one Early Promote and Must Promote."* At `N=2` the 50% and 40% tiers otherwise yield a combined max of 1.
 - **Note 2's** Must-Promote declines at N=6/16/26 in the 50% tier need no special case; they fall out of the arithmetic.
-- **Promotable is never capped** (Table 1-2's Promotable column reads "No Limit").
-- **Not modelled:** the LDO / non-LDO O-1/O-2 split. Non-LDO O-1/O-2 *"are prohibited from receiving a promotion recommendation higher than Promotable"* (p. 1-16, note 2), but distinguishing them needs the Block 3 designator, which `checkForcedDistribution` is not given. O-1/O-2 are treated as the LDO case; the non-LDO prohibition is left explicitly unchecked rather than guessed.
+- **Promotable is never capped.** The p. 1-17 "Upper Limits" section quoted above sets ceilings on *Early Promote* and on *Early Promote + Must Promote Combined* only — Promotable appears in neither, for any band. (Do **not** cite Table 1-2's "No Limit" cell for this: that column is headed `Promotable / O1-O2 (ALL EXCEPT LDO)`, so the cell is the non-LDO O-1/O-2 entry, not a general statement.)
+- **Not modelled, and this gap fails OPEN:** the LDO / non-LDO O-1/O-2 split. Non-LDO O-1/O-2 *"are prohibited from receiving a promotion recommendation higher than Promotable"* (p. 1-16, note 2) — Table 1-2 accordingly lists them under the Promotable column only and omits them from the Early Promote column header (`E1-E9 / LDO O1-O2 / W1-W5 / O3-O6`). Distinguishing them needs the Block 3 designator, which `checkForcedDistribution` is not given, so O-1/O-2 are treated as the LDO case: **a non-LDO ENS/LTJG summary group is handed `earlyPromoteMax = ceil(0.2N)` and is reported compliant while taking Early Promote and Must Promote marks the instruction prohibits outright.** A deliberate false negative — guessing the designator would produce false rejections — that closes only when the caller passes Block 3 down.
 - **Code Enforcement:** `lib/forcedDistribution.ts` (`COMBINED_CAP_BY_PAYGRADE`, `checkForcedDistribution`).
 
