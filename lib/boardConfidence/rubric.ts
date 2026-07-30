@@ -325,7 +325,7 @@ function scoreLeadership(
 // answered/applicable counts (completeness).
 //
 // v2: the aggregation is lifted verbatim into aggregateLadr so it can be re-run
-// with one row flipped — that is how unmet[].marginal_points is a recompute
+// with one row flipped — that is how unmet[].factorLocalPoints is a recompute
 // rather than an estimate. The arithmetic is unchanged.
 type LadrAgg = {
   S: number;
@@ -385,7 +385,7 @@ function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & 
 } {
   const base = aggregateLadr(items, emphasisMult);
 
-  // v2: stop discarding identity. marginal_points is the exact change to THIS
+  // v2: stop discarding identity. factorLocalPoints is the exact change to THIS
   // factor's 0–100 score when the row alone flips to met+verified.
   // ponytail: O(n²) — one re-aggregation per unmet row, n = applicable rows
   // (curated ratings run 20–30, so ~900 trivial iterations). If a rating ever
@@ -399,7 +399,7 @@ function scoreLadr(items: LadrItemInput[], emphasisMult: number): FactorScore & 
       milestone_id: it.milestone_id,
       item: it.item ?? "",
       category: it.category,
-      marginal_points: aggregateLadr(flipped, emphasisMult).S - base.S,
+      factorLocalPoints: aggregateLadr(flipped, emphasisMult).S - base.S,
       board_emphasis: it.board_emphasis === true,
     });
   });

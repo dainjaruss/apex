@@ -681,10 +681,10 @@ describe("scoreLadr emits milestone identity", () => {
     ]);
     const cert = unmet.find((u) => u.milestone_id === "m-cert")!;
     expect(cert).toMatchObject({ category: "credential", board_emphasis: false });
-    expect(cert.marginal_points).toBeGreaterThan(0);
+    expect(cert.factorLocalPoints).toBeGreaterThan(0);
   });
 
-  it("marginal_points is a recompute of this factor's own score, not an estimate", () => {
+  it("factorLocalPoints is a recompute of this factor's own score, not an estimate", () => {
     const base = scoreBoardConfidence(sailorB, CFG);
     const dev = (r: typeof base) => r.factors.find((f) => f.key === "development")!.score;
     for (const u of base.ladrUnmet!) {
@@ -699,7 +699,7 @@ describe("scoreLadr emits milestone identity", () => {
         },
         CFG,
       );
-      expect(u.marginal_points).toBeCloseTo(dev(flipped) - dev(base), 10);
+      expect(u.factorLocalPoints).toBeCloseTo(dev(flipped) - dev(base), 10);
     }
   });
 
@@ -715,7 +715,7 @@ describe("scoreLadr emits milestone identity", () => {
         milestone_id: "ac-1",
         item: "Serve as an LPO",
         category: "advancement_consideration",
-        marginal_points: 100,
+        factorLocalPoints: 100,
         board_emphasis: true,
       },
     ]);
@@ -740,7 +740,7 @@ describe("bandDeltas — true marginal points, hand-checked against a full re-sc
     expect(got.delta).toBe(handDelta(meet("m-open")));
 
     // Recomputed, not derivable from the development factor alone.
-    const local = base.ladrUnmet!.find((u) => u.milestone_id === "m-open")!.marginal_points;
+    const local = base.ladrUnmet!.find((u) => u.milestone_id === "m-open")!.factorLocalPoints;
     expect(got.delta).not.toBeCloseTo(local, 3);
   });
 

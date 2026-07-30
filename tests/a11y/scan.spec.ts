@@ -76,4 +76,27 @@ test.describe("authenticated routes", () => {
       });
     }
   }
+
+  // /board-confidence opens on Record Entry, so the scan above never reached the
+  // Results screen — where the coverage bar, the status pills and the plan live.
+  // Contrast on those is a shipped gate, so click through to it.
+  for (const theme of THEMES) {
+    test(`a11y auth · Record Readiness results · ${theme}`, async ({ page }) => {
+      await preparePage(page, theme);
+      await page.goto("/board-confidence", { waitUntil: "domcontentloaded" });
+      // First-use consent modal, when this account has not accepted yet.
+      await page
+        .getByRole("button", { name: "Not now" })
+        .click({ timeout: 5_000 })
+        .catch(() => null);
+      await page.getByRole("button", { name: "Results" }).click();
+      await page.waitForTimeout(500);
+      await scanAccessibility(
+        page,
+        "/board-confidence",
+        `Record Readiness results (${theme})`,
+        { skipNavigation: true },
+      );
+    });
+  }
 });

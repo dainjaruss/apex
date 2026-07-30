@@ -68,6 +68,79 @@ board_precepts (active cycle flags)─────────────┘   
 - **Identity model:** a run scores the caller's own finalized evaluations
   (`created_by` = subject, with a DoD-ID cross-check). Routes are owner-only.
 
+## What the Results screen shows (v2)
+
+**Coverage first, then a plan. There is usually no score, and that is the
+point.**
+
+The rubric sums `(weight/100)·S·conf` against fixed bands with no
+renormalization by `Σ(weight·conf)`, so `conf = 0` ("APEX has no data") and
+`S = 0` ("the record is weak") are numerically identical. Measured: six
+consecutive **Early Promote** reports with the other tabs empty scored 40.5
+*"Not competitive this cycle"*, five consecutive **Promotable** fully entered
+scored 57.3 *"Crunch"*, and an empty record scored 1.0 *"Drop-from-consideration
+risk"*. The readiness layer (`lib/boardConfidence/readiness.ts`, spec §14)
+**suppresses the verdict** whenever the arithmetic cannot support one and ships
+a ranked plan in its place. After the blind-spot gate that is the common path,
+not an edge case.
+
+The screen, top to bottom:
+
+1. **The §1.1 disclaimer — once.** The page banner stands down on this tab so
+   exactly one copy is ever on screen. (It previously rendered five times before
+   the first actionable sentence.)
+2. **Run controls.** Running **saves the Record Entry and LaDR tabs first** and
+   aborts if the save is refused — the route scores the *saved* record, so a
+   Sailor who types data and clicks Run must never be scored without it. The
+   browser's "today" is sent as `asOf`; the engine reads no clock, and the route
+   rejects a malformed value rather than letting it become `NaN`.
+3. **Coverage.** *"APEX can see 4 of 6 areas of your record"*, a bar for
+   `Σ(weight·conf)/100`, and the missing list. The bar is explicitly labelled as
+   how much APEX can *see*, not how strong the record is.
+4. **The score, only when the engine emits one.** When `score` is `null` the
+   screen renders **no number and no band** — just `scoreNote`, the engine's own
+   plain-language reason, verbatim (so a new gate branch reaches the Sailor
+   without the component paraphrasing it).
+5. **"Do this next"** — the ranked plan. Missing areas come first as unlock
+   steps ("Add your tours — unlocks leadership assessment"), then the scored
+   actions from `bandDeltas`. Point values are never printed.
+6. **"Confirm in your OMPF"** — the unscored list of entries ticked met/earned
+   but not yet confirmed. Deliberately carries no worth: `verified_in_ompf` is a
+   self-ticked box, so pricing it would penalise honest disclosure.
+7. **Per-area detail** — status, plain-language summary, and `evidenceNote`
+   inline (never a tooltip). It does not lead.
+8. **Prior reviews** — run date, board date, coverage. No score or band column.
+
+For a rating with no curated LaDR — **80 of 82 ratings**, the common case — the
+screen leads with the one-click *Fetch official LaDR from Navy COOL* control and
+says plainly that this is normal.
+
+### Rules this screen is built on
+
+- **`areas[].detail` never reaches the browser.** One `reduce` over
+  `detail.contribution` reconstructs the suppressed score *and* its band exactly
+  (measured 43.2 on a `score: null` report), so the server strips it at the
+  boundary (`ClientReadinessReport`, `types.ts`). There is no "show the math"
+  disclosure, and the narrative is not rendered here either — its deterministic
+  per-factor commentary prints "Contributed 33.5 of 40.0 possible points" for
+  all six factors, which sums straight back to the suppressed score. The
+  narrative is still persisted on the row.
+- **"Not entered" is a data state, never a deficiency.** `not_entered` is a
+  dashed, muted, unranked card; `needs_attention` is a solid amber one. Never
+  the same bar at different lengths, never one colour ramp at two saturations.
+- **Horizon groups on `horizonBasis`, not on `horizon`.** No seeded milestone
+  carries `typical_months`, so today every meet-action lands in `next_cycle`
+  with basis `unknown_duration`. That renders as one honest bucket — *"APEX does
+  not know how long these take — start now"* — rather than telling a Sailor five
+  months out that everything is next cycle. Buckets render only when non-empty.
+- **A tool-configuration gap is not the Sailor's gap.** With no active precept
+  the rubric drops the factor to weight 0 and coverage counts five areas; the
+  screen drops the card rather than showing a sixth "Not entered".
+- **`board_analyses.input.readiness`** (additive, jsonb, no migration) holds the
+  run's report, snapshotted like the rest of the run so a prior review renders
+  what it said at the time. Runs written before v2 show *"predates the readiness
+  review — run it again"* and **no score**.
+
 ## Privacy, consent, and ethics
 
 - **Explicit consent, server-enforced:** a first-use modal records

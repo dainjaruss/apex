@@ -116,6 +116,44 @@ describe("POST /api/board-confidence/analyze — auth and validation", () => {
     expect(res.status).toBe(400);
     expect(h.runBoardAnalysis).not.toHaveBeenCalled();
   });
+
+  // v2 readiness layer: asOf is the engine's "today" and a TRUST BOUNDARY.
+  // Malformed, it makes monthsBefore return NaN, every `typical_months <= NaN`
+  // compare false, and silently pushes every action to "next cycle" — so it is
+  // rejected here rather than turned into NaN downstream.
+  it("400 on a malformed asOf — never passed through as NaN", async () => {
+    const res = await POST(
+      postReq({ boardDate: "2026-09-01", asOf: "tomorrow" }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Invalid asOf (expected YYYY-MM-DD).");
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
+  });
+
+  // Same validator and same known looseness as boardDate: Date.parse accepts
+  // "2026-02-31" and rolls it to 3 Mar. A few days' drift in "today" is
+  // harmless to monthsToBoard; an unparseable value is not, and is rejected.
+  it("400 on an asOf that is shaped right but unparseable", async () => {
+    const res = await POST(
+      postReq({ boardDate: "2026-09-01", asOf: "2026-13-40" }),
+    );
+    expect(res.status).toBe(400);
+    expect(h.runBoardAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("passes a valid asOf straight through", async () => {
+    const res = await POST(
+      postReq({ boardDate: "2026-09-01", asOf: "2026-04-01" }),
+    );
+    expect(res.status).toBe(200);
+    expect(h.runBoardAnalysis).toHaveBeenCalledWith(
+      expect.anything(),
+      "u1",
+      "u1",
+      "2026-09-01",
+      "2026-04-01",
+    );
+  });
 });
 
 describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 review fix)", () => {
@@ -182,6 +220,9 @@ describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 
       "u1",
       "u1",
       "2026-09-01",
+      // v2: asOf — the readiness engine reads no clock, so the route supplies
+      // "today" and validates it before it can become NaN.
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     );
   });
 
@@ -193,6 +234,7 @@ describe("POST /api/board-confidence/analyze — owner-only authorization (v1.1 
       "u1",
       "u1",
       "2026-09-01",
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
     );
   });
 });

@@ -168,6 +168,8 @@ export const listMyAnalyses = async (
 export const runBoardAnalysis = async (body: {
   userId?: string;
   boardDate?: string;
+  /** The browser's "today" — the readiness engine reads no clock. YYYY-MM-DD. */
+  asOf?: string;
 }): Promise<BoardAnalysisRow> => {
   return (await postRoute(
     "/api/board-confidence/analyze",

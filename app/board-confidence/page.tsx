@@ -524,12 +524,15 @@ export default function BoardConfidencePage() {
     }
   }, [rating]);
 
-  const save = useCallback(async () => {
-    if (!userId || !record) return;
+  // Returns whether the record is now persisted. Run Review awaits this and
+  // refuses to run on a false: the analyze route scores the SAVED record, so a
+  // Sailor who types data and clicks Run would otherwise be scored without it.
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!userId || !record) return false;
     const badRows = dateErrors(record);
     if (badRows.length > 0) {
       setSaveMsg(`Cannot save — add valid dates first: ${badRows.join(", ")}.`);
-      return;
+      return false;
     }
     setSaving(true);
     setSaveMsg(null);
@@ -538,8 +541,10 @@ export default function BoardConfidencePage() {
       const saved = await saveMemberBoardRecord(userId, patch);
       setRecord(saved);
       setSaveMsg("Record saved.");
+      return true;
     } catch (err: any) {
       setSaveMsg(err?.message || "Save failed.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -640,8 +645,12 @@ export default function BoardConfidencePage() {
             </p>
           </div>
 
-          {/* §1.1: disclaimer at the top of the page */}
-          <BoardDisclaimer />
+          {/* §1.1 requires the disclaimer at the top of the page AND at the top
+              of every results view. ResultsView renders its own, so this banner
+              stands down on that tab: the audit found the unofficial-tool
+              warning rendered FIVE times before the first actionable sentence,
+              and a tool that hedges on every surface drowns its own signal. */}
+          {tab !== "results" && <BoardDisclaimer />}
 
           {loadError && (
             <div className="p-4 rounded-lg text-xs border border-red-500/30 bg-red-950/30 text-red-300">
@@ -746,22 +755,18 @@ export default function BoardConfidencePage() {
               onRunComplete={handleRunComplete}
               consentGranted={consented}
               onRequestConsent={() => setConsentDismissed(false)}
+              onSaveBeforeRun={save}
+              rating={rating}
+              ladrLoaded={!!ladr?.document}
+              ladrFetching={ladrFetching}
+              ladrFetchMsg={ladrFetchMsg}
+              onFetchLadr={fetchLadrForRating}
             />
           )}
 
-          {/* Persistent footer disclaimer — one of the required layers
-              (modal on first use + page banner + this footer + score tooltip). */}
-          <footer
-            className="border-t pt-4 text-[11px] leading-relaxed"
-            style={{
-              borderColor: "var(--border)",
-              color: "var(--muted-foreground)",
-            }}
-          >
-            Unofficial educational tool — not affiliated with or endorsed by
-            the U.S. Navy, MyNavy HR, or any selection board. Scores come from
-            a fixed published rubric and do not predict board results.
-          </footer>
+          {/* The footer restatement of the disclaimer is gone. §1.1 requires it
+              at the top of the page and on every results view — both of which
+              render above — and a fourth copy on every tab was noise. */}
         </div>
 
         {record && userId && !consented && !consentDismissed && (

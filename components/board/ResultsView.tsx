@@ -1,24 +1,56 @@
 // components/board/ResultsView.tsx
 //
-// Results tab of the Board Confidence Analyzer (spec §6, tab 4): Run Analysis
-// control, ScoreDial, per-factor FactorBar (expansion prints FactorResult.detail
-// verbatim — nothing is recomputed client-side), narrative lists, and the
-// prior-runs table. Snapshots are immutable: selecting a prior run renders its
-// stored result.
+// Results tab of the Record Readiness Review. v2: COVERAGE FIRST, THEN A PLAN.
+// The 0–100 dial and the six factor bars are gone.
 //
+// WHY. The old screen showed a score and a band that measured data-entry volume
+// rather than readiness: six straight Early Promote reports with empty tabs
+// scored 45.0 "Not competitive this cycle", five straight Promotable fully typed
+// in scored 57.2 "Crunch", and an empty record scored 1.0 "Drop-from-
+// consideration risk" — the first thing the product ever said about a Sailor's
+// career. `readiness.ts` suppresses the verdict (score: null) whenever the
+// arithmetic cannot support one, which after the blind-spot gate is the COMMON
+// path, not an edge case. This screen is built for that path.
+//
+// RENDERING RULES, each from a measured failure:
+//  1. `areas[].detail` never reaches this file. One reduce over
+//     detail.contribution reconstructs the suppressed score AND its band exactly
+//     (measured: 43.2 on a score: null report), so the server strips it —
+//     ClientReadinessReport, types.ts. Nothing here recomputes a score either.
+//  2. score === null ⇒ no number and no band anywhere on the screen.
+//  3. "Not entered" is a DATA STATE, not a deficiency: not_enough_entered is a
+//     dashed, muted, unranked card; needs_attention is a solid amber one. Never
+//     the same bar at different lengths, never the same colour at different
+//     saturations. That conflation is the whole defect this epic exists to fix.
+//  4. evidenceNote renders inline on the surface, never in a tooltip.
+//  5. ONE disclaimer. The old journey rendered the unofficial-tool warning five
+//     times before the first actionable sentence (consent modal, page banner,
+//     this view, the dial's <title>, the dial's caveat line) plus a sixth in the
+//     page footer. §1.1 requires it on the page AND on every results view; the
+//     page now hides its banner on this tab so exactly one is ever on screen.
+//  6. Actions group on horizonBasis, NOT on horizon. No seeded milestone carries
+//     typical_months, so today every meet-action lands in next_cycle with basis
+//     "unknown_duration" — a "Next cycle" header would tell a Sailor five months
+//     out that everything is next cycle. Buckets render only when non-empty.
+//
+// The narrative is deliberately NOT rendered here. Its deterministic per-factor
+// commentary prints "Contributed 33.5 of 40.0 possible points" for all six
+// factors (narrative.ts:174-186), which sums straight back to the suppressed
+// score. It stays persisted on the row as a historical record.
 
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import BoardDisclaimer from "@/components/board/BoardDisclaimer";
-import { BANDS } from "@/lib/boardConfidence/rubric";
 import {
-  BOARD_DISCLAIMER,
   type BoardAnalysisRow,
-  type FactorKey,
-  type FactorResult,
+  type ClientReadinessReport,
 } from "@/lib/boardConfidence/types";
 import { runBoardAnalysis } from "@/lib/boardConfidenceService";
+
+type Report = ClientReadinessReport;
+type Area = Report["areas"][number];
+type Action = Report["actions"][number];
 
 interface ResultsViewProps {
   runs: BoardAnalysisRow[];
@@ -28,264 +60,345 @@ interface ResultsViewProps {
   /** Server-enforced first-use consent; Run is blocked until granted. */
   consentGranted: boolean;
   onRequestConsent: () => void;
+  /**
+   * Persists pending Record Entry / LaDR edits and reports whether they landed.
+   * Run Analysis scores the SAVED record, so a Sailor who types data and clicks
+   * Run would otherwise get a score computed without it. false ⇒ do not run.
+   */
+  onSaveBeforeRun: () => Promise<boolean>;
+  /** member_board_records.rating_abbrev — null until they pick one. */
+  rating: string | null;
+  /** A LaDR document is stored for that rating. False for 80 of 82 ratings. */
+  ladrLoaded: boolean;
+  ladrFetching: boolean;
+  ladrFetchMsg: string | null;
+  onFetchLadr: () => void;
 }
 
-const FACTOR_LABELS: Record<FactorKey, string> = {
-  performance: "Performance",
-  leadership: "Leadership / Impact",
-  development: "Professional Development (LaDR)",
-  continuity: "Eval Continuity",
-  completeness: "Record Completeness",
-  precept: "Precept Alignment",
+/**
+ * Status treatment. `not_enough_entered` is deliberately NOT on the same visual
+ * axis as the graded statuses: dashed border, no accent, and a neutral word. It
+ * is a statement about APEX's data, not about the Sailor.
+ */
+const STATUS_STYLE = {
+  strong: {
+    label: "Looking strong",
+    badge: "apex-badge-emerald",
+    accent: "var(--success-solid)",
+    dashed: false,
+  },
+  on_track: {
+    label: "On track",
+    badge: "apex-badge-routing",
+    accent: "var(--badge-routing-border)",
+    dashed: false,
+  },
+  needs_attention: {
+    label: "Needs attention",
+    badge: "apex-badge-amber",
+    accent: "var(--badge-amber-border)",
+    dashed: false,
+  },
+  not_enough_entered: {
+    label: "Not entered",
+    badge: "apex-badge-draft",
+    accent: "var(--border)",
+    dashed: true,
+  },
+} as const;
+
+/** Ordered plan buckets. Keyed on horizonBasis first — see rule 6 in the header. */
+const BUCKET_ORDER = [
+  "unlock",
+  "before_board",
+  "unknown",
+  "next_cycle",
+  "blocked",
+] as const;
+type BucketKey = (typeof BUCKET_ORDER)[number];
+
+const bucketOf = (a: Action): BucketKey =>
+  a.horizonBasis === "blocked_unless"
+    ? "blocked"
+    : a.horizonBasis === "unknown_duration"
+      ? "unknown"
+      : a.horizon === "before_board"
+        ? "before_board"
+        : "next_cycle";
+
+const bucketTitle = (key: BucketKey, boardDate: string): string => {
+  switch (key) {
+    case "unlock":
+      return "Let APEX see the rest of your record";
+    case "before_board":
+      return `Achievable before the ${boardDate} board`;
+    case "unknown":
+      // NOT "next cycle". APEX has no typical_months for these, so the only
+      // advice that cannot be wrong is "start now" — and it says why.
+      return "APEX does not know how long these take — start now";
+    case "next_cycle":
+      return "Longer than the time left before this board";
+    case "blocked":
+      return "Waiting on something else first";
+  }
 };
 
-// Modeled-bands caveat sentence, extracted verbatim from the §1.1 disclaimer.
-const CAVEAT = (() => {
-  const start = BOARD_DISCLAIMER.indexOf("Scores are computed");
-  const end = BOARD_DISCLAIMER.indexOf("procedure.");
-  return start >= 0 && end > start
-    ? BOARD_DISCLAIMER.slice(start, end + "procedure.".length)
-    : BOARD_DISCLAIMER;
-})();
-
-/**
- * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
- * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
- * selection board, but missing reports can make the work of the board more
- * difficult." (Verified against the LIVE CH-2, whose transmittal revises Encl (2)
- * chapter 3 only, so chapter 17 is unrevised and current. The timestamped fetch
- * record is in lib/boardConfidence/rubric.ts — MyNavyHR re-posts the file, so its
- * page count and hash are a log entry, not a check.)
- *
- * Runs stored before that correction persisted the inverted claim into BOTH
- * `input.meta.continuity_advisory` AND `input.warnings` (rubric.ts pushes the
- * advisory into warnings too), and this view renders both verbatim from the
- * immutable snapshot. Correcting the engine does not correct those rows, so the
- * retracted claim is filtered HERE too — the last place it can reach a Sailor.
- */
-const RETRACTED_CONTINUITY_CLAIM = /even a single day/i;
-
-/**
- * Used only when the run's own advisory is absent or predates the correction. A
- * current run's advisory is preferred, so live text has one source and cannot
- * drift; this copy tracks `continuityAdvisory` in `lib/boardConfidence/rubric.ts`
- * minus the gap count and day threshold, which this component does not hold.
- */
-const CONTINUITY_ADVISORY =
-  "Missing FITREPs, CHIEFEVALs, or EVALs do NOT disqualify you before a " +
-  "selection board (BUPERSINST 1610.10H para 17-6) — but a gap is a period of " +
-  "undocumented performance, and the board evaluates the record with what is " +
-  "available. At a minimum, try to recover any missing report covering " +
-  "significant duty in the grades of E-5 or above within the past 5 years: " +
-  "send PERS-32 a copy of the original that displays all required signatures, " +
-  "initials and dates, together with a signed cover letter asking that the " +
-  "duplicate report be filed in your official record (para 17-6a); or, if the " +
-  "report cannot be obtained, send PERS-32 a one-page letter in lieu of the " +
-  "report explaining why it could not be obtained and supplying what would have " +
-  "appeared in blocks 1-19 and 22-26 (para 17-6b, Exhibit 17-4 — accepted only " +
-  "to fill a gap in Regular report continuity, and it may not evaluate your own " +
-  "performance or recommend you for promotion). Verify your reporting " +
-  "continuity on BOL and NSIPS.";
-
-const bandLabelFor = (vote: number) =>
-  BANDS.find((b) => b.vote === vote)?.label ?? "";
-
-/** Display formatting only — values themselves come from FactorResult.detail. */
-function fmtDetail(v: number | string | boolean | null): string {
-  if (typeof v === "number" && !Number.isInteger(v))
-    return String(Math.round(v * 10000) / 10000);
-  return String(v);
+/** One numbered step. `note` is the how/where line; `blockedBy` names the gate. */
+function PlanStep({
+  n,
+  text,
+  note,
+}: {
+  n: number;
+  text: string;
+  note?: string | null;
+}) {
+  return (
+    <li className="flex gap-3 p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
+      <span
+        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold apex-heading"
+        style={{ background: "var(--muted)" }}
+        aria-hidden="true"
+      >
+        {n}
+      </span>
+      <span className="space-y-1">
+        <span className="block text-sm apex-heading">{text}</span>
+        {note && (
+          <span className="block text-xs" style={{ color: "var(--muted-foreground)" }}>
+            {note}
+          </span>
+        )}
+      </span>
+    </li>
+  );
 }
 
-export function ScoreDial({
-  score,
-  band,
-  bandLabel,
-}: {
-  score: number;
-  band: number;
-  bandLabel: string;
-}) {
-  const ARC = Math.PI * 80; // semicircle of radius 80
-  const filled = (Math.max(0, Math.min(100, score)) / 100) * ARC;
+function CoverageCard({ report }: { report: Report }) {
+  const { coverage, score, scoreNote } = report;
+  const pct = Math.round(coverage.measured * 100);
   return (
-    <div className="flex flex-col items-center gap-2">
-      <svg
-        viewBox="0 0 200 112"
-        className="w-64 max-w-full"
-        role="img"
-        aria-label={`Overall score ${score.toFixed(1)} of 100 — vote ${band}, ${bandLabel}`}
-      >
-        {/* Tooltip disclaimer layer — hover surfaces the modeled-bands caveat. */}
-        <title>{`Unofficial self-assessment. ${CAVEAT}`}</title>
-        <path
-          d="M 20 100 A 80 80 0 0 1 180 100"
-          fill="none"
-          stroke="var(--border)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        <path
-          d="M 20 100 A 80 80 0 0 1 180 100"
-          fill="none"
-          stroke="var(--accent-gold)"
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${ARC + 1}`}
-        />
-        <text
-          x="100"
-          y="82"
-          textAnchor="middle"
-          fontSize="30"
-          fontWeight="700"
-          fill="var(--foreground)"
+    <section className="apex-card p-6 space-y-4" aria-labelledby="readiness-coverage">
+      <h2 id="readiness-coverage" className="text-xl font-bold apex-heading">
+        APEX can see {coverage.areasKnown} of {coverage.areasTotal}{" "}
+        {coverage.areasTotal === 1 ? "area" : "areas"} of your record
+      </h2>
+
+      <div className="space-y-1.5">
+        <div
+          className="h-3 w-full rounded-full overflow-hidden"
+          style={{ background: "var(--muted)" }}
+          role="img"
+          aria-label={`${pct} percent of your record is entered and measurable`}
         >
-          {score.toFixed(1)}
-        </text>
-        <text
-          x="100"
-          y="102"
-          textAnchor="middle"
-          fontSize="11"
-          fill="var(--muted-foreground)"
-        >
-          / 100
-        </text>
-      </svg>
-      <div className="text-sm font-bold apex-heading text-center">
-        {band} — {bandLabel}
+          <div
+            className="h-3 rounded-full"
+            style={{ width: `${pct}%`, background: "var(--accent-gold)" }}
+          />
+        </div>
+        <p className="text-sm apex-heading">{pct}% of your record is entered</p>
+        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+          This bar measures how much of your record APEX can see — not how strong
+          it is. Nothing below is a grade on what you have not entered.
+        </p>
       </div>
-      <p
-        className="text-[11px] max-w-md text-center leading-relaxed"
-        style={{ color: "var(--subtle)" }}
-      >
-        {CAVEAT}
+
+      {coverage.missing.length > 0 && (
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          <span className="apex-heading font-semibold">Missing: </span>
+          {coverage.missing.map((m) => m.label).join(", ")}
+        </p>
+      )}
+
+      {/* Rule 2: when the engine suppresses the verdict, NO number and NO band
+          appear — only its plain-language reason, rendered verbatim so a new
+          gate branch (e.g. "your rating's roadmap grew") reaches the Sailor
+          without this file guessing at its wording. */}
+      {scoreNote && (
+        <p
+          className="text-sm leading-relaxed p-3 rounded-lg border"
+          style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+          data-testid="score-note"
+        >
+          {scoreNote}
+        </p>
+      )}
+
+      {score && (
+        <div
+          className="p-3 rounded-lg border"
+          style={{ borderColor: "var(--border)" }}
+          data-testid="score-line"
+        >
+          <p className="text-sm apex-heading">
+            <span className="font-bold">{score.value.toFixed(1)} / 100</span> —
+            vote {score.band}, {score.label}
+          </p>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            A modeled number from a published rubric, not a board result.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LadrFetchCard({
+  rating,
+  fetching,
+  message,
+  onFetch,
+}: {
+  rating: string | null;
+  fetching: boolean;
+  message: string | null;
+  onFetch: () => void;
+}) {
+  return (
+    <section className="apex-card p-6 space-y-3" aria-labelledby="readiness-ladr-fetch">
+      <h3 id="readiness-ladr-fetch" className="text-sm font-bold gold-accent uppercase tracking-wider">
+        Start here — get your rating&apos;s roadmap
+      </h3>
+      {rating ? (
+        <>
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            APEX has no development roadmap (LaDR) stored for{" "}
+            <strong className="apex-heading">{rating}</strong> yet, so it cannot
+            assess your professional development. It can pull the official
+            document from Navy COOL — this takes one click and is normal: only a
+            couple of ratings ship with a roadmap already loaded.
+          </p>
+          <button
+            type="button"
+            className="apex-btn-primary text-sm disabled:opacity-50"
+            onClick={onFetch}
+            disabled={fetching}
+          >
+            {fetching ? "Fetching from Navy COOL…" : "Fetch official LaDR from Navy COOL"}
+          </button>
+          {message && (
+            <p role="status" className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {message}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          Pick your rating on the Record Entry tab first. APEX then fetches that
+          rating&apos;s development roadmap (LaDR) from Navy COOL in one click.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PlanSection({
+  report,
+  showLadrFetchHint,
+}: {
+  report: Report;
+  showLadrFetchHint: boolean;
+}) {
+  const grouped: Record<BucketKey, Array<{ text: string; note?: string | null }>> = {
+    unlock: report.coverage.missing.map((m) => ({
+      text: `Add ${m.label} — unlocks ${m.unlocks}`,
+      note: m.howTo,
+    })),
+    before_board: [],
+    unknown: [],
+    next_cycle: [],
+    blocked: [],
+  };
+  for (const a of report.actions) {
+    // Worth is never printed: it is composite points on a scale nothing else on
+    // this screen uses, and the ranking already carries the signal.
+    grouped[bucketOf(a)].push({ text: a.action, note: a.blockedBy });
+  }
+
+  const buckets = BUCKET_ORDER.filter((k) => grouped[k].length > 0);
+  const total = buckets.reduce((n, k) => n + grouped[k].length, 0);
+  let n = 0;
+
+  return (
+    <section className="space-y-3" aria-labelledby="readiness-plan">
+      <h3 id="readiness-plan" className="text-sm font-bold gold-accent uppercase tracking-wider">
+        Do this next
+      </h3>
+      {total === 0 ? (
+        <div className="apex-card p-6">
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            {showLadrFetchHint
+              ? "APEX has no development roadmap for your rating yet, so it has no steps to rank. Fetch it above and run the review again."
+              : "APEX has no open steps to rank from what you have entered. Keep your evaluations and record entries current, and re-run this before the board."}
+          </p>
+        </div>
+      ) : (
+        buckets.map((key) => {
+          const start = n + 1;
+          n += grouped[key].length;
+          return (
+            <div key={key} className="apex-card p-4 space-y-2">
+              <h4
+                className="text-xs font-semibold uppercase tracking-wider"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                {bucketTitle(key, report.boardDate)}
+              </h4>
+              <ol className="space-y-2" start={start}>
+                {grouped[key].map((step, i) => (
+                  <PlanStep key={step.text} n={start + i} text={step.text} note={step.note} />
+                ))}
+              </ol>
+            </div>
+          );
+        })
+      )}
+    </section>
+  );
+}
+
+function AreaCard({ area }: { area: Area }) {
+  const s = STATUS_STYLE[area.status];
+  return (
+    <div
+      className="apex-card p-4 space-y-2"
+      data-testid={`area-${area.key}`}
+      data-status={area.status}
+      style={{
+        // Border STYLE and WIDTH carry the distinction, not a colour ramp and
+        // not opacity: dimming the card pushed the evidence note to 4.38:1
+        // against WCAG AA's 4.5:1 in light theme.
+        borderStyle: s.dashed ? "dashed" : "solid",
+        borderLeftWidth: s.dashed ? "1px" : "4px",
+        borderLeftColor: s.accent,
+      }}
+    >
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h4 className="text-sm font-semibold apex-heading">{area.label}</h4>
+        <span className={`${s.badge} px-2 py-0.5`}>{s.label}</span>
+      </div>
+      <p className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+        {area.summary}
+      </p>
+      {/* Rule 4: provenance on the surface, not in a tooltip. Every area says
+          where its data came from, and "From your entries" is the common case. */}
+      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+        <span className="font-semibold">{area.evidenceLabel}.</span>{" "}
+        {area.evidenceNote}
       </p>
     </div>
   );
 }
 
-export function FactorBar({ factor }: { factor: FactorResult }) {
-  const excluded = factor.detail?.excluded === true;
-  const pct =
-    factor.weight > 0
-      ? Math.max(0, Math.min(100, (factor.contribution / factor.weight) * 100))
-      : 0;
-  const weightLabel = Number.isInteger(factor.weight)
-    ? String(factor.weight)
-    : factor.weight.toFixed(1);
+function LegacyRunPanel() {
   return (
-    <details className="apex-card overflow-hidden">
-      <summary className="p-4 cursor-pointer">
-        <div className="inline-flex w-[calc(100%-1.5rem)] flex-col gap-2 align-middle">
-          <span className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-sm font-semibold apex-heading">
-              {FACTOR_LABELS[factor.key]}
-            </span>
-            <span className="flex items-center gap-2">
-              {!excluded && factor.confidence < 1 && (
-                <span className="apex-badge-amber px-2 py-0.5 text-[10px]">
-                  conf {factor.confidence.toFixed(2)}
-                </span>
-              )}
-              {excluded ? (
-                <span className="apex-badge-draft px-2 py-0.5 text-[10px]">
-                  Excluded — weight redistributed
-                </span>
-              ) : (
-                <span
-                  className="text-xs font-mono"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {factor.contribution.toFixed(1)} / {weightLabel}
-                </span>
-              )}
-            </span>
-          </span>
-          <span
-            className="block h-2 rounded-full"
-            style={{ background: "var(--muted)" }}
-            aria-hidden="true"
-          >
-            <span
-              className="block h-2 rounded-full"
-              style={{
-                width: `${pct}%`,
-                background: "var(--accent-gold)",
-                opacity: 0.35 + 0.65 * factor.confidence,
-              }}
-            />
-          </span>
-        </div>
-      </summary>
-      <div
-        className="px-4 pb-4 pt-3 border-t overflow-x-auto"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <dl
-          className="grid gap-x-6 gap-y-1 text-xs font-mono"
-          style={{
-            gridTemplateColumns: "max-content 1fr",
-            color: "var(--muted-foreground)",
-          }}
-        >
-          {Object.entries(factor.detail ?? {}).map(([key, value]) => (
-            <React.Fragment key={key}>
-              <dt>{key}</dt>
-              <dd className="apex-heading">{fmtDetail(value)}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
-      </div>
-    </details>
-  );
-}
-
-function NarrativeList({
-  title,
-  items,
-  tone,
-}: {
-  title: string;
-  items: string[];
-  tone: "emerald" | "amber" | "neutral";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "border-emerald-900/30 bg-emerald-950/15 text-emerald-200"
-      : tone === "amber"
-        ? "border-amber-900/30 bg-amber-950/15 text-amber-200"
-        : "";
-  return (
-    <div className="space-y-2">
-      <h4 className="text-xs font-bold uppercase tracking-wider gold-accent">
-        {title}
-      </h4>
-      {items.length === 0 ? (
-        <p className="text-xs" style={{ color: "var(--subtle)" }}>
-          None.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {items.map((item, i) => (
-            <li
-              key={i}
-              className={`p-2.5 rounded-lg border text-xs leading-relaxed ${toneClass}`}
-              style={
-                tone === "neutral"
-                  ? {
-                      borderColor: "var(--border)",
-                      color: "var(--muted-foreground)",
-                    }
-                  : undefined
-              }
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="apex-card p-6 space-y-2">
+      <p className="text-sm apex-heading">This run predates the readiness review.</p>
+      <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+        It was scored by a rubric that could not tell &ldquo;APEX has no
+        data&rdquo; apart from &ldquo;the record is weak&rdquo;, so its number is
+        not shown. Run the review again to see your coverage and your plan.
+      </p>
     </div>
   );
 }
@@ -297,6 +410,12 @@ export default function ResultsView({
   onRunComplete,
   consentGranted,
   onRequestConsent,
+  onSaveBeforeRun,
+  rating,
+  ladrLoaded,
+  ladrFetching,
+  ladrFetchMsg,
+  onFetchLadr,
 }: ResultsViewProps) {
   const [boardDate, setBoardDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
@@ -308,44 +427,47 @@ export default function ResultsView({
     setRunning(true);
     setRunError(null);
     try {
-      const row = await runBoardAnalysis({ boardDate });
+      // The route scores the SAVED record. Save first, and abort if the save was
+      // refused (bad dates, network) rather than silently scoring stale data.
+      if (!(await onSaveBeforeRun())) {
+        setRunError(
+          "Unsaved changes could not be saved, so the review was not run. Fix the problem shown above, then run again.",
+        );
+        return;
+      }
+      const row = await runBoardAnalysis({
+        boardDate,
+        // The engine reads no clock — the browser's today is handed in and
+        // validated at the route boundary.
+        asOf: new Date().toISOString().slice(0, 10),
+      });
       onRunComplete(row);
     } catch (err: any) {
-      setRunError(err?.message || "Record readiness analysis failed.");
+      setRunError(err?.message || "Record readiness review failed.");
     } finally {
       setRunning(false);
     }
   };
 
-  // v1.1 review fix: A comes from the stored board_analyses.adverse_adjustment
-  // column — never derived client-side (Σcontributions − overall is wrong when
-  // the final clamps to 0). numeric arrives as a string from PostgREST.
+  const report = selected?.input?.readiness ?? null;
+  const warnings: string[] = selected?.input?.warnings ?? [];
   const adverse = selected ? Number(selected.adverse_adjustment ?? 0) : 0;
-
-  // rubric.ts pushes the continuity advisory into warnings as well, so a
-  // pre-correction row carries the retracted claim twice. The advisory block
-  // below states the rule correctly; this drops the stale duplicate.
-  const warnings: string[] = (selected?.input?.warnings ?? []).filter(
-    (w) => !RETRACTED_CONTINUITY_CLAIM.test(w),
-  );
-
-  // v1.5 continuity advisory — read from the stored run's meta snapshot, unless
-  // that snapshot predates the para 17-6 correction.
   const meta = (selected?.input?.meta ?? {}) as Record<string, unknown>;
   const continuityGap = meta.continuity_gap === true;
-  const storedAdvisory = meta.continuity_advisory;
   const continuityAdvisory =
-    typeof storedAdvisory === "string" &&
-    !RETRACTED_CONTINUITY_CLAIM.test(storedAdvisory)
-      ? storedAdvisory
-      : CONTINUITY_ADVISORY;
+    typeof meta.continuity_advisory === "string" ? meta.continuity_advisory : null;
+  const showLadrFetch = !ladrLoaded;
+  // No active precept ⇒ rubric excludes the factor (weight 0, ×100/90
+  // redistribution) and coverage counts 5 areas. Read from the run's own
+  // snapshot so a prior run renders the state it was scored under.
+  const preceptConfigured = (selected?.input?.preceptFlags?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
-      {/* §1.1: disclaimer at the top of every results view */}
+      {/* §1.1: the disclaimer on the results view. The page banner is hidden on
+          this tab so this is the only copy on screen. */}
       <BoardDisclaimer />
 
-      {/* Run controls */}
       <div className="apex-card p-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
           <span className="apex-filter-label">Board date</span>
@@ -362,13 +484,9 @@ export default function ResultsView({
           className="apex-btn-primary disabled:opacity-50"
           onClick={run}
           disabled={running || !consentGranted}
-          title={
-            consentGranted
-              ? undefined
-              : "Consent required before running an analysis."
-          }
+          title={consentGranted ? undefined : "Consent required before running a review."}
         >
-          {running ? "Analyzing…" : "Run Analysis"}
+          {running ? "Reviewing…" : "Run Review"}
         </button>
         {!consentGranted && (
           <button
@@ -379,6 +497,10 @@ export default function ResultsView({
             Review consent terms
           </button>
         )}
+        <p className="text-xs basis-full" style={{ color: "var(--subtle)" }}>
+          Running saves any unsaved Record Entry and LaDR changes first, so the
+          review always reflects what you just typed.
+        </p>
       </div>
 
       {runError && (
@@ -398,8 +520,50 @@ export default function ResultsView({
         </div>
       )}
 
-      {selected ? (
+      {showLadrFetch && (
+        <LadrFetchCard
+          rating={rating}
+          fetching={ladrFetching}
+          message={ladrFetchMsg}
+          onFetch={onFetchLadr}
+        />
+      )}
+
+      {!selected ? (
+        <div className="apex-card p-10 text-center space-y-2">
+          <p className="text-sm apex-heading">No review yet.</p>
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            Run one now — you do not need a complete record first. APEX will show
+            you what it can already see and what to enter next.
+          </p>
+        </div>
+      ) : !report ? (
+        <LegacyRunPanel />
+      ) : (
         <>
+          <CoverageCard report={report} />
+
+          <PlanSection report={report} showLadrFetchHint={showLadrFetch} />
+
+          {report.confirmInOmpf && (
+            <section className="apex-card p-4 space-y-2" aria-labelledby="readiness-ompf">
+              <h3
+                id="readiness-ompf"
+                className="text-sm font-bold gold-accent uppercase tracking-wider"
+              >
+                Confirm in your OMPF
+              </h3>
+              <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                {report.confirmInOmpf.note}
+              </p>
+              <ul className="text-sm list-disc pl-5 space-y-1" style={{ color: "var(--foreground)" }}>
+                {report.confirmInOmpf.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {continuityGap && (
             <div
               role="alert"
@@ -408,40 +572,32 @@ export default function ResultsView({
               <p className="font-bold uppercase tracking-wider text-red-300">
                 Reporting continuity gap detected
               </p>
-              <p className="text-xs" data-testid="continuity-advisory">
-                {continuityAdvisory}
+              <p className="text-xs">
+                {continuityAdvisory ??
+                  "A gap in reporting continuity was found. A selection board can treat any break in the record — even a single day — as disqualifying. Verify your continuity on BOL and NSIPS."}
               </p>
             </div>
           )}
-          <div className="apex-card p-6">
-            <ScoreDial
-              score={Number(selected.overall_score)}
-              band={selected.band}
-              bandLabel={bandLabelFor(selected.band)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            {selected.factor_scores.map((factor) => (
-              <FactorBar key={factor.key} factor={factor} />
-            ))}
-          </div>
 
           {adverse > 0 && (
             <div
               role="note"
               className="p-3 rounded-lg text-xs border border-red-900/40 bg-red-950/25 text-red-200"
             >
-              Adverse adjustment applied: −{adverse.toFixed(1)} points (adverse
-              entries and/or a PFA failure within 36 months of the board date).
+              Your record contains adverse entries and/or a PFA failure within 36
+              months of the board date. A board sees these — be ready to address
+              them.
             </div>
           )}
 
           {warnings.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                Warnings
-              </h4>
+            <section className="space-y-2" aria-labelledby="readiness-warnings">
+              <h3
+                id="readiness-warnings"
+                className="text-xs font-bold uppercase tracking-wider text-amber-400"
+              >
+                Data notices
+              </h3>
               <ul className="space-y-1.5">
                 {warnings.map((w, i) => (
                   <li
@@ -452,99 +608,67 @@ export default function ResultsView({
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           )}
 
-          {/* Narrative */}
-          <div className="apex-card p-6 space-y-5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-                Narrative
-              </h3>
-              <span className="apex-badge-draft px-2 py-0.5 text-[10px]">
-                {selected.narrative_source === "model"
-                  ? `AI narrative (${selected.model ?? "model"})`
-                  : selected.narrative_fallback_reason === "model_error"
-                    ? "Deterministic narrative (AI narrative unavailable — model call failed)"
-                    : "Deterministic narrative (no API key configured)"}
-              </span>
-            </div>
-            <NarrativeList
-              title="Strengths"
-              items={selected.narrative?.strengths ?? []}
-              tone="emerald"
-            />
-            <NarrativeList
-              title="Gaps"
-              items={selected.narrative?.gaps ?? []}
-              tone="amber"
-            />
-            <NarrativeList
-              title="Recommendations"
-              items={selected.narrative?.recommendations ?? []}
-              tone="neutral"
-            />
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider gold-accent">
-                Per-factor commentary
-              </h4>
-              <dl className="space-y-2">
-                {(Object.keys(FACTOR_LABELS) as FactorKey[]).map((key) => {
-                  const text = selected.narrative?.factor_commentary?.[key];
-                  if (!text) return null;
-                  return (
-                    <div key={key}>
-                      <dt className="text-xs font-semibold apex-heading">
-                        {FACTOR_LABELS[key]}
-                      </dt>
-                      <dd
-                        className="text-xs leading-relaxed"
-                        style={{ color: "var(--muted-foreground)" }}
-                      >
-                        {text}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-          </div>
+          {/* Per-area detail is available but does NOT lead. */}
+          <section className="space-y-2" aria-labelledby="readiness-areas">
+            <h3
+              id="readiness-areas"
+              className="text-sm font-bold gold-accent uppercase tracking-wider"
+            >
+              What APEX looked at
+            </h3>
+            {report.areas
+              .filter((a) => a.key !== "precept" || preceptConfigured)
+              .map((area) => (
+                <AreaCard key={area.key} area={area} />
+              ))}
+            {/* With no precept loaded the rubric drops the factor to weight 0
+                and coverage counts 5 areas, not 6 — so showing a sixth card
+                labelled "Not entered" would both contradict the headline and
+                blame the Sailor for a setting only an Admin can make. */}
+            {!preceptConfigured && (
+              <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>
+                Board emphasis areas are not set up for your cycle, so APEX left
+                them out of this review entirely — they are not counted against
+                you. An APEX Admin loads them.
+              </p>
+            )}
+          </section>
         </>
-      ) : (
-        <div className="apex-card p-10 text-center">
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            No analysis yet. Enter your record, answer the LaDR checklist, then
-            run your first analysis.
-          </p>
-        </div>
       )}
 
-      {/* Prior runs */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-          Prior runs
+      <section className="space-y-2" aria-labelledby="readiness-prior">
+        <h3
+          id="readiness-prior"
+          className="text-sm font-bold gold-accent uppercase tracking-wider"
+        >
+          Prior reviews
         </h3>
         {runs.length === 0 ? (
           <div className="apex-card p-6 text-center">
             <p className="text-xs" style={{ color: "var(--subtle)" }}>
-              No prior analyses.
+              No prior reviews.
             </p>
           </div>
         ) : (
           <div className="apex-card overflow-x-auto">
-            <table className="apex-data-table min-w-[720px]">
+            {/* No score or band column: those are exactly the numbers the
+                readiness gate suppresses, and a history table is no place to
+                reintroduce them. */}
+            <table className="apex-data-table min-w-[520px]">
               <thead>
                 <tr>
                   <th>Run date</th>
                   <th>Board date</th>
-                  <th>Score</th>
-                  <th>Band</th>
-                  <th>Narrative source</th>
+                  <th>Coverage</th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((r) => {
                   const isSelected = r.id != null && r.id === selected?.id;
+                  const cov = r.input?.readiness?.coverage;
                   return (
                     <tr
                       key={r.id ?? r.created_at}
@@ -556,38 +680,18 @@ export default function ResultsView({
                           onSelect(r);
                         }
                       }}
-                      aria-label={`Load analysis run from ${r.created_at ?? r.board_date}`}
+                      aria-label={`Load review from ${r.created_at ?? r.board_date}`}
                       className="cursor-pointer"
-                      style={
-                        isSelected ? { background: "var(--muted)" } : undefined
-                      }
+                      style={isSelected ? { background: "var(--muted)" } : undefined}
                     >
                       <td className="text-xs">
-                        {r.created_at
-                          ? new Date(r.created_at).toLocaleString()
-                          : "—"}
+                        {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
                       </td>
                       <td className="text-xs font-mono">{r.board_date}</td>
-                      <td className="font-semibold apex-heading">
-                        {Number(r.overall_score).toFixed(1)}
-                      </td>
-                      <td>
-                        <span
-                          className={`px-2 py-0.5 text-[10px] ${
-                            r.band >= 75
-                              ? "apex-badge-emerald"
-                              : r.band >= 50
-                                ? "apex-badge-amber"
-                                : "apex-badge-danger"
-                          }`}
-                        >
-                          {r.band}
-                        </span>
-                      </td>
                       <td className="text-xs">
-                        {r.narrative_source === "model"
-                          ? `AI (${r.model ?? "model"})`
-                          : "Deterministic"}
+                        {cov
+                          ? `${cov.areasKnown} of ${cov.areasTotal} areas`
+                          : "—"}
                       </td>
                     </tr>
                   );
@@ -596,7 +700,7 @@ export default function ResultsView({
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

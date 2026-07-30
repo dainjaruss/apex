@@ -7,6 +7,7 @@
 // every board_analyses row.
 
 import type { Narrative } from "@/lib/boardConfidence/narrative";
+import type { ReadinessArea, ReadinessReport } from "@/lib/boardConfidence/readiness";
 
 // NORMATIVE TEXT — founder-gated. Rendered on the page banner, every results view,
 // the score-dial tooltip and the footer, and stored verbatim in every board_analyses
@@ -122,16 +123,22 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
 }
 
 /**
- * v2: one unmet LaDR row, with its identity intact. `marginal_points` is a TRUE
+ * v2: one unmet LaDR row, with its identity intact. `factorLocalPoints` is a TRUE
  * recompute of the development factor's own 0–100 score with this single row
  * flipped to met+verified — it is FACTOR-LOCAL, not composite points. Composite
  * worth comes from bandDeltas(), which re-scores the whole rubric per candidate.
+ *
+ * The name is load-bearing. It was `marginal_points`, which reads as "what this
+ * is worth" and differs from ReadinessAction.worth by roughly 12× for the SAME
+ * milestone — different scale AND a different flip. Two numbers for one row on
+ * one screen is a contradiction a Sailor can see, so the factor-local one is
+ * named for what it is and no template renders it.
  */
 export interface LadrUnmet {
   milestone_id: string;
   item: string;                        // "" when the caller did not thread milestone text
   category: LadrCategory;
-  marginal_points: number;
+  factorLocalPoints: number;
   board_emphasis: boolean;
 }
 
@@ -197,11 +204,39 @@ export interface RubricConfig {
   board_emphasis_multiplier: number;    // ×weight for board-emphasis LaDR items
 }
 
+/**
+ * The readiness report AS IT LEAVES THE SERVER. `ReadinessArea.detail` is the
+ * whole FactorResult, and Σ detail.contribution reconstructs the suppressed
+ * score AND its band exactly (measured: 43.2 on a `score: null` report). The
+ * engine keeps `detail` by design; containment is the boundary's job, so the
+ * field is dropped here rather than shipped to a browser where a future
+ * "show the math" toggle could reach it.
+ *
+ * (`board_analyses.factor_scores` still carries the same numbers — it is a
+ * historical column and predates this layer. Nothing in the Results screen
+ * renders it.)
+ */
+export type ClientReadinessReport = Omit<ReadinessReport, "areas"> & {
+  areas: Array<Omit<ReadinessArea, "detail">>;
+};
+
 export interface BoardAnalysisRow {     // mirror of public.board_analyses
   id?: string;
   user_id: string;
   board_date: string;
-  input: RubricInputs & { disclaimer: string; warnings: string[]; meta: Record<string, unknown> };
+  input: RubricInputs & {
+    disclaimer: string;
+    warnings: string[];
+    meta: Record<string, unknown>;
+    /**
+     * v2 (PERSISTED SHAPE CHANGE — additive, jsonb, no migration). The run's
+     * readiness report, snapshotted like every other part of the run so a prior
+     * run renders exactly what it said at the time. Absent on rows written
+     * before v2: the Results screen shows those as "predates the readiness
+     * review — re-run" and renders NO score for them.
+     */
+    readiness?: ClientReadinessReport;
+  };
   factor_scores: FactorResult[];
   overall_score: number;
   band: BandVote;
