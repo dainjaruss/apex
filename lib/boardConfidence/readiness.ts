@@ -63,6 +63,27 @@ import {
  * lists 82; there are 3 seed files and BM self-declares source "representative"),
  * so that is the common case, not an edge one.
  */
+/*
+ * NOT RESCALED after "an unsourced precept is treated as absent" (service.ts).
+ * Deliberate, and the arithmetic is real: precept contributed a free 0.10 at
+ * conf = 1 whether or not anything backed it, so excluding it maps every
+ * coverage value as measured_after = (measured_before - 0.10) x 10/9 — strictly
+ * downward, fixed point only at 1.0. A record at 0.7675 (scored) becomes 0.7417
+ * (suppressed) with nothing about the Sailor changed.
+ *
+ * Kept at 0.75 anyway, because the floor is defined against EFFECTIVE weights —
+ * post-redistribution — and the no-precept case has always been on that scale.
+ * Hosted board_precepts is empty and #31 removed the seeding, so every real user
+ * today already sits there. Rescaling to (0.75 - 0.10) x 10/9 = 0.7222 would
+ * leave unsourced-precept installs where they are and instead LOOSEN the gate
+ * for every existing no-precept user — the exact population this floor protects,
+ * and a change nobody asked for.
+ *
+ * What moved is narrower than it looks: with the composite no longer rendered
+ * (ResultsView), the only user-visible effect of this floor is whether
+ * `scoreNote` appears. Lowering it would suppress an explanation, not reveal a
+ * number.
+ */
 export const COVERAGE_FLOOR = 0.75;
 
 /**

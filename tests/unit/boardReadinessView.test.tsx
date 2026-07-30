@@ -187,6 +187,32 @@ const baseProps = {
 const renderWith = (row: BoardAnalysisRow | null, over: Partial<typeof baseProps> = {}) =>
   render(<ResultsView {...baseProps} runs={row ? [row] : []} selected={row} {...over} />);
 
+/**
+ * Everything a user can perceive, not just `document.body.textContent`.
+ *
+ * Two holes this closes, both of which let a mutant render the composite while
+ * all 34 tests stayed green:
+ *  - textContent is CONCATENATED WITHOUT SEPARATORS, so React's `vote {band}`
+ *    arrives as "…RESULTvote 0APEX…" and a `\bvote\s+\d+\b` guard never fires.
+ *    Padding the boundaries makes \b behave the way the assertion assumed.
+ *  - textContent excludes ATTRIBUTES entirely, so a score in an aria-label or a
+ *    title — which a screen reader reads aloud and a tooltip shows — was
+ *    invisible to every guard here. The old ScoreDial put it in exactly those
+ *    two places.
+ */
+const perceivable = (): string => {
+  const parts: string[] = [];
+  document.body.querySelectorAll("*").forEach((el) => {
+    for (const attr of ["aria-label", "aria-description", "title", "alt", "aria-valuetext"]) {
+      const v = el.getAttribute(attr);
+      if (v) parts.push(v);
+    }
+    for (const n of Array.from(el.childNodes))
+      if (n.nodeType === 3 && n.textContent?.trim()) parts.push(n.textContent);
+  });
+  return ` ${parts.join(" \n ")} `;
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   baseProps.onSaveBeforeRun.mockResolvedValue(true);
@@ -200,7 +226,9 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
     renderWith(rowFor(nothingEntered));
 
     expect(screen.queryByTestId("score-line")).toBeNull();
-    const text = document.body.textContent ?? "";
+    // Attributes included: an aria-label or title carrying the score is read
+    // aloud and shown on hover, and textContent cannot see either.
+    const text = perceivable();
     // Every band label the rubric can emit — none may appear anywhere.
     for (const label of [
       "Clearly at the top",
@@ -211,7 +239,7 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
     ])
       expect(text).not.toContain(label);
     expect(text).not.toMatch(/\/\s*100\b/);
-    expect(text).not.toMatch(/\bvote\s+(0|25|50|75|100)\b/);
+    expect(text).not.toMatch(/vote\s+(0|25|50|75|100)\b/);
   });
 
   it("shows the engine's own reason verbatim instead of a number", () => {
@@ -250,11 +278,12 @@ describe("ResultsView — the suppressed score stays suppressed", () => {
     };
 
     renderWith(row);
-    const text = document.body.textContent ?? "";
+    const text = perceivable();
     expect(screen.queryByTestId("score-line")).toBeNull();
     expect(text).not.toContain("78.4");
     expect(text).not.toContain("Competitive");
     expect(text).not.toMatch(/\/\s*100\b/);
+    expect(text).not.toMatch(/vote\s+(0|25|50|75|100)\b/);
     // Still computed and still persisted — a render decision, not an engine one.
     expect(row.input.readiness.score).not.toBeNull();
   });
@@ -345,6 +374,10 @@ describe("ResultsView — 'not entered' is a data state, not a deficiency", () =
     expect(screen.queryByTestId("area-precept")).toBeNull();
     expect(document.querySelectorAll("[data-status]")).toHaveLength(5);
     expect(document.body.textContent).toContain("they are not counted against you");
+    // Two states route here — no precept row, and a precept row an admin filled
+    // in that cites no convening order. "Not set up for your cycle" was true of
+    // the first and false of the second.
+    expect(document.body.textContent).not.toContain("not set up for your cycle");
   });
 });
 
@@ -388,11 +421,14 @@ describe("ResultsView — no engine internal reaches the DOM", () => {
     expect(row.factor_scores[0]).toHaveProperty("contribution");
 
     renderWith(row);
-    const text = document.body.textContent ?? "";
+    const text = perceivable();
     expect(text).not.toMatch(BANNED);
-    for (const f of row.factor_scores)
+    // Non-zero only: "0.0" is unavoidably common (it lives inside any ISO
+    // timestamp) and a zero contribution reconstructs nothing anyway.
+    for (const f of row.factor_scores.filter((x) => x.contribution > 0))
       expect(text).not.toContain(f.contribution.toFixed(1));
     expect(text).not.toContain(String(scored.final));
+    expect(text).not.toMatch(/vote\s+(0|25|50|75|100)\b/);
   });
 });
 
@@ -507,9 +543,13 @@ describe("ResultsView — the continuity advisory states the rule, not its inver
     expect(text).toContain("BUPERSINST 1610.10H para 17-6");
     // A Sailor must learn there is a fix, not only that there is a problem.
     expect(text).toContain("E-5 or above within the past 5 years");
-    expect(text).toContain("PERS-32 (para 17-6a)");
+    expect(text).toContain("para 17-6a");
     expect(text).toContain("letter in lieu of the report");
     expect(text).toContain("para 17-6b");
+    // The procedural detail #29 added: a Sailor who follows a compressed
+    // version gets bounced. boardContinuityAdvisory.test.tsx pins the same set.
+    expect(text).toContain("all required signatures, initials and dates");
+    expect(text).toContain("blocks 1-19 and 22-26");
   });
 
   it("prefers a current run's own advisory so the two texts cannot drift", () => {

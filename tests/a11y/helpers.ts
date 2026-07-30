@@ -8,8 +8,25 @@ export type ThemeMode = "light" | "dark";
 
 const FIXTURES = resolve(process.cwd(), "tests/fixtures/e2e-ids.json");
 
+/**
+ * Auth routes are skipped ONLY when a run opts out explicitly. A MISSING fixture
+ * is a broken gate, not a reason to pass.
+ *
+ * This used to return false when tests/fixtures/e2e-ids.json was absent, so a
+ * checkout without it skipped every authenticated scan and reported green — the
+ * file is gitignored, so that is the default state of a fresh clone and of CI.
+ * Measured: a full `npm run a11y` reported success while scanning only the three
+ * public routes. Opting out now requires saying so.
+ */
 export function authRoutesAvailable(): boolean {
-  return existsSync(FIXTURES) && process.env.A11Y_SKIP_AUTH !== "1";
+  if (process.env.A11Y_SKIP_AUTH === "1") return false;
+  if (!existsSync(FIXTURES))
+    throw new Error(
+      `a11y auth fixtures missing: ${FIXTURES}\n` +
+        "Run `npm run db:seed` first, or set A11Y_SKIP_AUTH=1 to scan public routes only.\n" +
+        "Refusing to skip silently — the authenticated routes are most of this gate.",
+    );
+  return true;
 }
 
 export async function preparePage(page: Page, theme: ThemeMode) {

@@ -72,6 +72,10 @@ const emptyFlags = (): Record<PreceptFlag, boolean> =>
   >;
 
 function ActivePreceptCard({ precept }: { precept: BoardPrecept }) {
+  // Must match assembleRubricInputs: flags count ONLY when the row cites a
+  // published source. Branching on the row's mere existence made this tab
+  // contradict the Results tab in the same session.
+  const sourced = !!precept.source_url;
   return (
     <div className="apex-card p-6 space-y-4">
       <div className="space-y-1">
@@ -94,20 +98,26 @@ function ActivePreceptCard({ precept }: { precept: BoardPrecept }) {
       <div className="flex flex-wrap gap-2">
         {PRECEPT_FLAG_LABELS.map(([flag, label]) => {
           const set = precept.emphasis_flags?.[flag] === true;
+          // An unsourced precept scores nothing, so nothing here may be styled
+          // as active. Emerald "Warfighting" chips under "feed the Precept
+          // Alignment factor" is what this tab used to say while the Results
+          // tab of the same session said APEX had excluded them.
+          const live = set && sourced;
           return (
             <span
               key={flag}
-              className={`${set ? "apex-badge-emerald" : "apex-badge-draft"} px-2.5 py-1 text-[11px]`}
+              className={`${live ? "apex-badge-emerald" : "apex-badge-draft"} px-2.5 py-1 text-[11px]`}
             >
               {label}
-              {set ? "" : " — not emphasized"}
+              {set ? (sourced ? "" : " — recorded, not scored") : " — not emphasized"}
             </span>
           );
         })}
       </div>
       <p className="text-xs" style={{ color: "var(--subtle)" }}>
-        Emphasis areas are set per board cycle and feed the Precept Alignment
-        factor. This panel is read-only.
+        {sourced
+          ? "Emphasis areas are set per board cycle and feed the Board Emphasis factor. This panel is read-only."
+          : "These emphasis areas are not traceable to a convening order — no source document is recorded against them — so APEX excludes them from your review rather than scoring your record against them. Its 10% weight is spread across the other five factors. This panel is read-only."}
       </p>
     </div>
   );
@@ -351,10 +361,9 @@ function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
       ) : (
         <div className="apex-card p-6">
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            No board precept is loaded, so the Precept Alignment factor is
-            excluded and its 10% weight is spread across the other five factors.
-            This is expected until a precept is set — load one below to score
-            alignment.
+            No board precept is loaded, so the Board Emphasis factor is excluded
+            and its 10% weight is spread across the other five factors. This is
+            expected until a precept is set — load one below to score emphasis.
           </p>
         </div>
       )}

@@ -119,8 +119,10 @@ const STATUS_STYLE = {
  * is stripped at display time instead.
  *
  * ANCHORED TO THE LEGAL PREFIXES, not to a generic `word.word` shape. The set is
- * closed and enumerated by `citationPaths()` — coverage. / areas. / actions. /
- * unmet. — so anything else in brackets is left alone. A shape-only match
+ * closed and enumerated by `citationPaths()`: the four dotted families
+ * coverage. / areas. / actions. / unmet., plus the bare `monthsToBoard`, which
+ * needs no pattern here because it carries no dot. Anything else in brackets is
+ * left alone. A shape-only match
  * degraded by MANGLING rather than removing: `"…per [1610.10H]. [actions.a1]"`
  * became `"…per."`, which reads as broken software. No data path produces such a
  * token today (warnings are not in the payload and the prompt discourages it),
@@ -135,14 +137,16 @@ const stripPathTokens = (text: string): string =>
  * BUPERSINST 1610.10H para 17-6 says the OPPOSITE of what APEX used to claim:
  * "Missing FITREPs, CHIEFEVALs, or EVALs do not disqualify a member before a
  * selection board, but missing reports can make the work of the board more
- * difficult." (Verified against the LIVE CH-2, ModDate 27 May 2026 — CH-2
- * revised Encl (2) chapter 3 only, so chapter 17 is unrevised and current.)
+ * difficult." (Verified against the LIVE CH-2, whose transmittal revises Encl (2)
+ * chapter 3 only, so chapter 17 is unrevised and current. The timestamped fetch
+ * record is in lib/boardConfidence/rubric.ts — MyNavyHR re-posts the file, so its
+ * page count and hash are a log entry, not a check.)
  *
  * Runs stored before that correction persisted the inverted claim into BOTH
- * `input.meta.continuity_advisory` AND `input.warnings`, and this screen renders
- * both verbatim from the immutable snapshot. Correcting the engine does not
- * correct those rows, so the retracted claim is filtered HERE too, at the render
- * boundary — the last place it can reach a Sailor.
+ * `input.meta.continuity_advisory` AND `input.warnings` (rubric.ts pushes the
+ * advisory into warnings too), and this view renders both verbatim from the
+ * immutable snapshot. Correcting the engine does not correct those rows, so the
+ * retracted claim is filtered HERE too — the last place it can reach a Sailor.
  */
 const RETRACTED_CONTINUITY_CLAIM = /even a single day/i;
 
@@ -158,12 +162,15 @@ const CONTINUITY_ADVISORY =
   "undocumented performance, and the board evaluates the record with what is " +
   "available. At a minimum, try to recover any missing report covering " +
   "significant duty in the grades of E-5 or above within the past 5 years: " +
-  "send a signed copy of the original to PERS-32 (para 17-6a), or, if it " +
-  "cannot be obtained, submit a one-page letter in lieu of the report to " +
-  "PERS-32 (para 17-6b, Exhibit 17-4 — accepted only to fill a gap in Regular " +
-  "report continuity, and it may not evaluate your own performance or " +
-  "recommend you for promotion). Verify your reporting continuity on BOL and " +
-  "NSIPS.";
+  "send PERS-32 a copy of the original that displays all required signatures, " +
+  "initials and dates, together with a signed cover letter asking that the " +
+  "duplicate report be filed in your official record (para 17-6a); or, if the " +
+  "report cannot be obtained, send PERS-32 a one-page letter in lieu of the " +
+  "report explaining why it could not be obtained and supplying what would have " +
+  "appeared in blocks 1-19 and 22-26 (para 17-6b, Exhibit 17-4 — accepted only " +
+  "to fill a gap in Regular report continuity, and it may not evaluate your own " +
+  "performance or recommend you for promotion). Verify your reporting " +
+  "continuity on BOL and NSIPS.";
 
 /** Ordered plan buckets. Keyed on horizonBasis first — see rule 6 in the header. */
 const BUCKET_ORDER = [
@@ -593,9 +600,15 @@ export default function ResultsView({
     (w) => !RETRACTED_CONTINUITY_CLAIM.test(w),
   );
   const showLadrFetch = !ladrLoaded;
-  // No active precept ⇒ rubric excludes the factor (weight 0, ×100/90
+  // Empty preceptFlags ⇒ the rubric excluded the factor (weight 0, ×100/90
   // redistribution) and coverage counts 5 areas. Read from the run's own
   // snapshot so a prior run renders the state it was scored under.
+  //
+  // TWO states land here, and the copy below must be true of BOTH: no precept
+  // row at all, and a precept row an admin filled in that cites no convening
+  // order (assembleRubricInputs drops those flags). "Not set up for your cycle"
+  // was written for the first and is false for the second — somebody DID set
+  // them up; APEX declined to trust them.
   const preceptConfigured = (selected?.input?.preceptFlags?.length ?? 0) > 0;
 
   return (
@@ -769,9 +782,9 @@ export default function ResultsView({
                 blame the Sailor for a setting only an Admin can make. */}
             {!preceptConfigured && (
               <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>
-                Board emphasis areas are not set up for your cycle, so APEX left
-                them out of this review entirely — they are not counted against
-                you. An APEX Admin loads them.
+                APEX has no board emphasis areas it can trace to a convening
+                order, so it left them out of this review entirely — they are not
+                counted against you.
               </p>
             )}
           </section>
@@ -819,7 +832,11 @@ export default function ResultsView({
                           onSelect(r);
                         }
                       }}
-                      aria-label={`Load review from ${r.created_at ?? r.board_date}`}
+                      aria-label={`Load review from ${
+                        r.created_at
+                          ? new Date(r.created_at).toLocaleDateString()
+                          : r.board_date
+                      }`}
                       className="cursor-pointer"
                       style={isSelected ? { background: "var(--muted)" } : undefined}
                     >

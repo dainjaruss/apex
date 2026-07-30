@@ -1037,3 +1037,42 @@ describe("purity, and asOf as a trust boundary", () => {
     expect(buildReadinessReport(r, sailorB, CFG, { coverageFloor: 0.1 }).score).not.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// COVERAGE_FLOOR was calibrated on a scale where the precept factor contributed
+// a free 0.10 at conf = 1 whether or not anything backed it. Now that an
+// unsourced precept is excluded like an absent one (service.ts), coverage maps
+// measured_after = (measured_before − 0.10) × 10/9 — strictly downward, fixed
+// point only at 1.0. The floor is deliberately NOT rescaled; this pins both the
+// mapping and that decision, so a future rescale is a conscious act.
+// ---------------------------------------------------------------------------
+describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
+  const withPrecept = { ...sailorB, preceptFlags: ALL_FLAGS };
+  const without = { ...sailorB, preceptFlags: [] as PreceptFlag[] };
+
+  it("excluding the precept maps coverage by (m − 0.10) × 10/9", () => {
+    const m1 = report(withPrecept).coverage.measured;
+    const m2 = report(without).coverage.measured;
+    expect(m2).toBeCloseTo(((m1 - 0.1) * 10) / 9, 10);
+    expect(m2).toBeLessThan(m1); // strictly downward below 1.0
+  });
+
+  it("the floor is judged against effective weights, and stays 0.75", () => {
+    expect(COVERAGE_FLOOR).toBe(0.75);
+    // Both runs are judged against the same number — the scale changed, the
+    // threshold did not. The no-precept case has always been on this scale.
+    expect(report(withPrecept).coverage.floor).toBe(COVERAGE_FLOOR);
+    expect(report(without).coverage.floor).toBe(COVERAGE_FLOOR);
+  });
+
+  it("a record can cross the floor purely from the precept exclusion", () => {
+    // The consequence, stated rather than discovered later: same Sailor, same
+    // entries, suppressed after the change because the free 0.10 is gone.
+    // The reviewer's worked example: 0.7675 before, 0.7417 after.
+    const before = 0.7675;
+    const after = ((before - 0.1) * 10) / 9;
+    expect(before).toBeGreaterThan(COVERAGE_FLOOR); // a number was emitted
+    expect(after).toBeCloseTo(0.7417, 4);
+    expect(after).toBeLessThan(COVERAGE_FLOOR); // now suppressed, same Sailor
+  });
+});

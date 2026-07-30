@@ -158,6 +158,18 @@ says plainly that this is normal.
   `conf_precept` is 1 unconditionally), scoring a Sailor against doctrine this
   tool's own screen disclaims as *"entered by an APEX Admin and not taken from
   the board's convening order"*. Coverage cannot catch it: nothing is missing.
+  The Precept tab agrees: with a row present but unsourced, its flag chips render
+  as *"recorded, not scored"* rather than emerald, because branching on the row's
+  mere existence made that tab contradict the Results tab in the same session.
+  Note the copy distinction — *"not set up for your cycle"* is false for this
+  state. An admin **did** set them up; APEX declined to trust them.
+
+  `COVERAGE_FLOOR` is deliberately **not** rescaled. Excluding the precept maps
+  coverage by `(m − 0.10) × 10/9`, so a record at 0.7675 becomes 0.7417 and loses
+  its number with nothing about the Sailor changed. The floor is defined against
+  *effective* (post-redistribution) weights, and the no-precept case has always
+  been on that scale — rescaling would loosen the gate for every existing
+  no-precept user instead.
 - **A tool-configuration gap is not the Sailor's gap.** With no active precept
   the rubric drops the factor to weight 0 and coverage counts five areas; the
   screen drops the card rather than showing a sixth "Not entered".
