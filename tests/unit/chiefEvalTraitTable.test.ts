@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import fontkit from "@pdf-lib/fontkit";
 import {
   PDFDocument,
   PDFArray,
@@ -142,10 +143,37 @@ interface Drawn extends Bounds {
   size: number;
 }
 
-// Courier is 0.6 em wide per glyph with a 0.583 em cap height; both are exact for the
-// standard-14 face this overlay embeds, so a drawn string's ink box is derivable.
-const COURIER_ADVANCE = 0.6;
-const COURIER_CAP = 0.583;
+// Metrics of the face this overlay embeds, read off the file rather than assumed. These
+// said 0.6 / 0.583 — the standard-14 Courier values — back when this overlay silently
+// embedded nothing and the reader substituted its own font. It now embeds
+// public/fonts/CourierPrime-Regular.ttf like the other two overlays.
+const COURIER_ADVANCE = 0.599609;
+const COURIER_CAP = 0.57959;
+
+// pdf-lib writes a fontkit-embedded TrueType as CID/Identity-H, so each glyph is TWO
+// bytes and the code IS the glyph id — decoding the hex as latin1 yields "\u0000\u0014"
+// where "1" is meant. Invert the font's own cmap once and decode properly.
+const GID_TO_CHAR: Map<number, string> = (() => {
+  const font = fontkit.create(
+    fs.readFileSync(path.join(process.cwd(), "public/fonts/CourierPrime-Regular.ttf")),
+  ) as any;
+  const m = new Map<number, string>();
+  for (let c = 32; c < 127; c++) {
+    const ch = String.fromCharCode(c);
+    const g = font.glyphsForString(ch)[0];
+    if (g && !m.has(g.id)) m.set(g.id, ch);
+  }
+  return m;
+})();
+
+function decodeGlyphHex(hex: string): string {
+  let out = "";
+  for (let i = 0; i + 3 < hex.length + 1; i += 4) {
+    const gid = parseInt(hex.slice(i, i + 4), 16);
+    out += GID_TO_CHAR.get(gid) ?? "";
+  }
+  return out;
+}
 
 function drawnText(stream: string): Drawn[] {
   const re =
@@ -156,7 +184,7 @@ function drawnText(stream: string): Drawn[] {
     const size = Number(m[1]);
     const x = Number(m[2]);
     const y = Number(m[3]);
-    const str = Buffer.from(m[4], "hex").toString("latin1");
+    const str = decodeGlyphHex(m[4]);
     out.push({
       str,
       size,

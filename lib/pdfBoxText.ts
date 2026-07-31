@@ -15,10 +15,50 @@
 // the generated file stays byte-diffable against it — every difference is an appended
 // operator, and deleting those operators restores the form exactly.
 
-import { PDFFont, PDFPage, rgb } from "pdf-lib";
+import fs from "fs";
+import path from "path";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib";
 
 const WHITE = rgb(1, 1, 1);
 const BLACK = rgb(0, 0, 0);
+
+/**
+ * Embed the narrative font. One copy for all three overlays, because two of them were
+ * silently not embedding anything.
+ *
+ * chiefEvalOverlay and fitrepOverlay each probed for `public/fonts/Courier.ttf` — a file
+ * that has never shipped — and fell through to StandardFonts.Courier, which pdf-lib
+ * writes NON-EMBEDDED. `pdffonts` on real output said it plainly: the EVAL carried
+ * "CourierPrime-Regular … emb yes" while the CHIEFEVAL and FITREP carried
+ * "Courier Type 1 WinAnsi … emb no". The glyph outlines in a signed Navy record were
+ * whichever monospace the reader happened to substitute — poppler and Ghostscript both
+ * pick NimbusMonoPS, whose taller ink puts a FITREP 12-pitch first line 1.32 pt through
+ * the printed Block 41 header.
+ *
+ * Line COUNTS never depended on this — narrative() derives size and leading
+ * geometrically — but ink extents and horizontal fit did, and the measured bounds in
+ * tests/unit/commentCapacity.test.ts are CourierPrime's.
+ *
+ * ponytail: still falls back rather than throwing, so a missing asset degrades to a
+ * slightly-off form instead of no export at all. If the file goes missing the capacity
+ * tests keep passing but the ink bounds stop being the ones we measured — make this
+ * throw if that trade ever stops being the right one.
+ */
+export async function embedNarrativeFont(pdf: PDFDocument): Promise<PDFFont> {
+  pdf.registerFontkit(fontkit);
+  try {
+    return await pdf.embedFont(
+      new Uint8Array(
+        fs.readFileSync(
+          path.join(process.cwd(), "public/fonts/CourierPrime-Regular.ttf"),
+        ),
+      ),
+    );
+  } catch {
+    return await pdf.embedFont(StandardFonts.Courier);
+  }
+}
 
 /**
  * A cell's interior in PDF user space (bottom-left origin, points): the span between

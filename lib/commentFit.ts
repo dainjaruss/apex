@@ -123,46 +123,54 @@ export function measureTextFit(
  *
  * MEASURED off the blank forms in public/ — the forms outrank this comment.
  *
- * Method: rasterise each blank's page 2 at 600 dpi, mask the box's own vertical side
- * rules (they put dark pixels in every row and otherwise read as "printed ink" all the
- * way down), and take the REAL INK extents — the bounding rules, and the lowest ink of
- * the instruction header the form prints inside the block. Every rule on all three forms
- * measures exactly 0.72 pt. Then draw mixed-case Courier into a blank page at the
- * candidate first baseline, re-rasterise, and check the drawn ink against those bounds.
+ * Method, per form. Rasterise page 2 at 600 dpi and mask the box's own VERTICAL side
+ * rules — they put dark pixels in every row inside the block and otherwise read as
+ * "printed ink" all the way down. That gives the bounding rules (all three forms stroke
+ * at exactly 0.72 pt) and the lowest ink of the instruction header printed inside the
+ * block. Capacity is then the number of lines whose ink stays inside that clear region,
+ * with line 1 clear of the header.
  *
- * Real ink, not glyph metrics. An earlier pass used the font's declared descender and
- * came out 0.2-0.4 pt optimistic on every form, because the header's lowest ink is the
- * parentheses in "(10 or 12 point)", which hang below the metric descender. Both fonts
- * the renderer can embed were checked (public/fonts/CourierPrime-Regular.ttf and the
- * StandardFonts.Courier fallback at pdfOverlay.ts); CourierPrime is the binding one.
+ * The ink envelope is the OUTLINE BBOXES of the font the overlays embed,
+ * public/fonts/CourierPrime-Regular.ttf, over printable ASCII:
+ *
+ *     +0.6909 em above the baseline (backtick)      -0.2002 em below ('y', 'g', 'j')
+ *
+ * NOT the declared metrics, and specifically not "Descender -157/1000, CapHeight
+ * 562/1000" — those belong to Adobe Courier, a different font this code does not embed.
+ * CourierPrime declares descent -0.3418 and capHeight 0.5796. An earlier revision here
+ * used metric estimates and ran 0.2-0.4 pt optimistic on every form: the header's lowest
+ * ink is the parentheses in "(10 or 12 point)", which hang below the metric descender,
+ * and 'y'/'g'/'j' hang 0.017 em below the value that revision assumed.
  *
  *   NAVPERS 1616/26 (EVAL) Block 43 — clear interior y[253.44, 468.12], header ink
- *     floor 452.04, first baseline 444.5 (constant 458.5 through pdfOverlay's page-2
- *     translate, dy -14).
- *     10-pitch: 17 lines ink y[253.56, 451.44] — clears the header by 0.60, the floor
- *       by 0.12.
- *     12-pitch: 15 lines ink y[265.32, 451.92] — clears the header by 0.12.
- *     Narrow window, and it is the reason the constant is what it is: 12-pitch line 1
- *     caps the baseline at 444.62, 10-pitch line 17 floors it at 444.38, so 444.5 is the
- *     midpoint. A 16th 12-pitch line or an 18th 10-pitch line does not exist at any
- *     baseline in that window.
+ *     floor 451.92. The two pitches render at different sizes and their legal
+ *     first-baseline windows DO NOT INTERSECT, so pdfOverlay carries one baseline each:
+ *     10-pitch window [444.558, 445.000] -> 444.8 (constant 458.8), 17 lines,
+ *       clearing the header by 0.20 and the floor by 0.24.
+ *     12-pitch window [432.811, 444.508] -> 444.0 (constant 458.0), 15 lines,
+ *       clearing the header by 0.51 with ~11 pt of floor slack.
+ *     An 18th 10-pitch line would need a baseline of 456.4 and a 16th 12-pitch line
+ *     445.5; both are above their own header ceiling, so neither exists at any legal
+ *     baseline. A single shared 444.5 inked line 17 to 253.382 against the rule at
+ *     253.44 — negative, though nothing was clipped or lost.
  *
  *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 — clear interior y[277.56, 380.64], header ink
- *     floor 371.64, first baseline 363.0 (chiefEvalOverlay b40_topBaseline, from #34).
- *     10-pitch: 8 lines ink y[278.88, 369.72] — clears the floor by 1.32, header by 1.92.
- *       A 9th line inks down to 270.00, 7.56 pt BELOW the box floor.
- *     12-pitch: 7 lines ink y[285.48, 370.20].
- *     Independently reproduces the 8 / 7 measured on PR #34.
+ *     floor 371.52, first baseline 363.0 (chiefEvalOverlay b40_topBaseline, from #34).
+ *     10-pitch window [361.804, 364.640], 8 lines; 12-pitch [355.201, 364.152], 7 lines.
+ *     A 9th line would need 373.6, well above the header. Comfortable on both pitches,
+ *     so one baseline serves both. Independently reproduces the 8 / 7 measured on #34.
  *
  *   NAVPERS 1610/2 (FITREP) Block 41 — clear interior y[226.44, 469.20], header ink
- *     floor 451.56, first baseline 444.0 (fitrepOverlay b43_topBaseline; the old 462.0
- *     printed line 1 straight through that header).
- *     10-pitch: 19 lines. 12-pitch: 18 lines, ink y[226.80, 451.32] — the binding case,
- *       clearing the header by 0.24 and the floor by 0.36.
+ *     floor 451.44, first baseline 443.9 (the old 462.0 printed line 1 straight through
+ *     that header).
+ *     10-pitch window [441.197, 444.520], 19 lines. 12-pitch [443.788, 444.028] — only
+ *     0.241 pt wide, the binding case — 18 lines, and 443.9 is its midpoint, clearing
+ *     the header by 0.13 and the floor by 0.11.
  *
- * The EVAL's 0.12 pt and the FITREP's 0.24 pt are real clearances, not rounding: at
- * 600 dpi one pixel is 0.12 pt, so they were confirmed by drawing the text and looking,
- * not by arithmetic. Do not nudge any of the three top baselines without re-rastering.
+ * Margins this fine are real, not rounding, but they are also why the baselines are
+ * CENTRED in their windows rather than pushed to an edge: poppler and Ghostscript
+ * disagree by one 600 dpi pixel (0.12 pt) on the tight cases. Do not nudge any of the
+ * four top baselines without re-deriving against the envelope above.
  *
  * tests/unit/commentCapacity.test.ts renders real PDFs off these blanks and asserts every
  * line lands inside the measured box, so the renderer and this table cannot drift apart

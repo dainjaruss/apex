@@ -40,11 +40,7 @@ import {
   PDFFont,
   PDFPage,
   rgb,
-  StandardFonts,
 } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import fs from "fs";
-import path from "path";
 import { Evaluation } from "@/types";
 import {
   wrapTextToWidth,
@@ -54,7 +50,7 @@ import {
 } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
-import { Box, coverBox, drawInBox } from "./pdfBoxText";
+import { Box, coverBox, drawInBox, embedNarrativeFont } from "./pdfBoxText";
 
 const BLACK = rgb(0, 0, 0);
 
@@ -296,16 +292,7 @@ export async function generateChiefEvalOverlayPdf(
   templateBuffer: Uint8Array,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(templateBuffer);
-  pdf.registerFontkit(fontkit);
-
-  const fontPath = path.join(process.cwd(), "public", "fonts", "Courier.ttf");
-  let courier: PDFFont;
-  if (fs.existsSync(fontPath)) {
-    const fontBytes = fs.readFileSync(fontPath);
-    courier = await pdf.embedFont(fontBytes);
-  } else {
-    courier = await pdf.embedFont(StandardFonts.Courier);
-  }
+  const courier = await embedNarrativeFont(pdf);
 
   const pages = pdf.getPages();
   const page1 = pages[0];

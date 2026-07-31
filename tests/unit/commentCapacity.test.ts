@@ -24,18 +24,22 @@ import { runFullValidation } from "@/lib/validationEngine";
 import { coachPayload } from "@/lib/evalCoach/coach";
 import type { Evaluation } from "@/types";
 
-// Real ink extents of the drawn narrative, per em, MEASURED — not the font's declared
-// metrics. Mixed-case Courier (the form's own header says "Use upper and lower case")
-// containing the punctuation a Block 43 actually carries was drawn at a known baseline
-// and rasterised at 600 dpi: ink reaches 0.693 em above the baseline and 0.183 em below.
+// Real ink extents of the drawn narrative, per em. Taken from the OUTLINE BBOXES of the
+// font the overlays actually embed, public/fonts/CourierPrime-Regular.ttf, over printable
+// ASCII — not from the font's declared metrics and not from eyeballing a raster:
 //
-// The declared metrics — Descender -157/1000, CapHeight 562/1000 — are BOTH optimistic,
-// and on this form that matters: the EVAL's 17th line clears the box floor by 0.12 pt, so
-// a check built on 0.157 would pass text that really overflows. public/fonts/
-// CourierPrime-Regular.ttf is the binding font; the StandardFonts.Courier fallback in
-// pdfOverlay inks slightly tighter (0.669 / 0.159), so these bounds cover both.
-const INK_ABOVE = 0.693;
-const INK_BELOW = 0.183;
+//   deepest  'y' / 'g' / 'j'  -0.2002 em      highest  '`'  +0.6909 em
+//
+// An earlier revision used 0.183 below, which covers nothing deeper than '/', and paired
+// it with a probe string of nothing but the letter X — so no descender ever reached the
+// renderer and a NEGATIVE margin reported as +0.12. At 0.2002 the EVAL's old shared
+// baseline put line 17's ink at 253.382 against a printed rule at 253.44.
+//
+// Do not substitute the declared metrics here. CourierPrime declares descent -0.3418 and
+// capHeight 0.5796; the "-157/1000 / 562/1000" pair quoted in older comments is Adobe
+// Courier's, a different font that this code does not embed.
+const INK_ABOVE = 0.6909;
+const INK_BELOW = 0.2002;
 
 /**
  * Measured off the blank forms by RASTERISING page 2 at 600 dpi and reading real ink —
@@ -59,7 +63,7 @@ const FORMS = {
     // Rules centred 468.42 / 253.14; ink 468.72-468.12 and 253.44-252.84.
     boxTop: 468.12,
     boxFloor: 253.44,
-    headerFloor: 452.04,
+    headerFloor: 451.92,
   },
   CHIEFEVAL: {
     blank: "chiefEvalBlank.pdf",
@@ -67,7 +71,7 @@ const FORMS = {
     // Rules centred 380.94 / 277.26; ink 381.24-380.64 and 277.56-276.96.
     boxTop: 380.64,
     boxFloor: 277.56,
-    headerFloor: 371.64,
+    headerFloor: 371.52,
   },
   FITREP: {
     blank: "fitrepBlank.pdf",
@@ -75,7 +79,7 @@ const FORMS = {
     // Rules centred 469.50 / 226.14; ink 469.80-469.20 and 226.44-225.84.
     boxTop: 469.20,
     boxFloor: 226.44,
-    headerFloor: 451.56,
+    headerFloor: 451.44,
   },
 } as const;
 
@@ -96,9 +100,19 @@ const draft = (reportType: FormKey, pitch: "10" | "12", comments: string) =>
     block_values: { comment_pitch: pitch },
   }) as unknown as Evaluation;
 
-/** N distinct full-width lines, each tagged so it can be found in the output. */
+/**
+ * N distinct full-width lines, each tagged so it can be found in the output.
+ *
+ * Every line ENDS IN A DESCENDER on purpose. This used to be `"X".repeat(70)`, which has
+ * no ink below the baseline at all, so the whole suite measured a form the renderer never
+ * draws and reported clearance the real glyphs did not have. 'y' and 'g' are the deepest
+ * glyphs in CourierPrime (-0.2002 em); the form's own header says "Use upper and lower
+ * case", so they are not a contrived worst case, they are Tuesday.
+ */
 const probeLines = (n: number) =>
-  Array.from({ length: n }, (_, i) => `L${String(i + 1).padStart(2, "0")}` + "X".repeat(70)).join("\n");
+  Array.from({ length: n }, (_, i) =>
+    `L${String(i + 1).padStart(2, "0")}` + "Xygj".repeat(17) + "yg",
+  ).join("\n");
 
 /** Render, then read back every probe line's baseline and font size from the real PDF. */
 async function renderedCommentLines(
