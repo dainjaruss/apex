@@ -1821,16 +1821,50 @@ specific rather than the nine hardcoded generic strings it replaced. Their
 **Citation-or-delete.** Every strengths/gaps/recommendations item must cite a
 payload path in brackets; the valid set is generated from the payload actually
 sent (`coverage.*`, `monthsToBoard`, `areas.<key>`, `coverage.missing.<key>`,
-`actions.<id>`, `unmet.<milestone_id>`). Items are deleted unless **every** path in the
-trailing citation group resolves — accepting an item because *some* path
+`actions.<id>`, `unmet.<milestone_id>`). Items are deleted unless **every** path in
+**every** citation group resolves — accepting an item because *some* path
 resolved let one valid citation launder every fabricated claim beside it, and
-enforced strictly less than the prompt promises the model. Only the **trailing**
-group is treated as a citation (the prompt requires the citation to end the
-item), so bracketed NEC and CIN codes in Navy roadmap prose are neither counted
-nor stripped; a `factor_commentary` entry that cannot be cited falls back to the
-deterministic text (the schema requires all six keys, so it cannot be dropped).
-Surviving brackets are stripped before display — the citation proves grounding,
-it is not copy. The prior prompt demanded citations to paths such as
+enforced strictly less than the prompt promises the model.
+
+Three questions are decided separately, because conflating any two of them has
+caused a defect here:
+
+- **Which group is STRIPPED** — the trailing one only, so bracketed NEC and CIN
+  codes in Navy roadmap prose survive. A citation token in non-final position is
+  removed at display time instead (`PATH_TOKEN` in ResultsView, which must stay
+  in sync with `PATH_SHAPED` in narrative.ts — it was out of sync on `:` and on
+  `monthsToBoard`, and both rendered raw to the Sailor).
+- **Which groups are CHECKED** — all of them. Checking only the trailing group
+  let one extra bracket group switch the gate off entirely.
+- **Must the item END in a citation** — yes. An item whose trailing bracket is
+  prose is unciteable.
+
+A bracket group counts as a citation when any token is path-shaped: one of the
+four dotted families, the bare `monthsToBoard`, or a *foreign* dotted identifier
+(`awards.nam`, `psr.tours`) — which is then validated and fails, rather than
+being waved through as prose. Genuinely non-path brackets (`[NEC 742A]`,
+`[CIN A-531-0009]`, `[1610.10H]`, `[e.g., …]`) stay prose.
+
+**Citation-or-delete is also SEMANTIC.** `valid.has(path)` says nothing about
+what the path *says*, and `areas.<key>` is registered for every area
+unconditionally, so `"Your leadership record stands out. [areas.leadership]"`
+shipped intact with leadership at `needs_attention`. An item in `strengths` may
+cite an area only at `strong`/`on_track`; one in `gaps` only at
+`on_track`/`needs_attention`. `not_enough_entered` is excluded from **both** —
+nothing to praise from, and the coverage card promises "Nothing below is a grade
+on what you have not entered", so a gap there would re-introduce the
+unknown-vs-weak conflation this epic exists to remove. `recommendations` and
+`factor_commentary` assert no valence and are NOT polarity-gated. Three path
+families carry a status — `areas.<key>`, `coverage.missing.<key>` (which exists
+iff that area is `not_enough_entered`), and `actions.<id>` via its `area`;
+`unmet.*`, `coverage.measured|areasKnown|areasTotal` and `monthsToBoard` abstain.
+Multi-path citations require **unanimity** among the cited paths that have a
+status. The gate reports `withheld` (dropped `strengths` + `gaps`), which the
+Results screen names, so a removal is never a silent absence.
+
+A `factor_commentary` entry that cannot be cited falls back to the deterministic
+text (the schema requires all six keys, so it cannot be dropped).
+The prior prompt demanded citations to paths such as
 `[performance.detail.P1]` that were never in the serialized payload, and ordered
 the model to name LaDR categories the rubric deletes before serialization, so
 every citation was unresolvable and the mechanism was decorative. A bracket

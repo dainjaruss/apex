@@ -703,6 +703,85 @@ describe("ResultsView — the AI narrative", () => {
     expect(document.body.textContent).toContain("[NEC 742A]");
     expect(document.body.textContent).toContain("[CIN A-531-0009]");
   });
+
+  it("strips REAL action ids, which contain colons, and monthsToBoard", () => {
+    // Every other view test here uses `[actions.x]` / `[actions.a1]`, which have
+    // no colon, so a stripper whose character class omits `:` looks correct.
+    // Real ids are `ladr:${milestone_id}:${meet|answer}` and rendered RAW. Same
+    // for `monthsToBoard`, which the pattern did not list at all.
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        {
+          ...FULL,
+          strengths: ["Short plan [actions.ladr:m-cert:meet]. [areas.performance]"],
+          gaps: ["Five months left [monthsToBoard]. [areas.development]"],
+        },
+      ),
+    );
+    expect(document.body.textContent).toContain("Short plan.");
+    expect(document.body.textContent).toContain("Five months left.");
+    expect(document.body.textContent).not.toContain("actions.ladr");
+    expect(document.body.textContent).not.toContain("monthsToBoard");
+  });
+
+  // ── a withheld item must not read as a clean bill of health (PR #29) ───────
+  it("names what the gate removed instead of just showing a shorter list", () => {
+    renderWith(
+      withNarrative({ narrative_source: "model", model: "m" }, { ...FULL, withheld: 2 }),
+    );
+    const note = screen.getByTestId("narrative-withheld").textContent ?? "";
+    expect(note).toContain("2");
+    expect(note).toContain("could not verify against your record");
+    // `withheld` counts structural drops too, so the note may not claim that
+    // every removal was a status disagreement.
+    expect(note).toContain("not in your record");
+    // It must not read as a finding about the Sailor.
+    expect(note).toContain("not a finding about your record");
+  });
+
+  it("names a SINGLE withheld statement too", () => {
+    // `withheld > 0` → `withheld > 1` survived mutation because every other view
+    // test here uses 2 or 3. One dropped item is the commonest case and the
+    // exact PR #29 failure: a shorter list with nothing on screen explaining it.
+    renderWith(
+      withNarrative({ narrative_source: "model", model: "m" }, { ...FULL, withheld: 1 }),
+    );
+    const note = screen.getByTestId("narrative-withheld").textContent ?? "";
+    expect(note).toContain("1 written statement");
+    expect(note).not.toContain("statements");
+  });
+
+  it("says nothing when nothing was withheld", () => {
+    renderWith(withNarrative({ narrative_source: "model", model: "m" }, FULL));
+    expect(screen.queryByTestId("narrative-withheld")).toBeNull();
+  });
+
+  it("still renders the card when the gate emptied BOTH lists", () => {
+    // The whole point. An absent "What is working" says "nothing good was
+    // found"; the truth is "we could not verify what was written". Returning
+    // null here would print the first message and mean the second.
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        { ...FULL, strengths: [], gaps: [], withheld: 3 },
+      ),
+    );
+    expect(screen.getByText("In plain terms")).toBeTruthy();
+    expect(screen.getByTestId("narrative-withheld").textContent).toContain("3");
+    // …and it must NOT invent an empty heading that asserts the absence.
+    expect(screen.queryByText("What is working")).toBeNull();
+  });
+
+  it("still returns null when there is genuinely nothing to say", () => {
+    renderWith(
+      withNarrative(
+        { narrative_source: "model", model: "m" },
+        { ...FULL, strengths: [], gaps: [], withheld: 0 },
+      ),
+    );
+    expect(screen.queryByText("In plain terms")).toBeNull();
+  });
 });
 
 describe("ResultsView — empty and first-run states", () => {

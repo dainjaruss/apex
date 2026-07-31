@@ -24,7 +24,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { resolveAiModel } from "@/lib/aiProvider";
-import type { ReadinessReport } from "@/lib/boardConfidence/readiness";
+import type { AreaStatus, ReadinessReport } from "@/lib/boardConfidence/readiness";
 import type {
   FactorKey,
   PreceptFlag,
@@ -45,6 +45,15 @@ export const NarrativeSchema = z.object({
   }),
 });
 export type Narrative = z.infer<typeof NarrativeSchema>;
+
+/**
+ * What `applyCitationGate` returns, and what is persisted. `withheld` is NOT in
+ * `NarrativeSchema` on purpose: that schema is the model's structured-output
+ * grammar, and this is a fact about the gate, not something the model may
+ * assert. Optional so rows written before this change (and hand-built fixtures)
+ * still typecheck as narratives.
+ */
+export type GatedNarrative = Narrative & { withheld?: number };
 
 // v1.3: provider-agnostic. Two independent paths — NEITHER requires hosting
 // on (or any service from) Vercel:
@@ -74,7 +83,7 @@ export const narrativeModelId = (): string =>
   process.env.BOARD_NARRATIVE_MODEL || DEFAULT_NARRATIVE_MODEL;
 
 export interface NarrativeOutcome {
-  narrative: Narrative;
+  narrative: GatedNarrative;
   source: "model" | "fallback";
   model: string | null; // the model id used when source === "model", else null
   // v1.1 review fix: why the fallback was used (null when source === "model") —
@@ -110,6 +119,14 @@ export const NARRATIVE_SYSTEM_PROMPT =
   "Citations are machine-checked after you respond and any item citing a path " +
   "that is not in the payload is DELETED, so a claim you cannot cite is a claim " +
   "you lose.\n" +
+  "2b. The check also compares your claim to what the cited area SAYS, and " +
+  "deletes an item that disagrees with it. A strengths item may cite an area " +
+  "only if that area's status is strong or on_track; a gaps item only if it is " +
+  "on_track or needs_attention. An area whose status is not_enough_entered may " +
+  "not be cited by either list — see rule 4, it belongs in recommendations. If " +
+  "an item cites more than one area, EVERY cited area must satisfy this, so do " +
+  "not add a healthy area to a sentence that is about a weak one. " +
+  "recommendations are not checked this way: any status may be cited there.\n" +
   "3. NEVER state, estimate, imply or reconstruct an overall score, a total, a " +
   "point value, a percentage of points, a weight, or a band. The payload " +
   "deliberately omits them. If scored is false, APEX has decided it cannot " +
@@ -180,35 +197,269 @@ export function citationPaths(payload: NarrativePayload): Set<string> {
  *    routinely carries bracketed NEC and CIN codes, so a global strip ate real
  *    content: `Complete "Advanced Network Analyst [NEC 742A]". [actions.x]`
  *    rendered as `Complete "Advanced Network Analyst ".` Only the trailing
- *    group is a citation — the prompt requires the citation to END the item —
- *    so prose brackets are neither counted nor removed.
+ *    group is STRIPPED — the prompt requires the citation to end the item.
+ *
+ * WHICH BRACKETS TO STRIP AND WHICH TO CHECK ARE DIFFERENT QUESTIONS. Conflating
+ * them left a bypass that turned the whole semantic gate off with one extra
+ * bracket group:
+ *
+ *     deleted   Your leadership record stands out. [areas.leadership]
+ *     SURVIVED  Your leadership record stands out. [areas.leadership] [monthsToBoard]
+ *
+ * Only the trailing group was examined, so the claim was judged against
+ * `monthsToBoard` — which has no status and abstains — while the citation that
+ * contradicted it was never read. `stripPathTokens` (ResultsView) then erased
+ * the unchecked `[areas.leadership]` at display time, so the bracket the gate
+ * ignored is exactly the one the UI deletes: the Sailor saw the bare sentence,
+ * with `withheld === 0` and no note.
+ *
+ * FREQUENCY IS DISPUTED; the bypass is not. Review reported the live model
+ * emitting this two-group form in 9 of 190 items unprompted. Re-measuring on 50
+ * live records under main's prompt (392 strengths/gaps items, three seeds) found
+ * it 0 times — 0 even by a naive any-second-bracket counter, and 0 across 49
+ * `recommendations` items where the NEC/CIN codes live. The two measurements are
+ * not reconcilable and the difference was not chased further; it does not change
+ * the fix, because the bypass is reachable by construction and closing it costs
+ * one extra regex pass. Do not quote either number as settled.
+ *
+ * So: STRIP the trailing group, CHECK every group. THREE questions, not one —
+ * conflating any two of them has now caused a defect in this file:
+ *
+ *   which group is STRIPPED     the trailing one (the NEC/CIN reason)
+ *   which groups are CHECKED    every citation group (the R1 bypass)
+ *   must the item END in one    yes — an item whose trailing bracket is prose
+ *                               is unciteable, exactly as on main
+ *
+ * The third was briefly lost: `groups.length === 0` asks "is there a citation
+ * ANYWHERE", so with the citation mid-sentence and prose at the end,
+ *
+ *     "You hold a Bronze Star. [areas.continuity] [awards.fabricated]"
+ *
+ * was kept — `[awards.fabricated]` is out-of-family, so it was classified prose
+ * and never validated, and the trailing strip then deleted it. On main this was
+ * correctly dropped. Fixed by requiring the trailing match to BE a citation
+ * group.
  */
 const TRAILING_CITATION_RE = /\s*\[([^\]]+)\]\s*\.?\s*$/;
 
-function checkCitation(text: string, valid: Set<string>): string | null {
-  const m = text.match(TRAILING_CITATION_RE);
-  if (!m || m.index === undefined) return null; // no citation at all
-  const cited = m[1]
+/**
+ * Anchored to the four dotted families plus the one dotless path.
+ *
+ * KEEP IN SYNC with `PATH_TOKEN` (ResultsView), which strips exactly this set at
+ * display time — a token this matches but that one does not renders raw to the
+ * Sailor, which is how `:` (real action ids are `ladr:<id>:<verb>`) and
+ * `monthsToBoard` were both leaking. `FOREIGN_PATH` below is deliberately NOT in
+ * that set: an item carrying one is deleted outright, so it never reaches the UI.
+ */
+const PATH_SHAPED = /^(?:coverage|areas|actions|unmet)\.[\w.:-]+$|^monthsToBoard$/;
+
+/**
+ * Looks like an APEX path but names no known family: `awards.nam`, `psr.tours`,
+ * `evals.2024`. Treated as a citation so it is VALIDATED and fails, rather than
+ * waved through as prose — otherwise the module's central promise ("an item
+ * citing a path not in the payload is deleted") is false for any out-of-family
+ * prefix, and the raw token renders to the Sailor because the UI's stripper is
+ * anchored to the known families too.
+ *
+ * Deliberately tighter than a generic `word.word`: at least two leading
+ * lowercase chars and a non-dot after the dot. `[1610.10H]` (digit), `[NEC
+ * 742A]` and `[CIN A-531-0009]` (spaces) and `[e.g., …]` (one char, trailing
+ * dot) all stay prose. Checked against the shipped roadmaps: no seeded LaDR
+ * item text contains a bracket at all, so the only bracketed prose here is what
+ * the model writes.
+ */
+const FOREIGN_PATH = /^[a-z][a-z0-9]+\.[\w:-][\w.:-]*$/;
+
+const isCitation = (toks: string[]) =>
+  // `some`, not `every`: `[areas.performance, awards.fabricated]` must be read
+  // as a citation so the fabricated half is caught, not waved through as prose.
+  toks.length > 0 && toks.some((t) => PATH_SHAPED.test(t) || FOREIGN_PATH.test(t));
+
+const tokensOf = (group: string) =>
+  group
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (cited.length === 0 || !cited.every((c) => valid.has(c))) return null;
+
+/** Every bracket group in the item that is a citation rather than prose. */
+function citationGroups(text: string): string[][] {
+  const groups: string[][] = [];
+  const re = new RegExp(CITATION_RE.source, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const toks = tokensOf(m[1]);
+    if (isCitation(toks)) groups.push(toks);
+  }
+  return groups;
+}
+
+function checkCitation(
+  text: string,
+  valid: Set<string>,
+  agrees: (cited: string[]) => boolean = () => true,
+): string | null {
+  const m = text.match(TRAILING_CITATION_RE);
+  if (!m || m.index === undefined) return null; // no trailing bracket at all
+  if (!isCitation(tokensOf(m[1]))) return null; // it ends in prose, not a citation
+  for (const cited of citationGroups(text)) {
+    if (!cited.every((c) => valid.has(c))) return null;
+    if (!agrees(cited)) return null;
+  }
   return text.slice(0, m.index).trim();
 }
 
+// ── The citation must AGREE, not merely resolve ─────────────────────────────
+//
+// `valid.has(path)` is a statement about the payload's shape and says nothing
+// about what the payload SAYS. `citationPaths` registers `areas.<key>` for every
+// area unconditionally, so `[areas.leadership]` resolved whatever leadership's
+// status was — and
+//
+//     "Your leadership record stands out. [areas.leadership]"
+//
+// shipped intact with leadership at `needs_attention`, one viewport above its own
+// card reading NEEDS ATTENTION. The bracket is the Sailor's provenance signal;
+// pointing it at a source that says the opposite is worse than omitting it.
+//
+// Only `strengths` and `gaps` are checked. Membership in those two lists is
+// itself a claim about the area — "What is working" / "What a board would
+// notice" (ResultsView) — so it can contradict a status. `recommendations` and
+// `factor_commentary` assert no valence: "Fill in your PSR" is equally true of a
+// strong area and an empty one, so there is nothing for a status to disagree
+// with, and gating them would delete correct advice.
+
 /**
- * Drop unciteable list items; fall back to the deterministic text for any
- * factor_commentary entry that cannot be cited (the schema requires all six, so
- * they cannot be deleted — but an unsupported one must not be shown either).
+ * Area statuses each valence may cite. Read as: what must be true of the area
+ * for this sentence to be honest in front of its own card.
+ *
+ * `not_enough_entered` is excluded from BOTH, for two different reasons, and
+ * that asymmetry is the point — it is NOT `needs_attention` and is not treated
+ * as it:
+ *
+ *  - out of `strengths` because APEX holds no data, so there is nothing to
+ *    praise from. This is not "the area is weak"; it is "no claim is supported".
+ *  - out of `gaps` because the coverage card at the top of the same screen
+ *    promises, verbatim: "Nothing below is a grade on what you have not
+ *    entered." An item under "What a board would notice" citing an area APEX
+ *    cannot see breaks that promise in the Sailor's own viewport, and tells them
+ *    a board will notice a deficiency that may not exist — the entered/weak
+ *    conflation this epic was founded to remove.
+ *
+ * The distinction survives where it decides an outcome: a `gaps` item citing
+ * `needs_attention` is KEPT (a grade on what IS entered, which the promise
+ * permits and the amber card already asserts) while the same item citing
+ * `not_enough_entered` is dropped. "Enter your PSR" is not lost — it is what
+ * `recommendations` and the coverage card's `missing`/`howTo` are for, both of
+ * which stay ungated.
+ */
+const AGREEING_STATUSES: Record<"strengths" | "gaps", ReadonlySet<AreaStatus>> = {
+  strengths: new Set<AreaStatus>(["strong", "on_track"]),
+  gaps: new Set<AreaStatus>(["on_track", "needs_attention"]),
+};
+
+/**
+ * MULTI-PATH RULE: unanimity across every cited path that HAS a status; paths
+ * that genuinely have none abstain.
+ *
+ * When two cited paths disagree, the item is dropped. The alternative — keep it
+ * if ANY cited path agrees — re-opens, one level up, precisely the laundering
+ * hole `every()` was introduced to close: append one healthy area to a sentence
+ * about a weak one and the contradiction rides along. The Sailor reads the
+ * bracket as "this is where the sentence comes from" and cannot tell which of
+ * two listed sources it was actually built on, so every source named has to
+ * support it for the bracket to mean what it is read to mean.
+ *
+ * THREE PATH FAMILIES CARRY A STATUS, not one. An earlier version of this
+ * checked only `areas.<key>` and called everything else statusless, which
+ * enforced the rule for one spelling and left it open for more natural ones:
+ *
+ *     deleted   gaps: …thin emphasis-area coverage. [areas.precept]
+ *     SURVIVED  gaps: …thin emphasis-area coverage. [coverage.missing.precept]
+ *     SURVIVED  strengths: Your development roadmap is fully answered. [actions.ladr:…]
+ *
+ *  - `coverage.missing.<key>` exists IFF that area is `not_enough_entered`
+ *    (readiness.ts filters on exactly that), so it carries its area's status.
+ *    It is looked up rather than hardcoded to `not_enough_entered`, so it stays
+ *    correct if that filter ever widens.
+ *  - `actions.<id>` ships `area: FactorKey` in the payload, so it carries that
+ *    area's status.
+ *  - `unmet.<milestone_id>`, `coverage.measured|areasKnown|areasTotal` and
+ *    `monthsToBoard` really do have no area, and really do abstain.
+ *
+ * ponytail: KNOWN CEILING — this checks the status of the path the item CITES,
+ * never the subject the prose is ABOUT, so a misattributed citation is invisible
+ * to it. Measured, not theorised: with leadership at `needs_attention`, both
+ *   "Your leadership record stands out. [monthsToBoard]"
+ *   "Your leadership record stands out. [areas.continuity]"   (continuity strong)
+ * survive, while the honestly-cited [areas.leadership] form is deleted. Live
+ * output hits this for real — one screen carried "your remaining roadmap items
+ * are down to two clearly named targets [unmet.m2-1]" under What is working and
+ * "most of the milestones on your rating's roadmap are still open
+ * [areas.development]" under What a board would notice, with `withheld === 0`.
+ *
+ * Requiring every strengths/gaps item to cite at least one area would close the
+ * statusless-path half, and was REJECTED on evidence: live output is full of
+ * legitimate items like "APEX could see five of the six areas of your record,
+ * which is enough breadth to give you specific feedback" citing
+ * `coverage.measured`, and that rule would delete them. The same-status-wrong-
+ * subject half cannot be closed by any check over paths at all; it needs the
+ * prose matched to a subject, which is a language model judging a language model
+ * and can be wrong in the direction that matters. Upgrade path if this proves to
+ * bite: have the model emit the subject area as a STRUCTURED field beside each
+ * item instead of inferring it from the citation, and check that field.
+ */
+function agreementCheck(
+  payload: NarrativePayload,
+  valence: "strengths" | "gaps",
+): (cited: string[]) => boolean {
+  const byArea = new Map(payload.areas.map((a) => [a.key, a.status]));
+  const status = new Map<string, string>();
+  for (const a of payload.areas) status.set(`areas.${a.key}`, a.status);
+  for (const m of payload.coverage.missing) {
+    const s = byArea.get(m.area);
+    if (s !== undefined) status.set(`coverage.missing.${m.area}`, s);
+  }
+  for (const a of payload.actions) {
+    const s = byArea.get(a.area);
+    if (s !== undefined) status.set(`actions.${a.id}`, s);
+  }
+  const allowed = AGREEING_STATUSES[valence];
+  return (cited) =>
+    cited.every((c) => {
+      const s = status.get(c);
+      return s === undefined || allowed.has(s as AreaStatus);
+    });
+}
+
+/**
+ * Drop unciteable and self-contradicting list items; fall back to the
+ * deterministic text for any factor_commentary entry that cannot be cited (the
+ * schema requires all six, so they cannot be deleted — but an unsupported one
+ * must not be shown either).
+ *
+ * Reports `withheld`: how many `strengths` + `gaps` items were removed, for
+ * either reason. A dropped item must not become a silent absence — an empty
+ * "What is working" reads as "nothing good was found" when it means "we could
+ * not verify these claims", and those are opposite messages. Only the two
+ * rendered lists are counted, so the number always reconciles with the screen.
+ *
+ * `withheld: 0` IS NOT EVIDENCE THIS GATE WORKS. Once the system prompt states
+ * the agreement rule (2b), the model largely stops emitting contradictions:
+ * across live records with 2b in place, zero citation-detectable contradictions
+ * appeared, so the gate never fired. Against main's prompt, on the same
+ * generator, 11 of 20 records produced at least one. The prompt does the work in
+ * the common case; the gate exists for the case where it does not. A run of
+ * clean production traffic says the prompt is holding, and says nothing at all
+ * about whether this function is correct — only the tests do that.
  */
 export function applyCitationGate(
   narrative: Narrative,
   payload: NarrativePayload,
   deterministic: Narrative,
-): Narrative {
+): GatedNarrative {
   const valid = citationPaths(payload);
-  const list = (items: string[]) =>
-    items.map((t) => checkCitation(t, valid)).filter((t): t is string => !!t);
+  const list = (items: string[], agrees?: (cited: string[]) => boolean) =>
+    items.map((t) => checkCitation(t, valid, agrees)).filter((t): t is string => !!t);
 
   const factor_commentary = { ...narrative.factor_commentary };
   for (const key of AREA_ORDER) {
@@ -216,11 +467,18 @@ export function applyCitationGate(
     factor_commentary[key] = kept ?? deterministic.factor_commentary[key];
   }
 
+  const strengths = list(narrative.strengths, agreementCheck(payload, "strengths"));
+  const gaps = list(narrative.gaps, agreementCheck(payload, "gaps"));
+
   return {
-    strengths: list(narrative.strengths),
-    gaps: list(narrative.gaps),
+    strengths,
+    gaps,
     recommendations: list(narrative.recommendations),
     factor_commentary,
+    withheld:
+      narrative.strengths.length -
+      strengths.length +
+      (narrative.gaps.length - gaps.length),
   };
 }
 

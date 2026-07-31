@@ -108,27 +108,32 @@ const STATUS_STYLE = {
 } as const;
 
 /**
- * The narrative's citation gate parses only the TRAILING bracket group,
- * deliberately, so that legitimate prose brackets survive: `Complete "Advanced
- * Network Analyst [NEC 742A]"` keeps its NEC code, which matters because the
- * transcribed roadmaps are full of bracketed NEC and CIN codes. The cost is
- * that a path-shaped token in NON-final position now reaches the Sailor —
- * `"Solid [areas.bogus]. [areas.performance]"` arrives as `"Solid
- * [areas.bogus]."`. It cannot launder a claim (the trailing group still gates
- * the whole item, so the anti-fabrication property holds) but it is ugly, so it
- * is stripped at display time instead.
+ * The narrative's citation gate STRIPS only the trailing bracket group (it
+ * checks them all), so that legitimate prose brackets survive: `Complete
+ * "Advanced Network Analyst [NEC 742A]"` keeps its NEC code, which matters
+ * because the transcribed roadmaps are full of bracketed NEC and CIN codes. The
+ * cost is that a citation token in NON-final position reaches the Sailor —
+ * `"Solid [areas.performance]. [areas.continuity]"` arrives as `"Solid
+ * [areas.performance]."`. It cannot launder a claim (every group is validated
+ * and must agree with what it points at) but it is ugly, so it is stripped at
+ * display time instead.
  *
- * ANCHORED TO THE LEGAL PREFIXES, not to a generic `word.word` shape. The set is
- * closed and enumerated by `citationPaths()`: the four dotted families
- * coverage. / areas. / actions. / unmet., plus the bare `monthsToBoard`, which
- * needs no pattern here because it carries no dot. Anything else in brackets is
- * left alone. A shape-only match
- * degraded by MANGLING rather than removing: `"…per [1610.10H]. [actions.a1]"`
- * became `"…per."`, which reads as broken software. No data path produces such a
- * token today (warnings are not in the payload and the prompt discourages it),
- * but "reachable but harmless" is not a reason to render garbage.
+ * ANCHORED TO THE LEGAL PREFIXES, not to a generic `word.word` shape. A
+ * shape-only match degraded by MANGLING rather than removing:
+ * `"…per [1610.10H]. [actions.a1]"` became `"…per."`, which reads as broken
+ * software.
+ *
+ * MUST STAY IN SYNC WITH `PATH_SHAPED` (narrative.ts). It was out of sync in two
+ * ways that both rendered raw tokens to a Sailor:
+ *   - `monthsToBoard` was omitted, on the reasoning that it "carries no dot" —
+ *     true of a shape-only matcher, irrelevant to an enumerated one.
+ *   - the character class lacked `:`, but real action ids are
+ *     `ladr:${milestone_id}:${meet|answer}`, so every non-trailing
+ *     `[actions.ladr:m-cert:meet]` survived intact.
+ * Out-of-family tokens (`[awards.fabricated]`) are deliberately NOT stripped
+ * here: the gate deletes the whole item instead, so they cannot arrive.
  */
-const PATH_TOKEN = /\s*\[(?:coverage|areas|actions|unmet)\.[\w.-]+\]/g;
+const PATH_TOKEN = /\s*\[(?:(?:coverage|areas|actions|unmet)\.[\w.:-]+|monthsToBoard)\]/g;
 
 const stripPathTokens = (text: string): string =>
   text.replace(PATH_TOKEN, "").replace(/\s+([.,;:])/g, "$1").trim();
@@ -510,7 +515,14 @@ function AreaCard({ area }: { area: Area }) {
 function ModelNarrative({ narrative }: { narrative: BoardAnalysisRow["narrative"] }) {
   const strengths = (narrative?.strengths ?? []).map(stripPathTokens).filter(Boolean);
   const gaps = (narrative?.gaps ?? []).map(stripPathTokens).filter(Boolean);
-  if (strengths.length === 0 && gaps.length === 0) return null;
+  // A dropped item must not read as a clean bill of health. The gate deletes a
+  // claim that contradicts the area it cites, and an absent "What is working"
+  // says "nothing good was found" when it means "we could not verify these
+  // claims" — opposite messages. So the card renders whenever anything was
+  // withheld, even with both lists empty, and names the removal. Counting only
+  // the two lists rendered here keeps the number reconcilable with the screen.
+  const withheld = narrative?.withheld ?? 0;
+  if (strengths.length === 0 && gaps.length === 0 && withheld === 0) return null;
   return (
     <section className="apex-card p-4 space-y-3" aria-labelledby="readiness-narrative">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -541,6 +553,24 @@ function ModelNarrative({ narrative }: { narrative: BoardAnalysisRow["narrative"
             </ul>
           </div>
         ),
+      )}
+      {withheld > 0 && (
+        <p
+          className="text-xs"
+          style={{ color: "var(--muted-foreground)" }}
+          data-testid="narrative-withheld"
+        >
+          {/* `withheld` counts BOTH kinds of drop — a citation that resolves to
+              nothing, and one that disagrees with what it points at — so the
+              wording has to cover both. Naming only the second was wrong for
+              items that cited no area at all. */}
+          APEX removed {withheld} written {withheld === 1 ? "statement" : "statements"}{" "}
+          it could not verify against your record: the source{" "}
+          {withheld === 1 ? "it cited" : "they cited"} is either not in your
+          record, or does not say what the sentence claimed. That is a check on
+          the writing, not a finding about your record — the area cards above are
+          what APEX actually measured.
+        </p>
       )}
     </section>
   );
