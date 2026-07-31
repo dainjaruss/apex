@@ -620,8 +620,29 @@ reducing the summary-group size or increasing the promotion quotas."
 > reporting senior) to determine the candidate's level of performance. Board members shall **also
 > compare the individual trait average to the summary group** being reported."
 
-**Two directed comparisons**: ITA vs RSCA, and ITA vs summary group. APEX models the first; the second
-is a documented, citable second axis it could add.
+**Two directed comparisons**: ITA vs RSCA, and ITA vs summary group. **APEX models the SECOND only.**
+The first was removed from scoring in PR #37 and the sentence here previously said the opposite.
+
+Why it was removed, and what that costs. `rsca` is typed by the Sailor into
+`member_board_records.eval_context`, and as a scored input it created a withholding channel with **no
+confidence signature at all** — measured on one record with the summary-group average present, typing
+it honestly at 4.4 scored 60.6 while leaving it blank scored 71.4, with every factor confidence and
+the coverage number identical. Nothing any gate reads changes, so no threshold can catch it; deleting
+the input was the only complete fix. It penalised exactly the Sailors who filled it in.
+
+What is lost is real and is the reason this note exists. **RSCA is the only axis that can see a
+generous reporting senior.** The summary-group average is computed *within* a group, so an RS who
+inflates everyone inflates the SGA too and the comparison cancels; RSCA spans every Sailor that RS has
+graded and does not. Restoring it needs a source APEX does not have — the instruction publishes no
+formula (see below) and there is no NSIPS or PSR feed — not a smaller coefficient.
+
+**And the surviving axis is weaker than its label.** APEX's "summary group average" is pooled by
+`service.ts` from other APEX users' self-entered finalized evals sharing a `summary_group_id`, and it
+does **not exclude the subject's own row**. Measured at ITA 3.40: an honest group of 10 with SGA 4.00
+scores 38.1; a group of one — only the subject, so SGA equals their own ITA — scores 57.0; a group of
+two with one weak peer scores 63.5. That is +25.4 at full coverage, rendered as "compared to your
+summary group". Pre-existing, and out of scope for #37 — but with RSCA gone the SGA carries the whole
+comparison axis, so its provenance now matters more than it did.
 
 **RSCA facts:**
 - **No formula is published anywhere.** The EVALMAN never states how NAVPERSCOM computes it; the

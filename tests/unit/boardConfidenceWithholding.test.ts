@@ -401,7 +401,19 @@ describe("retiring the aggregate floor — measured inside this engine", () => {
     // (conf exactly 0.500 is reachable — a two-flag precept with one computable
     // indicator — and both comparisons must grade it).
     let checked = 0;
+    let excludedChecked = 0;
     for (const x of rows) {
+      // An EXCLUDED area — one the engine replaced with a placeholder because it
+      // was never configured — must never carry a graded status, scored run or
+      // not. This arm is the one the earlier version of this invariant was blind
+      // to: it skipped every weight-0 area, and the placeholder is weight 0, so
+      // it could not see the case it was meant to guard. `needs_attention` on an
+      // unconfigured precept reached the Sailor through narrative.ts `gaps`.
+      for (const area of x.rep.areas) {
+        if (area.detail.detail.excluded !== true) continue;
+        excludedChecked++;
+        expect(area.status).toBe("not_enough_entered");
+      }
       if (!x.scored) continue;
       for (const area of x.rep.areas) {
         if (area.detail.weight === 0) continue;
@@ -414,6 +426,7 @@ describe("retiring the aggregate floor — measured inside this engine", () => {
       }
     }
     expect(checked).toBeGreaterThan(1000); // not vacuous
+    expect(excludedChecked).toBeGreaterThan(1000); // …and neither is the arm above
   });
 
   it("an empty record is still withheld, by the per-factor rule alone", () => {

@@ -1393,7 +1393,11 @@ describe("INVARIANT — self-attested fields cannot move the composite", () => {
     // number which can only hurt you is safe. It is not: the ratchet binds only
     // on Sailors who fill it in, so LEAVING IT BLANK pays — measured +10.8 with
     // SGA present — and the removal changes no confidence and no coverage, so no
-    // gate can see it. The input is gone from scoring instead.
+    // gate can see it. The input is gone from scoring instead — at a real cost:
+    // RSCA is NAVPERS 1616/27 Block 44 and the FY-27 precept App A 7.e directs
+    // the comparison, and it is the only axis that can see a generous reporting
+    // senior. Deleted anyway because no formula is published, APEX has no feed to
+    // corroborate one, and it penalised only the honest. See rubric.ts P2.
     const grid = [null, 2.0, 3.0, 3.4, 4.0, 4.2, 4.6, 5.0];
     for (const sga of [null, 4.0]) {
       const base = solid({

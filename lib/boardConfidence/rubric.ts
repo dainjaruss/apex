@@ -310,8 +310,32 @@ function scorePerformance(evals: RubricEvalInput[], T: string): FactorScore {
     //
     // That is also why it had to be deleted rather than gated: AREA_EVIDENCE_FLOOR
     // reads confidence, and this removal does not touch confidence. Deleting the
-    // input is the only thing that closes it, and deleting it costs nothing —
-    // `summary_group_average` is the comparator a board actually has.
+    // input is the only complete fix available.
+    //
+    // IT DOES NOT COST NOTHING, and an earlier revision of this comment claimed
+    // it did. RSCA is a PRINTED FIELD on the form this population uses —
+    // NAVPERS 1616/27 Block 44, in the AVERAGES panel beside 43 Member Trait and
+    // 45 Group Summary — and the FY-27 precept App A 7.e directs BOTH
+    // comparisons: "Board members shall compare the RSCA to the candidate's
+    // individual trait average… Board members shall ALSO compare the individual
+    // trait average to the summary group being reported." APEX now models the
+    // second and has deleted the first.
+    //
+    // What that loses is the only axis that can see a GENEROUS reporting senior:
+    // the summary-group average is computed within a group, so an RS who inflates
+    // everyone inflates the SGA and the comparison cancels, while RSCA spans every
+    // Sailor that RS has graded and does not cancel. It is deleted anyway because
+    // the instruction publishes no formula for it, APEX has no NSIPS or PSR feed
+    // to corroborate one, live eval_context is {} on every row so no Sailor has
+    // ever typed one, and as a scored input it penalised only the honest.
+    //
+    // And the surviving axis is weaker than its label: service.ts pools
+    // `summary_group_average` from other APEX users' self-entered finalized evals
+    // WITHOUT excluding the subject's own row. At ITA 3.40 an honest group of ten
+    // scores 38.1, a group of one — only the subject — scores 57.0, and a group of
+    // two with one weak peer scores 63.5. Pre-existing and out of scope here, but
+    // with RSCA gone this axis carries the whole comparison. See
+    // docs/navy-reference.md.
     const comparator = e.summary_group_average;
     let s: number;
     let w: number;

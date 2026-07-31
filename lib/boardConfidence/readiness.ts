@@ -135,7 +135,9 @@ export const BLIND_SPOT_GATE = true;
  * +10.8 with EVERY factor confidence identical. A removal that changes no
  * confidence cannot be seen by a threshold on confidence, whatever the threshold
  * is. That is the whole argument, and it is why the fix for `rsca` was to delete
- * the input from scoring (rubric.ts P2) rather than to tune this constant.
+ * the input from scoring (rubric.ts P2) rather than to tune this constant. That
+ * deletion is not free — RSCA is a printed field (NAVPERS 1616/27 Block 44) and
+ * the FY-27 precept directs the comparison — see rubric.ts P2 for what is lost.
  *
  * The granularity argument is the weaker, more general version of the same
  * point: this gate reads a FACTOR's confidence, while the exploit removes a
@@ -504,7 +506,19 @@ function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs)
       // missing. Now a partially-computable precept is graded like anything else,
       // and one below AREA_EVIDENCE_FLOOR blinds the whole composite rather than
       // contributing to a score while claiming to be absent.
-      return f.confidence > 0;
+      //
+      // The length guard is NOT redundant and dropping it was a regression on
+      // 100% of live runs. With no precept loaded the engine substitutes the
+      // placeholder { S: 0, conf: 1, detail: { excluded: true } } (rubric.ts), so
+      // `f.confidence > 0` alone is true, the confidence gate passes, and S = 0
+      // falls through to `needs_attention` — telling a flawless record it
+      // "covers few of the emphasis areas" about a precept that was never
+      // configured. The area CARD filters on preceptConfigured, but narrative.ts
+      // pushes any needs_attention area into `gaps`, so it reached the Sailor
+      // under "What a board would notice": a deficiency asserted from an absence,
+      // this epic's own defect class, about the one thing they cannot act on.
+      // Hosted board_precepts has 0 rows.
+      return inputs.preceptFlags.length > 0 && f.confidence > 0;
   }
 }
 
