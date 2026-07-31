@@ -159,8 +159,8 @@ function GroupForm({
     setSaving(true);
     try {
       // Blank UIC is stored as NULL, not '' — the migration-012 check constraint accepts
-      // only a 5-character UIC or NULL. Blank BILLET, by contrast, is a real Block 21
-      // entry and is stored as '' so it groups with other blank-billet reports.
+      // only a 5-character UIC or NULL. Block 21 has no blank case at all: p. 1-7 says
+      // enter "NA", so the select offers no empty option and the column forbids ''.
       await createSummaryGroup({ ...g, uic: g.uic || null }, createdBy);
       setG({ ...g, name: "" });
       onCreated();
@@ -452,10 +452,16 @@ function GroupCard({
           </p>
           {/* Blocks 5/6/21 — two groups may now differ only by these, so they have to
               be on the card. "not stated" marks a pre-migration-012 group, which does
-              not restrict membership by Block 5 or Block 21. */}
+              not restrict membership by Block 5 or Block 21. Same `!= null` shape as
+              describeSummaryGroup: a group holding a blank Block 21 must not render
+              identically to one that never stated a value. Unreachable under the
+              column's `<> ''` check — kept so an anomaly shows rather than hides. */}
           <p className="text-xs mt-0.5 apex-text-muted">
-            Blk 5: {g.duty_status || "not stated"} · Blk 21:{" "}
-            {g.billet_subcategory || "not stated"}
+            Blk 5: {g.duty_status != null ? g.duty_status : "not stated"} · Blk
+            21:{" "}
+            {g.billet_subcategory != null
+              ? g.billet_subcategory || "(blank)"
+              : "not stated"}
             {g.uic ? ` · UIC ${g.uic}` : ""}
           </p>
         </button>

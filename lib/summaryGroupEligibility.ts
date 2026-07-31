@@ -152,13 +152,21 @@ export function isEvalEligibleForSummaryGroup(
   )
     return false;
 
-  // Block 21 Billet — "Group by entry in this block." Every report has an entry: p. 1-7,
-  // "Select or enter the billet subcategory code, if authorized, or enter 'NA.' Do not
-  // leave blank." (The form's "(if any)" asks whether a subcategory APPLIES; p. 1-7 says
-  // what you write when it does not.) A blank Block 21 is therefore a form defect, not a
-  // grouping bucket — types/navpers.ts enforces the same with .min(1), and the column has
-  // a `<> ''` check. `!= null` rather than truthiness solely so a pre-012 group (null,
-  // never stated) stays unrestricted instead of demanding a blank entry no eval can have.
+  // Block 21 Billet — "Group by entry in this block." Every report HAS an entry, so blank
+  // is never a grouping bucket. The header and the body of the instruction disagree here,
+  // and the body wins: p. 1-7 prints the block header "BILLET SUBCATEGORY (IF ANY)" — the
+  // same wording as the blank forms — but its body text is
+  //   "Select or enter the billet subcategory code, if authorized, or enter 'NA.' Do not
+  //    leave blank."
+  // and table 1-1 (p. 1-8) defines NA as "Subcategories not used. (Should appear in most
+  // reports.)" So "(if any)" asks whether a subcategory APPLIES; the body says what you
+  // write when it does not. Reading the header alone yields the opposite rule, which is
+  // what an earlier revision of this file did — hence the note.
+  //
+  // A blank Block 21 is therefore a form defect: types/navpers.ts enforces .min(1) and the
+  // column carries a `<> ''` check. `!= null` rather than truthiness solely so a pre-012
+  // group (null, never stated) stays unrestricted instead of demanding a blank entry that
+  // no evaluation can have — and so the shape fails CLOSED if that check is ever dropped.
   if (
     group.billet_subcategory != null &&
     norm(ev.block_values?.billet_subcategory).toUpperCase() !==
