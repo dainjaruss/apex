@@ -198,30 +198,32 @@ describe("isEvalEligibleForSummaryGroup", () => {
     ).toBe(false);
   });
 
-  // The blank forms in public/ print "21. Billet Subcategory (if any)", so NO entry is
-  // itself an entry, and "Group by entry in this block" makes blank group with blank.
-  // A group that STATES a blank Block 21 ('') must therefore reject a report that has
-  // one ("NA"), which a truthiness guard — `if (group.billet_subcategory && …)` — cannot
-  // do, because '' is falsy. This test is the difference between the two.
-  it("treats a stated-blank Block 21 as an entry, not as 'unrestricted'", () => {
-    const blankBilletGroup: SummaryGroupWithRs = {
-      ...matchingGroup,
-      id: "g-billet-blank",
-      duty_status: "ACT",
-      billet_subcategory: "",
-    };
-    // Eval HAS a Block 21 entry ("NA") — the group's entry is blank, so it does not match.
-    expect(isEvalEligibleForSummaryGroup(baseEval, blankBilletGroup)).toBe(
-      false,
-    );
-    // Eval has NO Block 21 entry — same entry as the group, so it joins.
+  // Block 21 codes are case-insensitive to APEX but not case-controlled by the database:
+  // unlike duty_status there is no enumerated CHECK, so a lowercase "na" is genuinely
+  // storable. Both sides of the compare must fold case — dropping .toUpperCase() from
+  // EITHER side must fail here.
+  it("compares Block 21 case-insensitively on both sides", () => {
+    expect(
+      isEvalEligibleForSummaryGroup(baseEval, {
+        ...matchingGroup,
+        id: "g-billet-lower",
+        billet_subcategory: "na", // group side lowercase, eval side "NA"
+      }),
+    ).toBe(true);
     expect(
       isEvalEligibleForSummaryGroup(
         {
           ...baseEval,
-          block_values: { reporting_senior_dod_id: "4567890123" },
+          block_values: {
+            reporting_senior_dod_id: "4567890123",
+            billet_subcategory: "instructor", // eval side lowercase
+          },
         },
-        blankBilletGroup,
+        {
+          ...matchingGroup,
+          id: "g-billet-upper",
+          billet_subcategory: "INSTRUCTOR",
+        },
       ),
     ).toBe(true);
   });

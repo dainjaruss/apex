@@ -29,7 +29,7 @@ export interface SummaryGroup {
   // lib/summaryGroupEligibility.ts for what each one does and does not restrict.
   uic?: string | null; // Block 6 — permissive (enlisted only); empty = not splitting by UIC
   duty_status?: string | null; // Block 5 — ACT | TAR | INACT | AT/ADOS
-  billet_subcategory?: string | null; // Block 21 — '' is a stated-blank entry, not "unset"
+  billet_subcategory?: string | null; // Block 21 — never blank (p. 1-7); a table 1-1 code, or null pre-012
   report_type?: "EVAL" | string;
   status?: "open" | "closed";
   created_by?: string;

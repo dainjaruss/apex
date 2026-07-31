@@ -4,7 +4,7 @@
 //
 // "A summary group consists of all reports that share all the characteristics in the
 // following tables" — Encl (2), ch. 1, "EVAL BLOCK 46 / FITREP BLOCK 43 / CHIEFEVAL
-// BLOCK 48 SUMMARY", p. 1-18. The tables are 1-4 (ENLISTED, E-1 through E-9, p. 1-22)
+// BLOCK 48 SUMMARY", p. 1-19. The tables are 1-4 (ENLISTED, E-1 through E-9, p. 1-22)
 // and 1-3 (OFFICERS, W-1 through O-6, p. 1-19).
 //
 // Table 1-4, verbatim — group enlisted reports that share all of:
@@ -37,7 +37,7 @@
 //   Blk 42 Promotion Rec        "Must have Observed promotion recommendation."
 //
 // i.e. officers add Block 3, take Block 19 into the type-of-report span, have NO Block 6
-// UIC row at all, and do NOT merge ACT with TAR — p. 1-19 note: "Active, TAR, and INACT
+// UIC row at all, and do NOT merge ACT with TAR — p. 1-20 note: "Active, TAR, and INACT
 // officers are separated in different summary groups by the entry in block 5."
 //
 // NOT MODELLED — Block 3 Designator, and this fails open for officer groups. The
@@ -152,9 +152,13 @@ export function isEvalEligibleForSummaryGroup(
   )
     return false;
 
-  // Block 21 Billet — "Group by entry in this block." The forms print "(if any)", so a
-  // stated-blank entry ('') is itself an entry and groups only with blank; `!= null`, not
-  // truthiness, is what keeps that distinct from an unstated pre-012 group (null).
+  // Block 21 Billet — "Group by entry in this block." Every report has an entry: p. 1-7,
+  // "Select or enter the billet subcategory code, if authorized, or enter 'NA.' Do not
+  // leave blank." (The form's "(if any)" asks whether a subcategory APPLIES; p. 1-7 says
+  // what you write when it does not.) A blank Block 21 is therefore a form defect, not a
+  // grouping bucket — types/navpers.ts enforces the same with .min(1), and the column has
+  // a `<> ''` check. `!= null` rather than truthiness solely so a pre-012 group (null,
+  // never stated) stays unrestricted instead of demanding a blank entry no eval can have.
   if (
     group.billet_subcategory != null &&
     norm(ev.block_values?.billet_subcategory).toUpperCase() !==
@@ -185,12 +189,14 @@ export function visibleSummaryGroupsForEval(
 
 export function describeSummaryGroup(g: SummaryGroup): string {
   // Block 5 and Block 21 are shown because two groups may now differ ONLY by those, and a
-  // reporting senior picking from a list has to be able to tell them apart.
+  // reporting senior picking from a list has to be able to tell them apart. Mirrors the
+  // guard's `!= null`, so a group holding a blank Block 21 renders as blank rather than
+  // vanishing and reading identically to a pre-012 group that never stated one.
   return (
     `${g.name} · ${g.grade_rate}` +
     `${g.uic ? ` · UIC ${g.uic}` : ""}` +
-    `${g.duty_status ? ` · ${g.duty_status}` : ""}` +
-    `${g.billet_subcategory ? ` · Billet ${g.billet_subcategory}` : ""}` +
+    `${g.duty_status != null ? ` · ${g.duty_status}` : ""}` +
+    `${g.billet_subcategory != null ? ` · Billet ${g.billet_subcategory || "(blank)"}` : ""}` +
     ` · ${g.promotion_status} · ends ${g.period_to}`
   );
 }

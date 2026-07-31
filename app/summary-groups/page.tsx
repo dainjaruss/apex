@@ -126,7 +126,9 @@ function GroupForm({
     command_employment: "",
     // Blocks 5 and 21 are unconditional discriminators (Tables 1-3/1-4), so a new group
     // must state both. Defaults mirror lib/formDefinitions.ts so the common case is one
-    // click. Block 6 UIC is permissive — blank means "not splitting by UIC".
+    // click — and "NA" is what p. 1-7 tells you to enter when no subcategory applies
+    // ("Do not leave blank"), so there is no blank option to offer.
+    // Block 6 UIC is permissive — blank means "not splitting by UIC".
     duty_status: "ACT",
     billet_subcategory: "NA",
     uic: "",
@@ -144,11 +146,10 @@ function GroupForm({
       !g.period_to ||
       !g.grade_rate ||
       !g.command_employment ||
-      !g.duty_status
+      !g.duty_status ||
+      !g.billet_subcategory
     ) {
-      setError(
-        "All fields are required (Billet Subcategory and UIC may be blank).",
-      );
+      setError("All fields are required (only UIC may be blank).");
       return;
     }
     if (g.uic && g.uic.length !== 5) {
@@ -280,7 +281,6 @@ function GroupForm({
             value={g.billet_subcategory ?? ""}
             onChange={(e) => set("billet_subcategory", e.target.value)}
           >
-            <option value="">(no entry)</option>
             {BILLET_SUBCATEGORY_OPTIONS.map((o) => (
               <option key={o} value={o}>
                 {o}
@@ -288,8 +288,9 @@ function GroupForm({
             ))}
           </select>
           <p className="apex-text-muted text-xs mt-1">
-            &quot;Group by entry in this block.&quot; Reports with no Block 21
-            entry group only with each other.
+            &quot;Group by entry in this block.&quot; Block 21 is never blank —
+            p. 1-7: &quot;Select or enter the billet subcategory code, if
+            authorized, or enter &lsquo;NA.&rsquo; Do not leave blank.&quot;
           </p>
         </div>
         <div>
@@ -454,9 +455,7 @@ function GroupCard({
               not restrict membership by Block 5 or Block 21. */}
           <p className="text-xs mt-0.5 apex-text-muted">
             Blk 5: {g.duty_status || "not stated"} · Blk 21:{" "}
-            {g.billet_subcategory == null
-              ? "not stated"
-              : g.billet_subcategory || "(no entry)"}
+            {g.billet_subcategory || "not stated"}
             {g.uic ? ` · UIC ${g.uic}` : ""}
           </p>
         </button>

@@ -3,8 +3,8 @@
 -- The summary-group discriminators the schema never stored.
 --
 -- BUPERSINST 1610.10H, Encl (2), ch. 1, "EVAL BLOCK 46 / FITREP BLOCK 43 / CHIEFEVAL
--- BLOCK 48 SUMMARY": "A summary group consists of all reports that share all the
--- characteristics in the following tables." Those tables are 1-3 (officers, p. 1-19)
+-- BLOCK 48 SUMMARY", p. 1-19: "A summary group consists of all reports that share all
+-- the characteristics in the following tables." Those tables are 1-3 (officers, p. 1-19)
 -- and 1-4 (enlisted, p. 1-22). Migration 002 stored five of the characteristics —
 -- paygrade, promotion status, ending date, type of report, reporting senior — and
 -- lib/summaryGroupEligibility.ts wrote guards for three more that had no column to
@@ -13,7 +13,7 @@
 --   Blk 5  Duty/Competitive Status
 --          Table 1-4, verbatim: "For enlisted, group ACT and TAR together, group
 --          INACT, AT/ADOS separately."
---          Table 1-3, verbatim: "Group by box marked in Block 5." — plus the p. 1-19
+--          Table 1-3, verbatim: "Group by box marked in Block 5." — plus the p. 1-20
 --          note "Active, TAR, and INACT officers are separated in different summary
 --          groups by the entry in block 5."
 --          UNCONDITIONAL in both tables.
@@ -21,10 +21,12 @@
 --   Blk 21 Billet Subcategory
 --          Table 1-4 ("Billet") and Table 1-3 ("Billet Subcategory"), both verbatim:
 --          "Group by entry in this block."
---          UNCONDITIONAL in both tables. The blank forms print "21. Billet
---          Subcategory (if any)", so an empty entry is itself a legal entry that
---          groups with other empty entries — hence NULL (not stated) and '' (stated
---          as blank) are DIFFERENT here; see the eligibility guard.
+--          UNCONDITIONAL in both tables, and EVERY report has an entry — p. 1-7,
+--          BLOCK 21: "Select or enter the billet subcategory code, if authorized, or
+--          enter 'NA.' Do not leave blank." Table 1-1 (p. 1-8) defines NA as
+--          "Subcategories not used. (Should appear in most reports.)" So a blank
+--          Block 21 is a form defect, not a grouping bucket: '' is rejected below,
+--          and only NULL (pre-012, never stated) is allowed.
 --
 --   Blk 6  UIC
 --          Table 1-4, verbatim: "If reporting seniors have more than one UIC, but
@@ -49,6 +51,14 @@
 -- created without both values (app/summary-groups/page.tsx requires them).
 --
 -- Idempotent: add column if not exists, drop-then-add for constraints (as in 008).
+--
+-- Wrapped in a transaction. Supabase applies each migration file in one already, but
+-- `psql -f` does not: verified on postgres:14.23, where the old unique constraint drops,
+-- the NULLS NOT DISTINCT statement then fails on syntax (PG15+ only), and the table is
+-- left with NO uniqueness constraint at all — a full duplicate row inserts cleanly. Two
+-- lines make any mid-file failure roll back, not just that one.
+
+begin;
 
 alter table public.summary_groups
     add column if not exists uic                text,
@@ -60,7 +70,7 @@ comment on column public.summary_groups.uic is
 comment on column public.summary_groups.duty_status is
     'Block 5 Duty/Competitive Status. NULL only on groups created before migration 012.';
 comment on column public.summary_groups.billet_subcategory is
-    'Block 21 Billet Subcategory. NULL = not stated (pre-012 rows); '''' = stated as blank, which groups only with blank.';
+    'Block 21 Billet Subcategory. NULL only on pre-012 rows; never blank — p. 1-7 says enter NA, do not leave blank.';
 
 -- Block 5 legal values: the four boxes printed on the blank forms in public/ —
 -- NAVPERS 1616/26 and 1610/2 print "ACT | TAR | INACT | AT/ADSW/265", NAVPERS 1616/27
@@ -78,6 +88,15 @@ alter table public.summary_groups
 alter table public.summary_groups
     add constraint summary_groups_uic_check
     check (uic is null or length(uic) = 5);
+
+-- Block 21 is never blank (p. 1-7, quoted above), and types/navpers.ts already enforces
+-- .min(1) on the eval side. A '' here would be a group NOTHING can join: every eval that
+-- passes APEX's own schema has a non-empty code, so the guard would reject all of them.
+alter table public.summary_groups
+    drop constraint if exists summary_groups_billet_subcategory_check;
+alter table public.summary_groups
+    add constraint summary_groups_billet_subcategory_check
+    check (billet_subcategory is null or billet_subcategory <> '');
 
 -- The 002 uniqueness rule ("one logical group per RS + ending date + paygrade +
 -- promotion status + report type") is now WRONG: a reporting senior with both ACT and
@@ -101,3 +120,5 @@ alter table public.summary_groups
     unique nulls not distinct
     (reporting_senior_id, period_to, grade_rate, promotion_status, report_type,
      duty_status, billet_subcategory, uic);
+
+commit;
