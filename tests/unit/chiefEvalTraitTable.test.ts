@@ -143,10 +143,12 @@ interface Drawn extends Bounds {
   size: number;
 }
 
-// Metrics of the face this overlay embeds, read off the file rather than assumed. These
-// said 0.6 / 0.583 — the standard-14 Courier values — back when this overlay silently
-// embedded nothing and the reader substituted its own font. It now embeds
-// public/fonts/CourierPrime-Regular.ttf like the other two overlays.
+// Metrics of the face this overlay embeds. These are LITERALS transcribed from
+// public/fonts/CourierPrime-Regular.ttf (advanceWidth 1228/2048, capHeight 1187/2048) —
+// unlike GID_TO_CHAR below, which really is derived from the file at run time. They said
+// 0.6 / 0.583, the standard-14 Courier values, back when this overlay silently embedded
+// nothing and the reader substituted its own font; it now embeds CourierPrime like the
+// other two overlays. Re-transcribe if the shipped face ever changes.
 const COURIER_ADVANCE = 0.599609;
 const COURIER_CAP = 0.57959;
 

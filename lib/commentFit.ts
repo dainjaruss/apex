@@ -167,10 +167,22 @@ export function measureTextFit(
  *     0.241 pt wide, the binding case — 18 lines, and 443.9 is its midpoint, clearing
  *     the header by 0.13 and the floor by 0.11.
  *
- * Margins this fine are real, not rounding, but they are also why the baselines are
- * CENTRED in their windows rather than pushed to an edge: poppler and Ghostscript
- * disagree by one 600 dpi pixel (0.12 pt) on the tight cases. Do not nudge any of the
- * four top baselines without re-deriving against the envelope above.
+ * Margins this fine are real, not rounding — and they are also stable. An earlier
+ * revision claimed poppler and Ghostscript disagreed by 0.12 pt on the tight cases and
+ * centred the baselines to absorb that; the disagreement was an artefact of the
+ * measuring instrument, not the renderers. Re-rasterising at 600 / 1200 / 2400 dpi, the
+ * gap shrinks in exact proportion to pixel size and the two renderers agree on
+ * byte-identical rows at 2400. The baselines stay centred because centring is free, not
+ * because anything wobbles.
+ *
+ * Nor can the margin be eaten downstream. The overlay operators are appended to the SAME
+ * page content stream as the form graphics, so printer fit-to-page and viewer zoom scale
+ * the printed box and the typed text by one transform — the relative gap is preserved.
+ * The one mechanism that could have changed relative geometry was font substitution, and
+ * embedNarrativeFont (lib/pdfBoxText.ts) closed it. Page 2 carries no clip operators, so
+ * even a negative margin would be a sub-pixel graze of a printed rule, never lost text.
+ *
+ * Do not nudge any of the four top baselines without re-deriving against the envelope.
  *
  * tests/unit/commentCapacity.test.ts renders real PDFs off these blanks and asserts every
  * line lands inside the measured box, so the renderer and this table cannot drift apart

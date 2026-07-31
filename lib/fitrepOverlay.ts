@@ -206,8 +206,10 @@ const C = {
     // because 18 lines at that size very nearly fill the block. 443.9 is the midpoint,
     // clearing the header by 0.13 and the floor by 0.11 against CourierPrime's real ink
     // envelope (+0.6909 em / -0.2002 em). An earlier 444.0 was inside the window but by
-    // only 0.028 pt at the header — inside is not the same as centred, and poppler and
-    // Ghostscript disagree by 0.12 pt on edges this tight.
+    // only 0.028 pt at the header, and inside is not the same as centred. The 0.11-0.13
+    // that centring buys is a real, stable gap: at 2400 dpi poppler and Ghostscript put
+    // this line in byte-identical rows, and the overlay shares the form's own content
+    // stream, so zoom and fit-to-page scale box and text together.
     //
     // ponytail: one measured constant, not a calibration pass. The REST of this file's
     // page-2 map is still the uncalibrated inheritance described at the top; this moves

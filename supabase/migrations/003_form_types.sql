@@ -135,7 +135,7 @@ VALUES (
       {"number": 40, "name": "Individual Trait Average",    "label": "Individual Trait Average",              "type": "computed",  "required": false},
       {"number": 41, "name": "Career Recommendations",      "label": "Career Recommendations",                "type": "text",      "required": true,  "maxLength": 20, "maxItems": 2, "minItems": 1},
       {"number": 42, "name": "Signature of Rater",          "label": "Signature of Rater",                    "type": "signature", "required": true},
-      {"number": 43, "name": "Comments on Performance",     "label": "Comments on Performance",               "type": "textarea",  "required": true,  "note": "90 CPL at 10-pitch or 84 CPL at 12-pitch Courier; line capacity is per form and comes from getCommentCapacity (lib/commentFit.ts), measured off the blanks in public/. The CPL/line figures are APEX measurements, NOT in BUPERSINST 1610.10H."},
+      {"number": 43, "name": "Comments on Performance",     "label": "Comments on Performance",               "type": "textarea",  "required": true,  "note": "18 lines max; 90 CPL at 10-pitch or 84 CPL at 12-pitch Courier. BUPERSINST 1610.10H Ch. 13."},
       {"number": 44, "name": "Qualifications/Achievements", "label": "Qualifications/Achievements",           "type": "textarea",  "required": false},
       {"number": 45, "name": "Promotion Recommendation",    "label": "Promotion Recommendation (Individual)", "type": "enum",      "required": true,  "options": ["Significant Problems","Progressing","Promotable","Must Promote","Early Promote","NOB"]},
       {"number": 46, "name": "Summary Group Tallies",       "label": "Summary Group Tallies",                 "type": "text",      "required": true},

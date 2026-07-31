@@ -209,8 +209,9 @@ const C = {
     // this whole change exists to correct, so the baseline moves and the count stays.
     //
     // Do not nudge either value without re-deriving against the ink envelope above.
-    // Poppler and Ghostscript disagree by one 600-dpi pixel (0.12 pt) on the tight edges,
-    // which is why the windows are centred rather than hugged.
+    // The windows are centred because centring costs nothing, NOT because the margin is
+    // uncertain: measured at 600 / 1200 / 2400 dpi the two renderers agree, and what
+    // looked like a 0.12 pt spread was the raster's own pixel size.
     b43_x: 22,
     b43_topBaseline10: 458.8,
     b43_topBaseline12: 458.0,
