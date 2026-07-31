@@ -25,7 +25,11 @@ import {
   tallyRecommendations,
   ForcedDistributionResult,
 } from "@/lib/forcedDistribution";
-import { PROMOTION_STATUS_OPTIONS } from "@/types/navpers";
+import {
+  PROMOTION_STATUS_OPTIONS,
+  DUTY_STATUS_OPTIONS,
+  BILLET_SUBCATEGORY_OPTIONS,
+} from "@/types/navpers";
 import { Profile, SummaryGroup } from "@/types";
 import AppShell from "@/components/layout/AppShell";
 import { FORM_LABEL, formFieldClass } from "@/lib/formStyles";
@@ -38,6 +42,9 @@ const SG_FIELD_IDS = {
   periodTo: "sg-create-period-to",
   gradeRate: "sg-create-grade-rate",
   promotionStatus: "sg-create-promotion-status",
+  dutyStatus: "sg-create-duty-status",
+  billetSubcategory: "sg-create-billet-subcategory",
+  uic: "sg-create-uic",
   commandEmployment: "sg-create-command-employment",
 } as const;
 
@@ -117,6 +124,14 @@ function GroupForm({
     grade_rate: "",
     promotion_status: "Regular",
     command_employment: "",
+    // Blocks 5 and 21 are unconditional discriminators (Tables 1-3/1-4), so a new group
+    // must state both. Defaults mirror lib/formDefinitions.ts so the common case is one
+    // click — and "NA" is what p. 1-7 tells you to enter when no subcategory applies
+    // ("Do not leave blank"), so there is no blank option to offer.
+    // Block 6 UIC is permissive — blank means "not splitting by UIC".
+    duty_status: "ACT",
+    billet_subcategory: "NA",
+    uic: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,14 +145,23 @@ function GroupForm({
       !g.reporting_senior_id ||
       !g.period_to ||
       !g.grade_rate ||
-      !g.command_employment
+      !g.command_employment ||
+      !g.duty_status ||
+      !g.billet_subcategory
     ) {
-      setError("All fields are required.");
+      setError("All fields are required (only UIC may be blank).");
+      return;
+    }
+    if (g.uic && g.uic.length !== 5) {
+      setError("UIC must be exactly 5 characters, or blank.");
       return;
     }
     setSaving(true);
     try {
-      await createSummaryGroup(g, createdBy);
+      // Blank UIC is stored as NULL, not '' — the migration-012 check constraint accepts
+      // only a 5-character UIC or NULL. Block 21 has no blank case at all: p. 1-7 says
+      // enter "NA", so the select offers no empty option and the column forbids ''.
+      await createSummaryGroup({ ...g, uic: g.uic || null }, createdBy);
       setG({ ...g, name: "" });
       onCreated();
     } catch (e: any) {
@@ -222,8 +246,75 @@ function GroupForm({
             ))}
           </select>
         </div>
+        <div>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.dutyStatus}>
+            Duty Status (Block 5)
+          </label>
+          <select
+            id={SG_FIELD_IDS.dutyStatus}
+            className={FIELD}
+            value={g.duty_status ?? ""}
+            onChange={(e) => set("duty_status", e.target.value)}
+          >
+            {DUTY_STATUS_OPTIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <p className="apex-text-muted text-xs mt-1">
+            Enlisted groups merge ACT and TAR; INACT and AT/ADOS stay separate.
+            Officer groups separate all four (BUPERSINST 1610.10H Tables 1-4 /
+            1-3).
+          </p>
+        </div>
+        <div>
+          <label
+            className={FORM_LABEL}
+            htmlFor={SG_FIELD_IDS.billetSubcategory}
+          >
+            Billet Subcategory (Block 21)
+          </label>
+          <select
+            id={SG_FIELD_IDS.billetSubcategory}
+            className={FIELD}
+            value={g.billet_subcategory ?? ""}
+            onChange={(e) => set("billet_subcategory", e.target.value)}
+          >
+            {BILLET_SUBCATEGORY_OPTIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <p className="apex-text-muted text-xs mt-1">
+            &quot;Group by entry in this block.&quot; Block 21 is never blank —
+            p. 1-7: &quot;Select or enter the billet subcategory code, if
+            authorized, or enter &lsquo;NA.&rsquo; Do not leave blank.&quot;
+          </p>
+        </div>
+        <div>
+          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.uic}>
+            UIC (Block 6) — optional
+          </label>
+          <input
+            id={SG_FIELD_IDS.uic}
+            className={FIELD}
+            maxLength={5}
+            value={g.uic ?? ""}
+            onChange={(e) => set("uic", e.target.value.toUpperCase())}
+            placeholder="Leave blank to group across UICs"
+          />
+          <p className="apex-text-muted text-xs mt-1">
+            Table 1-4: a reporting senior with more than one UIC who wants all
+            enlisted personnel in one group &quot;may do so.&quot;
+          </p>
+        </div>
         <div className="md:col-span-2">
-          <label className={FORM_LABEL} htmlFor={SG_FIELD_IDS.commandEmployment}>
+          <label
+            className={FORM_LABEL}
+            htmlFor={SG_FIELD_IDS.commandEmployment}
+          >
             Command Employment
           </label>
           <textarea
@@ -358,6 +449,20 @@ function GroupCard({
           <p className="text-xs mt-1 apex-text-muted">
             {g.grade_rate} · {g.promotion_status} · ends {g.period_to} · Group
             Avg: {groupAverage !== null ? groupAverage.toFixed(2) : "N/A"}
+          </p>
+          {/* Blocks 5/6/21 — two groups may now differ only by these, so they have to
+              be on the card. "not stated" marks a pre-migration-012 group, which does
+              not restrict membership by Block 5 or Block 21. Same `!= null` shape as
+              describeSummaryGroup: a group holding a blank Block 21 must not render
+              identically to one that never stated a value. Unreachable under the
+              column's `<> ''` check — kept so an anomaly shows rather than hides. */}
+          <p className="text-xs mt-0.5 apex-text-muted">
+            Blk 5: {g.duty_status != null ? g.duty_status : "not stated"} · Blk
+            21:{" "}
+            {g.billet_subcategory != null
+              ? g.billet_subcategory || "(blank)"
+              : "not stated"}
+            {g.uic ? ` · UIC ${g.uic}` : ""}
           </p>
         </button>
         <button

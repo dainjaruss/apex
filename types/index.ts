@@ -24,7 +24,12 @@ export interface SummaryGroup {
   grade_rate: string; // paygrade (regardless of rating)
   promotion_status: string;
   command_employment: string;
-  uic?: string; // enlisted breakout dimension (BUPERSINST 1610.10H); optional until migration 003
+  // Table 1-3 / 1-4 discriminators, stored since migration 012. null/undefined = the
+  // reporting senior never stated it (only possible on pre-012 rows) — see
+  // lib/summaryGroupEligibility.ts for what each one does and does not restrict.
+  uic?: string | null; // Block 6 — permissive (enlisted only); empty = not splitting by UIC
+  duty_status?: string | null; // Block 5 — ACT | TAR | INACT | AT/ADOS
+  billet_subcategory?: string | null; // Block 21 — never blank (p. 1-7); a table 1-1 code, or null pre-012
   report_type?: "EVAL" | string;
   status?: "open" | "closed";
   created_by?: string;

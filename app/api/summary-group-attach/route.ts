@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     if (!isEvalEligibleForSummaryGroup(ev, group)) {
       return fail(
-        "This evaluation is not eligible for that summary group (paygrade, promotion status, ending date, report type, UIC, or reporting senior must match per BUPERSINST 1610.10H).",
+        "This evaluation is not eligible for that summary group (paygrade, duty status (Block 5), promotion status, ending date, report type, billet subcategory (Block 21), UIC, or reporting senior must match per BUPERSINST 1610.10H Tables 1-3/1-4).",
         400,
       );
     }

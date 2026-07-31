@@ -464,6 +464,9 @@ export default function EvaluationForm({
                   period_to: formData.period_to,
                   report_type: formData.report_type,
                   uic: formData.uic,
+                  // Block 5 — without this the Table 1-4/1-3 duty-status guard
+                  // cannot fire from the draft form.
+                  duty_status: formData.duty_status,
                   summary_group_id: formData.summary_group_id ?? null,
                   block_values: formData.block_values,
                 }}

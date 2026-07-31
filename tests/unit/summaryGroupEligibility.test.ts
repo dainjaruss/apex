@@ -197,6 +197,171 @@ describe("isEvalEligibleForSummaryGroup", () => {
       }),
     ).toBe(false);
   });
+
+  // Block 21 codes are case-insensitive to APEX but not case-controlled by the database:
+  // unlike duty_status there is no enumerated CHECK, so a lowercase "na" is genuinely
+  // storable. Both sides of the compare must fold case — dropping .toUpperCase() from
+  // EITHER side must fail here.
+  it("compares Block 21 case-insensitively on both sides", () => {
+    expect(
+      isEvalEligibleForSummaryGroup(baseEval, {
+        ...matchingGroup,
+        id: "g-billet-lower",
+        billet_subcategory: "na", // group side lowercase, eval side "NA"
+      }),
+    ).toBe(true);
+    expect(
+      isEvalEligibleForSummaryGroup(
+        {
+          ...baseEval,
+          block_values: {
+            reporting_senior_dod_id: "4567890123",
+            billet_subcategory: "instructor", // eval side lowercase
+          },
+        },
+        {
+          ...matchingGroup,
+          id: "g-billet-upper",
+          billet_subcategory: "INSTRUCTOR",
+        },
+      ),
+    ).toBe(true);
+  });
+
+  // Migration 012 carve-out, stated honestly rather than implemented quietly: the 12
+  // groups that predate the columns have null Block 5 / Block 21 because their reporting
+  // senior never stated either. Those stay unrestricted on both — the alternative was
+  // inventing the values, which would silently mis-bucket live reports.
+  it("leaves a pre-012 group (null Block 5 / Block 21) unrestricted on both", () => {
+    expect(matchingGroup.duty_status).toBeUndefined();
+    expect(matchingGroup.billet_subcategory).toBeUndefined();
+    for (const ds of ["ACT", "TAR", "INACT", "AT/ADOS"]) {
+      expect(
+        isEvalEligibleForSummaryGroup(
+          { ...baseEval, duty_status: ds },
+          matchingGroup,
+        ),
+        `pre-012 group must not reject a ${ds} report`,
+      ).toBe(true);
+    }
+    expect(
+      isEvalEligibleForSummaryGroup(
+        {
+          ...baseEval,
+          block_values: {
+            reporting_senior_dod_id: "4567890123",
+            billet_subcategory: "INSTRUCTOR",
+          },
+        },
+        matchingGroup,
+      ),
+    ).toBe(true);
+  });
+
+  // ── Table 1-4 Block 6 UIC — permissive, and deliberately so ──────────────
+  // "If reporting seniors have more than one UIC, but desire to group all enlisted
+  // personnel together, they may do so." Table 1-3 has no Block 6 row at all. So an
+  // unset UIC means "not splitting by UIC" — NOT the pre-012 "never stated" gap. If
+  // someone ever "fixes" this guard to match Block 5/21's `!= null` shape for symmetry,
+  // this fails.
+  it("does not restrict by Block 6 UIC when the group leaves it unset", () => {
+    // null is what the database returns for a group that is not splitting by UIC;
+    // "" is what an unconverted form field would supply. Neither may start demanding
+    // that a report's Block 6 be blank — that is the opposite of "they may do so".
+    for (const groupUic of [null, "", undefined as any]) {
+      for (const evalUic of ["12345", "99999", ""]) {
+        expect(
+          isEvalEligibleForSummaryGroup(
+            { ...baseEval, uic: evalUic },
+            { ...matchingGroup, uic: groupUic },
+          ),
+          `a group with Block 6 ${JSON.stringify(groupUic)} must accept a report with UIC "${evalUic}"`,
+        ).toBe(true);
+      }
+    }
+  });
+});
+
+// Every characteristic in Tables 1-3/1-4 that APEX claims to model must actually reject a
+// report that differs on it. One row per guard: delete any single guard from
+// isEvalEligibleForSummaryGroup and exactly one of these fails, which is what a whole
+// third of this module silently not executing looked like.
+describe("Tables 1-3/1-4 — each modelled characteristic rejects on its own", () => {
+  const fullGroup: SummaryGroupWithRs = {
+    ...matchingGroup,
+    id: "g-full",
+    uic: "12345",
+    duty_status: "ACT",
+    billet_subcategory: "NA",
+  };
+
+  const rows: Array<{
+    block: string;
+    quote: string;
+    differing: Partial<typeof baseEval>;
+  }> = [
+    {
+      block: "Blk 2 Rate",
+      quote: "Group by current paygrade, regardless of rating.",
+      differing: { grade_rate: "PO1" },
+    },
+    {
+      block: "Blk 5 Duty/Competitive Status",
+      quote:
+        "For enlisted, group ACT and TAR together, group INACT, AT/ADOS separately.",
+      differing: { duty_status: "INACT" },
+    },
+    {
+      block: "Blk 6 UIC",
+      quote: "Block 6 should match the primary UIC of the reporting senior",
+      differing: { uic: "99999" },
+    },
+    {
+      block: "Blk 8 Promotion Status",
+      quote: "Group by promotion status.",
+      differing: { promotion_status: "Frocked" },
+    },
+    {
+      block: "Blk 15 To",
+      quote: "Group by ending date of report.",
+      differing: { period_to: "2024-12-31" },
+    },
+    {
+      block: "Blk 17-18 Type of Report",
+      quote: "Group by type of report.",
+      differing: { report_type: "CHIEFEVAL" as any },
+    },
+    {
+      block: "Blk 21 Billet",
+      quote: "Group by entry in this block.",
+      differing: {
+        block_values: {
+          reporting_senior_dod_id: "4567890123",
+          billet_subcategory: "INSTRUCTOR",
+        },
+      },
+    },
+    {
+      block: "Blk 22 Reporting Senior",
+      quote: "Group by reporting senior.",
+      differing: {
+        block_values: {
+          reporting_senior_dod_id: "9999999999",
+          billet_subcategory: "NA",
+        },
+      },
+    },
+  ];
+
+  it("accepts a report matching the group on every characteristic", () => {
+    expect(isEvalEligibleForSummaryGroup(baseEval, fullGroup)).toBe(true);
+  });
+
+  it.each(rows)("$block — $quote", ({ differing }) => {
+    expect(
+      isEvalEligibleForSummaryGroup({ ...baseEval, ...differing }, fullGroup),
+    ).toBe(false);
+  });
 });
 
 describe("visibleSummaryGroupsForEval", () => {
