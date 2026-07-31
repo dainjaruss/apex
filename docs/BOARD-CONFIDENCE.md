@@ -68,6 +68,135 @@ board_precepts (active cycle flags)─────────────┘   
 - **Identity model:** a run scores the caller's own finalized evaluations
   (`created_by` = subject, with a DoD-ID cross-check). Routes are owner-only.
 
+## What the Results screen shows (v2)
+
+**Coverage first, then a plan. There is usually no score, and that is the
+point.**
+
+The rubric sums `(weight/100)·S·conf` against fixed bands with no
+renormalization by `Σ(weight·conf)`, so `conf = 0` ("APEX has no data") and
+`S = 0` ("the record is weak") are numerically identical. Measured: six
+consecutive **Early Promote** reports with the other tabs empty scored 40.5
+*"Not competitive this cycle"*, five consecutive **Promotable** fully entered
+scored 57.3 *"Crunch"*, and an empty record scored 1.0 *"Drop-from-consideration
+risk"*. The readiness layer (`lib/boardConfidence/readiness.ts`, spec §14)
+**suppresses the verdict** whenever the arithmetic cannot support one and ships
+a ranked plan in its place. After the blind-spot gate that is the common path,
+not an edge case.
+
+The screen, top to bottom:
+
+1. **The §1.1 disclaimer — once.** The page banner stands down on this tab so
+   exactly one copy is ever on screen. (It previously rendered five times before
+   the first actionable sentence.)
+2. **Run controls.** Running **saves the Record Entry and LaDR tabs first** and
+   aborts if the save is refused — the route scores the *saved* record, so a
+   Sailor who types data and clicks Run must never be scored without it. The
+   browser's "today" is sent as `asOf`; the engine reads no clock, and the route
+   rejects a malformed value rather than letting it become `NaN`.
+3. **Coverage.** *"APEX can see 4 of 6 areas of your record"*, a bar for
+   `Σ(weight·conf)/100`, and the missing list. The bar is explicitly labelled as
+   how much APEX can *see*, not how strong the record is.
+4. **No score. Ever.** The 0–100 composite and its band **do not render**, and
+   `scoreNote` — the engine's own plain-language reason, verbatim — renders in
+   their place when the gates suppress. The gates catch the *thin* record, which
+   is the case the epic set out to fix; what survives them is the case where the
+   number is confidently **wrong**. A record with four straight *Must Promote*,
+   trait averages above the summary group in every period, PSR entered and the
+   LaDR fully answered cleared every gate at coverage 6 of 6, `measured = 1.000`
+   and read *"44.5 / 100 — vote 25, Not competitive this cycle"* directly above
+   two cards saying **On track**. Suppression cannot catch that, because nothing
+   is missing. The composite stays computed and persisted — this is a render
+   decision, not an engine change.
+5. **"Do this next"** — the ranked plan. Missing areas come first as unlock
+   steps ("Add your tours — unlocks leadership assessment"), then the scored
+   actions from `bandDeltas`. Point values are never printed.
+6. **"Confirm in your OMPF"** — the unscored list of entries ticked met/earned
+   but not yet confirmed. Deliberately carries no worth: `verified_in_ompf` is a
+   self-ticked box, so pricing it would penalise honest disclosure.
+7. **"In plain terms"** — the AI narrative's *strengths* and *gaps*, and **only
+   when it came from a model**. `recommendations` and `factor_commentary` are
+   not rendered: since PR #24 the deterministic fallback is assembled from the
+   strings this screen already shows (`factor_commentary[key] = area.summary`;
+   `recommendations = roundRobin(actions.action, missing.howTo,
+   confirmInOmpf.note)`), so rendering it would show a Sailor the same sentences
+   twice in two different orders. A second, differently ordered list of what to
+   do beside the ranked plan is the "two numbers for one item" failure in list
+   form.
+8. **Per-area detail** — status, plain-language summary, and `evidenceNote`
+   inline (never a tooltip). It does not lead.
+9. **Prior reviews** — run date, board date, coverage. No score or band column.
+
+For a rating with no curated LaDR — **80 of 82 ratings**, the common case — the
+screen leads with the one-click *Fetch official LaDR from Navy COOL* control and
+says plainly that this is normal.
+
+### Rules this screen is built on
+
+- **`areas[].detail` never reaches the browser.** One `reduce` over
+  `detail.contribution` reconstructs the suppressed score *and* its band exactly
+  (measured 43.2 on a `score: null` report), so the server strips it at the
+  boundary (`ClientReadinessReport`, `types.ts`). There is no "show the math"
+  disclosure, and the narrative is not rendered here either — its deterministic
+  per-factor commentary prints "Contributed 33.5 of 40.0 possible points" for
+  all six factors, which sums straight back to the suppressed score. The
+  narrative is still persisted on the row.
+- **"Not entered" is a data state, never a deficiency.** `not_entered` is a
+  dashed, muted, unranked card; `needs_attention` is a solid amber one. Never
+  the same bar at different lengths, never one colour ramp at two saturations.
+- **Record completeness is never graded.** Every one of its strings is a
+  statement about entry volume, and the coverage card promises three cards above
+  that "nothing below is a grade on what you have not entered" — so
+  *"Record completeness — Needs attention — Large parts of your record are not
+  entered yet"* printed the screen's own contradiction. The asymmetry was
+  structural: the factor reports `conf = 1` whether or not anything is behind it,
+  so the one purely data-entry measure was the one guaranteed to be graded rather
+  than excluded, while development's absence rendered "Not entered". Below the
+  `on_track` cut it is now `not_enough_entered` and joins `coverage.missing`, so
+  the plan asks for the sections instead of marking the Sailor down for them.
+- **Horizon groups on `horizonBasis`, not on `horizon`.** No seeded milestone
+  carries `typical_months`, so today every meet-action lands in `next_cycle`
+  with basis `unknown_duration`. That renders as one honest bucket — *"APEX does
+  not know how long these take — start now"* — rather than telling a Sailor five
+  months out that everything is next cycle. Buckets render only when non-empty.
+- **An unsourced precept is treated as an absent one.** `assembleRubricInputs`
+  populates `preceptFlags` only when the active precept carries a `source_url`.
+  Otherwise the rubric excludes the factor and redistributes its weight ×100/90 —
+  the path that already existed for "no precept at all". Without this, five
+  hand-set booleans produced a **full-confidence zero over 10 weighted points**
+  (`scorePrecept` emits 0 for an indicator whose inputs are absent, and
+  `conf_precept` is 1 unconditionally), scoring a Sailor against doctrine this
+  tool's own screen disclaims as *"entered by an APEX Admin and not taken from
+  the board's convening order"*. Coverage cannot catch it: nothing is missing.
+  The Precept tab agrees: with a row present but unsourced, its flag chips render
+  as *"recorded, not scored"* rather than emerald, because branching on the row's
+  mere existence made that tab contradict the Results tab in the same session.
+  Note the copy distinction — *"not set up for your cycle"* is false for this
+  state. An admin **did** set them up; APEX declined to trust them.
+
+  `COVERAGE_FLOOR` is deliberately **not** rescaled. Excluding the precept maps
+  coverage by `(m − 0.10) × 10/9`, so a record at 0.7675 becomes 0.7417 and loses
+  its number with nothing about the Sailor changed. The floor is defined against
+  *effective* (post-redistribution) weights, and the no-precept case has always
+  been on that scale — rescaling would loosen the gate for every existing
+  no-precept user instead.
+- **A tool-configuration gap is not the Sailor's gap.** With no active precept
+  the rubric drops the factor to weight 0 and coverage counts five areas; the
+  screen drops the card rather than showing a sixth "Not entered".
+- **Path-shaped tokens are stripped at display time.** The narrative's citation
+  gate parses only the *trailing* bracket group, deliberately, so prose brackets
+  survive — `Complete "Advanced Network Analyst [NEC 742A]"` keeps its NEC code,
+  which matters now that 80 transcribed milestones carry bracketed NEC and CIN
+  codes. The cost is that a path-shaped token in non-final position reaches the
+  reader. It cannot launder a claim (the trailing group still gates the whole
+  item), but it is ugly, so the display strips a `word.word` shape *inside*
+  brackets — never all brackets, which would eat the codes the gate just worked
+  to preserve.
+- **`board_analyses.input.readiness`** (additive, jsonb, no migration) holds the
+  run's report, snapshotted like the rest of the run so a prior review renders
+  what it said at the time. Runs written before v2 show *"predates the readiness
+  review — run it again"* and **no score**.
+
 ## Privacy, consent, and ethics
 
 - **Explicit consent, server-enforced:** a first-use modal records

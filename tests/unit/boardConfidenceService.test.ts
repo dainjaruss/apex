@@ -582,3 +582,113 @@ describe("runBoardAnalysis — v1.1 scoring semantics reach the persisted snapsh
     expect(comp.detail.pfa3).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The precept SOURCING gate. Nothing in this repo handed assembleRubricInputs a
+// precept row before these, so every mutation of the discriminator survived:
+// `precept?.source_url` -> `precept`, -> `precept?.cycle`, -> `false` all passed
+// the whole suite, including a FULL REVERT of the fix.
+//
+// The fix exists because an unsourced precept charged a full-confidence zero
+// over 10 weighted points. scorePrecept's indicators read the same LaDR category
+// ratios scoreLadr already scored, so it double-charged the identical gap — the
+// second time through doctrine nobody sourced. `source_url` is the discriminator
+// because it is the only field that distinguishes a precept read from a
+// published convening order from five booleans typed into an admin form.
+// ---------------------------------------------------------------------------
+describe("assembleRubricInputs — an unsourced precept is treated as an absent one", () => {
+  const flags = {
+    warfighting: true,
+    leadership_positions: true,
+    education: true,
+    sea_duty: true,
+    technical_expertise: true,
+  };
+
+  it("drops every flag when the active precept carries no source_url", async () => {
+    const { admin } = makeAdmin(
+      baseTables({
+        board_precepts: [
+          { cycle: "FY27 (modeled)", emphasis_flags: flags, source_url: null, active: true },
+        ],
+      }),
+    );
+
+    const { inputs, meta } = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+
+    expect(inputs.preceptFlags).toEqual([]);
+    // The cycle is still snapshotted — the run knows a precept row existed.
+    expect(meta.precept_cycle).toBe("FY27 (modeled)");
+    expect(meta.precept_source_url).toBeNull();
+  });
+
+  it("drops them for an empty-string source_url too", async () => {
+    const { admin } = makeAdmin(
+      baseTables({
+        board_precepts: [
+          { cycle: "FY27", emphasis_flags: flags, source_url: "", active: true },
+        ],
+      }),
+    );
+
+    const { inputs } = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+    expect(inputs.preceptFlags).toEqual([]);
+  });
+
+  it("keeps the set flags when the precept cites a published source", async () => {
+    const { admin } = makeAdmin(
+      baseTables({
+        board_precepts: [
+          {
+            cycle: "FY27 Active-Duty E7",
+            emphasis_flags: { ...flags, education: false, sea_duty: false },
+            source_url:
+              "https://www.mynavyhr.navy.mil/Portals/55/Boards/FY27_Enlisted_Precept.pdf",
+            active: true,
+          },
+        ],
+      }),
+    );
+
+    const { inputs, meta } = await assembleRubricInputs(admin, "subj-1", "2026-09-01");
+
+    expect(inputs.preceptFlags.sort()).toEqual(
+      ["leadership_positions", "technical_expertise", "warfighting"].sort(),
+    );
+    expect(meta.precept_source_url).toContain("mynavyhr.navy.mil");
+  });
+
+  it("the sourced and unsourced runs differ ONLY in the precept factor's weight", async () => {
+    // Pins the ×100/90 redistribution the fix relies on: an unsourced precept
+    // must land on exactly the path a wholly absent one already took.
+    const sourced = await assembleRubricInputs(
+      makeAdmin(
+        baseTables({
+          board_precepts: [
+            { cycle: "c", emphasis_flags: flags, source_url: "https://x/p.pdf", active: true },
+          ],
+        }),
+      ).admin,
+      "subj-1",
+      "2026-09-01",
+    );
+    const unsourced = await assembleRubricInputs(
+      makeAdmin(
+        baseTables({
+          board_precepts: [
+            { cycle: "c", emphasis_flags: flags, source_url: null, active: true },
+          ],
+        }),
+      ).admin,
+      "subj-1",
+      "2026-09-01",
+    );
+
+    expect(sourced.inputs.preceptFlags.length).toBe(5);
+    expect(unsourced.inputs.preceptFlags.length).toBe(0);
+    // Everything else about the assembled record is identical.
+    expect({ ...unsourced.inputs, preceptFlags: sourced.inputs.preceptFlags }).toEqual(
+      sourced.inputs,
+    );
+  });
+});

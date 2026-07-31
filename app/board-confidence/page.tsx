@@ -17,6 +17,7 @@ import RecordEntryForm, {
   FinalizedEvalRef,
 } from "@/components/board/RecordEntryForm";
 import LadrChecklist from "@/components/board/LadrChecklist";
+import PreceptPanel from "@/components/board/PreceptPanel";
 import ResultsView from "@/components/board/ResultsView";
 import BoardConsentModal from "@/components/board/BoardConsentModal";
 import { getSession } from "@/lib/auth";
@@ -26,11 +27,8 @@ import {
   getMemberBoardRecord,
   getLatestLadr,
   fetchLadr,
-  fetchPreceptPreview,
-  extractPreceptFromFile,
   listMyAnalyses,
   saveMemberBoardRecord,
-  type PreceptPreview,
 } from "@/lib/boardConfidenceService";
 import type {
   BoardAnalysisRow,
@@ -38,7 +36,6 @@ import type {
   LadrDocument,
   LadrMilestone,
   MemberBoardRecord,
-  PreceptFlag,
 } from "@/lib/boardConfidence/types";
 import type { Profile } from "@/types";
 
@@ -52,316 +49,6 @@ const TABS = [
 ] as const;
 
 type TabKey = (typeof TABS)[number][0];
-
-const PRECEPT_FLAG_LABELS: Array<[PreceptFlag, string]> = [
-  ["warfighting", "Warfighting"],
-  ["leadership_positions", "Leadership positions"],
-  ["education", "Education"],
-  ["sea_duty", "Sea duty"],
-  ["technical_expertise", "Technical expertise"],
-];
-
-// The published FY-27 Active-Duty senior-enlisted precept (default fetch source).
-const DEFAULT_PRECEPT_URL =
-  "https://www.mynavyhr.navy.mil/Portals/55/Boards/Active%20Duty%20Enlisted/Documents/FY27_AD/FY27_Enlisted_Precept.pdf";
-
-const emptyFlags = (): Record<PreceptFlag, boolean> =>
-  Object.fromEntries(PRECEPT_FLAG_LABELS.map(([f]) => [f, false])) as Record<
-    PreceptFlag,
-    boolean
-  >;
-
-function ActivePreceptCard({ precept }: { precept: BoardPrecept }) {
-  return (
-    <div className="apex-card p-6 space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-          {precept.cycle}
-        </h3>
-        <p className="text-sm apex-heading">{precept.title}</p>
-        {precept.source_url && (
-          <a
-            href={precept.source_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs underline"
-            style={{ color: "var(--muted-foreground)" }}
-          >
-            Source
-          </a>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {PRECEPT_FLAG_LABELS.map(([flag, label]) => {
-          const set = precept.emphasis_flags?.[flag] === true;
-          return (
-            <span
-              key={flag}
-              className={`${set ? "apex-badge-emerald" : "apex-badge-draft"} px-2.5 py-1 text-[11px]`}
-            >
-              {label}
-              {set ? "" : " — not emphasized"}
-            </span>
-          );
-        })}
-      </div>
-      <p className="text-xs" style={{ color: "var(--subtle)" }}>
-        Emphasis areas are set per board cycle and feed the Precept Alignment
-        factor. This panel is read-only.
-      </p>
-    </div>
-  );
-}
-
-// Fetch-to-reference: pull a published precept PDF, read it on-screen, confirm
-// the 5 emphasis flags, and get the exact config to activate via the
-// service-role script (setting the active precept is privileged — a system-wide
-// scoring input — so it is NOT written from here).
-function PreceptReference() {
-  const [url, setUrl] = useState(DEFAULT_PRECEPT_URL);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreceptPreview | null>(null);
-  const [flags, setFlags] = useState<Record<PreceptFlag, boolean>>(emptyFlags);
-  const [cycle, setCycle] = useState("");
-  const [title, setTitle] = useState("");
-
-  const applyPreview = (p: PreceptPreview) => {
-    setPreview(p);
-    const next = emptyFlags();
-    for (const s of p.suggestions) next[s.flag] = true;
-    setFlags(next);
-  };
-
-  const doFetch = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      applyPreview(await fetchPreceptPreview(url));
-    } catch (e: any) {
-      setErr(
-        (e?.message || "Fetch failed.") +
-          " If your server can't reach MyNavyHR, download the PDF and use Upload below.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doUpload = async (file: File) => {
-    setBusy(true);
-    setErr(null);
-    try {
-      applyPreview(await extractPreceptFromFile(file));
-    } catch (e: any) {
-      setErr(e?.message || "Could not read that PDF.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const flagsLiteral = PRECEPT_FLAG_LABELS.map(
-    ([f]) => `    ${f}: ${flags[f] ? "true" : "false"},`,
-  ).join("\n");
-  const configSnippet =
-    `// scripts/ladr-data/precept_current.ts\n` +
-    `cycle: ${JSON.stringify(cycle || "FY27 Active-Duty E7")},\n` +
-    `title: ${JSON.stringify(title || "FY27 CPO Selection Board emphasis")},\n` +
-    `emphasis_flags: {\n${flagsLiteral}\n},\n` +
-    `source_url: ${JSON.stringify(preview?.source_url ?? url)},\n` +
-    `active: true,`;
-
-  return (
-    <div className="apex-card p-6 space-y-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-          Reference a published precept
-        </h3>
-        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Read the board&apos;s precept here and confirm which of the five areas
-          it emphasizes. Precepts are broad prose, so the suggestions below are a
-          starting point — set the flags from the text, not the guess. Precepts
-          are published on MyNavyHR:{" "}
-          <a
-            href="https://www.mynavyhr.navy.mil/Career-Management/Boards/Flag/Precepts/"
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            Flag boards
-          </a>
-          {" · "}
-          <a
-            href="https://www.mynavyhr.navy.mil/Career-Management/Boards/Active-Duty-Enlisted/CPO-Selection-Boards/"
-            target="_blank"
-            rel="noreferrer"
-            className="underline"
-          >
-            CPO (enlisted) boards
-          </a>
-          .
-        </p>
-      </div>
-
-      {/* Upload is the primary path — no server egress to MyNavyHR needed. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="apex-btn-primary text-xs cursor-pointer">
-          {busy ? "Reading…" : "Upload precept PDF"}
-          <input
-            type="file"
-            accept="application/pdf"
-            className="sr-only"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) doUpload(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <span className="text-xs" style={{ color: "var(--subtle)" }}>
-          Download the precept PDF from MyNavyHR, then upload it here.
-        </span>
-      </div>
-
-      <details className="text-xs">
-        <summary className="cursor-pointer" style={{ color: "var(--muted-foreground)" }}>
-          Or fetch by URL (needs server internet access to MyNavyHR)
-        </summary>
-        <div className="mt-2 flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-1 flex-1 min-w-[16rem]">
-            <span className="apex-filter-label">Precept PDF URL (mynavyhr.navy.mil)</span>
-            <input
-              className="apex-input text-xs"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              aria-label="Precept PDF URL"
-            />
-          </label>
-          <button
-            type="button"
-            className="apex-btn-secondary text-xs"
-            onClick={doFetch}
-            disabled={busy}
-          >
-            {busy ? "Fetching…" : "Fetch precept"}
-          </button>
-        </div>
-      </details>
-      {err && (
-        <p className="text-xs text-red-400" role="alert">
-          {err}
-        </p>
-      )}
-
-      {preview && (
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="apex-filter-label">Board cycle</span>
-              <input
-                className="apex-input text-xs"
-                placeholder="FY27 Active-Duty E7"
-                value={cycle}
-                onChange={(e) => setCycle(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="apex-filter-label">Title</span>
-              <input
-                className="apex-input text-xs"
-                placeholder="FY27 CPO Selection Board emphasis"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="space-y-2">
-            <span className="apex-filter-label">Emphasis areas (confirm against the text)</span>
-            {PRECEPT_FLAG_LABELS.map(([flag, label]) => {
-              const s = preview.suggestions.find((x) => x.flag === flag);
-              return (
-                <label key={flag} className="flex items-start gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={flags[flag]}
-                    onChange={(e) =>
-                      setFlags((prev) => ({ ...prev, [flag]: e.target.checked }))
-                    }
-                    aria-label={`Emphasize ${label}`}
-                  />
-                  <span>
-                    <span style={{ color: "var(--foreground)" }}>{label}</span>
-                    {s && (
-                      <span
-                        className="block italic"
-                        style={{ color: "var(--muted-foreground)" }}
-                      >
-                        suggested — {s.evidence}
-                      </span>
-                    )}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-
-          <details className="text-xs">
-            <summary
-              className="cursor-pointer"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              Precept text {preview.truncated ? "(first 20k chars)" : ""}
-            </summary>
-            <pre
-              className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-[11px] leading-relaxed"
-              style={{ background: "var(--muted)", color: "var(--foreground)" }}
-            >
-              {preview.excerpt}
-            </pre>
-          </details>
-
-          <div className="space-y-2">
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              Setting the active precept is a privileged, service-role operation
-              (it drives every member&apos;s score). Put these values in{" "}
-              <code>scripts/ladr-data/precept_current.ts</code> and run{" "}
-              <code>npm run seed:precept</code>:
-            </p>
-            <pre
-              className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg p-3 text-[11px] leading-relaxed"
-              style={{ background: "var(--muted)", color: "var(--foreground)" }}
-            >
-              {configSnippet}
-            </pre>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PreceptPanel({ precept }: { precept: BoardPrecept | null }) {
-  return (
-    <div className="space-y-4">
-      {precept ? (
-        <ActivePreceptCard precept={precept} />
-      ) : (
-        <div className="apex-card p-6">
-          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            No board precept is loaded, so the Precept Alignment factor is
-            excluded and its 10% weight is spread across the other five factors.
-            This is expected until a precept is set — load one below to score
-            alignment.
-          </p>
-        </div>
-      )}
-      <PreceptReference />
-    </div>
-  );
-}
 
 const isIsoDate = (s: string | null | undefined): boolean =>
   !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
@@ -524,12 +211,15 @@ export default function BoardConfidencePage() {
     }
   }, [rating]);
 
-  const save = useCallback(async () => {
-    if (!userId || !record) return;
+  // Returns whether the record is now persisted. Run Review awaits this and
+  // refuses to run on a false: the analyze route scores the SAVED record, so a
+  // Sailor who types data and clicks Run would otherwise be scored without it.
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!userId || !record) return false;
     const badRows = dateErrors(record);
     if (badRows.length > 0) {
       setSaveMsg(`Cannot save — add valid dates first: ${badRows.join(", ")}.`);
-      return;
+      return false;
     }
     setSaving(true);
     setSaveMsg(null);
@@ -538,8 +228,10 @@ export default function BoardConfidencePage() {
       const saved = await saveMemberBoardRecord(userId, patch);
       setRecord(saved);
       setSaveMsg("Record saved.");
+      return true;
     } catch (err: any) {
       setSaveMsg(err?.message || "Save failed.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -640,8 +332,12 @@ export default function BoardConfidencePage() {
             </p>
           </div>
 
-          {/* §1.1: disclaimer at the top of the page */}
-          <BoardDisclaimer />
+          {/* §1.1 requires the disclaimer at the top of the page AND at the top
+              of every results view. ResultsView renders its own, so this banner
+              stands down on that tab: the audit found the unofficial-tool
+              warning rendered FIVE times before the first actionable sentence,
+              and a tool that hedges on every surface drowns its own signal. */}
+          {tab !== "results" && <BoardDisclaimer />}
 
           {loadError && (
             <div className="p-4 rounded-lg text-xs border border-red-500/30 bg-red-950/30 text-red-300">
@@ -746,22 +442,18 @@ export default function BoardConfidencePage() {
               onRunComplete={handleRunComplete}
               consentGranted={consented}
               onRequestConsent={() => setConsentDismissed(false)}
+              onSaveBeforeRun={save}
+              rating={rating}
+              ladrLoaded={!!ladr?.document}
+              ladrFetching={ladrFetching}
+              ladrFetchMsg={ladrFetchMsg}
+              onFetchLadr={fetchLadrForRating}
             />
           )}
 
-          {/* Persistent footer disclaimer — one of the required layers
-              (modal on first use + page banner + this footer + score tooltip). */}
-          <footer
-            className="border-t pt-4 text-[11px] leading-relaxed"
-            style={{
-              borderColor: "var(--border)",
-              color: "var(--muted-foreground)",
-            }}
-          >
-            Unofficial educational tool — not affiliated with or endorsed by
-            the U.S. Navy, MyNavy HR, or any selection board. Scores come from
-            a fixed published rubric and do not predict board results.
-          </footer>
+          {/* The footer restatement of the disclaimer is gone. §1.1 requires it
+              at the top of the page and on every results view — both of which
+              render above — and a fourth copy on every tab was noise. */}
         </div>
 
         {record && userId && !consented && !consentDismissed && (

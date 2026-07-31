@@ -15,7 +15,16 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import type { BoardAnalysisRow } from "@/lib/boardConfidence/types";
+import {
+  scoreBoardConfidence,
+  DEFAULT_RUBRIC_CONFIG,
+} from "@/lib/boardConfidence/rubric";
+import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
+import type {
+  BoardAnalysisRow,
+  ClientReadinessReport,
+  RubricInputs,
+} from "@/lib/boardConfidence/types";
 
 vi.mock("@/lib/boardConfidenceService", () => ({ runBoardAnalysis: vi.fn() }));
 
@@ -24,6 +33,27 @@ import ResultsView from "@/components/board/ResultsView";
 const RETRACTED =
   "A selection board can treat ANY gap in the record — even a single day — as enough to disqualify a candidate.";
 
+const INPUTS: RubricInputs = {
+  boardDate: "2026-09-01",
+  evals: [],
+  psr: { entered: false, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
+  ladr: [],
+  preceptFlags: [],
+};
+
+// The coverage-first rebuild routes a run with no `input.readiness` to the
+// "predates the readiness review" panel, which renders neither the advisory nor
+// the warnings. Build the real report so these exercise the live path.
+const readiness = (): ClientReadinessReport => {
+  const full = buildReadinessReport(
+    scoreBoardConfidence(INPUTS, DEFAULT_RUBRIC_CONFIG),
+    INPUTS,
+    DEFAULT_RUBRIC_CONFIG,
+    { asOf: "2026-04-01" },
+  );
+  return { ...full, areas: full.areas.map(({ detail, ...a }) => a) };
+};
+
 const gapRow = (advisory: string | null, warnings: string[] = []): BoardAnalysisRow =>
   ({
     id: "run-1",
@@ -31,11 +61,8 @@ const gapRow = (advisory: string | null, warnings: string[] = []): BoardAnalysis
     board_date: "2026-09-01",
     created_at: "2026-04-01T12:00:00.000Z",
     input: {
-      boardDate: "2026-09-01",
-      evals: [],
-      psr: { entered: false, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
-      ladr: [],
-      preceptFlags: [],
+      ...INPUTS,
+      readiness: readiness(),
       disclaimer: "",
       warnings,
       meta: {
@@ -54,6 +81,10 @@ const gapRow = (advisory: string | null, warnings: string[] = []): BoardAnalysis
     created_by: "u1",
   }) as BoardAnalysisRow;
 
+// The coverage-first rebuild (#23) added the props below. This suite is kept
+// alongside the equivalent cases in boardReadinessView.test.tsx rather than
+// folded into them: the retracted claim survived a full domain review once, and
+// a doctrine pin is worth having twice.
 const renderRow = (row: BoardAnalysisRow) =>
   render(
     <ResultsView
@@ -63,6 +94,12 @@ const renderRow = (row: BoardAnalysisRow) =>
       onRunComplete={vi.fn()}
       consentGranted
       onRequestConsent={vi.fn()}
+      onSaveBeforeRun={vi.fn(async () => true)}
+      rating="IT"
+      ladrLoaded
+      ladrFetching={false}
+      ladrFetchMsg={null}
+      onFetchLadr={vi.fn()}
     />,
   );
 

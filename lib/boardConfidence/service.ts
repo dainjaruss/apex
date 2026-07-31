@@ -18,14 +18,16 @@ import { paygradeOf } from "@/lib/paygrade";
 import {
   DEFAULT_RUBRIC_CONFIG,
   REC_POINTS,
+  compositeRaw,
   isBoardEmphasis,
   scoreBoardConfidence,
 } from "@/lib/boardConfidence/rubric";
-import { generateNarrative } from "@/lib/boardConfidence/narrative";
 import { buildReadinessReport } from "@/lib/boardConfidence/readiness";
+import { generateNarrative } from "@/lib/boardConfidence/narrative";
 import {
   BOARD_DISCLAIMER,
   type BoardAnalysisRow,
+  type ClientReadinessReport,
   type LadrCategory,
   type LadrItemInput,
   type RubricConfig,
@@ -36,6 +38,7 @@ import {
   type PromotionRec,
   type RubricEvalInput,
   type RubricInputs,
+  type RubricResult,
   type TourEntry,
 } from "@/lib/boardConfidence/types";
 
@@ -69,7 +72,8 @@ export interface AssembledInputs {
     precept_cycle: string | null;
     // v2: null means the active precept's emphasis flags were hand-entered
     // rather than taken from a convening order — the readiness layer prefixes
-    // every precept string to say so.
+    // every precept string to say so, and defaults to the cautious rendering
+    // when this is not passed.
     precept_source_url: string | null;
     eval_count_total: number; // finalized rows found
     eval_count_excluded: number; // dod_id-mismatch exclusions (§2)
@@ -329,9 +333,31 @@ export async function assembleRubricInputs(
     .eq("active", true)
     .maybeSingle();
   if (preceptError) throw new Error(preceptError.message);
-  const preceptFlags: PreceptFlag[] = precept
-    ? PRECEPT_FLAGS.filter((f) => precept.emphasis_flags?.[f] === true)
-    : [];
+  // An UNSOURCED precept is treated exactly like an absent one.
+  //
+  // WHY (v2 review blocker). The readiness gates suppress a verdict when data is
+  // MISSING; they did nothing when data was present but UNSOURCED. A record with
+  // four straight Must Promote, trait averages above the summary group in every
+  // period, PSR fully entered and the LaDR fully answered measured coverage
+  // 6 of 6 at 1.000 — clear of every gate — while `precept` contributed a
+  // FULL-CONFIDENCE ZERO over 10 weighted points: scorePrecept emits 0 for an
+  // indicator whose inputs are absent, and conf_precept is 1 unconditionally.
+  //
+  // That zero is not a measurement. It comes from five hand-set booleans that
+  // this tool's own Results screen disclaims two cards further down as "entered
+  // by an APEX Admin and not taken from the board's convening order". Scoring a
+  // Sailor against invented doctrine is the same defect class the readiness epic
+  // exists to kill, one layer down — and coverage cannot catch it, because
+  // nothing is missing.
+  //
+  // `source_url` is the honest discriminator: a precept read from a published
+  // convening order carries one, and the shipped seed is titled "(modeled)" with
+  // source_url null. No new mechanism — [] is the path the rubric already
+  // handles, excluding the factor and redistributing its weight ×100/90.
+  const preceptFlags: PreceptFlag[] =
+    precept?.source_url
+      ? PRECEPT_FLAGS.filter((f) => precept.emphasis_flags?.[f] === true)
+      : [];
 
   return {
     inputs: { boardDate, evals, psr, ladr, preceptFlags },
@@ -383,25 +409,65 @@ export async function loadRubricConfig(
   };
 }
 
+/**
+ * DEV/TEST ONLY. `buildReadinessReport(result, inputs, config)` accepts a
+ * `result` computed from a DIFFERENT record without complaint — a reviewer
+ * measured every action then reported as worth +26 to +27 composite points. No
+ * type signature can catch it, so assert the triple is self-consistent at the
+ * call site. Never runs in production and never throws on a user request.
+ */
+function assertTripleMatches(
+  result: RubricResult,
+  inputs: RubricInputs,
+  config: RubricConfig,
+): void {
+  if (process.env.NODE_ENV === "production") return;
+  const expected = compositeRaw(scoreBoardConfidence(inputs, config));
+  const actual = compositeRaw(result);
+  if (Math.abs(expected - actual) > 1e-9)
+    console.error(
+      `readiness triple mismatch: result was not scored from these inputs under this config (${actual} vs ${expected}). Every action's worth is wrong.`,
+    );
+}
+
 export async function runBoardAnalysis(
   admin: SupabaseClient,
   subjectUserId: string,
   callerId: string,
   boardDate: string,
+  /**
+   * The caller's "today", YYYY-MM-DD — validated at the route boundary. The
+   * engine reads no clock. Absent, the readiness layer falls back to the board
+   * date (monthsToBoard = 0), which promises nothing.
+   */
+  asOf?: string,
 ): Promise<BoardAnalysisRow> {
   // 1. Assemble → score (pure, under the ACTIVE tunable config, which is
   //    snapshotted into the run for reproducibility) → narrative.
   const assembled = await assembleRubricInputs(admin, subjectUserId, boardDate);
   const rubricConfig = await loadRubricConfig(admin);
   const result = scoreBoardConfidence(assembled.inputs, rubricConfig);
-  // v2: the narrative is written from the READINESS report, not the raw rubric —
-  // it must not be able to print (or let a reader reconstruct) a composite the
-  // readiness gates have suppressed. asOf is deliberately omitted here: this
-  // module has no clock, so monthsToBoard is 0 and nothing is promised as
-  // achievable on duration grounds until a caller supplies the real date.
+
+  // v2 readiness layer — the plan that replaced the verdict, and the source the
+  // narrative is written from: neither may print (or let a reader reconstruct)
+  // a composite the readiness gates have suppressed.
+  //
+  // Built here rather than in the route because it is snapshotted into the run:
+  // a prior review must render exactly what it said at the time, not what
+  // today's code would say. `asOf` now comes from the route (this module still
+  // reads no clock); absent it, the layer falls back to the board date, giving
+  // monthsToBoard = 0 so nothing is promised as achievable on duration grounds.
+  assertTripleMatches(result, assembled.inputs, rubricConfig);
   const report = buildReadinessReport(result, assembled.inputs, rubricConfig, {
+    asOf,
     preceptSourceUrl: assembled.meta.precept_source_url,
   });
+  const readiness: ClientReadinessReport = {
+    ...report,
+    // detail.contribution reconstructs the suppressed score and band exactly —
+    // it does not leave the server. See ClientReadinessReport.
+    areas: report.areas.map(({ detail, ...area }) => area),
+  };
   const { narrative, source, model, fallbackReason } = await generateNarrative(
     report,
     result,
@@ -422,6 +488,7 @@ export async function runBoardAnalysis(
         input: {
           ...assembled.inputs,
           disclaimer: BOARD_DISCLAIMER,
+          readiness,
           warnings: result.warnings.concat(assembled.warnings),
           meta: {
             ...assembled.meta,

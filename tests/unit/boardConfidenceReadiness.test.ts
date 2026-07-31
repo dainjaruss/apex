@@ -187,9 +187,13 @@ describe("the band inversion the layer exists to fix", () => {
   it("names what is missing instead of scoring it as zero, and still reports the strong areas", () => {
     const a = report(sailorA);
 
-    expect(a.coverage.areasKnown).toBe(3);
+    expect(a.coverage.areasKnown).toBe(2);
     expect(a.coverage.areasTotal).toBe(6);
+    // Completeness joins the missing list rather than being graded: with the PSR
+    // and LaDR tabs untouched, "large parts are not entered" is a statement about
+    // entry, and the Results screen promises not to grade non-entry.
     expect(a.coverage.missing.map((m) => m.area).sort()).toEqual([
+      "completeness",
       "development",
       "leadership",
       "precept",
@@ -367,8 +371,12 @@ describe("the empty record — the first thing a new user sees", () => {
     expect(s.development).toBe("not_enough_entered");
     expect(s.continuity).toBe("not_enough_entered");
     expect(s.precept).toBe("not_enough_entered");
-    // Completeness is the honest exception: an empty record really IS incomplete.
-    expect(s.completeness).toBe("needs_attention");
+    // Completeness too. It used to be the "honest exception" — an empty record
+    // really IS incomplete — but the finding it produced was "Large parts of your
+    // record are not entered yet" under a NEEDS ATTENTION pill, three cards below
+    // a banner promising "nothing below is a grade on what you have not entered".
+    // Its every string is about entry volume, so its bottom rung is a data state.
+    expect(s.completeness).toBe("not_enough_entered");
   });
 });
 
@@ -681,10 +689,10 @@ describe("scoreLadr emits milestone identity", () => {
     ]);
     const cert = unmet.find((u) => u.milestone_id === "m-cert")!;
     expect(cert).toMatchObject({ category: "credential", board_emphasis: false });
-    expect(cert.marginal_points).toBeGreaterThan(0);
+    expect(cert.factorLocalPoints).toBeGreaterThan(0);
   });
 
-  it("marginal_points is a recompute of this factor's own score, not an estimate", () => {
+  it("factorLocalPoints is a recompute of this factor's own score, not an estimate", () => {
     const base = scoreBoardConfidence(sailorB, CFG);
     const dev = (r: typeof base) => r.factors.find((f) => f.key === "development")!.score;
     for (const u of base.ladrUnmet!) {
@@ -699,7 +707,7 @@ describe("scoreLadr emits milestone identity", () => {
         },
         CFG,
       );
-      expect(u.marginal_points).toBeCloseTo(dev(flipped) - dev(base), 10);
+      expect(u.factorLocalPoints).toBeCloseTo(dev(flipped) - dev(base), 10);
     }
   });
 
@@ -715,7 +723,7 @@ describe("scoreLadr emits milestone identity", () => {
         milestone_id: "ac-1",
         item: "Serve as an LPO",
         category: "advancement_consideration",
-        marginal_points: 100,
+        factorLocalPoints: 100,
         board_emphasis: true,
       },
     ]);
@@ -740,7 +748,7 @@ describe("bandDeltas — true marginal points, hand-checked against a full re-sc
     expect(got.delta).toBe(handDelta(meet("m-open")));
 
     // Recomputed, not derivable from the development factor alone.
-    const local = base.ladrUnmet!.find((u) => u.milestone_id === "m-open")!.marginal_points;
+    const local = base.ladrUnmet!.find((u) => u.milestone_id === "m-open")!.factorLocalPoints;
     expect(got.delta).not.toBeCloseTo(local, 3);
   });
 
@@ -1035,5 +1043,84 @@ describe("purity, and asOf as a trust boundary", () => {
     const r = scoreBoardConfidence(sailorB, CFG);
     expect(buildReadinessReport(r, sailorB, CFG, { coverageFloor: 0.99 }).score).toBeNull();
     expect(buildReadinessReport(r, sailorB, CFG, { coverageFloor: 0.1 }).score).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COVERAGE_FLOOR was calibrated on a scale where the precept factor contributed
+// a free 0.10 at conf = 1 whether or not anything backed it. Now that an
+// unsourced precept is excluded like an absent one (service.ts), coverage maps
+// measured_after = (measured_before − 0.10) × 10/9 — strictly downward, fixed
+// point only at 1.0. The floor is deliberately NOT rescaled; this pins both the
+// mapping and that decision, so a future rescale is a conscious act.
+// ---------------------------------------------------------------------------
+describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
+  const withPrecept = { ...sailorB, preceptFlags: ALL_FLAGS };
+  const without = { ...sailorB, preceptFlags: [] as PreceptFlag[] };
+
+  it("excluding the precept maps coverage by (m − 0.10) × 10/9", () => {
+    const m1 = report(withPrecept).coverage.measured;
+    const m2 = report(without).coverage.measured;
+    expect(m2).toBeCloseTo(((m1 - 0.1) * 10) / 9, 10);
+    expect(m2).toBeLessThan(m1); // strictly downward below 1.0
+  });
+
+  it("the floor is judged against effective weights, and stays 0.75", () => {
+    expect(COVERAGE_FLOOR).toBe(0.75);
+    // Both runs are judged against the same number — the scale changed, the
+    // threshold did not. The no-precept case has always been on this scale.
+    expect(report(withPrecept).coverage.floor).toBe(COVERAGE_FLOOR);
+    expect(report(without).coverage.floor).toBe(COVERAGE_FLOOR);
+  });
+
+  it("a record can cross the floor purely from the precept exclusion", () => {
+    // The consequence, stated rather than discovered later: same Sailor, same
+    // entries, suppressed after the change because the free 0.10 is gone.
+    // The reviewer's worked example: 0.7675 before, 0.7417 after.
+    const before = 0.7675;
+    const after = ((before - 0.1) * 10) / 9;
+    expect(before).toBeGreaterThan(COVERAGE_FLOOR); // a number was emitted
+    expect(after).toBeCloseTo(0.7417, 4);
+    expect(after).toBeLessThan(COVERAGE_FLOOR); // now suppressed, same Sailor
+  });
+});
+
+describe("completeness never grades a Sailor on what they have not entered", () => {
+  // The screen prints "Nothing below is a grade on what you have not entered."
+  // This is the area that made that false: it reports conf = 1 whether or not
+  // anything is behind it, so the ONE purely-data-entry measure was the one
+  // guaranteed to be graded rather than excluded.
+  const partial: RubricInputs = {
+    boardDate: T,
+    evals: [2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.2)),
+    psr: { ...emptyPsr, entered: true },
+    ladr: [],
+    preceptFlags: [],
+  };
+
+  it("never reports needs_attention, on any record", () => {
+    for (const inputs of [emptyRecord, partial, sailorA, sailorB])
+      expect(
+        report(inputs).areas.find((a) => a.key === "completeness")!.status,
+      ).not.toBe("needs_attention");
+  });
+
+  it("has no needs_attention string left to reach", () => {
+    // A future edit that re-adds the copy would resurrect the contradiction.
+    for (const inputs of [emptyRecord, partial, sailorA])
+      expect(
+        report(inputs).areas.find((a) => a.key === "completeness")!.summary,
+      ).not.toContain("Large parts of your record are not entered");
+  });
+
+  it("routes the sections into the plan instead, with a how-to", () => {
+    const missing = report(partial).coverage.missing.find((m) => m.area === "completeness");
+    expect(missing).toBeDefined();
+    expect(missing!.howTo).toContain("Record Entry tab");
+  });
+
+  it("still says so plainly when the record IS well entered", () => {
+    const full = report(sailorB).areas.find((a) => a.key === "completeness")!;
+    expect(["strong", "on_track"]).toContain(full.status);
   });
 });

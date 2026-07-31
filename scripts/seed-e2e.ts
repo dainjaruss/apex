@@ -11,6 +11,16 @@ import {
 } from "../tests/fixtures/validEval";
 import { participantsThrough } from "../lib/routing";
 import { canSignBlock } from "../lib/permissions";
+import {
+  scoreBoardConfidence,
+  DEFAULT_RUBRIC_CONFIG,
+} from "../lib/boardConfidence/rubric";
+import { buildReadinessReport } from "../lib/boardConfidence/readiness";
+import { BOARD_DISCLAIMER } from "../lib/boardConfidence/types";
+import type {
+  ClientReadinessReport,
+  RubricInputs,
+} from "../lib/boardConfidence/types";
 import type { Evaluation, Profile } from "../types";
 
 function loadEnv() {
@@ -514,6 +524,173 @@ async function seedEvals(users: Record<string, string>) {
   console.log(`  wrote ${idsPath}`);
 }
 
+/**
+ * One completed Record Readiness review for the a11y/E2E account.
+ *
+ * WHY THIS EXISTS. The a11y scan of /board-confidence navigates to the Results
+ * tab and scans — but with no board_analyses row the view takes its `!selected`
+ * branch and renders "No review yet.", so the coverage bar, the status pills,
+ * the plan buckets and the narrative card were never in the scanned DOM. The
+ * gate passed while asserting nothing about the screen it was added for. A
+ * seeded run makes it real, and deterministically: same record every time.
+ *
+ * The inputs are hand-built rather than assembled from the seeded evals so the
+ * scanned screen is STABLE and covers every visual state at once — a strong
+ * area, a needs-attention area, several not-entered areas, actions in a plan
+ * bucket, and unconfirmed OMPF entries.
+ */
+async function seedReadinessRun(users: Record<string, string>) {
+  const userId = users.reportingSenior;
+  if (!userId) return;
+  const boardDate = "2027-03-14";
+
+  const inputs: RubricInputs = {
+    boardDate,
+    evals: [2024, 2025, 2026].map((y) => ({
+      period_from: `${y - 1}-03-16`,
+      period_to: `${y}-03-15`,
+      report_type: "EVAL" as const,
+      promotion_recommendation: "Must Promote" as const,
+      trait_average: 4.2,
+      summary_group_average: 3.9,
+      rsca: 3.85,
+      sea_duty: y !== 2026,
+      ep_count: 1,
+      group_size: 6,
+    })),
+    psr: {
+      entered: true,
+      awards: [
+        {
+          title: "Navy and Marine Corps Achievement Medal",
+          level: "personal_achievement",
+          date_awarded: "2025-06-01",
+          verified_in_ompf: false,
+        },
+      ],
+      necs: null,
+      education: null,
+      tours: [
+        {
+          title: "Leading Petty Officer, Combat Systems",
+          start: "2022-04-01",
+          end: null,
+          sea_duty: true,
+          leadership: true,
+        },
+      ],
+      pfa: [{ cycle: "2026-1", date: "2026-04-15", result: "pass" }],
+      adverse: [],
+    },
+    // No curated roadmap — the common case (80 of 82 ratings), and it puts the
+    // "fetch from Navy COOL" path and a not-entered area on the scanned screen.
+    ladr: [],
+    // Empty: the shipped precept is unsourced, and assembleRubricInputs now
+    // treats an unsourced precept as absent. Keep the fixture consistent.
+    preceptFlags: [],
+  };
+
+  const result = scoreBoardConfidence(inputs, DEFAULT_RUBRIC_CONFIG);
+  const full = buildReadinessReport(result, inputs, DEFAULT_RUBRIC_CONFIG, {
+    asOf: "2026-09-01",
+  });
+  const readiness: ClientReadinessReport = {
+    ...full,
+    areas: full.areas.map(({ detail, ...area }) => area),
+  };
+
+  await admin
+    .from("member_board_records")
+    .upsert(
+      {
+        user_id: userId,
+        rating_abbrev: "IT",
+        target_paygrade: 7,
+        psr_entered: true,
+        awards: inputs.psr.awards ?? [],
+        tours: inputs.psr.tours ?? [],
+        pfa_history: inputs.psr.pfa ?? [],
+        necs: [],
+        quals: [],
+        education: [],
+        adverse: [],
+        eval_context: {},
+        ladr_checklist: {},
+        consented_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+  await admin.from("board_analyses").delete().eq("user_id", userId);
+  const { error } = await admin.from("board_analyses").insert([
+    {
+      user_id: userId,
+      board_date: boardDate,
+      input: {
+        ...inputs,
+        disclaimer: BOARD_DISCLAIMER,
+        readiness,
+        warnings: result.warnings,
+        meta: {
+          subject_user_id: userId,
+          rating_abbrev: "IT",
+          target_paygrade: 7,
+          ladr_document_id: null,
+          ladr_version: null,
+          precept_cycle: null,
+          precept_source_url: null,
+          eval_count_total: inputs.evals.length,
+          eval_count_excluded: 0,
+          rubric_config: DEFAULT_RUBRIC_CONFIG,
+          continuity_gap: result.continuityGap,
+          continuity_advisory: result.continuityAdvisory,
+        },
+      },
+      factor_scores: result.factors,
+      overall_score: result.final,
+      band: result.band,
+      adverse_adjustment: result.adverseAdjustment,
+      // Labelled "model" ON PURPOSE — the seed cannot call one, and the "In plain
+      // terms" card renders only for narrative_source === "model", so without
+      // this the card is never scanned. `model: "seed-fixture"` says what it is.
+      //
+      // DERIVED FROM THE REPORT, never hand-written prose. An earlier version of
+      // this fixture invented "You have held a leading petty officer billet
+      // continuously since 2022, most of it on sea duty" — true of the seeded
+      // INPUTS, and printed one viewport above the rubric's own "Leadership and
+      // impact — Needs attention — few leadership billets and little sea time".
+      // A reviewer reasonably read that as the model contradicting the rubric.
+      // It was the fixture. Building the text from the areas makes the seed
+      // incapable of staging a contradiction it did not find.
+      narrative: {
+        strengths: readiness.areas
+          .filter((a) => a.status === "strong")
+          .map((a) => `${a.label}: ${a.summary}`),
+        gaps: readiness.areas
+          .filter((a) => a.status === "needs_attention")
+          .map((a) => `${a.label}: ${a.summary}`),
+        recommendations: [],
+        factor_commentary: {
+          performance: readiness.areas.find((a) => a.key === "performance")!.summary,
+          leadership: readiness.areas.find((a) => a.key === "leadership")!.summary,
+          development: readiness.areas.find((a) => a.key === "development")!.summary,
+          continuity: readiness.areas.find((a) => a.key === "continuity")!.summary,
+          completeness: readiness.areas.find((a) => a.key === "completeness")!.summary,
+          precept: readiness.areas.find((a) => a.key === "precept")!.summary,
+        },
+      },
+      narrative_source: "model",
+      narrative_fallback_reason: null,
+      model: "seed-fixture",
+      created_by: userId,
+    },
+  ]);
+  if (error) throw new Error(`board_analyses insert: ${error.message}`);
+  console.log(
+    `  readiness run for reportingsenior: coverage ${readiness.coverage.areasKnown}/${readiness.coverage.areasTotal}, score ${readiness.score ? "emitted" : "suppressed"}`,
+  );
+}
+
 async function main() {
   console.log("Seeding E2E data on Supabase cloud...");
   if (reset) await deleteE2eEvals();
@@ -540,6 +717,9 @@ async function main() {
 
   console.log("Evaluations:");
   await seedEvals(normalized);
+
+  console.log("Record Readiness:");
+  await seedReadinessRun(normalized);
   console.log("Done.");
 }
 

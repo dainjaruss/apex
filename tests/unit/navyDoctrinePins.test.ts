@@ -11,6 +11,8 @@
 //   - BUPERSINST 1610.10H para 17-6 (+ 17-6a / 17-6b, Exhibit 17-4)
 //   - docs/navy-reference.md §1.3, §1.4, §3.1, §3.2, §3.7
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { BOARD_DISCLAIMER } from "@/lib/boardConfidence/types";
 import {
   CHIEFEVAL_TRAIT_STANDARDS,
@@ -321,5 +323,62 @@ describe("LaDR fetch route — 403 is reported as an observation, not a conclusi
     const emn = (await post("EMN")).body.error;
     expect(emn).toMatch(/splits EMN by platform/i);
     expect(emn).toMatch(/emn_ss_e7\.pdf/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The SEED SCRIPT is a doctrine surface too.
+//
+// #26 corrected the code and migration 010 purged the hosted database, but
+// nothing corrected the script that recreates the data — a reviewer's
+// `npm run db:seed` put a fabricated-trait row back into the hosted project
+// AFTER 010 had cleaned it. #32 has since fixed the fixtures; this pins them so
+// the next edit cannot quietly reintroduce a trait table the Navy does not use.
+//
+// Read as text on purpose: importing the script would execute it against a live
+// Supabase project.
+// ---------------------------------------------------------------------------
+describe("scripts/seed-e2e.ts — seeded trait tables match the real forms", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "scripts/seed-e2e.ts"),
+    "utf8",
+  );
+
+  it("never writes a fabricated CHIEFEVAL trait", () => {
+    for (const invented of [
+      "mission_accomplishment",
+      "human_development",
+      "eo_climate",
+    ])
+      expect(source).not.toContain(invented);
+  });
+
+  it("seeds the seven NAVPERS 1616/27 CHIEFEVAL traits", () => {
+    const block = source.slice(source.indexOf('report_type: "CHIEFEVAL"'));
+    for (const key of [
+      "technical_mastery",
+      "institutional_expertise",
+      "professionalism",
+      "integrity",
+      "accountability",
+      "deckplate_leadership",
+      "team_effectiveness",
+    ])
+      expect(block).toContain(`${key}:`);
+  });
+
+  it("never puts the EVAL-only 'quality of work' trait on a FITREP", () => {
+    // 1610/2 has no `work`; migration 011 removed it from hosted FITREP rows.
+    const marker = 'report_type: "FITREP"';
+    const offsets: number[] = [];
+    for (let i = source.indexOf(marker); i !== -1; i = source.indexOf(marker, i + 1))
+      offsets.push(i);
+    expect(offsets.length).toBeGreaterThan(0);
+    for (const off of offsets) {
+      const block = source.slice(off, off + 500);
+      const traits = block.slice(block.indexOf("trait_grades"));
+      expect(traits.slice(0, traits.indexOf("}"))).not.toMatch(/\bwork:/);
+      expect(traits).toContain("tactical_performance:");
+    }
   });
 });
