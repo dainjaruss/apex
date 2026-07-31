@@ -1,4 +1,4 @@
--- 012_board_analyses_nullable_score.sql
+-- 013_board_analyses_nullable_score.sql
 --
 -- board_analyses.overall_score / .band become NULLABLE, so that "APEX has no
 -- defensible number for this record" is a state the database can represent.

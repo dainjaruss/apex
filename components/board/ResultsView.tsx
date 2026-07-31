@@ -304,7 +304,7 @@ function CoverageCard({ report }: { report: Report }) {
 
           The composite is still computed, and persisted only when the readiness
           layer emitted one — `board_analyses.overall_score` and `.band` are
-          NULLABLE as of migration 012, and NULL on a suppressed run. Nothing
+          NULLABLE as of migration 013, and NULL on a suppressed run. Nothing
           here reads either column; this stays a render decision.
 
           GATE: the band renders nowhere today, which is the only reason the

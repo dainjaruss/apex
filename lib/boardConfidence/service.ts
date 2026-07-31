@@ -504,7 +504,7 @@ export async function runBoardAnalysis(
         // used to persist the number the product had just declined to show, and
         // for an empty record that number is a fabricated 0 the band table reads
         // as "Drop-from-consideration risk". NULL is the honest value and
-        // migration 012 lets the column hold it. Coverage is not duplicated into
+        // migration 013 lets the column hold it. Coverage is not duplicated into
         // a column — it is already in `input.readiness.coverage.measured`.
         overall_score: report.score ? result.final : null,
         band: report.score ? result.band : null,

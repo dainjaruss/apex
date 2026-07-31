@@ -220,7 +220,7 @@ export interface RubricConfig {
  * was. The browser already holds the same numbers by other routes:
  * `listMyAnalyses` selects `*` (boardConfidenceService.ts), the analyze route
  * returns the row wholesale, and the row persists `factor_scores` (service.ts).
- * `overall_score` and `band` are NULL on a suppressed run as of migration 012,
+ * `overall_score` and `band` are NULL on a suppressed run as of migration 013,
  * but Σ detail.contribution still reconstructs the score from `factor_scores`,
  * so the containment this type provides is render-level either way.
  *

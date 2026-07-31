@@ -455,7 +455,7 @@ describe("runBoardAnalysis — success path persists the full snapshot", () => {
     expect(p.model).toBeNull();
     expect(p.narrative_fallback_reason).toBe("model_error");
     // overall_score/band are written ONLY when the readiness layer emitted a
-    // score (migration 012). This fixture is suppressed, so both are NULL rather
+    // score (migration 013). This fixture is suppressed, so both are NULL rather
     // than a number the product had just declined to show.
     expect(p.input.readiness.score).toBeNull();
     expect(p.overall_score).toBeNull();

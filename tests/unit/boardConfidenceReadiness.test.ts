@@ -518,7 +518,7 @@ describe("the empty record — the first thing a new user sees", () => {
     expect(r.warnings.some((w) => /no overall score for this record/.test(w))).toBe(true);
     // …and the 0 does not outlive the request: service.ts writes NULL to
     // board_analyses.overall_score/.band whenever the readiness layer suppressed
-    // the score (migration 012), so a fabricated 0 is never persisted as a band.
+    // the score (migration 013), so a fabricated 0 is never persisted as a band.
     expect(report(emptyRecord).score).toBeNull();
   });
 

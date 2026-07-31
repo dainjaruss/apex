@@ -255,3 +255,160 @@ describe("published fixtures — what withholding is worth, and what stops it", 
     console.log("\n" + table.join("\n") + "\n");
   });
 });
+
+// ---------------------------------------------------------------------------
+// THE POPULATION THE GATE REMOVAL LETS THROUGH.
+//
+// Deleting COVERAGE_FLOOR is a behaviour change, and "the record it was wrongly
+// withholding" is one fixture, not a measurement. This sweeps a synthetic
+// population and publishes who is newly scored.
+//
+// The old decision is RECONSTRUCTED rather than checked out, and exactly:
+// before the removal a score was emitted iff (no verdict factor below
+// AREA_EVIDENCE_FLOOR) AND (coverage >= 0.75). The blind-spot half is unchanged,
+// so `oldScored = newScored && measured >= 0.75` — which makes the newly-scored
+// population precisely {newScored AND measured < 0.75}. No mystery, and it is
+// auditable from the two numbers the report already returns.
+//
+// ponytail: a seeded LCG over a hand-enumerated parameter space, not a property
+// -testing library. It has to be deterministic and reviewable, and it is 20
+// lines. If the space ever needs to be inferred from the types, reach for fast
+// -check then.
+// ---------------------------------------------------------------------------
+
+describe("population — who is newly scored now that the aggregate floor is gone", () => {
+  let seed = 20260731;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const pick = <X,>(xs: X[]): X => xs[Math.floor(rnd() * xs.length)];
+
+  const sample = (): RubricInputs => {
+    const n = pick([0, 1, 2, 3, 4, 5, 6]);
+    const withGroup = rnd() < 0.6;
+    const withIta = rnd() < 0.75;
+    const rec = pick<PromotionRec>(["Early Promote", "Must Promote", "Promotable", "Progressing"]);
+    const tours = pick([null, [], WEAK_TOURS, STRONG_TOURS]);
+    const awards = pick([null, [], psrWith(null).awards]);
+    const flags = pick([[], ALL_FLAGS.slice(0, 1), ALL_FLAGS.slice(0, 3), ALL_FLAGS]);
+    const answered = pick([0, 2, 5]);
+    return {
+      boardDate: T,
+      evals: Array.from({ length: n }, (_, i) =>
+        ev(2026 - n + 1 + i, rec, withIta ? 4.0 + rnd() * 0.6 : 0, {
+          trait_average: withIta ? 4.0 + rnd() * 0.6 : null,
+          summary_group_average: withGroup ? 4.0 : null,
+          ep_count: withGroup ? 0 : null,
+          group_size: withGroup ? 10 : null,
+        }),
+      ),
+      psr: psrWith(tours, {
+        entered: rnd() < 0.8,
+        awards,
+        necs: rnd() < 0.7 ? [{ code: "742A", verified_in_ompf: true }] : null,
+        education: rnd() < 0.6 ? [{ kind: "degree", title: "AS", verified_in_ompf: true }] : null,
+        pfa: rnd() < 0.7 ? psrWith(null).pfa : [],
+      }),
+      ladr: LADR.slice(0, answered),
+      preceptFlags: flags,
+    };
+  };
+
+  const N = 4000;
+  const rows = Array.from({ length: N }, sample).map((i) => {
+    const r = scoreBoardConfidence(i, CFG);
+    const rep = buildReadinessReport(r, i, CFG, { asOf: AS_OF });
+    const blind = r.factors.filter(
+      (f) => f.weight > 0 && f.confidence < AREA_EVIDENCE_FLOOR,
+    );
+    return { i, r, rep, blind, newScored: rep.score !== null };
+  });
+
+  const newly = rows.filter((x) => x.newScored && x.rep.coverage.measured < 0.75);
+  const stillScored = rows.filter((x) => x.newScored && x.rep.coverage.measured >= 0.75);
+  const withheld = rows.filter((x) => !x.newScored);
+
+  it("publishes the population", () => {
+    const pct = (k: number) => `${((100 * k) / N).toFixed(1)}%`;
+    const cov = newly.map((x) => x.rep.coverage.measured).sort((a, b) => a - b);
+    // eslint-disable-next-line no-console
+    console.log(
+      [
+        "",
+        `POPULATION (${N} synthetic records, seeded — rerun for the same numbers)`,
+        `  scored before AND after            ${String(stillScored.length).padStart(5)}  ${pct(stillScored.length)}`,
+        `  NEWLY SCORED (floor removal)       ${String(newly.length).padStart(5)}  ${pct(newly.length)}`,
+        `  still withheld (a factor is blind) ${String(withheld.length).padStart(5)}  ${pct(withheld.length)}`,
+        newly.length
+          ? `  newly-scored coverage: min ${cov[0].toFixed(4)}  median ${cov[Math.floor(cov.length / 2)].toFixed(4)}  max ${cov[cov.length - 1].toFixed(4)}`
+          : "  newly-scored coverage: n/a",
+        "  what held them under 0.75 (lowest-confidence verdict factor):",
+        ...Object.entries(
+          newly.reduce<Record<string, number>>((acc, x) => {
+            const weighted = x.r.factors.filter((f) => f.weight > 0);
+            const low = weighted.reduce((a, f) => (f.confidence < a.confidence ? f : a), weighted[0]);
+            acc[low.key] = (acc[low.key] ?? 0) + 1;
+            return acc;
+          }, {}),
+        )
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `      ${k.padEnd(13)} ${String(v).padStart(4)}  ${pct(v)}`),
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("every newly-scored record has EVERY verdict factor at least half observed", () => {
+    // This is the whole claim. The removed gate was an aggregate; the surviving
+    // one is per-factor, and it is the one that carries the meaning. Nobody in
+    // this population is scored off a half-blind area.
+    expect(newly.length).toBeGreaterThan(0);
+    for (const x of newly) {
+      expect(x.blind).toEqual([]);
+      for (const f of x.r.factors)
+        if (f.weight > 0) expect(f.confidence).toBeGreaterThanOrEqual(AREA_EVIDENCE_FLOOR);
+    }
+  });
+
+  it("the removed floor was, in practice, a SECOND performance-confidence gate", () => {
+    // The most useful thing the sweep found. In every one of the newly-scored
+    // records the lowest-confidence verdict factor is `performance` — not one is
+    // held under 0.75 by leadership or by the precept. The aggregate floor was
+    // not measuring "too little of the record is entered"; it was measuring
+    // "too little of the PERFORMANCE factor", which the per-factor rule already
+    // governs at a threshold that was actually derived rather than fitted. That
+    // is the coordinator's casualty generalised: four reports, everything else
+    // entered, trait averages simply not typed -> conf_P 0.65, coverage 0.7455.
+    for (const x of newly) {
+      const weighted = x.r.factors.filter((f) => f.weight > 0);
+      const low = weighted.reduce((a, f) => (f.confidence < a.confidence ? f : a), weighted[0]);
+      expect(low.key).toBe("performance");
+    }
+  });
+
+  it("nobody newly scored is thin in the way the old floor was aimed at", () => {
+    // The floor's stated purpose was "at most a quarter of the weighted record
+    // may be scored as zeros it did not earn". No newly-scored record has ANY
+    // unearned zeros — that is what the denominator change removed — and the
+    // lowest coverage any of them reaches is bounded by the per-factor rule.
+    const minCov = Math.min(...newly.map((x) => x.rep.coverage.measured));
+    expect(minCov).toBeGreaterThanOrEqual(AREA_EVIDENCE_FLOOR);
+    // …and they are not empty records sneaking through: an empty one has a blind
+    // factor and stays withheld.
+    const empty: RubricInputs = {
+      boardDate: T, evals: [], ladr: [], preceptFlags: [],
+      psr: { entered: false, awards: null, necs: null, education: null, tours: null, pfa: null, adverse: [] },
+    };
+    expect(buildReadinessReport(scoreBoardConfidence(empty, CFG), empty, CFG, { asOf: AS_OF }).score).toBeNull();
+  });
+
+  it("the reconstruction of the old gate is exact, not an approximation", () => {
+    // If this drifts, every number above is wrong. oldScored ≡ newScored AND
+    // coverage >= 0.75, because the blind-spot half of the old gate is the whole
+    // of the new one.
+    for (const x of rows) {
+      const oldScored = x.blind.length === 0 && x.rep.coverage.measured >= 0.75;
+      const newScored = x.blind.length === 0;
+      expect(x.newScored).toBe(newScored);
+      if (oldScored) expect(newScored).toBe(true); // strictly a widening
+    }
+  });
+});

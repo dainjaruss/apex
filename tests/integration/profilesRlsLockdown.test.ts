@@ -228,6 +228,8 @@ describe.skipIf(!hasDocker)("migration 009 — profiles privilege state", () => 
       "011_fitrep_trait_correction", // twice: 011 must be idempotent
       "012_summary_group_discriminators",
       "012_summary_group_discriminators", // twice: 012 must be idempotent
+      "013_board_analyses_nullable_score",
+      "013_board_analyses_nullable_score", // twice: 013 must be idempotent
     ]) {
       psql(["-f", `/migrations/${f}.sql`]);
     }
