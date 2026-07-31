@@ -8,9 +8,28 @@ To run or reset the stress test data in your Supabase database:
 # Seed stress test data
 npm run db:seed-stress
 
-# Reset (delete previous stress test evals & summary groups) and re-seed
+# Reset (drop the seeded evals first, then re-seed from scratch)
 npm run db:seed-stress:reset
 ```
+
+### Re-running a seed is safe
+
+Both seeds are **idempotent**: running one twice leaves the database exactly as
+running it once did. Each fixture's primary key is derived from its own identity
+— member, report type, period (`scripts/seedIdentity.ts`) — so a second run
+upserts over the first instead of appending another generation, and any earlier
+generation still lying around is pruned.
+
+Two consequences worth knowing:
+
+- **Re-seed to repair.** If a demo signs a record, advances it up the chain or
+  edits its traits, `npm run db:seed` puts it back — same row, same UUID, no
+  duplicate beside it.
+- **The fixture UUIDs never change.** `tests/fixtures/e2e-ids.json` is stable
+  across runs and across machines.
+
+`--reset` is now only needed to clear a column that no fixture sets (a plain
+re-run overwrites only the columns in the seed payload).
 
 ---
 

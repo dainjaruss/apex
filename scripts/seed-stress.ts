@@ -16,6 +16,7 @@ import {
 import { Evaluation } from "../types";
 import { participantsThrough } from "../lib/routing";
 import { commentPitchFields } from "@/lib/commentFit";
+import { withSeedIds, pruneSeedEvaluations } from "./seedIdentity";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -883,32 +884,22 @@ async function seedCommands() {
   }
 }
 
-async function deleteStressEvals() {
-  // Match by the stress users' DoD ID block (10000000xx), not by name: the
-  // old '%(STRESS)%' pattern never matched "(STRESS #1)", so resets silently
-  // deleted nothing and every reseed stacked 40 more evals into the DB.
-  const { data } = await admin
+/**
+ * Every evaluation this seed owns, however many generations deep.
+ *
+ * Match by the stress users' DoD ID block (10000000xx), not by name: the old
+ * '%(STRESS)%' pattern never matched "(STRESS #1)", so resets silently deleted
+ * nothing and every reseed stacked 40 more evals into the DB. That block is
+ * synthetic by construction (001:93 — evaluations.dod_id is "Synthetic only
+ * (NO PII)"), and is assigned here and nowhere else.
+ */
+async function ownedStressEvalIds() {
+  const { data, error } = await admin
     .from("evaluations")
     .select("id")
     .like("dod_id", "10000000%");
-  if (data?.length) {
-    const ids = data.map((r) => r.id);
-    await admin.from("audit_logs").delete().in("evaluation_id", ids);
-    await admin.from("review_approvals").delete().in("evaluation_id", ids);
-    await admin.from("evaluations").delete().in("id", ids);
-    console.log(`  removed ${ids.length} existing stress test eval(s)`);
-  }
-  const { data: grps } = await admin
-    .from("summary_groups")
-    .select("id")
-    .like("name", "%Summary Group%");
-  if (grps?.length) {
-    const gIds = grps.map((g) => g.id);
-    await admin.from("summary_groups").delete().in("id", gIds);
-    console.log(
-      `  removed ${gIds.length} existing stress test summary group(s)`,
-    );
-  }
+  if (error) throw new Error(`evaluations scope select: ${error.message}`);
+  return (data ?? []).map((r) => r.id as string);
 }
 
 async function seedStressEvals(users: Record<string, string>) {
@@ -1152,13 +1143,36 @@ async function seedStressEvals(users: Record<string, string>) {
     evalsToInsert.push(evalPayload);
   }
 
+  // Deterministic primary keys (scripts/seedIdentity.ts) — this is what makes a
+  // second run overwrite the first instead of appending another 40 rows.
+  const drafts = withSeedIds(evalsToInsert);
+
+  // --reset still means "from scratch": the upsert below only overwrites the
+  // columns present in the payload, so anything a demo touched that no fixture
+  // sets survives a plain re-run. Dropping the rows first is the only way to
+  // clear those. (Summary groups are not dropped: they already upsert on the
+  // migration-012 unique constraint, and the old `name like '%Summary Group%'`
+  // delete would have swept up any real group whose name contained the phrase.)
+  if (reset) {
+    await pruneSeedEvaluations(admin, await ownedStressEvalIds(), "stress eval");
+  }
+
   const { data: inserted, error } = await admin
     .from("evaluations")
-    .insert(evalsToInsert)
+    .upsert(drafts) // conflict target defaults to the primary key
     .select(
       "id, member_name, grade_rate, routing_stage, promotion_recommendation, summary_group_id, current_holder_id",
     );
-  if (error) throw new Error(`evaluations insert: ${error.message}`);
+  if (error) throw new Error(`evaluations upsert: ${error.message}`);
+
+  // Prune AFTER the upsert, never before: if this seed dies halfway the demo
+  // still has its records.
+  const keep = new Set(drafts.map((d) => d.id));
+  await pruneSeedEvaluations(
+    admin,
+    (await ownedStressEvalIds()).filter((id) => !keep.has(id)),
+    "stress eval",
+  );
 
   // Record which account holds each eval. scripts/record-demo-video.ts signs
   // Block 50 as a specific CO and used to take the FIRST reporting_senior row by
@@ -1198,11 +1212,6 @@ async function main() {
   console.log("====================================================");
   console.log("APEX EVAL FLOW STRESS TEST SEEDER (@franklyn.dev)");
   console.log("====================================================");
-  if (reset) {
-    console.log("Reset flag detected: cleaning previous stress test evals...");
-    await deleteStressEvals();
-  }
-
   console.log("\n1. Seeding Commands...");
   await seedCommands();
 
