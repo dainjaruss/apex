@@ -121,49 +121,55 @@ export function measureTextFit(
  * never true even there; on 1616/27 it is more than double the real capacity, so a Chief
  * could pass validation, sign, and lose ten lines off the printed record with no marker.
  *
- * MEASURED off the blank forms in public/ — the forms outrank this comment. Method, per
- * form: read the comment box's own printed top/bottom rules out of the blank's content
- * stream (rule centrelines ± half the 0.72 pt stroke = the box interior), then walk the
- * renderer's own text model down from the first typed baseline and count the lines whose
- * DESCENDER still clears the box floor. The renderer's model (narrative() in the three
- * overlays) is: size = min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)), leading = 1.18 x
- * size, Courier descender = 0.157 em (pdf-lib's own Courier Descender, -157/1000).
+ * MEASURED off the blank forms in public/ — the forms outrank this comment.
  *
- *   NAVPERS 1616/26 (EVAL) Block 43 — box interior y[253.48, 468.04], first baseline
- *     436.00 (constant 450.0 through pdfOverlay's page-2 translate, dy -14).
- *     10-pitch: size 10.0166, leading 11.8196, descender 1.573.
- *       (436.00 - 1.573 - 253.48) / 11.8196 = 15.31 -> floor 15, +1 = 16 lines.
- *       Line 16 baseline 258.71 (descender 257.13, clears by 3.65 pt); line 17 baseline
- *       246.89 — 8.17 pt BELOW the box, printed over the Block 44 header.
- *     12-pitch: size 10.7278, leading 12.6588, descender 1.684.
- *       (436.00 - 1.684 - 253.48) / 12.6588 = 14.29 -> 15 lines.
- *     17 lines would need a first baseline of 444.16 or higher, and the printed
- *     instruction header's descender sits at 452.26 — under 2.5 pt of clearance. 16 is
- *     the form's answer, not an artefact of where the renderer happens to start.
+ * Method: rasterise each blank's page 2 at 600 dpi, mask the box's own vertical side
+ * rules (they put dark pixels in every row and otherwise read as "printed ink" all the
+ * way down), and take the REAL INK extents — the bounding rules, and the lowest ink of
+ * the instruction header the form prints inside the block. Every rule on all three forms
+ * measures exactly 0.72 pt. Then draw mixed-case Courier into a blank page at the
+ * candidate first baseline, re-rasterise, and check the drawn ink against those bounds.
  *
- *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 — box interior y[277.56, 380.52], first
- *     baseline 363.0. This form's overlay uses a wider narrative box, so the same
- *     formula yields size 9.9576 / leading 11.750 at 10-pitch.
- *       (363.0 - 1.563 - 277.56) / 11.750 = 7.14 -> 8 lines. Line 8's descender lands at
- *       279.19, 1.63 pt inside; line 9's BASELINE is 269.00, 8.56 pt below the floor.
- *     12-pitch: size 10.6647, leading 12.5844 ->
- *       (363.0 - 1.674 - 277.56) / 12.5844 = 6.65 -> 7 lines.
- *     Independently reproduces the 8 / 7 measured on PR #34 (b40_lines10 / b40_lines12).
+ * Real ink, not glyph metrics. An earlier pass used the font's declared descender and
+ * came out 0.2-0.4 pt optimistic on every form, because the header's lowest ink is the
+ * parentheses in "(10 or 12 point)", which hang below the metric descender. Both fonts
+ * the renderer can embed were checked (public/fonts/CourierPrime-Regular.ttf and the
+ * StandardFonts.Courier fallback at pdfOverlay.ts); CourierPrime is the binding one.
  *
- *   NAVPERS 1610/2 (FITREP) Block 41 — box interior y[226.44, 469.08], first baseline
- *     444.0 (fitrepOverlay b43_topBaseline; the old 462.0 printed line 1 on top of the
- *     form's own instruction header, whose descender is at 451.86).
- *     10-pitch: (444.0 - 1.573 - 226.44) / 11.8196 = 18.27 -> 19 lines.
- *     12-pitch: (444.0 - 1.684 - 226.44) / 12.6588 = 17.05 -> 18 lines.
- *     Both hold across the entire legal band for that baseline (444.0 up to 446.0, where
- *     line 1 starts colliding with the header), so neither is knife-edge.
+ *   NAVPERS 1616/26 (EVAL) Block 43 — clear interior y[253.44, 468.12], header ink
+ *     floor 452.04, first baseline 444.5 (constant 458.5 through pdfOverlay's page-2
+ *     translate, dy -14).
+ *     10-pitch: 17 lines ink y[253.56, 451.44] — clears the header by 0.60, the floor
+ *       by 0.12.
+ *     12-pitch: 15 lines ink y[265.32, 451.92] — clears the header by 0.12.
+ *     Narrow window, and it is the reason the constant is what it is: 12-pitch line 1
+ *     caps the baseline at 444.62, 10-pitch line 17 floors it at 444.38, so 444.5 is the
+ *     midpoint. A 16th 12-pitch line or an 18th 10-pitch line does not exist at any
+ *     baseline in that window.
+ *
+ *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 — clear interior y[277.56, 380.64], header ink
+ *     floor 371.64, first baseline 363.0 (chiefEvalOverlay b40_topBaseline, from #34).
+ *     10-pitch: 8 lines ink y[278.88, 369.72] — clears the floor by 1.32, header by 1.92.
+ *       A 9th line inks down to 270.00, 7.56 pt BELOW the box floor.
+ *     12-pitch: 7 lines ink y[285.48, 370.20].
+ *     Independently reproduces the 8 / 7 measured on PR #34.
+ *
+ *   NAVPERS 1610/2 (FITREP) Block 41 — clear interior y[226.44, 469.20], header ink
+ *     floor 451.56, first baseline 444.0 (fitrepOverlay b43_topBaseline; the old 462.0
+ *     printed line 1 straight through that header).
+ *     10-pitch: 19 lines. 12-pitch: 18 lines, ink y[226.80, 451.32] — the binding case,
+ *       clearing the header by 0.24 and the floor by 0.36.
+ *
+ * The EVAL's 0.12 pt and the FITREP's 0.24 pt are real clearances, not rounding: at
+ * 600 dpi one pixel is 0.12 pt, so they were confirmed by drawing the text and looking,
+ * not by arithmetic. Do not nudge any of the three top baselines without re-rastering.
  *
  * tests/unit/commentCapacity.test.ts renders real PDFs off these blanks and asserts every
  * line lands inside the measured box, so the renderer and this table cannot drift apart
  * without that test going red.
  */
 const COMMENT_CAPACITY: Record<string, { "10": number; "12": number }> = {
-  EVAL: { "10": 16, "12": 15 }, // 1616/26 Block 43
+  EVAL: { "10": 17, "12": 15 }, // 1616/26 Block 43
   CHIEFEVAL: { "10": 8, "12": 7 }, // 1616/27 Block 40
   FITREP: { "10": 19, "12": 18 }, // 1610/2  Block 41
 };
@@ -172,9 +178,13 @@ const COMMENT_CAPACITY: Record<string, { "10": number; "12": number }> = {
  * Printed-line capacity of the comment block for this form at this pitch.
  *
  * Same shape as traitStandards' getCommentsBlock(): an unknown or absent report type
- * falls back to the enlisted EVAL, the form APEX defaults to everywhere else. That
- * fallback is never more generous than CHIEFEVAL's real capacity would be, so it cannot
- * invent room a form does not have.
+ * falls back to the enlisted EVAL, the form APEX defaults to everywhere else.
+ *
+ * That fallback is a guess, and on a CHIEFEVAL it would be a generous one — 17 against a
+ * real capacity of 8. It is safe only because it is unreachable in practice: every caller
+ * passes a report_type that came out of the row, and the three real values are pinned in
+ * tests/unit/commentCapacity.test.ts. If a fourth form is ever added, add it to the table
+ * in the same commit — do NOT rely on this fallback to be conservative, because it isn't.
  */
 export function getCommentCapacity(
   reportType: string | undefined,

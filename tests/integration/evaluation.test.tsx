@@ -193,7 +193,7 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
     const fitResult = checkCommentFit(longText, "10", "EVAL");
     expect(fitResult.fit).toBe(false);
     expect(fitResult.linesUsed).toBe(20);
-    expect(fitResult.maxLines).toBe(16);
+    expect(fitResult.maxLines).toBe(17);
     // Same text, same pitch, a different form: the CHIEFEVAL's Block 40 is half the
     // size. Before this was per-form, all three reported 18 and this text passed on
     // none of them for the same wrong reason.

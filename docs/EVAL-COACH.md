@@ -78,7 +78,7 @@ the model is *the shipped rule*, not a paraphrase of it maintained here.
 > The system prompt says so explicitly and forbids attributing them to any publication. Do
 > not "fix" this by adding an instruction citation.
 >
-> ⚠️ **`budget.max_lines` is per form.** 16 on an EVAL at 10-pitch, **8** on a CHIEFEVAL, 19
+> ⚠️ **`budget.max_lines` is per form.** 17 on an EVAL at 10-pitch, **8** on a CHIEFEVAL, 19
 > on a FITREP (`getCommentCapacity`). It used to be a flat 18 for every report type, which
 > meant the coach — a feature whose entire value is that it understands the form — was
 > telling a Chief to fill ten lines of NAVPERS 1616/27 that do not exist on the printed page.
@@ -108,7 +108,7 @@ the model is *the shipped rule*, not a paraphrase of it maintained here.
   ],
   "dropped": 0,                          // items the gates removed — surfaced, never hidden
   "model": "claude-opus-5",
-  "budget": { "chars_per_line": 90, "max_lines": 16, "lines_used": 8, "fits": true }
+  "budget": { "chars_per_line": 90, "max_lines": 17, "lines_used": 8, "fits": true }
 }
 ```
 

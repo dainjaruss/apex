@@ -188,13 +188,28 @@ const C = {
     rec2_x: 218,
     rec2_y: 499,
 
-    // Block 43 comments — top baseline clears the 2-line instruction header. The line
-    // count is NOT a constant here: it is getCommentCapacity("EVAL", pitch), the number
-    // of lines this baseline actually keeps inside the printed box (16 at 10-pitch, 15 at
-    // 12-pitch). It used to say 18, and lines 17-18 printed 8 and 20 pt BELOW the box,
-    // over the Block 44 header.
+    // Block 43 comments. The line count is NOT a constant here: it is
+    // getCommentCapacity("EVAL", pitch) — 17 at 10-pitch, 15 at 12-pitch.
+    //
+    // 450 (page-space 436.0 after OFFSET_P2) sat ~8.5 pt BELOW the top of the usable
+    // area and cost the Sailor a whole line: it fit only 16. That 16 then got written
+    // down as the form's capacity, which repeated the original bug in miniature — a
+    // line count inherited from an unexamined constant instead of measured off the paper.
+    //
+    // 458.5 (page-space 444.5) is measured. Rasterising 1616/26 page 2 at 600 dpi puts
+    // Block 43's clear interior at y[253.44, 468.12] (both bounding rules are exactly
+    // 0.72 pt) and the lowest ink of its printed instruction header at 452.04 — that
+    // header's real ink runs ~0.2 pt below the glyph-metric estimate because of the
+    // parentheses in "(10 or 12 point)". Drawing mixed-case Courier at 444.5 and
+    // re-rastering: 10-pitch/17 lines inks y[253.56, 451.44]; 12-pitch/15 lines inks
+    // y[265.32, 451.92]. Both clear the header and the floor.
+    //
+    // The window is genuinely narrow — 12-pitch line 1 caps the baseline at 444.62 and
+    // 10-pitch line 17 floors it at 444.38 — so 444.5 is the midpoint, with ~0.12 pt at
+    // each binding edge. Do not nudge this without re-rastering; a bigger number prints
+    // line 1 through the header, a smaller one drops line 17 out of the box.
     b43_x: 22,
-    b43_topBaseline: 450,
+    b43_topBaseline: 458.5,
 
     // block 44 qualifications (2 lines)
     b44_x: 22,

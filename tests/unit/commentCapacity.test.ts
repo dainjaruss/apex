@@ -19,48 +19,63 @@ import fs from "fs";
 import path from "path";
 import { getDocumentProxy } from "unpdf";
 import { generateOverlayPdf } from "@/lib/pdfOverlay";
-import { generateFitrepOverlayPdf } from "@/lib/fitrepOverlay";
 import { checkCommentFit, getCommentCapacity } from "@/lib/commentFit";
 import { runFullValidation } from "@/lib/validationEngine";
 import { coachPayload } from "@/lib/evalCoach/coach";
 import type { Evaluation } from "@/types";
 
-// pdf-lib's Courier: Descender -157/1000 em, CapHeight 562/1000 em. The overlays draw the
-// narrative in Courier, so these are the extents that decide "inside the box".
-const DESCENDER = 0.157;
-const CAP_HEIGHT = 0.562;
+// Real ink extents of the drawn narrative, per em, MEASURED — not the font's declared
+// metrics. Mixed-case Courier (the form's own header says "Use upper and lower case")
+// containing the punctuation a Block 43 actually carries was drawn at a known baseline
+// and rasterised at 600 dpi: ink reaches 0.693 em above the baseline and 0.183 em below.
+//
+// The declared metrics — Descender -157/1000, CapHeight 562/1000 — are BOTH optimistic,
+// and on this form that matters: the EVAL's 17th line clears the box floor by 0.12 pt, so
+// a check built on 0.157 would pass text that really overflows. public/fonts/
+// CourierPrime-Regular.ttf is the binding font; the StandardFonts.Courier fallback in
+// pdfOverlay inks slightly tighter (0.669 / 0.159), so these bounds cover both.
+const INK_ABOVE = 0.693;
+const INK_BELOW = 0.183;
 
 /**
- * Measured off the blank forms. Method for each number, reproducible from the file:
- * inflate page 2's content stream, walk the q/Q/cm stack, and take the full-width stroked
- * rules that bound the comment block. All three forms stroke at 0.72 pt, so the box
- * INTERIOR is the rule centreline ± 0.36. `headerFloor` is the descender of the lowest
- * instruction line the form prints INSIDE that box — line 1 of the narrative must clear it.
+ * Measured off the blank forms by RASTERISING page 2 at 600 dpi and reading real ink —
+ * not by trusting glyph metrics. Procedure per form: render, mask the box's own vertical
+ * side rules (they put dark pixels in every row inside the block and would otherwise read
+ * as printed ink all the way down), then take the bounding rules and the lowest ink of the
+ * instruction header the form prints inside the block.
+ *
+ * Every rule on all three forms measures exactly 0.72 pt thick, which is what makes
+ * "interior = rule centreline ± 0.36" sound; the numbers below are the ink edges.
+ *
+ * `headerFloor` is the header's REAL ink floor. On every form it sits 0.2-0.4 pt below
+ * the font-metric descender, because the lowest ink is the parentheses in
+ * "(10 or 12 point)". An earlier revision of this file used the metric estimate and was
+ * optimistic by that much on all three.
  */
 const FORMS = {
   EVAL: {
     blank: "navpers-1616-26_2025.pdf",
     block: 43,
-    // Rules at y=468.40 and y=253.12; header baselines 460.48 and 453.28 at 6.468 pt.
-    boxTop: 468.04,
-    boxFloor: 253.48,
-    headerFloor: 453.28 - 6.468 * DESCENDER, // 452.26
+    // Rules centred 468.42 / 253.14; ink 468.72-468.12 and 253.44-252.84.
+    boxTop: 468.12,
+    boxFloor: 253.44,
+    headerFloor: 452.04,
   },
   CHIEFEVAL: {
     blank: "chiefEvalBlank.pdf",
     block: 40,
-    // Rules at y=380.88 and y=277.20; header baseline 372.36 at 6.947 pt.
-    boxTop: 380.52,
+    // Rules centred 380.94 / 277.26; ink 381.24-380.64 and 277.56-276.96.
+    boxTop: 380.64,
     boxFloor: 277.56,
-    headerFloor: 372.36 - 6.947 * DESCENDER, // 371.27
+    headerFloor: 371.64,
   },
   FITREP: {
     blank: "fitrepBlank.pdf",
     block: 41,
-    // Rules at y=469.44 and y=226.08; header baselines 460.08 and 452.88 at 6.468 pt.
-    boxTop: 469.08,
+    // Rules centred 469.50 / 226.14; ink 469.80-469.20 and 226.44-225.84.
+    boxTop: 469.20,
     boxFloor: 226.44,
-    headerFloor: 452.88 - 6.468 * DESCENDER, // 451.86
+    headerFloor: 451.56,
   },
 } as const;
 
@@ -95,10 +110,9 @@ async function renderedCommentLines(
     fs.readFileSync(path.join(process.cwd(), "public", FORMS[form].blank)),
   );
   const ev = draft(form, pitch, probeLines(lineCount));
-  const bytes =
-    form === "FITREP"
-      ? await generateFitrepOverlayPdf(ev, template)
-      : await generateOverlayPdf(ev, template);
+  // generateOverlayPdf dispatches CHIEFEVAL and FITREP to their own overlays, so this
+  // exercises the same entry point the export route uses for all three forms.
+  const bytes = await generateOverlayPdf(ev, template);
 
   const pdf = await getDocumentProxy(new Uint8Array(bytes));
   const items = (await (await pdf.getPage(2)).getTextContent()).items as any[];
@@ -115,7 +129,7 @@ async function renderedCommentLines(
 describe("comment-block capacity is a property of the form, not a constant", () => {
   it("is a different number on each of the three forms", () => {
     // The defect this file exists for: one hardcoded 18 answered for all three.
-    expect(getCommentCapacity("EVAL", "10")).toBe(16);
+    expect(getCommentCapacity("EVAL", "10")).toBe(17);
     expect(getCommentCapacity("CHIEFEVAL", "10")).toBe(8);
     expect(getCommentCapacity("FITREP", "10")).toBe(19);
 
@@ -129,22 +143,21 @@ describe("comment-block capacity is a property of the form, not a constant", () 
       expect(getCommentCapacity(f, "10")).not.toBe(18);
   });
 
-  it("falls back to the EVAL for an unknown report type, never to the largest form", () => {
-    expect(getCommentCapacity(undefined, "10")).toBe(16);
-    expect(getCommentCapacity("SOMETHING_NEW", "10")).toBe(16);
-    // A fallback that guessed high would re-create the original bug on a CHIEFEVAL.
-    expect(getCommentCapacity(undefined, "10")).toBeLessThan(
-      getCommentCapacity("FITREP", "10"),
-    );
+  it("falls back to the EVAL for an unknown report type", () => {
+    expect(getCommentCapacity(undefined, "10")).toBe(17);
+    expect(getCommentCapacity("SOMETHING_NEW", "10")).toBe(17);
   });
 });
 
-// The renderer half of the contract. CHIEFEVAL is absent on purpose — its overlay is
-// PR #34's file (fix/chiefeval-overlay) and this branch must not touch it; see the
-// CHIEFEVAL block further down for how the two compose.
+// The renderer half of the contract — all three forms, both pitches. CHIEFEVAL is the
+// form the original bug hurt worst, so it is render-checked here like the others: since
+// #34 merged, chiefEvalOverlay reads getCommentCapacity instead of carrying its own
+// b40_lines10/b40_lines12, and this is what holds the two together.
 describe.each([
   ["EVAL", "10"],
   ["EVAL", "12"],
+  ["CHIEFEVAL", "10"],
+  ["CHIEFEVAL", "12"],
   ["FITREP", "10"],
   ["FITREP", "12"],
 ] as const)("%s at %s-pitch: the renderer agrees with the printed box", (form, pitch) => {
@@ -163,10 +176,10 @@ describe.each([
   it("lands every printed line inside the box measured off the blank", async () => {
     const drawn = await renderedCommentLines(form, pitch, capacity);
     for (const line of drawn) {
-      const descender = line.baseline - line.size * DESCENDER;
-      const capTop = line.baseline + line.size * CAP_HEIGHT;
-      expect(descender).toBeGreaterThanOrEqual(box.boxFloor);
-      expect(capTop).toBeLessThanOrEqual(box.boxTop);
+      const inkBottom = line.baseline - line.size * INK_BELOW;
+      const inkTop = line.baseline + line.size * INK_ABOVE;
+      expect(inkBottom).toBeGreaterThanOrEqual(box.boxFloor);
+      expect(inkTop).toBeLessThanOrEqual(box.boxTop);
     }
   });
 
@@ -174,7 +187,7 @@ describe.each([
     // 462.0 on the FITREP failed exactly this: line 1's cap height ran at 467.6, through
     // the printed "41. COMMENTS ON PERFORMANCE / Font must be 10 or 12 pitch" header.
     const [first] = await renderedCommentLines(form, pitch, 2);
-    expect(first.baseline + first.size * CAP_HEIGHT).toBeLessThanOrEqual(
+    expect(first.baseline + first.size * INK_ABOVE).toBeLessThanOrEqual(
       box.headerFloor,
     );
   });
@@ -184,48 +197,18 @@ describe.each([
     const drawn = await renderedCommentLines(form, pitch, capacity);
     const leading = drawn[0].baseline - drawn[1].baseline;
     const nextBaseline = drawn[0].baseline - capacity * leading;
-    expect(nextBaseline - drawn[0].size * DESCENDER).toBeLessThan(box.boxFloor);
+    expect(nextBaseline - drawn[0].size * INK_BELOW).toBeLessThan(box.boxFloor);
   });
 });
 
-describe("CHIEFEVAL (NAVPERS 1616/27) Block 40", () => {
-  // Not render-checked here: lib/chiefEvalOverlay.ts belongs to PR #34, which this branch
-  // does not touch. #34 measured b40_lines10: 8 / b40_lines12: 7 against its own
-  // b40_topBaseline: 363.0 and clamps drawing to them. The arithmetic below re-derives
-  // those two numbers independently from the box measured off chiefEvalBlank.pdf, so the
-  // renderer's clamp and this table are the same claim reached two different ways.
-  //
-  // Composition once #34 lands: delete b40_lines10/b40_lines12 and call
-  // getCommentCapacity("CHIEFEVAL", pitch) at the Block 40 narrative(), the way
-  // pdfOverlay and fitrepOverlay now do. Until then this test is what keeps them equal.
-  const box = FORMS.CHIEFEVAL;
-  const TOP_BASELINE = 363.0; // PR #34, lib/chiefEvalOverlay.ts
-
-  // 1616/27's overlay narrative box is 544.7 pt wide (FORM_RIGHT 578.9 - TEXT_X 34.2),
-  // and every overlay sizes the same way: min(12, (width - 4) / ((cpl + 0.5) * 0.6)).
-  const size = (cpl: number) => Math.min(12, (544.7 - 4) / ((cpl + 0.5) * 0.6));
-
-  it.each([
-    ["10", 90, 8],
-    ["12", 84, 7],
-  ] as const)("holds %s-pitch: %i CPL -> %i lines", (pitch, cpl, expected) => {
-    const s = size(cpl);
-    const leading = s * 1.18;
-    const usable = TOP_BASELINE - s * DESCENDER - box.boxFloor;
-    expect(Math.floor(usable / leading) + 1).toBe(expected);
-    expect(getCommentCapacity("CHIEFEVAL", pitch)).toBe(expected);
-  });
-
-  it("keeps line 1 clear of the printed Block 40 header", () => {
-    expect(TOP_BASELINE + size(84) * CAP_HEIGHT).toBeLessThanOrEqual(box.headerFloor);
-  });
-
-  it("would put line 9 well below the box floor at 10-pitch", () => {
-    // The measured failure on PR #34: a CHIEFEVAL passed validation at 18 lines and the
-    // printed form showed 8. Line 9's BASELINE — not its descender — is already outside.
-    const leading = size(90) * 1.18;
-    expect(TOP_BASELINE - 8 * leading).toBeLessThan(box.boxFloor);
-  });
+it("still returns the 8 / 7 PR #34 measured independently for CHIEFEVAL", () => {
+  // #34 arrived at b40_lines10: 8 / b40_lines12: 7 by measuring 1616/27 and clamped
+  // rendering to them; this table arrived at the same pair from a 600 dpi raster of the
+  // same blank. Two routes, one answer — and since #34 merged, chiefEvalOverlay carries
+  // no line-count constant of its own, so the render-check above is what enforces it.
+  // If anyone reintroduces a per-overlay constant, this pins what it has to equal.
+  expect(getCommentCapacity("CHIEFEVAL", "10")).toBe(8);
+  expect(getCommentCapacity("CHIEFEVAL", "12")).toBe(7);
 });
 
 describe("the Sailor is told before signing, against the real number", () => {
@@ -249,16 +232,27 @@ describe("the Sailor is told before signing, against the real number", () => {
     expect(issue!.severity).toBe("error");
   });
 
-  it("BEFORE/AFTER: 17 lines on an EVAL used to pass and print over the Block 44 header", () => {
-    const ev = draft("EVAL", "10", wide(17));
+  it("BEFORE/AFTER: 18 lines on an EVAL used to pass and print over the Block 44 header", () => {
+    const ev = draft("EVAL", "10", wide(18));
     const fit = checkCommentFit(ev.comments!, "10", "EVAL");
-    expect(fit.linesUsed).toBe(17);
-    expect(fit.maxLines).toBe(16); // was 18 — line 17 rendered 8.17 pt below the box
+    expect(fit.linesUsed).toBe(18);
+    expect(fit.maxLines).toBe(17); // was 18 — line 18 rendered 20 pt below the box
     expect(fit.fit).toBe(false);
 
     const issue = runFullValidation(ev).errors.find((e) => e.field === "comments");
     expect(issue!.block).toBe(43);
-    expect(issue!.message).toContain("16 lines");
+    expect(issue!.message).toContain("17 lines");
+  });
+
+  it("gives the EVAL back the 17th line its box actually holds", () => {
+    // The opposite failure to the one this PR started with, and just as real: a capacity
+    // short by one costs a Sailor a line of a signed record. 16 was what APEX's old top
+    // baseline happened to fit, not what 1616/26 Block 43 holds.
+    const ev = draft("EVAL", "10", wide(17));
+    expect(checkCommentFit(ev.comments!, "10", "EVAL").fit).toBe(true);
+    expect(
+      runFullValidation(ev).errors.find((e) => e.field === "comments"),
+    ).toBeUndefined();
   });
 
   it("does not cry wolf: a narrative that fits raises nothing", () => {
@@ -284,7 +278,7 @@ describe("the Sailor is told before signing, against the real number", () => {
           trait_grades: {},
         } as any).budget,
     );
-    expect(budgets.map((b) => b.max_lines)).toEqual([16, 8, 19]);
+    expect(budgets.map((b) => b.max_lines)).toEqual([17, 8, 19]);
     expect(budgets.every((b) => b.chars_per_line === 90)).toBe(true);
   });
 });

@@ -217,7 +217,7 @@ export interface LadrMilestoneStatus {   // from member_board_records.ladr_check
 // of truth: derived from lib/commentFit.ts constants so prompt and validator
 // cannot drift.
 //   comments:        { chars_per_line: pitch==="10"?90:84,
-//                      max_lines: getCommentCapacity(report_type, pitch) → 16/15 EVAL,
+//                      max_lines: getCommentCapacity(report_type, pitch) → 17/15 EVAL,
 //                      8/7 CHIEFEVAL, 19/18 FITREP, target_lines: max_lines - 1 }
 //   primary_duties:  getPrimaryDutiesFieldFit(report_type)  → 91 CPL × 3 (EVAL) / 4
 //                    (CHIEFEVAL/FITREP), first_line_lead: 20

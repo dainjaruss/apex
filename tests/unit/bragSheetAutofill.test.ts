@@ -239,9 +239,9 @@ describe("buildCallModel — generateText call shape (mocked 'ai')", () => {
 describe("computeBudgets — pinned to the commentFit constants", () => {
   it('EVAL @ 10-pitch matches the §4.6 payload budgets verbatim', () => {
     expect(computeBudgets("EVAL", "10")).toEqual({
-      // 16 = NAVPERS 1616/26 Block 43 at 10-pitch, measured off the blank
+      // 17 = NAVPERS 1616/26 Block 43 at 10-pitch, measured off the blank
       // (tests/unit/commentCapacity.test.ts). This budget said 18 for every form.
-      comments: { chars_per_line: 90, max_lines: 16, target_lines: 15 },
+      comments: { chars_per_line: 90, max_lines: 17, target_lines: 16 },
       primary_duties: { chars_per_line: 91, max_lines: 3, first_line_lead: 20 },
       primary_duty_abbrev: { max_chars: 14 },
       command_achievements: { chars_per_line: 91, max_lines: 3 },
@@ -610,12 +610,12 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     return out;
   };
 
-  it("retries once with concrete 21/16 feedback, then returns flagged with preview + dropped lines", async () => {
+  it("retries once with concrete 21/17 feedback, then returns flagged with preview + dropped lines", async () => {
     const fit = checkCommentFit(overComments, "10", "EVAL");
     expect(fit.linesUsed).toBe(21); // fixture sanity
-    // NAVPERS 1616/26 Block 43 holds 16 lines at 10-pitch — measured off the blank in
+    // NAVPERS 1616/26 Block 43 holds 17 lines at 10-pitch — measured off the blank in
     // tests/unit/commentCapacity.test.ts. Not 18, and not the CHIEFEVAL's or FITREP's.
-    expect(fit.maxLines).toBe(16);
+    expect(fit.maxLines).toBe(17);
 
     const cm = scriptedModel(overflowOutput(), overflowOutput());
     const res = await runAutofill(makeReq(), cm);
@@ -623,17 +623,17 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     // Exactly one overflow retry (≤3 calls total per run).
     expect(cm).toHaveBeenCalledTimes(2);
     const retryPrompt = cm.mock.calls[1][0];
-    expect(retryPrompt).toContain("21/16");
+    expect(retryPrompt).toContain("21/17");
     expect(JSON.parse(retryPrompt).retry_feedback).toBeDefined();
 
     const report = res.fit_reports.comments;
     expect(report.overflow).toBe(true);
     expect(report.fit.linesUsed).toBe(21);
     expect(report.truncation_preview).toBe(
-      fit.wrappedLines.slice(0, 16).join("\n"),
+      fit.wrappedLines.slice(0, 17).join("\n"),
     );
-    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(16));
-    expect(report.dropped_lines).toHaveLength(5);
+    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(17));
+    expect(report.dropped_lines).toHaveLength(4);
     // The server never trims the text itself.
     expect(res.blocks.comments.text).toBe(overComments);
 

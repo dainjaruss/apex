@@ -38,7 +38,7 @@ export default function Block43Comments({
 }: Block43CommentsProps) {
   const pitch = (evalData.block_values?.comment_pitch || "10") as "10" | "12";
   const commentsCpl = pitch === "10" ? 90 : 84;
-  // The number the Sailor is typing against, per form — 16 lines on 1616/26, 8 on
+  // The number the Sailor is typing against, per form — 17 lines on 1616/26, 8 on
   // 1616/27, 19 on 1610/2 at 10-pitch. Hardcoding 18 here told a Chief the box was more
   // than twice its printed size, and the overflow vanished at print time with no marker.
   const commentsMaxLines = getCommentCapacity(evalData.report_type, pitch);

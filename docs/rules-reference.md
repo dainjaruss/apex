@@ -165,7 +165,7 @@ The controlling paragraph, quoted verbatim so it can be checked:
 
   | Form | Comments block | 10-pitch (90 CPL) | 12-pitch (84 CPL) |
   |---|---|---|---|
-  | NAVPERS 1616/26 (EVAL) | 43 | **16 lines** | **15 lines** |
+  | NAVPERS 1616/26 (EVAL) | 43 | **17 lines** | **15 lines** |
   | NAVPERS 1616/27 (CHIEFEVAL) | 40 | **8 lines** | **7 lines** |
   | NAVPERS 1610/2 (FITREP) | 41 | **19 lines** | **18 lines** |
 
@@ -253,7 +253,7 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 - **Promotion gates:** EO (**Block 34** label in messages) and Bearing/Character (**Block 35**) both gate Promotable-or-higher, matching Chapter 9 policy (`refinePromotionRecommendation` with `bearingKey: "bearing"`).
 - **Retention (Block 47):** Omitted (same as CHIEFEVAL).
 - **Block 43 substantiation (1610/2 footnote):** 1.0 marks, **three or more** 2.0 marks, and any **2.0 in Block 34** (climate/EO) — same pattern as EVAL but with officer block numbers in messages.
-- **Narrative limits:** Monospace dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit`, with the line count resolved per form by `getCommentCapacity`. 1610/2 Block 41 holds **19 lines at 10-pitch, 18 at 12-pitch** — not the EVAL's 16/15 and not the CHIEFEVAL's 8/7. APEX-measured, see [§4 provenance](#block-43-comments-on-performance).
+- **Narrative limits:** Monospace dual-pitch (10-pitch 90 CPL / 12-pitch 84 CPL) via `checkCommentFit`, with the line count resolved per form by `getCommentCapacity`. 1610/2 Block 41 holds **19 lines at 10-pitch, 18 at 12-pitch** — not the EVAL's 17/15 and not the CHIEFEVAL's 8/7. APEX-measured, see [§4 provenance](#block-43-comments-on-performance).
 - **Tests:** `tests/unit/validationEngine.chiefFitrep.test.ts`
 
 ### UI behavior (parity with EVAL)
