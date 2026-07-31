@@ -302,9 +302,17 @@ function CoverageCard({ report }: { report: Report }) {
           cycle" directly above two cards saying On track. Suppression cannot
           catch that, because nothing is missing.
 
-          The composite is still computed and still persisted — this is a render
-          decision, not an engine change. `board_analyses.overall_score` and
-          `.band` are unchanged historical columns. */}
+          The composite is still computed, and persisted only when the readiness
+          layer emitted one — `board_analyses.overall_score` and `.band` are
+          NULLABLE as of migration 012, and NULL on a suppressed run. Nothing
+          here reads either column; this stays a render decision.
+
+          GATE: the band renders nowhere today, which is the only reason the
+          BANDS cut points can be left mis-calibrated (docs/specs §7.2). Anything
+          that renders `band` again must land BANDS recalibration in the same PR.
+          `app/api/board-confidence/runs/route.ts` already returns both columns
+          to the client, currently unconsumed — that is what makes this safe, and
+          it stops being safe the moment something consumes them. */}
     </section>
   );
 }

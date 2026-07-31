@@ -26,7 +26,6 @@ import {
 } from "@/lib/boardConfidence/rubric";
 import {
   buildReadinessReport,
-  COVERAGE_FLOOR,
   AREA_EVIDENCE_FLOOR,
   PRECEPT_UNSOURCED_PREFIX,
   type AreaStatus,
@@ -184,8 +183,6 @@ describe("the band inversion — now fixed in the ENGINE, not worked around", ()
     const a = report(sailorA);
     const b = report(sailorB);
 
-    expect(a.coverage.measured).toBeLessThan(COVERAGE_FLOOR);
-    expect(b.coverage.measured).toBeGreaterThanOrEqual(COVERAGE_FLOOR);
     expect(b.coverage.measured - a.coverage.measured).toBeGreaterThan(0.2);
 
     expect(a.score).toBeNull();
@@ -293,31 +290,66 @@ describe("the two gates on emitting a number", () => {
     const lead = rep.areas.find((a) => a.key === "leadership")!;
     expect(lead.detail.weight).toBeGreaterThan(0);
     expect(lead.detail.confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
-    expect(rep.coverage.measured).toBeGreaterThan(COVERAGE_FLOOR); // the floor would NOT catch it
     expect(rep.score).toBeNull();
     expect(rep.scoreNote).toMatch(/leadership and impact/);
   });
 
-  it("COVERAGE FLOOR: still catches a thin record whose factors all have some confidence", () => {
-    // Three reports (conf_P 0.70), tours entered but NO awards section (conf_L
-    // 0.70), and a precept whose LaDR-derived flags are partly computable
-    // (conf_X 0.60). Every verdict factor is more than half observed, so the
-    // blind-spot gate has nothing to fire on — and the weighted total still
-    // lands under the floor.
-    const thin: RubricInputs = {
+  it("the evidence floor is the RULE — at least half — pinned from both sides", () => {
+    // The constant is bracketed by behaviour, not copied from a run. Nothing
+    // else pins it: a floor anywhere in (0.30, 0.70] catches the same leadership
+    // case, so these two fixtures are what stop it drifting.
+
+    // JUST UNDER half: two reports with no summary-group distribution give
+    // a_P = 0.70 (no P3, no P4) and conf_P = 0.70 * 2/3 = 0.4667. Withheld.
+    const twoReports: RubricInputs = {
       ...sailorB,
-      evals: [2024, 2025, 2026].map((y) => annual(y, "Promotable", 3.8)),
-      psr: { ...sailorB.psr, awards: null },
-      ladr: sailorBLadr.filter((i) => i.category !== "nec_opportunity"),
+      evals: [2025, 2026].map((y) => annual(y, "Must Promote", 4.3)),
+      preceptFlags: [],
     };
-    const rep = report(thin);
-    // Every weighted factor clears the blind-spot gate, so it is the FLOOR doing
-    // the work here — not the gate.
-    expect(
-      rep.areas.every((a) => a.detail.weight === 0 || a.detail.confidence >= AREA_EVIDENCE_FLOOR),
-    ).toBe(true);
-    expect(rep.coverage.measured).toBeLessThan(COVERAGE_FLOOR);
-    expect(rep.score).toBeNull();
+    const p = scoreBoardConfidence(twoReports, CFG).factors.find((f) => f.key === "performance")!;
+    expect(p.confidence).toBeCloseTo(0.7 * (2 / 3), 9);
+    expect(p.confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
+    expect(report(twoReports).score).toBeNull();
+
+    // EXACTLY half: two precept flags, one computable, conf_X = 0.500. Scored —
+    // the rule is "at least half", and the comparison is `< floor`.
+    const halfPrecept: RubricInputs = {
+      ...sailorB,
+      evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.3)),
+      ladr: [sailorBLadr[0]], // qual_warfare only: warfighting computable, education not
+      preceptFlags: ["warfighting", "education"],
+    };
+    const x = scoreBoardConfidence(halfPrecept, CFG).factors.find((f) => f.key === "precept")!;
+    expect(x.confidence).toBe(0.5);
+    expect(x.confidence).not.toBeLessThan(AREA_EVIDENCE_FLOOR);
+    expect(report(halfPrecept).score).not.toBeNull();
+  });
+
+  it("…and the bracket is TIGHT: no reachable confidence lands inside it", () => {
+    // A mutant at 0.49 survives the two fixtures above, and it is an EQUIVALENT
+    // mutant, not a gap. The confidences a verdict factor can report are a small
+    // discrete set — products of the published sub-weight subsets — and none of
+    // them falls in (0.4667, 0.50). This enumerates that set so a future
+    // sub-weight change that DOES put a value in the interval fails here rather
+    // than silently making the constant load-bearing again.
+    const subsets = (ws: number[]): number[] =>
+      ws.reduce<number[]>((acc, w) => [...acc, ...acc.map((a) => a + w)], [0]);
+    const reachable = new Set<number>();
+    // performance: a_P over the P1..P4 sub-weights × the volume term min(1, N/3)
+    for (const aP of subsets([0.35, 0.35, 0.15, 0.15]))
+      for (const n of [1 / 3, 2 / 3, 1]) reachable.add(Number((aP * n).toFixed(10)));
+    // leadership: a_L over {L1+L3 together, L2}
+    for (const aL of subsets([0.7, 0.3])) reachable.add(aL);
+    // precept: computable flags over configured flags, 1..5 flags
+    for (let total = 1; total <= 5; total++)
+      for (let k = 0; k <= total; k++) reachable.add(Number((k / total).toFixed(10)));
+
+    const LOW = Number((0.7 * (2 / 3)).toFixed(10)); // the two-report case, withheld
+    const inside = Array.from(reachable).filter((c) => c > LOW && c < AREA_EVIDENCE_FLOOR);
+    expect(inside).toEqual([]);
+    // …and both ends of the bracket ARE reachable, so it is not vacuous.
+    expect(reachable.has(LOW)).toBe(true);
+    expect(reachable.has(AREA_EVIDENCE_FLOOR)).toBe(true);
   });
 
   it("blanking a section buys a raw number nobody is shown", () => {
@@ -460,16 +492,6 @@ describe("the two gates on emitting a number", () => {
     expect(dev.summary).not.toMatch(/checklist is unanswered/);
   });
 
-  it("the floor comparison is >= — a record exactly at the floor is scored", () => {
-    const r = scoreBoardConfidence(sailorB, CFG);
-    const exact = buildReadinessReport(r, sailorB, CFG, {
-      asOf: AS_OF,
-      coverageFloor: r.factors.reduce((a, f) => a + f.weight * f.confidence, 0) / 100,
-    });
-    expect(exact.coverage.measured).toBe(exact.coverage.floor);
-    expect(exact.score).not.toBeNull();
-  });
-
   it("excludes weight-0 factors from the headline count — a missing precept is a TOOL gap", () => {
     // Without this, a fully-entered record reads "APEX can see 5 of 6 areas of
     // YOUR RECORD" when the gap is that no precept is loaded.
@@ -484,7 +506,7 @@ describe("the two gates on emitting a number", () => {
 });
 
 describe("the empty record — the first thing a new user sees", () => {
-  it("the raw rubric emits a flagged PLACEHOLDER, not a verdict", () => {
+  it("the raw rubric says plainly that there is no score, and none is persisted", () => {
     // There is nothing in any verdict factor, so Σ(weight·conf) is 0 and the
     // composite is undefined. `final` is typed `number` and the column is NOT
     // NULL, so 0 is emitted — with a warning that says in words that it is not an
@@ -493,7 +515,11 @@ describe("the empty record — the first thing a new user sees", () => {
     const r = scoreBoardConfidence(emptyRecord, CFG);
     expect(r.factors.reduce((a, f) => a + f.weight * f.confidence, 0)).toBe(0);
     expect(r.final).toBe(0);
-    expect(r.warnings.some((w) => /placeholder, not an assessment/.test(w))).toBe(true);
+    expect(r.warnings.some((w) => /no overall score for this record/.test(w))).toBe(true);
+    // …and the 0 does not outlive the request: service.ts writes NULL to
+    // board_analyses.overall_score/.band whenever the readiness layer suppressed
+    // the score (migration 012), so a fabricated 0 is never persisted as a band.
+    expect(report(emptyRecord).score).toBeNull();
   });
 
   it("the readiness report emits no score and no band at all", () => {
@@ -1126,22 +1152,14 @@ describe("purity, and asOf as a trust boundary", () => {
     expect(JSON.stringify(sailorB)).toBe(snapshot);
   });
 
-  it("the floor is tunable per run", () => {
-    const r = scoreBoardConfidence(sailorB, CFG);
-    expect(buildReadinessReport(r, sailorB, CFG, { coverageFloor: 0.99 }).score).toBeNull();
-    expect(buildReadinessReport(r, sailorB, CFG, { coverageFloor: 0.1 }).score).not.toBeNull();
-  });
 });
 
 // ---------------------------------------------------------------------------
-// COVERAGE_FLOOR was calibrated on a scale where the precept factor contributed
-// a free 0.10 at conf = 1 whether or not anything backed it. Now that an
-// unsourced precept is excluded like an absent one (service.ts), coverage maps
-// measured_after = (measured_before − 0.10) × 10/9 — strictly downward, fixed
-// point only at 1.0. The floor is deliberately NOT rescaled; this pins both the
-// mapping and that decision, so a future rescale is a conscious act.
+// The precept exclusion still rescales coverage; the AGGREGATE FLOOR that used
+// to be judged against it is gone (readiness.ts). Its two remaining tests went
+// with it — there is no threshold left for a record to "cross".
 // ---------------------------------------------------------------------------
-describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
+describe("coverage against the post-redistribution scale", () => {
   const withPrecept = { ...sailorB, preceptFlags: ALL_FLAGS };
   const without = { ...sailorB, preceptFlags: [] as PreceptFlag[] };
 
@@ -1160,23 +1178,14 @@ describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
     expect(m2).toBeLessThan(m1); // strictly downward below 1.0
   });
 
-  it("the floor is judged against effective weights, and stays 0.75", () => {
-    expect(COVERAGE_FLOOR).toBe(0.75);
-    // Both runs are judged against the same number — the scale changed, the
-    // threshold did not. The no-precept case has always been on this scale.
-    expect(report(withPrecept).coverage.floor).toBe(COVERAGE_FLOOR);
-    expect(report(without).coverage.floor).toBe(COVERAGE_FLOOR);
-  });
-
-  it("a record can cross the floor purely from the precept exclusion", () => {
-    // The consequence, stated rather than discovered later: same Sailor, same
-    // entries, suppressed after the change because the free 0.10 is gone.
-    // The reviewer's worked example: 0.7675 before, 0.7417 after.
-    const before = 0.7675;
-    const after = ((before - 0.1) * 10) / 9;
-    expect(before).toBeGreaterThan(COVERAGE_FLOOR); // a number was emitted
-    expect(after).toBeCloseTo(0.7417, 4);
-    expect(after).toBeLessThan(COVERAGE_FLOOR); // now suppressed, same Sailor
+  it("rescaling coverage can no longer suppress a record on its own", () => {
+    // It could, and did: the same Sailor was scored at 0.7675 and suppressed at
+    // 0.7417 with nothing about them changed, purely because the precept's free
+    // 0.10 went away. With no aggregate threshold there is nothing to cross —
+    // only the per-factor rule, which does not care about the rescale because it
+    // reads each factor's own confidence.
+    expect(report(without).score).not.toBeNull();
+    expect(report(withPrecept).score).not.toBeNull();
   });
 });
 

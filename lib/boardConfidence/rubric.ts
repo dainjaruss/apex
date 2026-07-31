@@ -78,18 +78,38 @@ export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
  * and honestly by ReadinessReport.coverage — where "we cannot see this" reads as
  * a data state instead of a deficiency.
  *
- * Both factors are still computed in full, still returned in `factors`, still
- * rendered as areas, and development still drives the entire action plan. They
- * carry weight 0; the remaining weights redistribute through the one
- * redistribution mechanism in scoreBoardConfidence.
+ * `continuity` fails it for a reason that only became visible under review, and
+ * it is the sharpest of the three. A board CAN see a gap — but APEX cannot tell
+ * a gap from an unentered report, and it grades what it is given. Both possible
+ * denominators are indefensible in opposite directions: measured over the fixed
+ * 1826-day window it charges a three-year Sailor for years they had not served
+ * (0.60 coverage AND a leading-gap penalty, S_C 45 on a record with nothing
+ * missing); measured over the span between the reports the Sailor chose to
+ * enter, deleting the older of two reports collapses the span, takes gapCount to
+ * 0 and PAYS 7.6 for hiding a two-year break — beside the §17-6 advisory telling
+ * them to recover missing reports. There is no third denominator. A factor whose
+ * input is "reports the Sailor typed in" cannot grade the absence of reports
+ * without asserting something APEX does not know, and every contiguous record
+ * returned exactly 100 at every length while holding 13-15% of the verdict —
+ * the same paperwork axis `completeness` was removed for.
+ *
+ * The §17-6 advisory is untouched and still fires on `recordGapCount`. It is the
+ * right surface for a reporting gap: sourced, actionable, and unscored.
+ *
+ * All three factors are still computed in full, still returned in `factors`,
+ * still rendered as areas with a how-to, and development still drives the entire
+ * action plan. They carry weight 0; the remaining weights redistribute through
+ * the one redistribution mechanism in scoreBoardConfidence.
  */
 export const VERDICT_FACTORS: ReadonlySet<FactorKey> = new Set<FactorKey>([
   "performance", "leadership", "precept",
 ]);
-// v1.5: operator-tunable parameters. Defaults reproduce spec §7. Continuity is
-// GRADED, never a hard zero (a real board decides selection, not this tool);
-// a detected reporting gap raises a prominent advisory instead — see
-// scoreBoardConfidence.
+// v1.5: operator-tunable parameters. Defaults reproduce spec §7 — EXCEPT that
+// `weights` no longer describes the verdict on its own: development,
+// completeness and continuity are excluded from it whatever this table says (see
+// VERDICT_FACTORS), and the remainder redistribute. Continuity was never a hard
+// zero and is now not a score at all; a detected reporting gap raises the §17-6
+// advisory, which is the only thing that ever mattered about it.
 export const DEFAULT_RUBRIC_CONFIG: RubricConfig = {
   weights: { ...FACTOR_WEIGHTS },
   continuity_gap_days: 90,
@@ -161,6 +181,21 @@ export const CONTINUITY_GAP_PENALTY = 15;
 // verified/total ratio, for the same reason and to match `necs`/`education`,
 // which have always tested presence. S_R is normalized over the table's own sum,
 // so the remaining items keep their relative sizes without a hand-edited total.
+//
+// KNOWN CONSEQUENCE, not a regression to paper over. The table now totals 90
+// instead of 100, so after renormalization every surviving item is worth 11.1
+// rather than 10 and a record missing one 10-point item lands lower against the
+// unchanged AREA_STATUS_THRESHOLDS (80/55). Measured: a record with only two PFA
+// cycles reads 77.8 / "On track" where it read 90 / "Strong". The card status
+// flips in roughly a quarter of records, in both directions.
+//
+// The thresholds are deliberately NOT retuned. They are a global assertion
+// shared by all six areas ("assertions, not calibration", readiness.ts), and the
+// scale really did change: a record that read Strong partly because the Sailor
+// had ticked verification boxes now reads on entry alone. Moving 80/55 to put
+// those cards back where they were would restore the old reading of a number
+// that no longer means the same thing. `completeness` carries no verdict weight,
+// so this is a card label, not a score.
 export const COMPLETENESS_POINTS = {
   continuity95: 20, psrEntered: 15, awards: 15, necs: 10,
   education: 10, pfa3: 10, ladr90: 10,
@@ -848,7 +883,7 @@ export function scoreBoardConfidence(
   const denom = factors.reduce((a, f) => a + f.weight * f.confidence, 0);
   if (denom <= 0)
     warnings.push(
-      "No area of your record has enough entered for APEX to compute an overall score — the score below is a placeholder, not an assessment.",
+      "APEX has nothing entered for any area it scores, so there is no overall score for this record.",
     );
   const raw = denom <= 0 ? 0 : (100 * factors.reduce((a, f) => a + f.contribution, 0)) / denom;
 

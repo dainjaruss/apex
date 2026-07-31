@@ -219,10 +219,10 @@ export interface RubricConfig {
  * THIS IS NOT A DATA BOUNDARY, and an earlier version of this comment claimed it
  * was. The browser already holds the same numbers by other routes:
  * `listMyAnalyses` selects `*` (boardConfidenceService.ts), the analyze route
- * returns the row wholesale, and the row persists `factor_scores`,
- * `overall_score` and `band` (service.ts). For the six-Early-Promote record
- * whose score the Results screen refuses to show, the client holds
- * overall_score 55.6 and band 50 regardless of this type.
+ * returns the row wholesale, and the row persists `factor_scores` (service.ts).
+ * `overall_score` and `band` are NULL on a suppressed run as of migration 012,
+ * but Σ detail.contribution still reconstructs the score from `factor_scores`,
+ * so the containment this type provides is render-level either way.
  *
  * That is not a leak — it is the user's own data about their own record. What
  * this type provides is RENDER-LEVEL containment: it keeps `detail` out of the
@@ -253,8 +253,15 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
     readiness?: ClientReadinessReport;
   };
   factor_scores: FactorResult[];
-  overall_score: number;
-  band: BandVote;
+  /**
+   * NULL when the readiness layer suppressed the score for this run (migration
+   * 012). A suppressed run used to persist the number the product had just
+   * declined to show; for a record with nothing entered that number is a
+   * fabricated 0, which the band table reads as "Drop-from-consideration risk".
+   * Coverage is not duplicated alongside — it is in `input.readiness.coverage`.
+   */
+  overall_score: number | null;
+  band: BandVote | null;
   adverse_adjustment: number;           // A, persisted (v1.1 review fix — never derived client-side)
   narrative: Narrative;                 // from narrative.ts
   narrative_source: "model" | "fallback";

@@ -454,7 +454,13 @@ describe("runBoardAnalysis — success path persists the full snapshot", () => {
     expect(p.narrative_source).toBe("fallback");
     expect(p.model).toBeNull();
     expect(p.narrative_fallback_reason).toBe("model_error");
-    expect(Number.isFinite(p.overall_score)).toBe(true);
+    // overall_score/band are written ONLY when the readiness layer emitted a
+    // score (migration 012). This fixture is suppressed, so both are NULL rather
+    // than a number the product had just declined to show.
+    expect(p.input.readiness.score).toBeNull();
+    expect(p.overall_score).toBeNull();
+    expect(p.band).toBeNull();
+    expect(calls.auditPayload.details.overall_score).toBeNull();
 
     expect(calls.auditPayload.action).toBe("BOARD_ANALYSIS_RUN");
     expect(calls.auditPayload.user_id).toBe("caller-1");
@@ -553,7 +559,10 @@ describe("runBoardAnalysis — v1.1 scoring semantics reach the persisted snapsh
     await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
 
     const p = calls.insertPayload;
-    expect(Number.isFinite(p.overall_score)).toBe(true);
+    // Either a finite number or NULL — never NaN, and never a number the
+    // readiness layer suppressed. The two must agree, always.
+    expect(p.overall_score === null || Number.isFinite(p.overall_score)).toBe(true);
+    expect(p.overall_score === null).toBe(p.input.readiness.score === null);
     expect(p.input.warnings).toContain(
       "1 report has no promotion recommendation and was excluded from Performance scoring (period 2024-06-01–2025-05-31).",
     );

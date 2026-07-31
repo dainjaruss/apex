@@ -1639,6 +1639,6 @@ describe("INVARIANT — every number the engine emits is finite", () => {
     const r = scoreBoardConfidence({ boardDate: T, evals: [], psr: emptyPsr, ladr: [], preceptFlags: [] });
     expect(r.factors.reduce((a, f) => a + f.weight * f.confidence, 0)).toBe(0);
     expect(r.final).toBe(0);
-    expect(r.warnings.some((w) => /placeholder, not an assessment/.test(w))).toBe(true);
+    expect(r.warnings.some((w) => /no overall score for this record/.test(w))).toBe(true);
   });
 });

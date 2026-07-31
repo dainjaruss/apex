@@ -43,52 +43,36 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Coverage backstop. Below this, `score` is null and the caller renders "not
- * enough of your record is entered to assess" — no number, no band.
+ * RETIRED as a gate. The aggregate coverage floor is gone; the per-factor
+ * AREA_EVIDENCE_FLOOR below is the only gate.
  *
- * WHY 0.75. Coverage is NOT zero for an empty record: continuity and
- * completeness measure missingness itself and precept is a fixed indicator
- * table, so all three report conf = 1 unconditionally and a Sailor who has
- * entered nothing already reads 0.30 (0.22 with no precept loaded, when the five
- * remaining weights redistribute ×100/90). The honest range is 0.30 → 1.00.
- * 0.75 encodes: at most a quarter of the weighted record may be scored as zeros
- * it did not earn.
+ * It cannot simply be re-tuned, because the sentence that justified it is no
+ * longer true. It said: "0.75 encodes: at most a quarter of the weighted record
+ * may be scored as zeros it did not earn." Nothing is scored as zeros it did not
+ * earn any more — the composite renormalizes by Sigma(w*conf), so an unobserved
+ * factor leaves the arithmetic instead of being charged. The floor was
+ * protecting against a defect that no longer exists, on a denominator that no
+ * longer exists (three factors now carry weight 0, so for a user with no precept
+ * loaded — every real user today — coverage is 0.727*conf_P + 0.273*conf_L, and
+ * clearing 0.75 requires conf_P >= 0.656).
  *
- * This is now the SECONDARY gate. The primary one is BLIND_SPOT_GATE below,
- * which a floor on a weighted average cannot express: a flawless Sailor with
- * 6× Early Promote, an MSM and four years of sea duty reached coverage 0.79 —
- * clear of this floor — and was scored a middle band with an EMPTY action plan,
- * because 15 weighted points of development were earned zeros from a rating with
- * no curated LaDR. Only 2 of 82 ratings ship a verified LaDR seed (ratings.ts
- * lists 82; there are 3 seed files and BM self-declares source "representative"),
- * so that is the common case, not an edge one.
+ * What it was doing instead was refusing to score assessable records. Measured:
+ * four finalized reports, tours, awards, NECs, education, three PFA cycles, PSR
+ * entered, LaDR fully answered, breakout distributions present — but the trait
+ * averages not typed, so conf_P = 0.65 — landed at coverage 0.7455 and was
+ * withheld with NOTHING blind. APEX holds four promotion recommendations and a
+ * summary-group distribution for that Sailor. Refusing them a number because a
+ * constant fitted to a different denominator says 0.75 is not caution, it is a
+ * bug wearing caution's clothes.
+ *
+ * The substantive protection is per-factor and always was: no area may be less
+ * than half observed. An aggregate floor on top of it is a second, independently
+ * fitted assertion, and the second one was the one doing damage.
+ *
+ * The old `coverageFloor` option and `coverage.floor` field are gone with it.
+ * `coverage.measured` — the number that actually matters — is unchanged and is
+ * still the headline the Results screen is built around.
  */
-/*
- * NOT RESCALED after "an unsourced precept is treated as absent" (service.ts).
- * Deliberate, and the arithmetic is real: precept contributed a free 0.10 at
- * conf = 1 whether or not anything backed it, so excluding it maps every
- * coverage value as measured_after = (measured_before - 0.10) x 10/9 — strictly
- * downward, fixed point only at 1.0. A record at 0.7675 (scored) becomes 0.7417
- * (suppressed) with nothing about the Sailor changed.
- *
- * Kept at 0.75 anyway, because the floor is defined against EFFECTIVE weights —
- * post-redistribution — and the no-precept case has always been on that scale.
- * Hosted board_precepts is empty and #31 removed the seeding, so every real user
- * today already sits there. Rescaling to (0.75 - 0.10) x 10/9 = 0.7222 would
- * leave unsourced-precept installs where they are and instead LOOSEN the gate
- * for every existing no-precept user — the exact population this floor protects,
- * and a change nobody asked for.
- *
- * The deterministic screen barely moves — with the composite no longer rendered
- * (ResultsView), the visible difference is whether `scoreNote` appears. But this
- * floor is NOT display-only: `report.score` feeds `narrativePayload.scored`
- * (narrative.ts), and prompt rule 3 changes what the model is allowed to say
- * about it. Sweeping the floor across a record's measured value leaves the
- * deterministic output byte-identical on both sides and the MODEL narrative
- * different. Treat a change here as changing what the tool says, not how it
- * looks.
- */
-export const COVERAGE_FLOOR = 0.75;
 
 /**
  * No score at all while any factor carrying weight sits below
@@ -119,17 +103,39 @@ export const BLIND_SPOT_GATE = true;
  * Performance with a single report has conf ≈ 0.12–0.23; calling that "needs
  * attention" is noise, not a finding.
  *
- * RAISED 0.25 → 0.50. A quarter of an area is not enough of it to grade, and at
- * 0.25 the threshold was not doing the job the composite now needs from it.
- * Measured: a record with a weak tours section scored 49.1 at coverage 1.00, and
- * the SAME record with the tours section blanked scored 63.2 — the numerator is
- * identical (4907.7) and only the denominator shrinks, because the sub-scores
- * that vanish are the low ones. Leadership lands at conf 0.30 there, which
- * cleared 0.25 and got graded. It does not clear 0.50, so no number is emitted.
+ * RAISED 0.25 → 0.50, and the value is the RULE, not a fit: an area must be at
+ * least HALF observed before APEX will grade it. Exactly half passes; anything
+ * less does not. Pinned from both sides — conf_P 0.4667 (two reports, no
+ * breakout data) is withheld, conf_X 0.500 (two precept flags, one computable)
+ * is scored — so the constant is bracketed to (0.4667, 0.50] by behaviour rather
+ * than by a number copied out of a test run.
  *
- * This is a GATE, not a fix: see the withholding note on scoreBoardConfidence.
- * No arithmetic can make removing evidence unprofitable — refusing to score a
- * half-blind area is the only honest lever, and it is this one.
+ * WHAT THIS GATE DOES NOT DO — read before trusting it.
+ *
+ * It does NOT close the withholding surface, and no value of it can. The gate
+ * acts on a FACTOR's confidence; the exploit acts on the removable SECTIONS
+ * inside a factor, whose sub-weights are smaller than the factor. Leadership has
+ * two: tours at 0.70 and awards at 0.30. Any floor in (0.30, 0.70] catches the
+ * tours removal and leaves the awards removal free — measured on the published
+ * fixture, blanking awards is +2.9 and is SHOWN at coverage 0.9308. Push the
+ * floor above 0.70 to catch both and it starts rejecting performance at
+ * aP = 0.85 (a record whose summary group is simply not linked), and a floor
+ * high enough to catch that is a floor that demands a complete record from
+ * everyone.
+ *
+ * The reason there is nothing to tune toward: under the old fixed denominator a
+ * confidence loss cut `contribution` and partly paid for whatever the removal
+ * gained. Under Sigma(w*conf*S)/Sigma(w*conf) the confidence loss is normalized
+ * away, so any removal that leaves its factor above the floor converts 1:1 into
+ * score. The mean removed the brake and this gate is a coarser replacement, not
+ * an equivalent one.
+ *
+ * So this is a MITIGATION with a measured ceiling, not a fix. It catches the
+ * largest single-section removal in the leadership factor. It does not catch
+ * blanking awards, unlinking a summary group, deleting a weak report, or
+ * omitting adverse material. All four are published, with numbers, in
+ * tests/unit/boardConfidenceWithholding.test.ts, and the proof that no scoring
+ * rule closes them is on scoreBoardConfidence.
  */
 export const AREA_EVIDENCE_FLOOR = 0.5;
 
@@ -210,7 +216,6 @@ export interface ReadinessReport {
     areasKnown: number;
     areasTotal: number;
     missing: Array<{ area: FactorKey; label: string; unlocks: string; howTo: string }>;
-    floor: number;               // v2+ — the floor this run was judged against
   };
   actions: ReadinessAction[];
   areas: ReadinessArea[];
@@ -239,8 +244,6 @@ export interface ReadinessOptions {
    * past and therefore OVERSTATES the time remaining — it failed unsafe.
    */
   asOf?: string;
-  /** Override COVERAGE_FLOOR for this run. */
-  coverageFloor?: number;
   /**
    * `board_precepts.source_url` for the active precept. Null/absent means the
    * emphasis flags were entered by hand rather than taken from a convening
@@ -613,7 +616,6 @@ export function buildReadinessReport(
   config: RubricConfig,
   opts: ReadinessOptions = {},
 ): ReadinessReport {
-  const floor = opts.coverageFloor ?? COVERAGE_FLOOR;
   const preceptPrefix = opts.preceptSourceUrl ? "" : PRECEPT_UNSOURCED_PREFIX;
 
   // §3.1 — Σ(weight·conf)/100. The weights are the EFFECTIVE ones (after the
@@ -699,25 +701,15 @@ export function buildReadinessReport(
   const blind = verdict.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
   let scoreNote: string | null = null;
   if (BLIND_SPOT_GATE && blind.length > 0) {
-    // The development-specific wording only applies when development is the ONLY
-    // thing missing; otherwise name every blind area rather than one of them.
-    const dev = blind.length === 1 && blind[0].key === "development";
-    scoreNote =
-      dev && inputs.ladr.length === 0
-        ? // A first-run condition the Sailor fixes in one click — not a permanent
-          // honesty-vs-coverage tradeoff. Tell them to pull their roadmap.
-          "APEX does not have the development roadmap for your rating yet, so it cannot score your record. Fetch it from Navy COOL on the LaDR Checklist tab — it takes one click. Here is what APEX can see in the meantime:"
-        : dev
-          ? // Rows exist but too few are answered. Never phrased as the Sailor
-            // falling behind: the list grows when APEX loads newer roadmap data,
-            // so items appear that were not there last time they looked.
-            "APEX cannot score your record until more of your rating's development roadmap is answered. Answer each row either way — the list grows when APEX loads newer roadmap data for your rating. Here is what APEX can see in the meantime:"
-          : `APEX cannot score your record yet: too little is entered for ${blind
-              .map((a) => a.label.toLowerCase())
-              .join(", ")}. Here is what APEX can see in the meantime:`;
-  } else if (measured < floor) {
-    scoreNote =
-      "Not enough of your record is entered to assess. Here is what APEX can see in the meantime:";
+    // The development-specific branches that used to live here are DELETED, not
+    // moved: `blind` is drawn from `verdict`, development always has weight 0,
+    // so `blind[0].key === "development"` was unreachable. Measured across 4,000
+    // records it fired 0 times against 1,280 on main. The Sailor is still told
+    // their roadmap is missing — on the coverage axis, by the development area's
+    // own summary, which is where a factor that cannot move the score belongs.
+    scoreNote = `APEX cannot score your record yet: too little is entered for ${blind
+      .map((a) => a.label.toLowerCase())
+      .join(", ")}. Here is what APEX can see in the meantime:`;
   }
 
   return {
@@ -726,7 +718,6 @@ export function buildReadinessReport(
       areasKnown: shown.filter((a) => a.status !== "not_enough_entered").length,
       areasTotal: shown.length,
       missing,
-      floor,
     },
     actions,
     areas,
