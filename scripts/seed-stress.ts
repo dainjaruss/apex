@@ -963,12 +963,20 @@ async function seedStressEvals(users: Record<string, string>) {
       report_type: "EVAL",
       status: "open",
       created_by: rsId,
+      // Migration 012: Blocks 5 and 21 are unconditional Table 1-4 discriminators. These
+      // must match the seeded evals below (duty_status "ACT", block_values
+      // .billet_subcategory "NA") or every member would be rejected at attach time.
+      duty_status: "ACT",
+      billet_subcategory: "NA",
+      uic: null, // Block 6 is permissive — these groups do not split by UIC
     };
     const { data: gData, error: gErr } = await admin
       .from("summary_groups")
       .upsert(groupPayload, {
+        // Must list every column of the migration-012 unique constraint, or PostgREST
+        // rejects the upsert with "no unique or exclusion constraint matching".
         onConflict:
-          "reporting_senior_id,period_to,grade_rate,promotion_status,report_type",
+          "reporting_senior_id,period_to,grade_rate,promotion_status,report_type,duty_status,billet_subcategory,uic",
       })
       .select("id")
       .single();

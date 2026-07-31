@@ -452,117 +452,119 @@ export default function EvaluationForm({
               })}
             </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Render Only the Active Step */}
-          {currentStep === 0 && (
-            <>
-              <SummaryGroupSelector
-                value={formData.summary_group_id ?? null}
-                evalContext={{
-                  grade_rate: formData.grade_rate,
-                  promotion_status: formData.promotion_status,
-                  period_to: formData.period_to,
-                  report_type: formData.report_type,
-                  uic: formData.uic,
-                  summary_group_id: formData.summary_group_id ?? null,
-                  block_values: formData.block_values,
-                }}
-                onSelect={handleSelectGroup}
-              />
-              <Block1Admin
-                evalData={formData}
-                onChange={handleFieldChange}
-                issues={visibleIssues}
-                handleBlockValueChange={handleBlockValueChange}
-                onFocusField={handleFocusField}
-                activeField={activeField}
-              />
-            </>
-          )}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Render Only the Active Step */}
+              {currentStep === 0 && (
+                <>
+                  <SummaryGroupSelector
+                    value={formData.summary_group_id ?? null}
+                    evalContext={{
+                      grade_rate: formData.grade_rate,
+                      promotion_status: formData.promotion_status,
+                      period_to: formData.period_to,
+                      report_type: formData.report_type,
+                      uic: formData.uic,
+                      duty_status: formData.duty_status, // Block 5 — without this the
+                      // Table 1-4/1-3 duty-status guard cannot fire from the draft form
+                      summary_group_id: formData.summary_group_id ?? null,
+                      block_values: formData.block_values,
+                    }}
+                    onSelect={handleSelectGroup}
+                  />
+                  <Block1Admin
+                    evalData={formData}
+                    onChange={handleFieldChange}
+                    issues={visibleIssues}
+                    handleBlockValueChange={handleBlockValueChange}
+                    onFocusField={handleFocusField}
+                    activeField={activeField}
+                  />
+                </>
+              )}
 
-          {currentStep === 1 && (
-            <Block33to39Traits
-              evalData={formData}
-              onChange={handleFieldChange}
-              issues={visibleIssues}
-              onFocusField={handleFocusField}
-              activeField={activeField}
-              summaryGroupAverage={summaryGroupAverage}
-              showSummaryGroupAverage={canSeeGroupAvg}
-            />
-          )}
+              {currentStep === 1 && (
+                <Block33to39Traits
+                  evalData={formData}
+                  onChange={handleFieldChange}
+                  issues={visibleIssues}
+                  onFocusField={handleFocusField}
+                  activeField={activeField}
+                  summaryGroupAverage={summaryGroupAverage}
+                  showSummaryGroupAverage={canSeeGroupAvg}
+                />
+              )}
 
-          {currentStep === 2 && (
-            <Block43Comments
-              evalData={formData}
-              onChange={handleFieldChange}
-              issues={visibleIssues}
-              onFocusField={handleFocusField}
-              activeField={activeField}
-            />
-          )}
+              {currentStep === 2 && (
+                <Block43Comments
+                  evalData={formData}
+                  onChange={handleFieldChange}
+                  issues={visibleIssues}
+                  onFocusField={handleFocusField}
+                  activeField={activeField}
+                />
+              )}
 
-          {currentStep === 3 && (
-            <Block42Signatures
-              evalData={formData}
-              onChange={handleFieldChange}
-              handleBlockValueChange={handleBlockValueChange}
-              issues={visibleIssues}
-              onFocusField={handleFocusField}
-              activeField={activeField}
-            />
-          )}
+              {currentStep === 3 && (
+                <Block42Signatures
+                  evalData={formData}
+                  onChange={handleFieldChange}
+                  handleBlockValueChange={handleBlockValueChange}
+                  issues={visibleIssues}
+                  onFocusField={handleFocusField}
+                  activeField={activeField}
+                />
+              )}
 
-          {/* Step-by-Step Navigation Buttons */}
-          <div className="flex justify-between items-center apex-form-panel border p-4 rounded-xl">
-            <button
-              type="button"
-              disabled={currentStep === 0}
-              onClick={() => {
-                setCurrentStep((prev) => prev - 1);
-                setActiveField(null);
-              }}
-              className="apex-btn-secondary py-2 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              ← Previous Section
-            </button>
+              {/* Step-by-Step Navigation Buttons */}
+              <div className="flex justify-between items-center apex-form-panel border p-4 rounded-xl">
+                <button
+                  type="button"
+                  disabled={currentStep === 0}
+                  onClick={() => {
+                    setCurrentStep((prev) => prev - 1);
+                    setActiveField(null);
+                  }}
+                  className="apex-btn-secondary py-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ← Previous Section
+                </button>
 
-            <span className="text-xs font-semibold uppercase tracking-wider hidden sm:inline apex-text-secondary">
-              Section {currentStep + 1} of 4
-            </span>
+                <span className="text-xs font-semibold uppercase tracking-wider hidden sm:inline apex-text-secondary">
+                  Section {currentStep + 1} of 4
+                </span>
 
-            {currentStep < 3 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentStep((prev) => prev + 1);
-                  setActiveField(null);
-                }}
-                className="apex-btn-primary py-2"
-              >
-                Next Section →
-              </button>
-            ) : (
-              <span className="text-xs font-semibold apex-text-success">
-                All Sections Filled
-              </span>
-            )}
-          </div>
+                {currentStep < 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep((prev) => prev + 1);
+                      setActiveField(null);
+                    }}
+                    className="apex-btn-primary py-2"
+                  >
+                    Next Section →
+                  </button>
+                ) : (
+                  <span className="text-xs font-semibold apex-text-success">
+                    All Sections Filled
+                  </span>
+                )}
+              </div>
 
-          <div className="apex-sticky-form-bar">
-            <StatusBar
-              issues={issues}
-              saveError={saveError}
-              isSaving={isSaving}
-              onCancel={onCancel}
-              onVerify={handleTriggerVerify}
-              isValidating={isValidating}
-              savedAt={savedAt}
-              committed={committed}
-              compact
-            />
-          </div>
-        </form>
+              <div className="apex-sticky-form-bar">
+                <StatusBar
+                  issues={issues}
+                  saveError={saveError}
+                  isSaving={isSaving}
+                  onCancel={onCancel}
+                  onVerify={handleTriggerVerify}
+                  isValidating={isValidating}
+                  savedAt={savedAt}
+                  committed={committed}
+                  compact
+                />
+              </div>
+            </form>
           </div>
 
           <aside className="apex-workspace-rail hidden lg:block">
@@ -596,7 +598,10 @@ export default function EvaluationForm({
                 )}
               </ul>
             ) : (
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              <p
+                className="text-xs"
+                style={{ color: "var(--muted-foreground)" }}
+              >
                 {errorIssues.length > 0 && (
                   <span>
                     {errorIssues.length} error
@@ -791,7 +796,10 @@ function RecoveredBanner({
             d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
           />
         </svg>
-        <p className="text-xs leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
+        <p
+          className="text-xs leading-relaxed"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           <span className="font-bold" style={{ color: "var(--accent-cyan)" }}>
             Unsaved changes recovered
           </span>{" "}
@@ -925,9 +933,7 @@ function AutosaveStatus({
   }
   if (!savedAt) {
     return (
-      <span className="apex-autosave-caption">
-        Changes autosave locally
-      </span>
+      <span className="apex-autosave-caption">Changes autosave locally</span>
     );
   }
   return (
@@ -1009,7 +1015,11 @@ function StatusBar({
       </div>
 
       <div className="flex items-center gap-3 self-end sm:self-auto">
-        <button type="button" onClick={onCancel} className="apex-btn-ghost py-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="apex-btn-ghost py-2"
+        >
           Cancel
         </button>
         <button
