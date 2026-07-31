@@ -11,6 +11,7 @@ import {
 } from "../tests/fixtures/validEval";
 import { participantsThrough } from "../lib/routing";
 import { canSignBlock } from "../lib/permissions";
+import { withSeedIds, pruneSeedEvaluations } from "./seedIdentity";
 import {
   scoreBoardConfidence,
   DEFAULT_RUBRIC_CONFIG,
@@ -128,16 +129,6 @@ const E2E_USERS = [
   },
 ] as const;
 
-const E2E_MEMBER_NAMES = [
-  "DOE, JOHN A",
-  "DOE, JOHN A (RECYCLE)",
-  "SMITH, BETTY L (CHIEF)",
-  "JONES, CARL R (OFFICER)",
-  "WILLIAMS, SARAH K (IT1)",
-  "RODRIGUEZ, MARCOS E (ITCS)",
-  "CHEN, DAVID T (LT)",
-];
-
 async function findUserByEmail(email: string) {
   const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
   return data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
@@ -215,17 +206,28 @@ async function seedCommands() {
   console.log("  commands: USS NEVERSAIL (12345)");
 }
 
-async function deleteE2eEvals() {
-  const { data } = await admin
+/**
+ * Every evaluation this seed owns, however many generations deep.
+ *
+ * Scoped on BOTH the fixture member name and authorship by a seeded
+ * @franklyn.dev account. `evaluations` has no column marking a row as seeded,
+ * and the old single-predicate version (member_name alone) would have swept up
+ * a real record that happened to be written for someone called "DOE, JOHN A".
+ * Requiring the author to be one of the eight accounts this same script creates
+ * makes that effectively unreachable without adding a column for it.
+ *
+ * `memberNames` comes from the drafts themselves rather than a parallel
+ * constant — the list it replaced had to be edited by hand every time a fixture
+ * was added, and a name missing from it meant that record silently accumulated.
+ */
+async function ownedEvalIds(memberNames: string[], userIds: string[]) {
+  const { data, error } = await admin
     .from("evaluations")
     .select("id")
-    .in("member_name", E2E_MEMBER_NAMES);
-  if (!data?.length) return;
-  const ids = data.map((r) => r.id);
-  await admin.from("audit_logs").delete().in("evaluation_id", ids);
-  await admin.from("review_approvals").delete().in("evaluation_id", ids);
-  await admin.from("evaluations").delete().in("id", ids);
-  console.log(`  removed ${ids.length} existing E2E eval(s)`);
+    .in("member_name", memberNames)
+    .in("created_by", userIds);
+  if (error) throw new Error(`evaluations scope select: ${error.message}`);
+  return (data ?? []).map((r) => r.id as string);
 }
 
 /** Roster role for each seeded user id, keyed the way `users` is keyed. */
@@ -463,9 +465,14 @@ async function seedEvals(users: Record<string, string>) {
     users,
   );
 
-  const { data: inserted, error } = await admin
-    .from("evaluations")
-    .insert([
+  // Deterministic primary keys (scripts/seedIdentity.ts) — this is what makes a
+  // second run overwrite the first instead of appending a new generation.
+  // signature_locked is stamped rather than left to the column default, so a
+  // plain re-run clears it. Without it, repairing a record a demo had signed
+  // left status 'draft' with signature_locked true — a combination the app
+  // cannot otherwise reach, and one that reads as a bug on screen.
+  const drafts = withSeedIds(
+    [
       routingDraft,
       recycleDraft,
       chiefEvalDraft,
@@ -473,9 +480,38 @@ async function seedEvals(users: Record<string, string>) {
       williamsDraft,
       rodriguezDraft,
       chenDraft,
-    ])
+    ].map((d) => ({ signature_locked: false, ...d })),
+  );
+  const memberNames = drafts.map((d) => d.member_name as string);
+  const userIds = Object.values(users);
+
+  // --reset still means "from scratch": the upsert below only overwrites the
+  // columns present in the payload, so a column a demo touched that no fixture
+  // sets (pdf_storage_path, reviewer_id) survives a plain re-run. Dropping the
+  // rows first is the only way to clear those.
+  if (reset) {
+    await pruneSeedEvaluations(
+      admin,
+      await ownedEvalIds(memberNames, userIds),
+      "E2E eval",
+    );
+  }
+
+  const { data: inserted, error } = await admin
+    .from("evaluations")
+    .upsert(drafts) // conflict target defaults to the primary key
     .select("id, member_name");
-  if (error) throw new Error(`evaluations insert: ${error.message}`);
+  if (error) throw new Error(`evaluations upsert: ${error.message}`);
+
+  // Prune AFTER the upsert, never before: if this seed dies halfway the demo
+  // still has its records. Anything scoped to this seed that is not one of the
+  // ids we just wrote is an earlier generation.
+  const keep = new Set(drafts.map((d) => d.id));
+  await pruneSeedEvaluations(
+    admin,
+    (await ownedEvalIds(memberNames, userIds)).filter((id) => !keep.has(id)),
+    "E2E eval",
+  );
 
   const routing = inserted!.find((e) => e.member_name === "DOE, JOHN A");
   const recycle = inserted!.find(
@@ -714,8 +750,6 @@ async function seedReadinessRun(users: Record<string, string>) {
 
 async function main() {
   console.log("Seeding E2E data on Supabase cloud...");
-  if (reset) await deleteE2eEvals();
-
   await seedCommands();
 
   console.log("Users:");

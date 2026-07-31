@@ -16,6 +16,7 @@ import {
 import { Evaluation } from "../types";
 import { participantsThrough } from "../lib/routing";
 import { commentPitchFields } from "@/lib/commentFit";
+import { withSeedIds, pruneSeedEvaluations } from "./seedIdentity";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -883,32 +884,35 @@ async function seedCommands() {
   }
 }
 
-async function deleteStressEvals() {
-  // Match by the stress users' DoD ID block (10000000xx), not by name: the
-  // old '%(STRESS)%' pattern never matched "(STRESS #1)", so resets silently
-  // deleted nothing and every reseed stacked 40 more evals into the DB.
-  const { data } = await admin
+/**
+ * Every evaluation this seed owns, however many generations deep.
+ *
+ * TWO predicates, for exactly the reason seed-e2e needs two. The DoD ID block
+ * (10000000xx) identifies the ACCOUNT, not the writer: once this seed mints
+ * CTR1 SAILOR with dod_id 1000000003, a human logging in as that account and
+ * clicking New Report gets a real draft carrying the synthetic dod_id. One such
+ * row exists on hosted — CONNOR, SARAH A, created in the app and edited three
+ * seconds later — and a single-predicate prune would have deleted it.
+ *
+ * The fixture period is the second predicate, and it comes from the drafts
+ * rather than a third hardcoded copy of the dates. A human's New Report carries
+ * the period they picked, never the fixtures' 2025-06-15 → 2026-06-15.
+ *
+ * Match on DoD ID rather than member name: the old '%(STRESS)%' pattern never
+ * matched "(STRESS #1)", so resets silently deleted nothing and every reseed
+ * stacked 40 more evals into the DB. Member name would not help either — the
+ * hosted casualty above is called CONNOR, SARAH A, which IS one of the fixture
+ * names. The period is what separates them.
+ */
+async function ownedStressEvalIds(periodFrom: string[], periodTo: string[]) {
+  const { data, error } = await admin
     .from("evaluations")
     .select("id")
-    .like("dod_id", "10000000%");
-  if (data?.length) {
-    const ids = data.map((r) => r.id);
-    await admin.from("audit_logs").delete().in("evaluation_id", ids);
-    await admin.from("review_approvals").delete().in("evaluation_id", ids);
-    await admin.from("evaluations").delete().in("id", ids);
-    console.log(`  removed ${ids.length} existing stress test eval(s)`);
-  }
-  const { data: grps } = await admin
-    .from("summary_groups")
-    .select("id")
-    .like("name", "%Summary Group%");
-  if (grps?.length) {
-    const gIds = grps.map((g) => g.id);
-    await admin.from("summary_groups").delete().in("id", gIds);
-    console.log(
-      `  removed ${gIds.length} existing stress test summary group(s)`,
-    );
-  }
+    .like("dod_id", "10000000%")
+    .in("period_from", periodFrom)
+    .in("period_to", periodTo);
+  if (error) throw new Error(`evaluations scope select: ${error.message}`);
+  return (data ?? []).map((r) => r.id as string);
 }
 
 async function seedStressEvals(users: Record<string, string>) {
@@ -1152,13 +1156,50 @@ async function seedStressEvals(users: Record<string, string>) {
     evalsToInsert.push(evalPayload);
   }
 
+  // Deterministic primary keys (scripts/seedIdentity.ts) — this is what makes a
+  // second run overwrite the first instead of appending another 40 rows.
+  const drafts = withSeedIds(evalsToInsert);
+
+  // Second prune predicate, taken from the drafts so it cannot drift from them.
+  const periodFrom = Array.from(
+    new Set(drafts.map((d) => d.period_from as string)),
+  );
+  const periodTo = Array.from(
+    new Set(drafts.map((d) => d.period_to as string)),
+  );
+
+  // --reset still means "from scratch": the upsert below only overwrites the
+  // columns present in the payload, so anything a demo touched that no fixture
+  // sets survives a plain re-run. Dropping the rows first is the only way to
+  // clear those. (Summary groups are not dropped: they already upsert on the
+  // migration-012 unique constraint, and the old `name like '%Summary Group%'`
+  // delete would have swept up any real group whose name contained the phrase.)
+  if (reset) {
+    await pruneSeedEvaluations(
+      admin,
+      await ownedStressEvalIds(periodFrom, periodTo),
+      "stress eval",
+    );
+  }
+
   const { data: inserted, error } = await admin
     .from("evaluations")
-    .insert(evalsToInsert)
+    .upsert(drafts) // conflict target defaults to the primary key
     .select(
       "id, member_name, grade_rate, routing_stage, promotion_recommendation, summary_group_id, current_holder_id",
     );
-  if (error) throw new Error(`evaluations insert: ${error.message}`);
+  if (error) throw new Error(`evaluations upsert: ${error.message}`);
+
+  // Prune AFTER the upsert, never before: if this seed dies halfway the demo
+  // still has its records.
+  const keep = new Set(drafts.map((d) => d.id));
+  await pruneSeedEvaluations(
+    admin,
+    (await ownedStressEvalIds(periodFrom, periodTo)).filter(
+      (id) => !keep.has(id),
+    ),
+    "stress eval",
+  );
 
   // Record which account holds each eval. scripts/record-demo-video.ts signs
   // Block 50 as a specific CO and used to take the FIRST reporting_senior row by
@@ -1198,11 +1239,6 @@ async function main() {
   console.log("====================================================");
   console.log("APEX EVAL FLOW STRESS TEST SEEDER (@franklyn.dev)");
   console.log("====================================================");
-  if (reset) {
-    console.log("Reset flag detected: cleaning previous stress test evals...");
-    await deleteStressEvals();
-  }
-
   console.log("\n1. Seeding Commands...");
   await seedCommands();
 
