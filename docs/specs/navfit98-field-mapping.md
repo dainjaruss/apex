@@ -105,7 +105,7 @@ All column names below are copied verbatim from the golden schema (case-sensitiv
 | 88 | `Rater` | text(28) | `rater_signature` (typed name, block_values) | Verbatim; **validate ≤28** | no | `""` |
 | 89 | `RaterDate` | date | `rater_signature_date` | ISO → OLE date (§4.1) | no | `NULL` |
 | 90 | `CommentsPitch` | text(8) | `comment_pitch` (block_values) | `"10"` → `"10 POINT"`, `"12"` → `"12 POINT"` (12-point string unobserved — open question) | yes | `"10 POINT"` |
-| 91 | `Comments` | memo | `comments` | Verbatim (18 lines × 90/84 cpl already enforced) | yes | `""` |
+| 91 | `Comments` | memo | `comments` | Verbatim (this form's own line count × 90/84 cpl already enforced — `getCommentCapacity`: 17/15 EVAL, 8/7 CHIEFEVAL, 19/18 FITREP) | yes | `""` |
 | 92 | `Qualifications` | memo | `qualifications` | Verbatim (91 cpl × 2 lines) | no | `""` |
 | 93 | `PromotionRecom` | int16 | `promotion_recommendation` | Enum → code 0–5 (§4.4). **Write explicitly** (no schema default) | yes | `0` |
 | 94 | `SummaryRank` | int32 | — | **Always `0`** (NAVFIT-internal ordering; schema default 0) | no | `0` |

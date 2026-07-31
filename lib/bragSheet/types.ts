@@ -216,7 +216,9 @@ export interface LadrMilestoneStatus {   // from member_board_records.ladr_check
 // Server-computed, appended to the model payload (NOT client input). Single source
 // of truth: derived from lib/commentFit.ts constants so prompt and validator
 // cannot drift.
-//   comments:        { chars_per_line: pitch==="10"?90:84, max_lines: 18, target_lines: 17 }
+//   comments:        { chars_per_line: pitch==="10"?90:84,
+//                      max_lines: getCommentCapacity(report_type, pitch) → 17/15 EVAL,
+//                      8/7 CHIEFEVAL, 19/18 FITREP, target_lines: max_lines - 1 }
 //   primary_duties:  getPrimaryDutiesFieldFit(report_type)  → 91 CPL × 3 (EVAL) / 4
 //                    (CHIEFEVAL/FITREP), first_line_lead: 20
 //   primary_duty_abbrev: { max_chars: PRIMARY_DUTY_ABBREV_MAX }        // 14

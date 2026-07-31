@@ -184,18 +184,24 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
   });
 
   it("should check Courier comments text bounds and detect box overflow capacity", () => {
-    // 10-pitch text with a paragraph of 20 lines (exceeds the 18 max limit)
+    // 10-pitch text of 20 lines — over every form's capacity, but by different amounts.
     const longText = Array(20)
       .fill(
         "THIS IS A MONOSPACE COMMENT LINE THAT FITS THE 10-PITCH WIDTH LIMIT.",
       )
       .join("\n");
-    const fitResult = checkCommentFit(longText, "10");
+    const fitResult = checkCommentFit(longText, "10", "EVAL");
     expect(fitResult.fit).toBe(false);
     expect(fitResult.linesUsed).toBe(20);
+    expect(fitResult.maxLines).toBe(17);
+    // Same text, same pitch, a different form: the CHIEFEVAL's Block 40 is half the
+    // size. Before this was per-form, all three reported 18 and this text passed on
+    // none of them for the same wrong reason.
+    expect(checkCommentFit(longText, "10", "CHIEFEVAL").maxLines).toBe(8);
+    expect(checkCommentFit(longText, "10", "FITREP").maxLines).toBe(19);
 
     const normalText = "SHORT AND SWEET DRAFT.";
-    const fitResultNormal = checkCommentFit(normalText, "12");
+    const fitResultNormal = checkCommentFit(normalText, "12", "EVAL");
     expect(fitResultNormal.fit).toBe(true);
     expect(fitResultNormal.linesUsed).toBe(1);
   });

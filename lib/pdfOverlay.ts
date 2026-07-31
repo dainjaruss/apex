@@ -16,7 +16,6 @@
 
 import {
   PDFDocument,
-  PDFFont,
   PDFPage,
   rgb,
   StandardFonts,
@@ -24,11 +23,9 @@ import {
   popGraphicsState,
   translate,
 } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import fs from "fs";
-import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT } from "./commentFit";
+import { wrapTextToWidth, FIELD_FIT, getCommentCapacity } from "./commentFit";
+import { embedNarrativeFont } from "./pdfBoxText";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
 import { generateChiefEvalOverlayPdf } from "./chiefEvalOverlay";
@@ -188,10 +185,36 @@ const C = {
     rec2_x: 218,
     rec2_y: 499,
 
-    // block 43 comments (big box; 18 lines) — top baseline clears the 2-line instruction header
+    // Block 43 comments. Neither the line count nor the top baseline is a single
+    // constant: the count is getCommentCapacity("EVAL", pitch) — 17 at 10-pitch, 15 at
+    // 12-pitch — and the baseline is PER PITCH, because no single value can serve both.
+    //
+    // Block 43's clear interior is y[253.44, 468.12] (both bounding rules exactly
+    // 0.72 pt) and its printed instruction header's lowest ink is 451.92. CourierPrime's
+    // real ink envelope is +0.6909 em above the baseline (backtick) and -0.2002 em below
+    // (y, g, j). The two pitches render at different sizes, so their legal first-baseline
+    // windows are:
+    //
+    //   10-pitch (size 10.0166, 17 lines): [444.558, 445.000]
+    //   12-pitch (size 10.7278, 15 lines): [432.811, 444.508]
+    //
+    // Those windows DO NOT INTERSECT. The previous single 458.5 (page 444.5) sat 0.058 pt
+    // below the 10-pitch window: a `y`, `g` or `j` on line 17 inked to 253.382, grazing
+    // the printed rule at 253.44. Nothing was lost or clipped, but the margin was
+    // negative and the test could not see it — the probe drew only the letter X.
+    //
+    // Per pitch, both get real room instead: 458.8 (page 444.8) clears by 0.20 above and
+    // 0.24 below; 458.0 (page 444.0) clears the header by 0.51 with ~11 pt of floor slack
+    // to spare. Buying that headroom by dropping to 16 lines would be the exact error
+    // this whole change exists to correct, so the baseline moves and the count stays.
+    //
+    // Do not nudge either value without re-deriving against the ink envelope above.
+    // The windows are centred because centring costs nothing, NOT because the margin is
+    // uncertain: measured at 600 / 1200 / 2400 dpi the two renderers agree, and what
+    // looked like a 0.12 pt spread was the raster's own pixel size.
     b43_x: 22,
-    b43_topBaseline: 450,
-    b43_lines: 18,
+    b43_topBaseline10: 458.8,
+    b43_topBaseline12: 458.0,
 
     // block 44 qualifications (2 lines)
     b44_x: 22,
@@ -259,17 +282,7 @@ export async function generateOverlayPdf(
   }
 
   const pdf = await PDFDocument.load(template);
-  pdf.registerFontkit(fontkit);
-
-  let courier: PDFFont;
-  try {
-    const bytes = fs.readFileSync(
-      path.join(process.cwd(), "public/fonts/CourierPrime-Regular.ttf"),
-    );
-    courier = await pdf.embedFont(new Uint8Array(bytes));
-  } catch {
-    courier = await pdf.embedFont(StandardFonts.Courier);
-  }
+  const courier = await embedNarrativeFont(pdf);
   const markFont = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   const pages = pdf.getPages();
@@ -553,16 +566,16 @@ export async function generateOverlayPdf(
   narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80);
   narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80);
 
-  // block 43 comments (pitch -> cpl)
+  // block 43 comments — cpl AND top baseline both follow the pitch (see the constants)
   const pitch = (bv.comment_pitch || "10") as "10" | "12";
   const cpl43 = pitch === "10" ? 90 : 84;
   narrative(
     page2,
     evaluation.comments,
     p2.b43_x,
-    p2.b43_topBaseline,
+    pitch === "10" ? p2.b43_topBaseline10 : p2.b43_topBaseline12,
     cpl43,
-    p2.b43_lines,
+    getCommentCapacity(evaluation.report_type, pitch),
   );
 
   // block 44 qualifications

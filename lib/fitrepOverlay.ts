@@ -41,18 +41,20 @@ import {
   PDFFont,
   PDFPage,
   rgb,
-  StandardFonts,
   pushGraphicsState,
   popGraphicsState,
   translate,
 } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import fs from "fs";
-import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
+import {
+  wrapTextToWidth,
+  FIELD_FIT,
+  getPrimaryDutiesFieldFit,
+  getCommentCapacity,
+} from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
+import { embedNarrativeFont } from "./pdfBoxText";
 
 const BLACK = rgb(0, 0, 0);
 const FORM_RIGHT = 565.2;
@@ -194,9 +196,26 @@ const C = {
     rec2_x: 300.0,
     rec2_y: 512.0,
 
+    // Block 41 comments (1610/2 numbers this block 41, not 43 — the name is legacy).
+    // 462.0 was inherited from the EVAL overlay and put line 1 straight through the
+    // form's own printed instruction header, whose lowest ink is 451.44. 443.9 is
+    // measured off fitrepBlank.pdf, whose Block 41 clear interior is y[226.44, 469.20],
+    // and holds getCommentCapacity("FITREP", pitch) lines — 19 at 10-pitch, 18 at 12.
+    //
+    // 12-pitch is the binding case and its legal window is only [443.788, 444.028] wide,
+    // because 18 lines at that size very nearly fill the block. 443.9 is the midpoint,
+    // clearing the header by 0.13 and the floor by 0.11 against CourierPrime's real ink
+    // envelope (+0.6909 em / -0.2002 em). An earlier 444.0 was inside the window but by
+    // only 0.028 pt at the header, and inside is not the same as centred. The 0.11-0.13
+    // that centring buys is a real, stable gap: at 2400 dpi poppler and Ghostscript put
+    // this line in byte-identical rows, and the overlay shares the form's own content
+    // stream, so zoom and fit-to-page scale box and text together.
+    //
+    // ponytail: one measured constant, not a calibration pass. The REST of this file's
+    // page-2 map is still the uncalibrated inheritance described at the top; this moves
+    // only the constant the comment capacity is defined against.
     b43_x: FORM_LEFT,
-    b43_topBaseline: 462.0,
-    b43_lines: 18,
+    b43_topBaseline: 443.9,
 
     b44_x: FORM_LEFT,
     b44_topBaseline: 220.0,
@@ -236,16 +255,7 @@ export async function generateFitrepOverlayPdf(
   templateBuffer: Uint8Array,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(templateBuffer);
-  pdf.registerFontkit(fontkit);
-
-  const fontPath = path.join(process.cwd(), "public", "fonts", "Courier.ttf");
-  let courier: PDFFont;
-  if (fs.existsSync(fontPath)) {
-    const fontBytes = fs.readFileSync(fontPath);
-    courier = await pdf.embedFont(fontBytes);
-  } else {
-    courier = await pdf.embedFont(StandardFonts.Courier);
-  }
+  const courier = await embedNarrativeFont(pdf);
 
   const pages = pdf.getPages();
   const page1 = pages[0];
@@ -431,7 +441,14 @@ export async function generateFitrepOverlayPdf(
 
   const pitch = (bv.comment_pitch || "10") as "10" | "12";
   const cpl43 = pitch === "10" ? 90 : 84;
-  narrative(page2, evaluation.comments, p2.b43_x, p2.b43_topBaseline, cpl43, p2.b43_lines);
+  narrative(
+    page2,
+    evaluation.comments,
+    p2.b43_x,
+    p2.b43_topBaseline,
+    cpl43,
+    getCommentCapacity(evaluation.report_type, pitch),
+  );
 
   narrative(page2, bv.qualifications, p2.b44_x, p2.b44_topBaseline, p2.b44_cpl, p2.b44_lines);
 

@@ -96,7 +96,10 @@ describe("coachPayload", () => {
       trait_grades: { knowledge: "1.0", eo: "2.0" },
     });
     expect(p.traits[0].anchors?.["3.0"].length).toBeGreaterThan(0);
-    expect(p.budget).toMatchObject({ chars_per_line: 90, max_lines: 18 });
+    // max_lines is handed to the model as "the physical size of the block", so it has to
+    // be THIS form's size: 17 on an EVAL at 10-pitch, 8 on a CHIEFEVAL. It said 18 for
+    // every form. See tests/unit/commentCapacity.test.ts for the measurement.
+    expect(p.budget).toMatchObject({ chars_per_line: 90, max_lines: 17 });
     // The Block 43 substantiation rule is validationEngine's, not a second copy.
     expect(
       p.issues.some((i) => /substantiate/i.test(i.message) && i.block === 43),

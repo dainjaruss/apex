@@ -262,7 +262,7 @@ export default function AutofillReviewPanel({
   const computeFit = (key: NarrativeKey, text: string): CommentFitResult => {
     switch (key) {
       case "comments":
-        return checkCommentFit(text, pitch);
+        return checkCommentFit(text, pitch, sheet.report_type);
       case "primary_duty_abbrev":
         return measureTextFit(text, PRIMARY_DUTY_ABBREV_MAX, 1);
       case "primary_duties": {

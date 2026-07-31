@@ -15,7 +15,8 @@
 
 import React from "react";
 import { Evaluation, ValidationIssue } from "@/types";
-import { FIELD_FIT } from "@/lib/commentFit";
+import { FIELD_FIT, getCommentCapacity } from "@/lib/commentFit";
+import { getCommentsBlock } from "@/lib/traitStandards";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
 import { FORM_PANEL, evalFieldId } from "@/lib/formStyles";
@@ -38,6 +39,13 @@ export default function Block43Comments({
 }: Block43CommentsProps) {
   const pitch = (evalData.block_values?.comment_pitch || "10") as "10" | "12";
   const commentsCpl = pitch === "10" ? 90 : 84;
+  // The number the Sailor is typing against, per form — 17 lines on 1616/26, 8 on
+  // 1616/27, 19 on 1610/2 at 10-pitch. Hardcoding 18 here told a Chief the box was more
+  // than twice its printed size, and the overflow vanished at print time with no marker.
+  const commentsMaxLines = getCommentCapacity(evalData.report_type, pitch);
+  // 1616/27 numbers this block 40 and 1610/2 numbers it 41. The heading said "43" on all
+  // three; DetailsTab was fixed to ask, the editor the Sailor actually types into was not.
+  const commentsBlock = getCommentsBlock(evalData.report_type);
 
   const setPitch = (p: "10" | "12") =>
     onChange({ block_values: { ...evalData.block_values, comment_pitch: p } });
@@ -58,14 +66,14 @@ export default function Block43Comments({
                 className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
                 aria-hidden
               />
-              43: Comments on Performance
+              {commentsBlock}: Comments on Performance
             </h2>
             <p
               className="text-xs mt-1"
               style={{ color: "var(--muted-foreground)" }}
             >
               Type directly in the Courier box — it wraps exactly as the printed
-              form ({commentsCpl} chars/line × 18 lines).
+              form ({commentsCpl} chars/line × {commentsMaxLines} lines).
             </p>
           </div>
           <div className="mt-3 sm:mt-0 flex items-center gap-2">
@@ -102,7 +110,7 @@ export default function Block43Comments({
           value={evalData.comments || ""}
           onChange={(v) => onChange({ comments: v })}
           charsPerLine={commentsCpl}
-          maxLines={18}
+          maxLines={commentsMaxLines}
           placeholder="TYPE PERFORMANCE NARRATIVE HERE…"
           onFocus={() => onFocusField?.("comments")}
           error={issues.find((i) => i.field === "comments")?.message}

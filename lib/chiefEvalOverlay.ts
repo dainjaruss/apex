@@ -40,16 +40,17 @@ import {
   PDFFont,
   PDFPage,
   rgb,
-  StandardFonts,
 } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import fs from "fs";
-import path from "path";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT, getPrimaryDutiesFieldFit } from "./commentFit";
+import {
+  wrapTextToWidth,
+  FIELD_FIT,
+  getPrimaryDutiesFieldFit,
+  getCommentCapacity,
+} from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
-import { Box, coverBox, drawInBox } from "./pdfBoxText";
+import { Box, coverBox, drawInBox, embedNarrativeFont } from "./pdfBoxText";
 
 const BLACK = rgb(0, 0, 0);
 
@@ -200,16 +201,18 @@ const C = {
       team_effectiveness: { x0: 233.8, y0: 389.5, x1: 258.7, y1: 407.3 }, // 39
     } as Record<string, Box>,
 
-    // Block 40 REPORTING SENIOR COMMENTS — cell y[277.2, 380.6], label bottom 370.9.
-    // ponytail: 1616/27's comment box holds EIGHT lines at 10-pitch (seven at 12), not
-    // the eighteen lib/commentFit.checkCommentFit still allows — that 18 is the 1616/26
-    // Block 43 number. Rendering is clamped to what the box physically holds; the
-    // measuring canvas and validation still promise 18. Upgrade path: make
-    // checkCommentFit report per-form capacity so the UI stops over-promising.
+    // Block 40 REPORTING SENIOR COMMENTS — clear interior y[277.56, 380.64] and the
+    // printed label's lowest ink at 371.64, both re-measured off chiefEvalBlank.pdf at
+    // 600 dpi. Drawing mixed-case Courier from this baseline inks 8 lines at 10-pitch
+    // into y[278.88, 369.72] — 1.32 pt clear of the floor — while a 9th reaches 270.00,
+    // 7.56 pt outside the box.
+    //
+    // b40_lines10 / b40_lines12 lived here because #34 could clamp rendering but not
+    // fix validation, which still promised 18 for every form. That is done now:
+    // getCommentCapacity is the single source and returns exactly the 8 / 7 this file
+    // measured, so the renderer and the measuring canvas can no longer disagree.
     b40_x: TEXT_X,
     b40_topBaseline: 363.0,
-    b40_lines10: 8,
-    b40_lines12: 7,
 
     // Block 41 Individual — one bordered cell, pre-printed "NOB", value set left.
     b41_cell: { x0: 92.6, y0: 239.0, x1: 211.2, y1: 253.2 } as Box,
@@ -289,16 +292,7 @@ export async function generateChiefEvalOverlayPdf(
   templateBuffer: Uint8Array,
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(templateBuffer);
-  pdf.registerFontkit(fontkit);
-
-  const fontPath = path.join(process.cwd(), "public", "fonts", "Courier.ttf");
-  let courier: PDFFont;
-  if (fs.existsSync(fontPath)) {
-    const fontBytes = fs.readFileSync(fontPath);
-    courier = await pdf.embedFont(fontBytes);
-  } else {
-    courier = await pdf.embedFont(StandardFonts.Courier);
-  }
+  const courier = await embedNarrativeFont(pdf);
 
   const pages = pdf.getPages();
   const page1 = pages[0];
@@ -505,7 +499,7 @@ export async function generateChiefEvalOverlayPdf(
     p2.b40_x,
     p2.b40_topBaseline,
     pitch === "10" ? 90 : 84,
-    pitch === "10" ? p2.b40_lines10 : p2.b40_lines12,
+    getCommentCapacity(evaluation.report_type, pitch),
   );
 
   // Block 41 — individual promotion recommendation, over the pre-printed "NOB".
