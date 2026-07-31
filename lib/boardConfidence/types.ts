@@ -59,7 +59,8 @@ export interface RubricEvalInput {
   trait_average: number | null;     // ALWAYS recomputed via computeTraitAverage(trait_grades);
                                     // the stored evaluations.trait_average column is never trusted
   summary_group_average: number | null; // pooled SGA from peers (server-side), null if no group
-  rsca: number | null;              // from member_board_records.eval_context[period_to].rsca
+  rsca: number | null;              // eval_context[period_to].rsca — SELF-TYPED, and
+                                    // no longer read by scoring (see rubric.ts P2)
   sea_duty: boolean;                // eval_context override ?? tour-overlap derivation ?? false
   ep_count: number | null;          // 'Early Promote' count in the summary group (incl. this row)
   group_size: number | null;        // observed (non-NOB) N in the summary group
@@ -125,14 +126,17 @@ export interface LadrItemInput {       // one APPLICABLE checklist row (already 
 /**
  * v2: one unmet LaDR row, with its identity intact. `factorLocalPoints` is a TRUE
  * recompute of the development factor's own 0–100 score with this single row
- * flipped to met+verified — it is FACTOR-LOCAL, not composite points. Composite
- * worth comes from bandDeltas(), which re-scores the whole rubric per candidate.
+ * flipped to met — FACTOR-LOCAL, not composite points.
  *
  * The name is load-bearing. It was `marginal_points`, which reads as "what this
- * is worth" and differs from ReadinessAction.worth by roughly 12× for the SAME
- * milestone — different scale AND a different flip. Two numbers for one row on
- * one screen is a contradiction a Sailor can see, so the factor-local one is
- * named for what it is and no template renders it.
+ * is worth"; at the time it differed from ReadinessAction.worth by roughly 12×
+ * for the SAME milestone — different scale AND a different flip — and two numbers
+ * for one row on one screen is a contradiction a Sailor can see.
+ *
+ * Those two numbers are now ONE: `development` carries no weight in the verdict
+ * (rubric.ts VERDICT_FACTORS), so a composite delta is 0.000 for every row and
+ * bandDeltas() ranks the plan on this field directly. The name still says what it
+ * is, and no template renders it.
  */
 export interface LadrUnmet {
   milestone_id: string;
@@ -160,10 +164,13 @@ export type FactorKey =
 
 export interface FactorResult {
   key: FactorKey;
-  weight: number;                       // effective weight (after 100/90 redistribution if any)
+  weight: number;                       // effective weight; 0 for a factor excluded
+                                        // from the verdict, others redistribute
   score: number;                        // S_f in [0,100], full float
   confidence: number;                   // conf_f in [0,1]
-  contribution: number;                 // (weight/100) * score * confidence
+  contribution: number;                 // (weight/100) * score * confidence. The
+                                        // composite is Σcontribution / Σ(weight·conf/100),
+                                        // NOT Σcontribution — see rubric.ts.
   detail: Record<string, number | string | boolean | null>;
       // every intermediate the UI shows on expand — e.g. performance:
       // {P1, P2, P3, P4, declinePenalty, nObserved, availableSubweight, ...};
@@ -213,10 +220,10 @@ export interface RubricConfig {
  * THIS IS NOT A DATA BOUNDARY, and an earlier version of this comment claimed it
  * was. The browser already holds the same numbers by other routes:
  * `listMyAnalyses` selects `*` (boardConfidenceService.ts), the analyze route
- * returns the row wholesale, and the row persists `factor_scores`,
- * `overall_score` and `band` (service.ts). For the six-Early-Promote record
- * whose score the Results screen refuses to show, the client holds
- * overall_score 55.6 and band 50 regardless of this type.
+ * returns the row wholesale, and the row persists `factor_scores` (service.ts).
+ * `overall_score` and `band` are NULL on a suppressed run as of migration 013,
+ * but Σ detail.contribution still reconstructs the score from `factor_scores`,
+ * so the containment this type provides is render-level either way.
  *
  * That is not a leak — it is the user's own data about their own record. What
  * this type provides is RENDER-LEVEL containment: it keeps `detail` out of the
@@ -247,8 +254,15 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
     readiness?: ClientReadinessReport;
   };
   factor_scores: FactorResult[];
-  overall_score: number;
-  band: BandVote;
+  /**
+   * NULL when the readiness layer suppressed the score for this run (migration
+   * 013). A suppressed run used to persist the number the product had just
+   * declined to show; for a record with nothing entered that number is a
+   * fabricated 0, which the band table reads as "Drop-from-consideration risk".
+   * Coverage is not duplicated alongside — it is in `input.readiness.coverage`.
+   */
+  overall_score: number | null;
+  band: BandVote | null;
   adverse_adjustment: number;           // A, persisted (v1.1 review fix — never derived client-side)
   narrative: Narrative;                 // from narrative.ts
   narrative_source: "model" | "fallback";

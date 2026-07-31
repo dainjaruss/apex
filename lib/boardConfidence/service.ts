@@ -500,8 +500,14 @@ export async function runBoardAnalysis(
           },
         },
         factor_scores: result.factors,
-        overall_score: result.final,
-        band: result.band,
+        // Written ONLY when the readiness layer emitted one. A suppressed run
+        // used to persist the number the product had just declined to show, and
+        // for an empty record that number is a fabricated 0 the band table reads
+        // as "Drop-from-consideration risk". NULL is the honest value and
+        // migration 013 lets the column hold it. Coverage is not duplicated into
+        // a column — it is already in `input.readiness.coverage.measured`.
+        overall_score: report.score ? result.final : null,
+        band: report.score ? result.band : null,
         // v1.1 review fix: A is persisted — the UI must never re-derive it
         // (Σcontributions − overall is wrong when the final clamps to 0).
         adverse_adjustment: result.adverseAdjustment,
@@ -528,8 +534,8 @@ export async function runBoardAnalysis(
         analysis_id: inserted.id,
         subject_user_id: subjectUserId,
         board_date: boardDate,
-        overall_score: result.final,
-        band: result.band,
+        overall_score: report.score ? result.final : null,
+        band: report.score ? result.band : null,
         narrative_source: source,
       },
     },

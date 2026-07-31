@@ -902,7 +902,15 @@ export default function RecordEntryForm({
                 >
                   {ev.report_type} · {ev.period_from} – {ev.period_to}
                 </div>
-                <Field label="RSCA">
+                {/* NOT SCORED. Kept because it is a printed field on the form
+                    (NAVPERS 1616/27 Block 44) and the FY-27 precept App A 7.e
+                    directs board members to compare it — but it is self-typed
+                    here, and as a scored input it was a withholding channel with
+                    no confidence signature: blanking it was worth +10.8 with
+                    coverage and every factor confidence unchanged. See PR #37
+                    and docs/navy-reference.md. The label says so rather than
+                    asking for a number under a false promise. */}
+                <Field label="RSCA (recorded, not scored)">
                   <input
                     type="number"
                     step="0.01"

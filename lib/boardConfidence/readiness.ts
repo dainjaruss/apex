@@ -43,52 +43,73 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Coverage backstop. Below this, `score` is null and the caller renders "not
- * enough of your record is entered to assess" — no number, no band.
+ * RETIRED as a gate. The aggregate coverage floor is gone; the per-factor
+ * AREA_EVIDENCE_FLOOR below is the only gate.
  *
- * WHY 0.75. Coverage is NOT zero for an empty record: continuity and
- * completeness measure missingness itself and precept is a fixed indicator
- * table, so all three report conf = 1 unconditionally and a Sailor who has
- * entered nothing already reads 0.30 (0.22 with no precept loaded, when the five
- * remaining weights redistribute ×100/90). The honest range is 0.30 → 1.00.
- * 0.75 encodes: at most a quarter of the weighted record may be scored as zeros
- * it did not earn.
+ * WHY, CORRECTED. An earlier revision of this note claimed the floor had been
+ * withholding assessable records on `main` — a four-report record with the full
+ * PSR entered and only the trait averages missing, "coverage 0.7455, withheld,
+ * nothing blind". That is FALSE about `main`, and the way it is false matters:
  *
- * This is now the SECONDARY gate. The primary one is BLIND_SPOT_GATE below,
- * which a floor on a weighted average cannot express: a flawless Sailor with
- * 6× Early Promote, an MSM and four years of sea duty reached coverage 0.79 —
- * clear of this floor — and was scored a middle band with an EMPTY action plan,
- * because 15 weighted points of development were earned zeros from a rating with
- * no curated LaDR. Only 2 of 82 ratings ship a verified LaDR seed (ratings.ts
- * lists 82; there are 3 seed files and BM self-declares source "representative"),
- * so that is the common case, not an edge one.
+ *   main:  coverage 0.8444  ->  SCORED 57.7
+ *   here:  coverage 0.7455  ->  would be withheld by a 0.75 floor
+ *
+ * `main` never withheld it. `coverage.measured` is the sum of weight*confidence
+ * over the EFFECTIVE verdict weights, and this change set zeroes three of the
+ * six — a different formula over a different denominator. The SAME record moves
+ * from 0.8444 to 0.7455 because of the weight change, not because anything about
+ * the Sailor changed, and the old note then cited that self-inflicted drop as
+ * proof the floor was mis-calibrated. Circular, and it was the stated
+ * justification for deleting a safety gate.
+ *
+ * The real reason survives the correction and is simpler: 0.75 was fitted against
+ * a coverage formula that no longer exists. A constant calibrated on a six-factor
+ * denominator and re-used unchanged against a three-factor one is not a threshold
+ * any more, it is a number that happens to sit somewhere. Re-fitting it has no
+ * target — the defect it protected against ("at most a quarter of the weighted
+ * record may be scored as zeros it did not earn") cannot occur now that the
+ * composite renormalizes by the sum of weight*confidence. The per-factor rule
+ * below is the substantive protection and always was; an aggregate floor on top
+ * of it was a second independently-fitted assertion, and once the denominator
+ * moved it was the one doing damage.
+ *
+ * AND THE DELETION IS NOT WHAT RESCUES ANYONE. The records `main` actually
+ * withheld are suppressed there by `development` confidence 0 tripping the
+ * blind-spot gate — a TOOL gap for 80 of 82 ratings, not a fact about the Sailor
+ * — and development now carries no weight, so it cannot blind anything. That is
+ * the denominator change plus VERDICT_FACTORS doing the work.
+ *
+ * HOW BIG that effect is depends entirely on the generator, and an earlier
+ * revision of this note reported "889 newly scored, 0 newly withheld, a strict
+ * widening" as though it were a property of the change. It is not. The zero came
+ * from one seed: the SAME generator at another seed gives 635 / 513, a realistic
+ * one (hosted board_precepts empty, curated LaDR for 4 of 82 ratings) gives
+ * 5993 / 0, and the reviewer's gives 725 / 1158. Any figure here is a
+ * measurement of a generator, never of the change.
+ *
+ * No generator is needed to refute "strict widening" — two hand-built records do
+ * it, run against origin/main and this branch:
+ *
+ *   tours blanked, everything else entered, no precept
+ *       main SCORED 65.7  ->  here WITHHELD
+ *   everything entered, LaDR empty (development conf 0)
+ *       main WITHHELD     ->  here SCORED 62.5
+ *
+ * (Those two finals are from one hand-built pair measured against origin/main;
+ * the DIRECTIONS are the claim and they are what no generator can wash out.)
+ *
+ * THIS CHANGE TIGHTENS AS WELL AS WIDENING, by two mechanisms that are both
+ * deliberate safety work in this same PR: AREA_EVIDENCE_FLOOR 0.25 -> 0.50
+ * withholds every record whose lowest verdict-factor confidence lands in
+ * [0.25, 0.50) — the section-blanking gate doing its job — and scorePrecept
+ * returns an honest computable/configured here against an unconditional conf: 1
+ * on main. On the seed-B run those account for 329 and 184 of the 513
+ * respectively.
+ *
+ * The old `coverageFloor` option and `coverage.floor` field are gone with it.
+ * `coverage.measured` — the number that actually matters — is unchanged and is
+ * still the headline the Results screen is built around.
  */
-/*
- * NOT RESCALED after "an unsourced precept is treated as absent" (service.ts).
- * Deliberate, and the arithmetic is real: precept contributed a free 0.10 at
- * conf = 1 whether or not anything backed it, so excluding it maps every
- * coverage value as measured_after = (measured_before - 0.10) x 10/9 — strictly
- * downward, fixed point only at 1.0. A record at 0.7675 (scored) becomes 0.7417
- * (suppressed) with nothing about the Sailor changed.
- *
- * Kept at 0.75 anyway, because the floor is defined against EFFECTIVE weights —
- * post-redistribution — and the no-precept case has always been on that scale.
- * Hosted board_precepts is empty and #31 removed the seeding, so every real user
- * today already sits there. Rescaling to (0.75 - 0.10) x 10/9 = 0.7222 would
- * leave unsourced-precept installs where they are and instead LOOSEN the gate
- * for every existing no-precept user — the exact population this floor protects,
- * and a change nobody asked for.
- *
- * The deterministic screen barely moves — with the composite no longer rendered
- * (ResultsView), the visible difference is whether `scoreNote` appears. But this
- * floor is NOT display-only: `report.score` feeds `narrativePayload.scored`
- * (narrative.ts), and prompt rule 3 changes what the model is allowed to say
- * about it. Sweeping the floor across a record's measured value leaves the
- * deterministic output byte-identical on both sides and the MODEL narrative
- * different. Treat a change here as changing what the tool says, not how it
- * looks.
- */
-export const COVERAGE_FLOOR = 0.75;
 
 /**
  * No score at all while any factor carrying weight sits below
@@ -118,8 +139,68 @@ export const BLIND_SPOT_GATE = true;
  * rather than graded, and (per BLIND_SPOT_GATE) also suppresses the composite.
  * Performance with a single report has conf ≈ 0.12–0.23; calling that "needs
  * attention" is noise, not a finding.
+ *
+ * RAISED 0.25 → 0.50, and the value is the RULE, not a fit: an area must be at
+ * least HALF observed before APEX will grade it. Exactly half passes; anything
+ * less does not. Pinned from both sides — conf_P 0.4667 (two reports, no
+ * breakout data) is withheld, conf_X 0.500 (two precept flags, one computable)
+ * is scored — so the constant is bracketed to (0.4667, 0.50] by behaviour rather
+ * than by a number copied out of a test run.
+ *
+ * WHAT THIS GATE DOES NOT DO — read before trusting it.
+ *
+ * It does NOT close the withholding surface, and no value of it can. The proof is
+ * one line: `rsca`. A Sailor who types their reporting senior's cumulative
+ * average honestly is scored against the tougher of it and the pooled peer
+ * average; one who leaves it blank is not. Measured, SGA present:
+ *
+ *   rsca typed honestly (4.4)   score 60.6   coverage 1.0000
+ *   rsca left blank             score 71.4   coverage 1.0000
+ *
+ * +10.8 with EVERY factor confidence identical. A removal that changes no
+ * confidence cannot be seen by a threshold on confidence, whatever the threshold
+ * is. That is the whole argument, and it is why the fix for `rsca` was to delete
+ * the input from scoring (rubric.ts P2) rather than to tune this constant. That
+ * deletion is not free — RSCA is a printed field (NAVPERS 1616/27 Block 44) and
+ * the FY-27 precept directs the comparison — see rubric.ts P2 for what is lost.
+ *
+ * The granularity argument is the weaker, more general version of the same
+ * point: this gate reads a FACTOR's confidence, while the exploit removes a
+ * SUB-COMPONENT, and sub-components are strictly smaller than their containers.
+ * Removable units, with the confidence each leaves behind — note the N-dependence,
+ * which an earlier revision of this note dropped by generalising one measured
+ * record at N >= 4 into a table:
+ *
+ *   leadership: tours (L1+L3)     conf_L 0.30   (any N)
+ *   leadership: awards (L2)       conf_L 0.70   (any N)
+ *   performance: trait averages   conf_P 0.65 at N>=4, 0.5000 at N=3, 0.3333 at N=2
+ *   performance: summary group    conf_P 0.85 at N>=4, 0.7000 at N=3
+ *   precept: the LaDR             conf_X 1.0 -> 0.4 on a five-flag precept
+ *   precept: tours                conf_X 1.0 -> 0.6, while S_X RISES 70.0 -> 100.0
+ *   rsca                          no confidence signature at all
+ *
+ * At N >= 4 a floor in (0.30, 0.70] catches the tours removal and leaves awards;
+ * push past 0.70 and it starts rejecting a merely UNLINKED summary group at 0.85.
+ * At N = 3 those two constraints meet exactly at 0.70 and the window between them
+ * closes entirely; at N = 2 every listed removal is already caught. So the
+ * separable interval is not even a fixed target — it moves with the number of
+ * reports. And the precept factor steps in units of 1/|flags| — 0.2 on a
+ * five-flag precept, FINER than the 0.30/0.70 leadership split the whole
+ * granularity argument was built on, with the second row raising the factor's
+ * score while lowering its confidence.
+ *
+ * So there is nothing to tune toward. Closing this class needs a mechanism that
+ * is not a threshold on `conf`: either delete the self-reported input (what was
+ * done for `rsca`, and the only complete fix available) or corroborate it against
+ * a source APEX does not have — see the withholding proof on scoreBoardConfidence.
+ *
+ * This gate remains a MITIGATION with a measured ceiling. It catches the largest
+ * single-section removal in the leadership factor. It does not catch blanking
+ * awards, unlinking a summary group, deleting a weak report, or omitting adverse
+ * material. All are published with numbers in
+ * tests/unit/boardConfidenceWithholding.test.ts.
  */
-export const AREA_EVIDENCE_FLOOR = 0.25;
+export const AREA_EVIDENCE_FLOOR = 0.5;
 
 /** S_f cut points for the graded statuses. Assertions, not calibration. */
 export const AREA_STATUS_THRESHOLDS = { strong: 80, on_track: 55 } as const;
@@ -198,7 +279,6 @@ export interface ReadinessReport {
     areasKnown: number;
     areasTotal: number;
     missing: Array<{ area: FactorKey; label: string; unlocks: string; howTo: string }>;
-    floor: number;               // v2+ — the floor this run was judged against
   };
   actions: ReadinessAction[];
   areas: ReadinessArea[];
@@ -227,8 +307,6 @@ export interface ReadinessOptions {
    * past and therefore OVERSTATES the time remaining — it failed unsafe.
    */
   asOf?: string;
-  /** Override COVERAGE_FLOOR for this run. */
-  coverageFloor?: number;
   /**
    * `board_precepts.source_url` for the active precept. Null/absent means the
    * emphasis flags were entered by hand rather than taken from a convening
@@ -390,39 +468,12 @@ const EVIDENCE_NOTE: Record<EvidenceTier, string> = {
 export const PRECEPT_UNSOURCED_PREFIX =
   "Emphasis areas are entered by an APEX Admin and are not taken from the board's convening order. ";
 
-/**
- * Which LaDR category ratios each precept flag's indicator reads. scorePrecept
- * emits 0 for a flag whose inputs are absent (rubric.ts, "never fabricate"), and
- * a 0 from absence is indistinguishable from a 0 from a genuine gap — which is
- * how a Sailor with four years of sea duty was told their record showed little
- * of what the board emphasizes, purely because their rating has no curated LaDR.
- * An empty list means the indicator reads the tours/awards section instead.
- */
-const PRECEPT_RATIO_SOURCES: Record<PreceptFlag, string[]> = {
-  warfighting: ["ratio_qual_warfare"],
-  education: ["ratio_education_degree", "ratio_credential"],
-  technical_expertise: ["ratio_nec_opportunity", "ratio_qual_rate_specific"],
-  leadership_positions: [],
-  sea_duty: [],
-};
 
 // ---------------------------------------------------------------------------
 
 const byKey = (result: RubricResult): Record<FactorKey, FactorResult> =>
   Object.fromEntries(result.factors.map((f) => [f.key, f])) as Record<FactorKey, FactorResult>;
 
-/** True when EVERY active precept flag has data behind its indicator. */
-function preceptFullyComputable(result: RubricResult, inputs: RubricInputs): boolean {
-  if (inputs.preceptFlags.length === 0) return false;
-  const devDetail = byKey(result).development.detail;
-  return inputs.preceptFlags.every((flag) => {
-    const ratios = PRECEPT_RATIO_SOURCES[flag] ?? [];
-    // leadership_positions reads L1 and sea_duty reads seaMonths72; both come
-    // from the tours/awards section — i.e. whatever the leadership factor scored.
-    if (ratios.length === 0) return byKey(result).leadership.confidence > 0;
-    return ratios.some((k) => devDetail[k] != null);
-  });
-}
 
 /**
  * Does this area rest on ANY underlying row? Confidence alone cannot answer it:
@@ -469,7 +520,30 @@ function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs)
       // grade. Every completeness string is a statement about entry volume.
       return true;
     case "precept":
-      return preceptFullyComputable(result, inputs);
+      // Same rule as every other factor: the FRACTION of the precept APEX could
+      // compute, which is exactly conf_X. It used to require EVERY configured
+      // flag to be computable, and that produced this epic's own defect class
+      // inverted — with two flags configured and no LaDR, precept contributed
+      // 3.85 weighted points to an emitted score of 64.9 while this arm returned
+      // false, so the card rendered the dashed "Not entered" pill, said "APEX
+      // cannot check the emphasis areas", and listed itself under Missing. APEX
+      // had checked them, and the check moved the score: scored data shown as
+      // missing. Now a partially-computable precept is graded like anything else,
+      // and one below AREA_EVIDENCE_FLOOR blinds the whole composite rather than
+      // contributing to a score while claiming to be absent.
+      //
+      // The length guard is NOT redundant and dropping it was a regression on
+      // 100% of live runs. With no precept loaded the engine substitutes the
+      // placeholder { S: 0, conf: 1, detail: { excluded: true } } (rubric.ts), so
+      // `f.confidence > 0` alone is true, the confidence gate passes, and S = 0
+      // falls through to `needs_attention` — telling a flawless record it
+      // "covers few of the emphasis areas" about a precept that was never
+      // configured. The area CARD filters on preceptConfigured, but narrative.ts
+      // pushes any needs_attention area into `gaps`, so it reached the Sailor
+      // under "What a board would notice": a deficiency asserted from an absence,
+      // this epic's own defect class, about the one thing they cannot act on.
+      // Hosted board_precepts has 0 rows.
+      return inputs.preceptFlags.length > 0 && f.confidence > 0;
   }
 }
 
@@ -492,6 +566,10 @@ function statusOf(key: FactorKey, result: RubricResult, inputs: RubricInputs): A
     return Number(f.detail.coverage ?? 0) >= 0.95 ? "strong" : "on_track";
   }
 
+  // STRICTLY below, matching the blind-spot gate exactly. conf === 0.5 is
+  // reachable (a two-flag precept with one computable indicator) and is graded
+  // by both, so a record can never be scored while a card calls the same factor
+  // "not entered". Mutating either comparison to <= breaks that agreement.
   if (f.confidence < AREA_EVIDENCE_FLOOR) return "not_enough_entered";
   if (f.score >= AREA_STATUS_THRESHOLDS.strong) return "strong";
   if (f.score >= AREA_STATUS_THRESHOLDS.on_track) return "on_track";
@@ -601,7 +679,6 @@ export function buildReadinessReport(
   config: RubricConfig,
   opts: ReadinessOptions = {},
 ): ReadinessReport {
-  const floor = opts.coverageFloor ?? COVERAGE_FLOOR;
   const preceptPrefix = opts.preceptSourceUrl ? "" : PRECEPT_UNSOURCED_PREFIX;
 
   // §3.1 — Σ(weight·conf)/100. The weights are the EFFECTIVE ones (after the
@@ -634,9 +711,22 @@ export function buildReadinessReport(
   // A weight-0 factor is a TOOL configuration gap, not a gap in the Sailor's
   // record: with no precept loaded the headline otherwise read "APEX can see
   // 5 of 6 areas of your record" for a fully-entered one.
-  const counted = areas.filter((a) => a.detail.weight > 0);
+  // TWO different questions, and one filter used to answer both wrongly.
+  //
+  //   verdict  — does this factor carry weight in the composite? Only these may
+  //              suppress the score, because only these can distort it. A missing
+  //              LaDR must never block a number it cannot move.
+  //   shown    — is this an area of the SAILOR'S RECORD? Everything except a
+  //              precept the admin never configured, which is a tool gap the
+  //              Sailor cannot act on and must not be blamed for.
+  //
+  // `weight > 0` answered both until development, completeness and continuity
+  // came off the verdict axis. They are still the Sailor's record, still carry a
+  // how-to, and still belong in the coverage headline and the missing list.
+  const verdict = areas.filter((a) => a.detail.weight > 0);
+  const shown = areas.filter((a) => a.detail.detail.excluded !== true);
 
-  const missing = counted
+  const missing = shown
     .filter((a) => a.status === "not_enough_entered")
     .map((a) => ({
       area: a.key,
@@ -671,37 +761,26 @@ export function buildReadinessReport(
   // `< AREA_EVIDENCE_FLOOR`, NOT `=== 0`: a factor at conf 0.07 carries almost
   // its whole weight into the composite as unearned zeros, and `=== 0` let a
   // returning user's band silently drop when their rating's roadmap grew.
-  const blind = counted.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
+  const blind = verdict.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
   let scoreNote: string | null = null;
   if (BLIND_SPOT_GATE && blind.length > 0) {
-    // The development-specific wording only applies when development is the ONLY
-    // thing missing; otherwise name every blind area rather than one of them.
-    const dev = blind.length === 1 && blind[0].key === "development";
-    scoreNote =
-      dev && inputs.ladr.length === 0
-        ? // A first-run condition the Sailor fixes in one click — not a permanent
-          // honesty-vs-coverage tradeoff. Tell them to pull their roadmap.
-          "APEX does not have the development roadmap for your rating yet, so it cannot score your record. Fetch it from Navy COOL on the LaDR Checklist tab — it takes one click. Here is what APEX can see in the meantime:"
-        : dev
-          ? // Rows exist but too few are answered. Never phrased as the Sailor
-            // falling behind: the list grows when APEX loads newer roadmap data,
-            // so items appear that were not there last time they looked.
-            "APEX cannot score your record until more of your rating's development roadmap is answered. Answer each row either way — the list grows when APEX loads newer roadmap data for your rating. Here is what APEX can see in the meantime:"
-          : `APEX cannot score your record yet: too little is entered for ${blind
-              .map((a) => a.label.toLowerCase())
-              .join(", ")}. Here is what APEX can see in the meantime:`;
-  } else if (measured < floor) {
-    scoreNote =
-      "Not enough of your record is entered to assess. Here is what APEX can see in the meantime:";
+    // The development-specific branches that used to live here are DELETED, not
+    // moved: `blind` is drawn from `verdict`, development always has weight 0,
+    // so `blind[0].key === "development"` was unreachable. Measured across 4,000
+    // records it fired 0 times against 1,280 on main. The Sailor is still told
+    // their roadmap is missing — on the coverage axis, by the development area's
+    // own summary, which is where a factor that cannot move the score belongs.
+    scoreNote = `APEX cannot score your record yet: too little is entered for ${blind
+      .map((a) => a.label.toLowerCase())
+      .join(", ")}. Here is what APEX can see in the meantime:`;
   }
 
   return {
     coverage: {
       measured,
-      areasKnown: counted.filter((a) => a.status !== "not_enough_entered").length,
-      areasTotal: counted.length,
+      areasKnown: shown.filter((a) => a.status !== "not_enough_entered").length,
+      areasTotal: shown.length,
       missing,
-      floor,
     },
     actions,
     areas,

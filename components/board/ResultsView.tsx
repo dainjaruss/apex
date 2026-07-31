@@ -254,17 +254,29 @@ function CoverageCard({ report }: { report: Report }) {
           className="h-3 w-full rounded-full overflow-hidden"
           style={{ background: "var(--muted)" }}
           role="img"
-          aria-label={`${pct} percent of your record is entered and measurable`}
+          aria-label={`${pct} percent of the areas APEX scores is entered`}
         >
           <div
             className="h-3 rounded-full"
             style={{ width: `${pct}%`, background: "var(--accent-gold)" }}
           />
         </div>
-        <p className="text-sm apex-heading">{pct}% of your record is entered</p>
+        {/* NAMES ITS POPULATION, which the heading above does not share. The
+            heading counts every area shown; this bar is coverage.measured, which
+            is Σ(weight·confidence) over the SCORED areas only. Three areas carry
+            weight 0, so they are in the heading's denominator and not in the
+            bar's. Rendered together as "3 of 5 areas" over "89% of your record",
+            the two contradicted each other — three of five is 60%, and the bar
+            read 89% because the two missing areas carry no weight and therefore
+            no denominator. Same numbers, honest labels. */}
+        <p className="text-sm apex-heading">
+          {pct}% of the areas APEX scores is entered
+        </p>
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          This bar measures how much of your record APEX can see — not how strong
-          it is. Nothing below is a grade on what you have not entered.
+          The bar covers only the areas that feed the assessment; the count above
+          it covers every area on this page. Both measure how much of your record
+          APEX can see — not how strong it is. Nothing below is a grade on what
+          you have not entered.
         </p>
       </div>
 
@@ -302,9 +314,17 @@ function CoverageCard({ report }: { report: Report }) {
           cycle" directly above two cards saying On track. Suppression cannot
           catch that, because nothing is missing.
 
-          The composite is still computed and still persisted — this is a render
-          decision, not an engine change. `board_analyses.overall_score` and
-          `.band` are unchanged historical columns. */}
+          The composite is still computed, and persisted only when the readiness
+          layer emitted one — `board_analyses.overall_score` and `.band` are
+          NULLABLE as of migration 013, and NULL on a suppressed run. Nothing
+          here reads either column; this stays a render decision.
+
+          GATE: the band renders nowhere today, which is the only reason the
+          BANDS cut points can be left mis-calibrated (docs/specs §7.2). Anything
+          that renders `band` again must land BANDS recalibration in the same PR.
+          `app/api/board-confidence/runs/route.ts` already returns both columns
+          to the client, currently unconsumed — that is what makes this safe, and
+          it stops being safe the moment something consumes them. */}
     </section>
   );
 }

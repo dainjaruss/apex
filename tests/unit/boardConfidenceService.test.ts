@@ -454,7 +454,13 @@ describe("runBoardAnalysis — success path persists the full snapshot", () => {
     expect(p.narrative_source).toBe("fallback");
     expect(p.model).toBeNull();
     expect(p.narrative_fallback_reason).toBe("model_error");
-    expect(Number.isFinite(p.overall_score)).toBe(true);
+    // overall_score/band are written ONLY when the readiness layer emitted a
+    // score (migration 013). This fixture is suppressed, so both are NULL rather
+    // than a number the product had just declined to show.
+    expect(p.input.readiness.score).toBeNull();
+    expect(p.overall_score).toBeNull();
+    expect(p.band).toBeNull();
+    expect(calls.auditPayload.details.overall_score).toBeNull();
 
     expect(calls.auditPayload.action).toBe("BOARD_ANALYSIS_RUN");
     expect(calls.auditPayload.user_id).toBe("caller-1");
@@ -553,7 +559,10 @@ describe("runBoardAnalysis — v1.1 scoring semantics reach the persisted snapsh
     await runBoardAnalysis(admin, "subj-1", "caller-1", "2026-09-01");
 
     const p = calls.insertPayload;
-    expect(Number.isFinite(p.overall_score)).toBe(true);
+    // Either a finite number or NULL — never NaN, and never a number the
+    // readiness layer suppressed. The two must agree, always.
+    expect(p.overall_score === null || Number.isFinite(p.overall_score)).toBe(true);
+    expect(p.overall_score === null).toBe(p.input.readiness.score === null);
     expect(p.input.warnings).toContain(
       "1 report has no promotion recommendation and was excluded from Performance scoring (period 2024-06-01–2025-05-31).",
     );
@@ -690,5 +699,26 @@ describe("assembleRubricInputs — an unsourced precept is treated as an absent 
     expect({ ...unsourced.inputs, preceptFlags: sourced.inputs.preceptFlags }).toEqual(
       sourced.inputs,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ponytail: a source-text assertion, because scripts/seed-e2e.ts is a top-level
+// script with no seam to call into and refactoring one to unit-test two lines is
+// a worse trade than reading the file. It guards a real regression: the seed
+// builds a readiness report at :594 and used to write overall_score/band
+// unconditionally, so a seeded run could carry a score its own
+// input.readiness.score said was withheld — the exact state migration 013 exists
+// to make unrepresentable, injected into every dev database. Upgrade path: if the
+// seed ever grows a testable export, assert the row instead of the text.
+// ---------------------------------------------------------------------------
+describe("seed-e2e obeys the same suppression rule as service.ts", () => {
+  it("does not write overall_score/band unconditionally", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(process.cwd(), "scripts/seed-e2e.ts"), "utf8");
+    expect(src).toMatch(/overall_score:\s*full\.score\s*\?\s*result\.final\s*:\s*null/);
+    expect(src).toMatch(/band:\s*full\.score\s*\?\s*result\.band\s*:\s*null/);
+    expect(src).not.toMatch(/overall_score:\s*result\.final\s*,/);
   });
 });

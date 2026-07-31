@@ -85,6 +85,19 @@ const COMBINED_CAP_BY_PAYGRADE: Record<string, number | null> = {
   "O-6": 0.4,
 };
 
+/**
+ * Early Promote ceiling for a summary group of `observedCount`: ceil(0.20·N), the
+ * first of the two inequalities quoted above. Extracted (value unchanged) so the
+ * rubric can ask the same question the instruction answers — "how many of this
+ * group could have been Early Promote?" — instead of re-deriving the quota.
+ *
+ * At N = 1 this returns 1: the whole group may be Early Promote, so an Early
+ * Promote in a summary group of one is compliant and carries no scarcity
+ * information at all. See scorePerformance's P4 gate.
+ */
+export const earlyPromoteMax = (observedCount: number): number =>
+  observedCount > 0 ? Math.ceil(observedCount * 0.2) : 0;
+
 export const OBSERVED_RECS = [
   "Significant Problems",
   "Progressing",
@@ -158,8 +171,7 @@ export function checkForcedDistribution(
   const ep = distribution["Early Promote"];
   const mp = distribution["Must Promote"];
 
-  const earlyPromoteMax =
-    observedCount > 0 ? Math.ceil(observedCount * 0.2) : 0;
+  const epMax = earlyPromoteMax(observedCount);
   const combinedMax =
     combinedCapPct == null
       ? null
@@ -168,12 +180,12 @@ export function checkForcedDistribution(
         : Math.ceil(observedCount * combinedCapPct);
 
   const violations: ForcedDistributionViolation[] = [];
-  if (ep > earlyPromoteMax) {
+  if (ep > epMax) {
     violations.push({
       category: "Early Promote",
       count: ep,
-      max: earlyPromoteMax,
-      message: `Early Promote (${ep}) exceeds the limit of ${earlyPromoteMax} for a summary group of ${observedCount} (≤20%, BUPERSINST 1610.10H Table 1-2).`,
+      max: epMax,
+      message: `Early Promote (${ep}) exceeds the limit of ${epMax} for a summary group of ${observedCount} (≤20%, BUPERSINST 1610.10H Table 1-2).`,
     });
   }
   if (combinedMax != null && ep + mp > combinedMax) {
@@ -190,7 +202,7 @@ export function checkForcedDistribution(
     observedCount,
     paygrade,
     combinedCapPct,
-    earlyPromoteMax,
+    earlyPromoteMax: epMax,
     combinedMax,
     violations,
     compliant: violations.length === 0,

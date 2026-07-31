@@ -647,8 +647,13 @@ async function seedReadinessRun(users: Record<string, string>) {
         },
       },
       factor_scores: result.factors,
-      overall_score: result.final,
-      band: result.band,
+      // Same rule as service.ts: written ONLY when the readiness layer emitted a
+      // score. A seeded run must not carry a number its own
+      // input.readiness.score says was withheld — that is the state migration 013
+      // exists to make unrepresentable, and a seed that produces it would put it
+      // straight back into every dev database.
+      overall_score: full.score ? result.final : null,
+      band: full.score ? result.band : null,
       adverse_adjustment: result.adverseAdjustment,
       // Labelled "model" ON PURPOSE — the seed cannot call one, and the "In plain
       // terms" card renders only for narrative_source === "model", so without
