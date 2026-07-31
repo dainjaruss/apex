@@ -6,7 +6,7 @@
 // must be rendered on the page, on every results view, and stored verbatim in
 // every board_analyses row.
 
-import type { Narrative } from "@/lib/boardConfidence/narrative";
+import type { GatedNarrative } from "@/lib/boardConfidence/narrative";
 import type { ReadinessArea, ReadinessReport } from "@/lib/boardConfidence/readiness";
 
 // NORMATIVE TEXT — founder-gated. Rendered on the page banner, every results view,
@@ -264,7 +264,7 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
   overall_score: number | null;
   band: BandVote | null;
   adverse_adjustment: number;           // A, persisted (v1.1 review fix — never derived client-side)
-  narrative: Narrative;                 // from narrative.ts
+  narrative: GatedNarrative;            // from narrative.ts (model lists + gate's `withheld`)
   narrative_source: "model" | "fallback";
   narrative_fallback_reason: "no_key" | "model_error" | null; // v1.1 review fix; null when source="model"
   model: string | null;
