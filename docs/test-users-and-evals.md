@@ -12,24 +12,38 @@ npm run db:seed-stress
 npm run db:seed-stress:reset
 ```
 
-### Re-running a seed is safe
+### Re-running a seed is safe — and it deletes rows
 
 Both seeds are **idempotent**: running one twice leaves the database exactly as
 running it once did. Each fixture's primary key is derived from its own identity
 — member, report type, period (`scripts/seedIdentity.ts`) — so a second run
-upserts over the first instead of appending another generation, and any earlier
-generation still lying around is pruned.
+upserts over the first instead of appending another generation.
 
-Two consequences worth knowing:
+**The seed deletes.** After upserting its fixtures each seed prunes every earlier
+generation it finds: rows matching its own scope that it did not just write. On
+the first run against a database seeded by the pre-idempotency code that is not a
+small number — on the hosted project it removes **51 accumulated evaluations**.
+Scope is two predicates per seed (e2e: fixture member name **and** authorship by a
+seeded `@franklyn.dev` account; stress: the synthetic `dod_id` block **and** the
+fixture reporting period), so a report a human wrote in the app is out of scope
+even when it sits on a seeded account. Anything a brag sheet references is skipped
+and named rather than deleted.
 
-- **Re-seed to repair.** If a demo signs a record, advances it up the chain or
-  edits its traits, `npm run db:seed` puts it back — same row, same UUID, no
-  duplicate beside it.
-- **The fixture UUIDs never change.** `tests/fixtures/e2e-ids.json` is stable
-  across runs and across machines.
+Three consequences worth knowing:
 
-`--reset` is now only needed to clear a column that no fixture sets (a plain
-re-run overwrites only the columns in the seed payload).
+- **Re-seed to repair — it overwrites without asking.** If a demo signs a record,
+  advances it up the chain or edits its traits, `npm run db:seed` puts it back:
+  same row, same UUID, no duplicate beside it. There is no prompt and no
+  confirmation, so **in-progress demo state is silently destroyed**. Do not
+  re-seed mid-demo.
+- **The fixture UUIDs change exactly once, then never again.** The *first* run
+  under the deterministic scheme replaces every random v4 id with its derived v8
+  id, which rewrites `tests/fixtures/e2e-ids.json` and breaks any
+  `/evaluations/<id>` URL bookmarked before it. From the second run on they are
+  stable across runs and across machines.
+- `--reset` is now only needed to clear a column that no fixture sets — such as
+  `pdf_storage_path` or `reviewer_id` — since a plain re-run overwrites only the
+  columns in the seed payload.
 
 ---
 

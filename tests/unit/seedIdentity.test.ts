@@ -199,29 +199,45 @@ describe("pruneSeedEvaluations", () => {
     return { admin: admin as never, deleted };
   }
 
+  // Ids are long and distinctive on purpose. This suite first asserted
+  // `toContain("b")` against the warning, which could not fail: the static
+  // template already reads "referenced BY a brag sheet" before any id is
+  // interpolated, so dropping the id list entirely — or printing the WRONG ids
+  // — still passed. Assert on ids no template text can accidentally contain.
+  const KEPT = "kept-eval-11111111";
+  const GONE1 = "gone-eval-22222222";
+  const GONE2 = "gone-eval-33333333";
+
   it("deletes the stale rows", async () => {
     const { admin, deleted } = fakeAdmin([]);
-    expect(await pruneSeedEvaluations(admin, ["a", "b"], "eval")).toBe(2);
-    expect(deleted).toEqual([["a", "b"]]);
+    expect(await pruneSeedEvaluations(admin, [GONE1, GONE2], "eval")).toBe(2);
+    expect(deleted).toEqual([[GONE1, GONE2]]);
   });
 
   it("skips rows a brag sheet references instead of failing the seed", async () => {
     // brag_sheets.evaluation_id is NO ACTION (006:17): deleting a referenced
     // evaluation raises, and one such row would take the whole seed down.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { admin, deleted } = fakeAdmin([{ id: "bs1", evaluation_id: "b" }]);
-    expect(await pruneSeedEvaluations(admin, ["a", "b", "c"], "eval")).toBe(2);
-    expect(deleted).toEqual([["a", "c"]]);
-    expect(warn.mock.calls[0][0]).toContain("b");
+    const { admin, deleted } = fakeAdmin([{ id: "bs1", evaluation_id: KEPT }]);
+    expect(await pruneSeedEvaluations(admin, [GONE1, KEPT, GONE2], "eval")).toBe(
+      2,
+    );
+    expect(deleted).toEqual([[GONE1, GONE2]]);
+    // Names the row it KEPT — not the ones it deleted, and not nothing at all.
+    const message = warn.mock.calls[0][0] as string;
+    expect(message).toContain(KEPT);
+    expect(message).not.toContain(GONE1);
+    expect(message).not.toContain(GONE2);
     warn.mockRestore();
   });
 
   it("says so loudly rather than silently keeping a referenced row", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { admin, deleted } = fakeAdmin([{ id: "bs1", evaluation_id: "a" }]);
-    expect(await pruneSeedEvaluations(admin, ["a"], "eval")).toBe(0);
+    const { admin, deleted } = fakeAdmin([{ id: "bs1", evaluation_id: KEPT }]);
+    expect(await pruneSeedEvaluations(admin, [KEPT], "eval")).toBe(0);
     expect(deleted).toEqual([]); // never issues an empty delete
     expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][0]).toContain(KEPT);
     warn.mockRestore();
   });
 
@@ -229,5 +245,64 @@ describe("pruneSeedEvaluations", () => {
     const { admin, deleted } = fakeAdmin([]);
     expect(await pruneSeedEvaluations(admin, [], "eval")).toBe(0);
     expect(deleted).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ponytail: a source-text assertion, in the idiom already established at
+// tests/unit/boardConfidenceService.test.ts:715 — both seed scripts build a live
+// Supabase client at module scope and call main() on import, so there is no seam
+// to call into and refactoring two entrypoints to unit-test one line each is a
+// worse trade than reading the file.
+//
+// This is the whole fix. Everything above tests the id helper in isolation and
+// stays green if the seeds never call it: reverting `.upsert(drafts)` to
+// `.insert(drafts)` left all 931 default-scope tests passing.
+//
+// Assert the POSITIVE form only. The negative (`not.toMatch(/\.insert\(/)`) is
+// what produced the eleventh vacuous test in this epic — a comment that merely
+// mentions the string satisfies it.
+//
+// Upgrade path: if either seed ever grows a testable export, assert the written
+// row instead of the text.
+// ---------------------------------------------------------------------------
+describe("the seeds actually use the deterministic ids", () => {
+  const read = async (script: string) => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    return readFileSync(resolve(process.cwd(), script), "utf8");
+  };
+
+  it.each([["scripts/seed-e2e.ts"], ["scripts/seed-stress.ts"]])(
+    "%s stamps ids with withSeedIds and upserts them",
+    async (script) => {
+      const src = await read(script);
+      expect(src).toMatch(/const drafts = withSeedIds\(/);
+      expect(src).toMatch(/\.upsert\(drafts\)/);
+      // The UNCONDITIONAL post-upsert cleanup specifically, not just "the word
+      // pruneSeedEvaluations appears somewhere". Both scripts also call prune
+      // under --reset, so a bare /pruneSeedEvaluations\(/ stayed green when the
+      // cleanup call was deleted and only the optional one was left.
+      expect(src).toMatch(
+        /const keep = new Set\(drafts\.map\(\(d\) => d\.id\)\);\s*await pruneSeedEvaluations\(/,
+      );
+    },
+  );
+
+  // Both prunes are scoped by TWO predicates, and that is a data-loss guard,
+  // not a style point. A synthetic dod_id identifies the ACCOUNT, not the
+  // writer: a human logging in as a seeded account and clicking New Report gets
+  // a real draft carrying it. One such row exists on hosted (CONNOR, SARAH A)
+  // and a single-predicate prune would have deleted it.
+  it("scopes the e2e prune by member name AND seeded authorship", async () => {
+    expect(await read("scripts/seed-e2e.ts")).toMatch(
+      /\.in\("member_name", memberNames\)\s*\.in\("created_by", userIds\)/,
+    );
+  });
+
+  it("scopes the stress prune by synthetic dod_id AND the fixture period", async () => {
+    expect(await read("scripts/seed-stress.ts")).toMatch(
+      /\.like\("dod_id", "10000000%"\)\s*\.in\("period_from", periodFrom\)\s*\.in\("period_to", periodTo\)/,
+    );
   });
 });

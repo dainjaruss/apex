@@ -887,17 +887,30 @@ async function seedCommands() {
 /**
  * Every evaluation this seed owns, however many generations deep.
  *
- * Match by the stress users' DoD ID block (10000000xx), not by name: the old
- * '%(STRESS)%' pattern never matched "(STRESS #1)", so resets silently deleted
- * nothing and every reseed stacked 40 more evals into the DB. That block is
- * synthetic by construction (001:93 — evaluations.dod_id is "Synthetic only
- * (NO PII)"), and is assigned here and nowhere else.
+ * TWO predicates, for exactly the reason seed-e2e needs two. The DoD ID block
+ * (10000000xx) identifies the ACCOUNT, not the writer: once this seed mints
+ * CTR1 SAILOR with dod_id 1000000003, a human logging in as that account and
+ * clicking New Report gets a real draft carrying the synthetic dod_id. One such
+ * row exists on hosted — CONNOR, SARAH A, created in the app and edited three
+ * seconds later — and a single-predicate prune would have deleted it.
+ *
+ * The fixture period is the second predicate, and it comes from the drafts
+ * rather than a third hardcoded copy of the dates. A human's New Report carries
+ * the period they picked, never the fixtures' 2025-06-15 → 2026-06-15.
+ *
+ * Match on DoD ID rather than member name: the old '%(STRESS)%' pattern never
+ * matched "(STRESS #1)", so resets silently deleted nothing and every reseed
+ * stacked 40 more evals into the DB. Member name would not help either — the
+ * hosted casualty above is called CONNOR, SARAH A, which IS one of the fixture
+ * names. The period is what separates them.
  */
-async function ownedStressEvalIds() {
+async function ownedStressEvalIds(periodFrom: string[], periodTo: string[]) {
   const { data, error } = await admin
     .from("evaluations")
     .select("id")
-    .like("dod_id", "10000000%");
+    .like("dod_id", "10000000%")
+    .in("period_from", periodFrom)
+    .in("period_to", periodTo);
   if (error) throw new Error(`evaluations scope select: ${error.message}`);
   return (data ?? []).map((r) => r.id as string);
 }
@@ -1147,6 +1160,14 @@ async function seedStressEvals(users: Record<string, string>) {
   // second run overwrite the first instead of appending another 40 rows.
   const drafts = withSeedIds(evalsToInsert);
 
+  // Second prune predicate, taken from the drafts so it cannot drift from them.
+  const periodFrom = Array.from(
+    new Set(drafts.map((d) => d.period_from as string)),
+  );
+  const periodTo = Array.from(
+    new Set(drafts.map((d) => d.period_to as string)),
+  );
+
   // --reset still means "from scratch": the upsert below only overwrites the
   // columns present in the payload, so anything a demo touched that no fixture
   // sets survives a plain re-run. Dropping the rows first is the only way to
@@ -1154,7 +1175,11 @@ async function seedStressEvals(users: Record<string, string>) {
   // migration-012 unique constraint, and the old `name like '%Summary Group%'`
   // delete would have swept up any real group whose name contained the phrase.)
   if (reset) {
-    await pruneSeedEvaluations(admin, await ownedStressEvalIds(), "stress eval");
+    await pruneSeedEvaluations(
+      admin,
+      await ownedStressEvalIds(periodFrom, periodTo),
+      "stress eval",
+    );
   }
 
   const { data: inserted, error } = await admin
@@ -1170,7 +1195,9 @@ async function seedStressEvals(users: Record<string, string>) {
   const keep = new Set(drafts.map((d) => d.id));
   await pruneSeedEvaluations(
     admin,
-    (await ownedStressEvalIds()).filter((id) => !keep.has(id)),
+    (await ownedStressEvalIds(periodFrom, periodTo)).filter(
+      (id) => !keep.has(id),
+    ),
     "stress eval",
   );
 

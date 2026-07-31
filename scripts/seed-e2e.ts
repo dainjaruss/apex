@@ -467,22 +467,28 @@ async function seedEvals(users: Record<string, string>) {
 
   // Deterministic primary keys (scripts/seedIdentity.ts) — this is what makes a
   // second run overwrite the first instead of appending a new generation.
-  const drafts = withSeedIds([
-    routingDraft,
-    recycleDraft,
-    chiefEvalDraft,
-    fitrepDraft,
-    williamsDraft,
-    rodriguezDraft,
-    chenDraft,
-  ]);
+  // signature_locked is stamped rather than left to the column default, so a
+  // plain re-run clears it. Without it, repairing a record a demo had signed
+  // left status 'draft' with signature_locked true — a combination the app
+  // cannot otherwise reach, and one that reads as a bug on screen.
+  const drafts = withSeedIds(
+    [
+      routingDraft,
+      recycleDraft,
+      chiefEvalDraft,
+      fitrepDraft,
+      williamsDraft,
+      rodriguezDraft,
+      chenDraft,
+    ].map((d) => ({ signature_locked: false, ...d })),
+  );
   const memberNames = drafts.map((d) => d.member_name as string);
   const userIds = Object.values(users);
 
   // --reset still means "from scratch": the upsert below only overwrites the
   // columns present in the payload, so a column a demo touched that no fixture
-  // sets (pdf_storage_path, reviewer_id, signature_locked) survives a plain
-  // re-run. Dropping the rows first is the only way to clear those.
+  // sets (pdf_storage_path, reviewer_id) survives a plain re-run. Dropping the
+  // rows first is the only way to clear those.
   if (reset) {
     await pruneSeedEvaluations(
       admin,

@@ -29,6 +29,15 @@
  * UUID. Postgres stores any 128 bits, but the version nibble is a free tell:
  * `gen_random_uuid()` only ever emits version 4, so a `…-8xxx-…` id in
  * `evaluations` was written by a seed and nothing else.
+ *
+ * ponytail: that marker is minted but NOT used as a prune predicate, so as of
+ * this PR it protects nothing — all the safety comes from the callers' scoping
+ * (member name + author for e2e, dod_id + fixture period for stress). It
+ * cannot be used yet: every accumulated generation on hosted is v4 and must
+ * stay reachable for the first converging run. Once that run has happened,
+ * adding a `id::text like '________-____-8%'` predicate would make a
+ * mis-scoped prune structurally incapable of touching a human's row. Worth
+ * doing after the hosted cleanup, not before.
  */
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
