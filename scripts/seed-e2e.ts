@@ -352,6 +352,22 @@ async function seedEvals(users: Record<string, string>) {
     form_definition_id: "c1616270-cafe-4b08-9df2-5d8f28d8b4cd",
     report_type: "CHIEFEVAL",
     grade_rate: "CPO",
+    // NAVPERS 1616/27 Blocks 33–39, same set as RODRIGUEZ below. Without this the
+    // showcase Chief eval inherited buildValidEval()'s 1616/26 default — seven EVAL
+    // traits, "work" and "eo" among them, on the one record a demo opens first.
+    // 1616/27 also has no retention block, hence `retention: undefined` (as on the
+    // other non-EVAL drafts): ChiefEvalSchema/FitrepSchema have no such field.
+    trait_grades: {
+      technical_mastery: "4.0",
+      institutional_expertise: "4.0",
+      professionalism: "4.0",
+      integrity: "4.0",
+      accountability: "4.0",
+      deckplate_leadership: "4.0",
+      team_effectiveness: "4.0",
+    },
+    trait_average: 4.0,
+    retention: undefined,
   });
 
   const fitrepDraft = buildValidEval({

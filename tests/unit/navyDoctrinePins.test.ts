@@ -19,7 +19,12 @@ import {
   CHIEFEVAL_TRAIT_ORDER,
   TRAIT_STANDARDS_LOOKUP,
 } from "@/lib/traitStandards";
-import { CHIEFEVAL_TRAIT_KEYS } from "@/types/navpers";
+import {
+  CHIEFEVAL_TRAIT_KEYS,
+  FITREP_TRAIT_KEYS,
+  TRAIT_KEYS as EVAL_TRAIT_KEYS,
+} from "@/types/navpers";
+import { buildValidEval } from "../fixtures/validEval";
 import { getBlockForField } from "@/lib/validationEngine";
 import { NAVFIT_TRAIT_MAP } from "@/lib/navfit98/constants";
 import { TRAIT_KEYS } from "@/lib/traitAverage";
@@ -336,13 +341,120 @@ describe("LaDR fetch route — 403 is reported as an observation, not a conclusi
 // the next edit cannot quietly reintroduce a trait table the Navy does not use.
 //
 // Read as text on purpose: importing the script would execute it against a live
-// Supabase project.
+// Supabase project (it loads .env.local and writes at import time).
+//
+// The previous version of this block was VACUOUS and let the very thing it
+// describes through: it took `source.slice(source.indexOf('report_type:
+// "CHIEFEVAL"'))` — the FIRST CHIEFEVAL, sliced to end of file — so the second,
+// correct CHIEFEVAL draft further down satisfied every `toContain`. The showcase
+// CHIEFEVAL sat there with seven EVAL traits and the suite stayed green. This
+// version resolves EACH buildValidEval() call independently, including the ones
+// that override nothing and silently inherit the 1616/26 default.
 // ---------------------------------------------------------------------------
-describe("scripts/seed-e2e.ts — seeded trait tables match the real forms", () => {
-  const source = readFileSync(
+describe("scripts/seed-e2e.ts — every seeded record's traits match its form", () => {
+  const raw = readFileSync(
     resolve(process.cwd(), "scripts/seed-e2e.ts"),
     "utf8",
   );
+  // Comments are prose, not seeded data. A comment that merely QUOTES a trait key
+  // or `retention: undefined` would satisfy the checks below without a single row
+  // changing — the first draft of this guard did exactly that, because the fix's
+  // own explanatory comment named the field it was asserting on. `(^|\s)//` skips
+  // the `//` in a URL, which is preceded by a colon.
+  const source = raw.replace(/(^|\s)\/\/.*$/gm, "$1");
+
+  const EXPECTED_TRAIT_KEYS: Record<string, readonly string[]> = {
+    EVAL: EVAL_TRAIT_KEYS,
+    CHIEFEVAL: CHIEFEVAL_TRAIT_KEYS,
+    FITREP: FITREP_TRAIT_KEYS,
+  };
+
+  /** Source text between the braces starting at `open`, nesting respected. */
+  function balanced(text: string, open: number): string {
+    let depth = 0;
+    for (let j = open; j < text.length; j++) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}" && --depth === 0) return text.slice(open + 1, j);
+    }
+    throw new Error("unbalanced braces in seed source");
+  }
+
+  /** The literal trait_grades keys, or null when the draft inherits the default. */
+  function literalTraitKeys(draft: string): string[] | null {
+    const at = draft.indexOf("trait_grades:");
+    if (at === -1) return null;
+    const rest = draft.slice(at + "trait_grades:".length);
+    // `trait_grades: someVariable` would silently read as zero keys and make this
+    // assertion pass for anything. Fail instead of going quiet.
+    expect(
+      rest.trimStart().startsWith("{"),
+      "trait_grades is not an object literal — this guard cannot read it",
+    ).toBe(true);
+    return balanced(rest, rest.indexOf("{")).match(/\w+(?=\s*:)/g) ?? [];
+  }
+
+  const marker = "buildValidEval({";
+  const drafts: Array<{
+    name: string;
+    reportType: string;
+    traitKeys: string[] | null;
+    body: string;
+  }> = [];
+  for (
+    let i = source.indexOf(marker);
+    i !== -1;
+    i = source.indexOf(marker, i + 1)
+  ) {
+    const body = balanced(source, i + marker.length - 1);
+    drafts.push({
+      name: body.match(/member_name:\s*"([^"]+)"/)?.[1] ?? "(unnamed)",
+      // buildValidEval() defaults to EVAL when a draft does not override it —
+      // the same silent inheritance that produced the bug.
+      reportType: body.match(/report_type:\s*"(\w+)"/)?.[1] ?? "EVAL",
+      traitKeys: literalTraitKeys(body),
+      body,
+    });
+  }
+
+  it("parses every seeded draft, covering all three forms", () => {
+    // Pins the parse itself: an empty or partial `drafts` would make every
+    // assertion below trivially true.
+    expect(drafts.map((d) => `${d.reportType} ${d.name}`).sort()).toEqual([
+      "CHIEFEVAL RODRIGUEZ, MARCOS E (ITCS)",
+      "CHIEFEVAL SMITH, BETTY L (CHIEF)",
+      "EVAL DOE, JOHN A",
+      "EVAL DOE, JOHN A (RECYCLE)",
+      "EVAL WILLIAMS, SARAH K (IT1)",
+      "FITREP CHEN, DAVID T (LT)",
+      "FITREP JONES, CARL R (OFFICER)",
+    ]);
+  });
+
+  it.each(
+    drafts.map(
+      (d) => [`${d.name} — ${d.reportType}`, d] as [string, (typeof drafts)[0]],
+    ),
+  )("%s carries exactly its own form's trait keys", (_label, d) => {
+    const expected = EXPECTED_TRAIT_KEYS[d.reportType];
+    expect(
+      expected,
+      `no trait key set known for ${d.reportType}`,
+    ).toBeDefined();
+    // A draft that overrides nothing gets the fixture default — resolve it the
+    // way the script does rather than assuming an override exists.
+    const actual = d.traitKeys ?? Object.keys(buildValidEval().trait_grades!);
+    expect([...actual].sort()).toEqual([...expected].sort());
+  });
+
+  it("clears the EVAL-only retention block on CHIEFEVAL and FITREP drafts", () => {
+    // Block 47 is a 1616/26 field. ChiefEvalSchema and FitrepSchema have no
+    // `retention` at all, and 1616/27 prints no such block — so a non-EVAL draft
+    // must clear the fixture default rather than inherit "Recommended".
+    for (const d of drafts.filter((x) => x.reportType !== "EVAL"))
+      expect(d.body, `${d.name} inherits the EVAL retention default`).toMatch(
+        /retention:\s*undefined/,
+      );
+  });
 
   it("never writes a fabricated CHIEFEVAL trait", () => {
     for (const invented of [
@@ -351,34 +463,5 @@ describe("scripts/seed-e2e.ts — seeded trait tables match the real forms", () 
       "eo_climate",
     ])
       expect(source).not.toContain(invented);
-  });
-
-  it("seeds the seven NAVPERS 1616/27 CHIEFEVAL traits", () => {
-    const block = source.slice(source.indexOf('report_type: "CHIEFEVAL"'));
-    for (const key of [
-      "technical_mastery",
-      "institutional_expertise",
-      "professionalism",
-      "integrity",
-      "accountability",
-      "deckplate_leadership",
-      "team_effectiveness",
-    ])
-      expect(block).toContain(`${key}:`);
-  });
-
-  it("never puts the EVAL-only 'quality of work' trait on a FITREP", () => {
-    // 1610/2 has no `work`; migration 011 removed it from hosted FITREP rows.
-    const marker = 'report_type: "FITREP"';
-    const offsets: number[] = [];
-    for (let i = source.indexOf(marker); i !== -1; i = source.indexOf(marker, i + 1))
-      offsets.push(i);
-    expect(offsets.length).toBeGreaterThan(0);
-    for (const off of offsets) {
-      const block = source.slice(off, off + 500);
-      const traits = block.slice(block.indexOf("trait_grades"));
-      expect(traits.slice(0, traits.indexOf("}"))).not.toMatch(/\bwork:/);
-      expect(traits).toContain("tactical_performance:");
-    }
   });
 });
