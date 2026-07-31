@@ -1129,6 +1129,38 @@ displayed 1-decimal value), so e.g. a raw 84.96 rounds to 85.0 and votes 100.
 
 ### 7.2 Worked examples (conformance fixtures — pinned by tests)
 
+> **SUPERSEDED BY PR #37 — the three finals below are no longer what the engine
+> computes, and the arithmetic that produced them was defective.**
+>
+> §7's composite summed `(weight/100)·S·conf` against a **fixed denominator of
+> 100**, which made `conf = 0` ("APEX cannot see this") arithmetically identical
+> to `S = 0, conf = 1` ("APEX looked and it is bad"). Every point APEX could not
+> observe was charged to the Sailor as one they had failed to earn. The engine
+> now computes `Σ(w·conf·S)/Σ(w·conf) − A`, and `development`, `completeness` and
+> `continuity` carry no verdict weight — none of the three is visible to a
+> selection board (see `VERDICT_FACTORS` in `lib/boardConfidence/rubric.ts` for
+> the full argument on each). Re-derived finals for the same three inputs:
+>
+> | | §7.2 as written | engine |
+> |---|---|---|
+> | Example 1 — strong | 89.0 (vote 100) | **87.7** (vote 100) |
+> | Example 2 — average | 50.3 (vote 50) | **38.7** (vote 25) |
+> | Example 3 — weak/incomplete | 10.2 (vote 0) | **46.7** (vote 25), coverage 0.43 — withheld by the readiness gate |
+>
+> **The `BANDS` table has not been recalibrated and needs to be.** Example 2 is
+> the record this spec defines as "exactly a second-review record", and it now
+> votes 25 rather than 50 — the cut points were fitted to the old arithmetic and
+> its two calibration anchors have both moved. Retuning them is a domain-review
+> decision, not an arithmetic one, and PR #37 deliberately left them alone rather
+> than move labels blind. **That recalibration is the open follow-up.**
+>
+> The per-line derivations below are kept because the sub-component arithmetic
+> (P1–P3, L1–L3, the LaDR ratios, the continuity window) is largely unchanged and
+> still documents it. Where a line disagrees with the engine — `esrFlags`, the
+> `×0.5` unverified multipliers, `P4`'s denominator, `S_C`'s — the engine is
+> right and the line is history. The live conformance fixture is
+> `tests/unit/boardConfidenceRubric.test.ts`.
+
 All three computed by the reference implementation with board date T = 2026-09-01; recency r_i = 0.5^(floor(days/30.44)/24), sea evals ×1.25.
 
 Eval periods (required by Factor 4; day counting per the §7 Factor 4 convention —

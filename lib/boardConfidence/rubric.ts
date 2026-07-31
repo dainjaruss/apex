@@ -84,7 +84,7 @@ export const FACTOR_WEIGHTS: Record<FactorKey, number> = {
  * redistribution mechanism in scoreBoardConfidence.
  */
 export const VERDICT_FACTORS: ReadonlySet<FactorKey> = new Set<FactorKey>([
-  "performance", "leadership", "continuity", "precept",
+  "performance", "leadership", "precept",
 ]);
 // v1.5: operator-tunable parameters. Defaults reproduce spec §7. Continuity is
 // GRADED, never a hard zero (a real board decides selection, not this tool);
@@ -683,7 +683,40 @@ function scorePrecept(
 // Composite
 // ---------------------------------------------------------------------------
 
-/** The engine. Pure: no Date.now(), no randomness, no I/O. */
+/**
+ * The engine. Pure: no Date.now(), no randomness, no I/O.
+ *
+ * WITHHOLDING — the limit of what any scoring rule can do, stated once here.
+ *
+ * Every input is self-entered. A Sailor who deletes a section removes the
+ * evidence that it was weak, and the score computed from what is left is higher.
+ * That cannot be fixed arithmetically, and the reason is a two-line proof: let f
+ * be the score and D' ⊂ D a record with a section removed. "Absence must never
+ * lower the score" is f(D') ≥ f(D) for every D; "absence must never raise it" is
+ * f(D') ≤ f(D). Both at once force f(D') = f(D) for every removal — a function
+ * that ignores its input. The two halves are not jointly satisfiable by anything
+ * that scores anything.
+ *
+ * So the defence is not arithmetic, it is refusing to score. Measured on this
+ * engine, with the gate doing its job:
+ *
+ *   blanking a weak tours section   49.1 → 63.2 raw, but coverage 1.00 → 0.78
+ *                                   and leadership conf 0.30 < AREA_EVIDENCE_FLOOR,
+ *                                   so readiness.ts emits NO number.
+ *   deleting a declining report     35.7 → 49.0, still scored. Not closable:
+ *                                   APEX cannot know about a report you did not
+ *                                   type, and performance grades the reports it
+ *                                   has. Pre-existing; this arithmetic widens it.
+ *   omitting an NJP / PFA failure    24.1 → 49.1 at coverage 1.0000 both ways.
+ *                                   The largest of the three, entirely invisible
+ *                                   to coverage, and unchanged from the previous
+ *                                   engine — adverse material has no "section
+ *                                   entered" flag to be missing.
+ *
+ * The only real remedy is corroboration APEX does not have (an OMPF feed). Until
+ * then the honest posture is: never render a score without its coverage beside
+ * it, and refuse to render one at all while a verdict factor is half-blind.
+ */
 export function scoreBoardConfidence(
   inputs: RubricInputs,
   config: RubricConfig = DEFAULT_RUBRIC_CONFIG,
@@ -907,6 +940,24 @@ export function scoreBoardConfidence(
 // ---------------------------------------------------------------------------
 
 /**
+ * The composite on its full-float scale — Σ(w·conf·S)/Σ(w·conf) − A, before the
+ * [0,100] clamp and the terminal rounding. Nothing in the scoring path uses it;
+ * it exists for service.ts's assertTripleMatches, which needs a fingerprint
+ * sensitive enough to catch "this RubricResult was not scored from these inputs
+ * under this config". `final` is rounded to one decimal and would let a near-miss
+ * through.
+ */
+export function compositeRaw(r: RubricResult): number {
+  let num = 0;
+  let den = 0;
+  for (const f of r.factors) {
+    num += f.weight * f.confidence * f.score;
+    den += f.weight * f.confidence;
+  }
+  return (den <= 0 ? 0 : num / den) - r.adverseAdjustment;
+}
+
+/**
  * Only real improvements. There is deliberately NO `award_verify` / `ladr_verify`
  * candidate: `verified_in_ompf` is a self-ticked box (RecordEntryForm), so it is
  * an HONESTY axis, not a verification axis. Scoring it inverted correct doctrine
@@ -983,7 +1034,7 @@ export function bandDeltas(
         area: "development" as const,
         label: u.item || u.milestone_id,
         milestoneId: u.milestone_id,
-        delta: u.marginal_points,
+        delta: u.factorLocalPoints,
       };
     })
     .sort((a, b) => b.delta - a.delta);

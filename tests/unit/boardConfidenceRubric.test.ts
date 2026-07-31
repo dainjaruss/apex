@@ -24,6 +24,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   DEFAULT_RUBRIC_CONFIG,
+  compositeRaw,
   scoreBoardConfidence,
   bandDeltas,
   bandFor,
@@ -244,13 +245,14 @@ describe("§7.2 Example 1 — strong record (conformance fixture)", () => {
   const r = scoreBoardConfidence(ex1Inputs);
   const f = byKey(r);
 
-  it("emits six factors; the two off the verdict axis carry weight 0", () => {
+  it("emits six factors; the three off the verdict axis carry weight 0", () => {
     expect(r.factors).toHaveLength(6);
-    // development 15 + completeness 10 are excluded; 40/15/10/10 → ×100/75.
+    // development 15 + completeness 10 + continuity 10 excluded; 40/15/10 → ×100/65.
     expect(f.development.weight).toBe(0);
     expect(f.completeness.weight).toBe(0);
-    expect(f.performance.weight).toBeCloseTo((40 * 100) / 75, 9);
-    expect(f.precept.weight).toBeCloseTo((10 * 100) / 75, 9);
+    expect(f.continuity.weight).toBe(0);
+    expect(f.performance.weight).toBeCloseTo((40 * 100) / 65, 9);
+    expect(f.precept.weight).toBeCloseTo((10 * 100) / 65, 9);
     expect(r.factors.reduce((a, x) => a + x.weight, 0)).toBeCloseTo(100, 9);
   });
 
@@ -280,9 +282,9 @@ describe("§7.2 Example 1 — strong record (conformance fixture)", () => {
     expect(r.ladrUnmet!.length).toBeGreaterThan(0);
   });
 
-  it("FINAL = 89.4 → vote 100 'Clearly at the top' (exact)", () => {
+  it("FINAL = 87.7 → vote 100 'Clearly at the top' (exact)", () => {
     expect(r.adverseAdjustment).toBe(0);
-    expect(r.final).toBe(89.4);
+    expect(r.final).toBe(87.7);
     expect(r.band).toBe(100);
     expect(r.bandLabel).toBe("Clearly at the top");
   });
@@ -409,7 +411,7 @@ describe("§7.2 Example 2 — average record (crunch / second-review profile)", 
     expect(f.development.confidence).toBeCloseTo(0.793, 1);
   });
 
-  it("FINAL = 46.8 → vote 25 (exact), and the identity holds", () => {
+  it("FINAL = 38.7 → vote 25 (exact), and the identity holds", () => {
     // 50.3 before. The drop is entirely the two data-entry factors leaving the
     // verdict: completeness was carrying S_R 88.9 and development S_D 51.8 into a
     // record whose PERFORMANCE is 39.5 — one decline, no Early Promote in five
@@ -417,16 +419,16 @@ describe("§7.2 Example 2 — average record (crunch / second-review profile)", 
     // that the precept factor reads as `warfighting: 0`. Filling in APEX forms was
     // worth a band; it is not any more.
     expect(r.adverseAdjustment).toBe(0);
-    expect(r.final).toBe(46.8);
+    expect(r.final).toBe(38.7);
     expect(r.band).toBe(25);
     expect(r.final).toBe(recompute(r));
   });
 
-  it("the composite is NOT the sum of contributions — it is that sum over coverage", () => {
-    const coverage = r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100;
-    expect(coverage).toBeLessThan(1); // conf_D 0.79 on a weight-0 factor cannot… 
-    // …reach the denominator at all: coverage over the VERDICT weights is 1 here.
-    expect(rawSum(r)).toBeCloseTo(46.84, 1);
+  it("a weight-0 factor's confidence cannot reach the denominator", () => {
+    // conf_D is 0.79 and conf_R/conf_C are 1, but none of the three carries
+    // weight, so coverage over the VERDICT is exactly 1 for this record.
+    expect(r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100).toBe(1);
+    expect(rawSum(r)).toBeCloseTo(38.66, 1);
   });
 });
 
@@ -522,7 +524,7 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     expect(f.completeness.score).toBeCloseTo((100 * 15) / 90, 1);
   });
 
-  it("A = 10 (PFA fail ≤36 mo); FINAL = 49.0 on coverage 0.44 (graded, NOT gated)", () => {
+  it("A = 10 (PFA fail ≤36 mo); FINAL = 46.7 on coverage 0.43 (graded, NOT gated)", () => {
     expect(r.adverseAdjustment).toBe(10);
     // 10.2 before. This record is not WORSE than it was — APEX can barely SEE it:
     // 2 reports, no tours, PSR not entered, 6 of 27 roadmap rows answered. Every
@@ -530,9 +532,9 @@ describe("§7.2 Example 3 — weak/incomplete record (drop-risk profile)", () =>
     // the denominator, and the residue is what APEX actually measured. Coverage
     // 0.44 is how the Sailor is told that, and readiness.ts refuses to render a
     // number at all below its 0.75 floor.
-    expect(r.final).toBe(49.0);
+    expect(r.final).toBe(46.7);
     expect(r.band).toBe(25);
-    expect(r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100).toBeCloseTo(0.436, 3);
+    expect(r.factors.reduce((a, x) => a + x.weight * x.confidence, 0) / 100).toBeCloseTo(0.433, 3);
     expect(r.final).toBe(recompute(r));
   });
 
@@ -604,8 +606,8 @@ describe("v1.5 RubricConfig tuning", () => {
         precept: 5,
       },
     });
-    // development 5 + completeness 5 are excluded → the other four ×100/90.
-    expect(byKey(skewed).performance.weight).toBeCloseTo((70 * 100) / 90, 9);
+    // development 5 + completeness 5 + continuity 5 excluded → the rest ×100/85.
+    expect(byKey(skewed).performance.weight).toBeCloseTo((70 * 100) / 85, 9);
     expect(byKey(skewed).development.weight).toBe(0);
     expect(skewed.final).not.toBe(scoreBoardConfidence(ex1Inputs).final);
   });
@@ -793,22 +795,23 @@ describe("missing-data policy — performance confidence and sub-weights", () =>
 });
 
 describe("verdict exclusion — ONE redistribution mechanism, weights always sum to 100", () => {
-  it("development and completeness are always excluded; the rest redistribute", () => {
+  it("development, completeness and continuity are always excluded", () => {
     const f = byKey(scoreBoardConfidence(ex3Inputs)); // precept flags ARE configured
     expect(f.development.weight).toBe(0);
     expect(f.completeness.weight).toBe(0);
-    // excluded = 15 + 10 = 25 → ×100/75 over performance/leadership/continuity/precept
-    for (const key of ["performance", "leadership", "continuity", "precept"] as FactorKey[])
-      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 75, 9);
+    expect(f.continuity.weight).toBe(0);
+    // excluded = 15 + 10 + 10 = 35 → ×100/65 over performance/leadership/precept
+    for (const key of ["performance", "leadership", "precept"] as FactorKey[])
+      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 65, 9);
   });
 
-  it("zero precept flags excludes it too: ×100/65, and detail.excluded is set", () => {
+  it("zero precept flags excludes it too: ×100/55, and detail.excluded is set", () => {
     const f = byKey(run({ evals: annual(3) })); // preceptFlags: []
     expect(f.precept.weight).toBe(0);
     expect(f.precept.contribution).toBe(0);
     expect(f.precept.detail.excluded).toBe(true);
-    for (const key of ["performance", "leadership", "continuity"] as FactorKey[])
-      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 65, 9);
+    for (const key of ["performance", "leadership"] as FactorKey[])
+      expect(f[key].weight).toBeCloseTo((FACTOR_WEIGHTS[key] * 100) / 55, 9);
   });
 
   it("effective weights sum to exactly 100 in BOTH branches", () => {
@@ -1292,6 +1295,32 @@ describe("INVARIANT — unknown and weak are separate axes", () => {
   });
 });
 
+describe("compositeRaw — the fingerprint service.ts checks the readiness triple with", () => {
+  it("is the unrounded composite, adverse included, and distinguishes what `final` rounds away", () => {
+    const clean = solid({});
+    const punished = solid({ psr: { ...solidPsr(), adverse: [{ kind: "njp", date: "2025-01-01" }] } });
+    const a = scoreBoardConfidence(clean);
+    const b = scoreBoardConfidence(punished);
+
+    // It must carry A: assertTripleMatches uses it to catch "this result was not
+    // scored from these inputs", and two records differing only in adverse
+    // material are exactly the mismatch it is there to catch.
+    expect(compositeRaw(a) - compositeRaw(b)).toBeCloseTo(b.adverseAdjustment, 9);
+    expect(b.adverseAdjustment).toBeGreaterThan(0);
+
+    // Unrounded, so a near-miss cannot slip through a 1-decimal comparison.
+    expect(compositeRaw(a)).not.toBe(round1HalfAway(compositeRaw(a)));
+    expect(round1HalfAway(compositeRaw(a))).toBe(a.final);
+  });
+
+  it("is 0 − A when nothing in the verdict has data, never NaN", () => {
+    const r = scoreBoardConfidence({ boardDate: T, evals: [], psr: emptyPsr, ladr: [], preceptFlags: [] });
+    expect(Number.isFinite(compositeRaw(r))).toBe(true);
+    expect(compositeRaw(r)).toBe(0 - r.adverseAdjustment);
+    expect(r.adverseAdjustment).toBe(0);
+  });
+});
+
 describe("INVARIANT — a roadmap is a plan, not a verdict", () => {
   const statuses: LadrStatus[] = ["met", "not_met", "unanswered", "na"];
 
@@ -1331,7 +1360,7 @@ describe("INVARIANT — a roadmap is a plan, not a verdict", () => {
     expect(plan.some((d) => d.delta > 0)).toBe(true);
     expect([...plan].sort((a, b) => b.delta - a.delta)).toEqual(plan);
     // every delta is the development factor's own marginal, not a composite delta
-    const unmet = new Map(scoreBoardConfidence(inputs).ladrUnmet!.map((u) => [u.milestone_id, u.marginal_points]));
+    const unmet = new Map(scoreBoardConfidence(inputs).ladrUnmet!.map((u) => [u.milestone_id, u.factorLocalPoints]));
     for (const d of plan) expect(d.delta).toBe(unmet.get(d.milestoneId));
   });
 });
@@ -1485,7 +1514,13 @@ describe("INVARIANT — a section APEX could not read is not a section that is e
     expect(byKey(genuinelyNone).leadership.confidence).toBeGreaterThan(
       byKey(unreadable).leadership.confidence,
     );
-    expect(unreadable.final).toBeGreaterThan(genuinelyNone.final);
+    // NOT asserted: that `unreadable.final` is higher. It IS higher — removing a
+    // low sub-score raises the mean of what is left — and that is the withholding
+    // surface, not a property to pin as desirable. An earlier revision of this
+    // test pinned exactly that comparison, which made the exploit a passing
+    // invariant. What stops a Sailor cashing it is the evidence floor, pinned in
+    // boardConfidenceReadiness.test.ts ("blanking a section buys a raw number
+    // nobody is shown").
   });
 
   it("the same holds for awards", () => {

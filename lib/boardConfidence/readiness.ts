@@ -118,8 +118,20 @@ export const BLIND_SPOT_GATE = true;
  * rather than graded, and (per BLIND_SPOT_GATE) also suppresses the composite.
  * Performance with a single report has conf ≈ 0.12–0.23; calling that "needs
  * attention" is noise, not a finding.
+ *
+ * RAISED 0.25 → 0.50. A quarter of an area is not enough of it to grade, and at
+ * 0.25 the threshold was not doing the job the composite now needs from it.
+ * Measured: a record with a weak tours section scored 49.1 at coverage 1.00, and
+ * the SAME record with the tours section blanked scored 63.2 — the numerator is
+ * identical (4907.7) and only the denominator shrinks, because the sub-scores
+ * that vanish are the low ones. Leadership lands at conf 0.30 there, which
+ * cleared 0.25 and got graded. It does not clear 0.50, so no number is emitted.
+ *
+ * This is a GATE, not a fix: see the withholding note on scoreBoardConfidence.
+ * No arithmetic can make removing evidence unprofitable — refusing to score a
+ * half-blind area is the only honest lever, and it is this one.
  */
-export const AREA_EVIDENCE_FLOOR = 0.25;
+export const AREA_EVIDENCE_FLOOR = 0.5;
 
 /** S_f cut points for the graded statuses. Assertions, not calibration. */
 export const AREA_STATUS_THRESHOLDS = { strong: 80, on_track: 55 } as const;
@@ -634,9 +646,22 @@ export function buildReadinessReport(
   // A weight-0 factor is a TOOL configuration gap, not a gap in the Sailor's
   // record: with no precept loaded the headline otherwise read "APEX can see
   // 5 of 6 areas of your record" for a fully-entered one.
-  const counted = areas.filter((a) => a.detail.weight > 0);
+  // TWO different questions, and one filter used to answer both wrongly.
+  //
+  //   verdict  — does this factor carry weight in the composite? Only these may
+  //              suppress the score, because only these can distort it. A missing
+  //              LaDR must never block a number it cannot move.
+  //   shown    — is this an area of the SAILOR'S RECORD? Everything except a
+  //              precept the admin never configured, which is a tool gap the
+  //              Sailor cannot act on and must not be blamed for.
+  //
+  // `weight > 0` answered both until development, completeness and continuity
+  // came off the verdict axis. They are still the Sailor's record, still carry a
+  // how-to, and still belong in the coverage headline and the missing list.
+  const verdict = areas.filter((a) => a.detail.weight > 0);
+  const shown = areas.filter((a) => a.detail.detail.excluded !== true);
 
-  const missing = counted
+  const missing = shown
     .filter((a) => a.status === "not_enough_entered")
     .map((a) => ({
       area: a.key,
@@ -671,7 +696,7 @@ export function buildReadinessReport(
   // `< AREA_EVIDENCE_FLOOR`, NOT `=== 0`: a factor at conf 0.07 carries almost
   // its whole weight into the composite as unearned zeros, and `=== 0` let a
   // returning user's band silently drop when their rating's roadmap grew.
-  const blind = counted.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
+  const blind = verdict.filter((a) => a.detail.confidence < AREA_EVIDENCE_FLOOR);
   let scoreNote: string | null = null;
   if (BLIND_SPOT_GATE && blind.length > 0) {
     // The development-specific wording only applies when development is the ONLY
@@ -698,8 +723,8 @@ export function buildReadinessReport(
   return {
     coverage: {
       measured,
-      areasKnown: counted.filter((a) => a.status !== "not_enough_entered").length,
-      areasTotal: counted.length,
+      areasKnown: shown.filter((a) => a.status !== "not_enough_entered").length,
+      areasTotal: shown.length,
       missing,
       floor,
     },

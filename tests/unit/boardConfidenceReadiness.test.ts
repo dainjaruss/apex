@@ -173,7 +173,7 @@ describe("the band inversion — now fixed in the ENGINE, not worked around", ()
     expect(perf(a).score).toBeGreaterThan(perf(b).score);
     // The composite now agrees with the performance factor instead of contradicting it.
     expect(a.final).toBeGreaterThan(b.final);
-    expect(a.bandLabel).toBe("Clearly at the top");
+    expect(a.bandLabel).toBe("Competitive");
     expect(b.bandLabel).toBe("Crunch — middle band");
   });
 
@@ -190,18 +190,25 @@ describe("the band inversion — now fixed in the ENGINE, not worked around", ()
 
     expect(a.score).toBeNull();
     expect(a.scoreNote).toMatch(/cannot score/i);
-    expect(b.score).toEqual({ value: 59.9, band: 50, label: "Crunch — middle band" });
+    expect(b.score).toEqual({ value: 53.1, band: 50, label: "Crunch — middle band" });
     expect(b.scoreNote).toBeNull();
   });
 
   it("names what is missing instead of scoring it as zero, and still reports the strong areas", () => {
     const a = report(sailorA);
 
-    // Four verdict areas; development and completeness are not areas of the
-    // SAILOR'S RECORD a board reads, so they are not counted against them here.
+    // All six areas are SHOWN — development, completeness and continuity are the
+    // Sailor's record and carry a how-to even though they carry no verdict
+    // weight. Only a precept the admin never configured is hidden, and this
+    // record has one. What changed is that none of them is GRADED as a zero.
     expect(a.coverage.areasKnown).toBe(2);
-    expect(a.coverage.areasTotal).toBe(4);
-    expect(a.coverage.missing.map((m) => m.area).sort()).toEqual(["leadership", "precept"]);
+    expect(a.coverage.areasTotal).toBe(6);
+    expect(a.coverage.missing.map((m) => m.area).sort()).toEqual([
+      "completeness",
+      "development",
+      "leadership",
+      "precept",
+    ]);
     expect(a.areas.find((x) => x.key === "performance")!.status).toBe("strong");
   });
 });
@@ -292,10 +299,16 @@ describe("the two gates on emitting a number", () => {
   });
 
   it("COVERAGE FLOOR: still catches a thin record whose factors all have some confidence", () => {
+    // Three reports (conf_P 0.70), tours entered but NO awards section (conf_L
+    // 0.70), and a precept whose LaDR-derived flags are partly computable
+    // (conf_X 0.60). Every verdict factor is more than half observed, so the
+    // blind-spot gate has nothing to fire on — and the weighted total still
+    // lands under the floor.
     const thin: RubricInputs = {
       ...sailorB,
-      evals: [annual(2025, "Promotable", 3.8), annual(2026, "Promotable", 3.8)],
-      psr: { ...sailorB.psr, awards: [{ title: "NAM", level: "personal_achievement", date_awarded: "2025-01-01", verified_in_ompf: true }], tours: null },
+      evals: [2024, 2025, 2026].map((y) => annual(y, "Promotable", 3.8)),
+      psr: { ...sailorB.psr, awards: null },
+      ladr: sailorBLadr.filter((i) => i.category !== "nec_opportunity"),
     };
     const rep = report(thin);
     // Every weighted factor clears the blind-spot gate, so it is the FLOOR doing
@@ -305,6 +318,70 @@ describe("the two gates on emitting a number", () => {
     ).toBe(true);
     expect(rep.coverage.measured).toBeLessThan(COVERAGE_FLOOR);
     expect(rep.score).toBeNull();
+  });
+
+  it("blanking a section buys a raw number nobody is shown", () => {
+    // REQUIRED-1 regression. A weak tours section drags leadership to S_L 3.00;
+    // deleting it removes the evidence and the mean of what remains RISES. The
+    // numerator is identical either way — only the denominator shrinks — so no
+    // arithmetic can undo it (see the withholding proof on scoreBoardConfidence).
+    // What stops the Sailor cashing it is that leadership lands at conf 0.30,
+    // below AREA_EVIDENCE_FLOOR, and the composite is withheld.
+    const weakTours = [
+      { title: "Shore", start: "2021-01-01", end: null, sea_duty: false, leadership: false },
+    ];
+    const honest: RubricInputs = {
+      ...sailorB,
+      evals: [2022, 2023, 2024, 2025, 2026].map((y) => annual(y, "Must Promote", 4.3)),
+      psr: { ...sailorB.psr, tours: weakTours },
+    };
+    const blanked: RubricInputs = { ...honest, psr: { ...honest.psr, tours: null } };
+
+    const a = scoreBoardConfidence(honest, CFG);
+    const b = scoreBoardConfidence(blanked, CFG);
+    // the raw arithmetic does rise, and the numerator is untouched
+    const numOf = (r: typeof a) =>
+      r.factors.reduce((x, f) => x + f.weight * f.confidence * f.score, 0);
+    expect(b.final).toBeGreaterThan(a.final);
+    expect(numOf(b)).toBeCloseTo(numOf(a), 6);
+
+    // …and the gate is what makes it worthless.
+    expect(report(honest).score).not.toBeNull();
+    expect(report(blanked).score).toBeNull();
+    const lead = report(blanked).areas.find((x) => x.key === "leadership")!;
+    expect(lead.detail.confidence).toBeLessThan(AREA_EVIDENCE_FLOOR);
+    expect(lead.status).toBe("not_enough_entered");
+  });
+
+  it("deleting a report that hides a gap COSTS points — it must never pay", () => {
+    // REQUIRED-2 regression. While continuity was graded on the span between the
+    // reports the Sailor chose to enter, deleting the older of two reports
+    // collapsed the span, took spanCoverage to 1.0 and the gap count to 0, and
+    // paid +7.6 for hiding a two-year break — with the §17-6 advisory beside it
+    // telling them to recover missing reports. Continuity carries no verdict
+    // weight now, so the deletion can only cost confidence.
+    const gapped: RubricInputs = {
+      ...sailorB,
+      evals: [annual(2022, "Must Promote", 4.3), annual(2026, "Must Promote", 4.3)],
+    };
+    const hidden: RubricInputs = { ...gapped, evals: [gapped.evals[1]] };
+
+    const before = scoreBoardConfidence(gapped, CFG);
+    const after = scoreBoardConfidence(hidden, CFG);
+    const cont = (r: typeof before) => r.factors.find((f) => f.key === "continuity")!;
+
+    expect(before.continuityGap).toBe(true); // the advisory still names the break
+    // The factor still MEASURES the swing — it is what the advisory is built on —
+    // and contributes exactly nothing to the composite at either end of it.
+    expect(cont(after).score).toBeGreaterThan(cont(before).score); // 24.98 -> 100
+    expect(cont(before).contribution).toBe(0);
+    expect(cont(after).contribution).toBe(0);
+
+    // What is left is the generic withholding residue: one fewer report lowers
+    // conf_P, which shifts performance's share of the mean. It is under a point
+    // here against +7.6 before, and it is not closable — see the withholding
+    // proof on scoreBoardConfidence.
+    expect(Math.abs(after.final - before.final)).toBeLessThan(1);
   });
 
   it("the roadmap growing under a returning user changes NOTHING about their score", () => {
@@ -399,9 +476,10 @@ describe("the two gates on emitting a number", () => {
     const rep = report({ ...sailorB, preceptFlags: [] });
     // performance + leadership + continuity: the verdict factors that remain once
     // the precept is excluded too.
-    expect(rep.coverage.areasTotal).toBe(3);
+    // Five: everything but the unconfigured precept, which is the ONLY factor a
+    // Sailor cannot act on. Weight-0-but-the-Sailor's-record still shows.
+    expect(rep.coverage.areasTotal).toBe(5);
     expect(rep.coverage.missing.map((m) => m.area)).not.toContain("precept");
-    expect(rep.coverage.missing.map((m) => m.area)).not.toContain("development");
   });
 });
 
@@ -1067,10 +1145,18 @@ describe("COVERAGE_FLOOR against the post-redistribution scale", () => {
   const withPrecept = { ...sailorB, preceptFlags: ALL_FLAGS };
   const without = { ...sailorB, preceptFlags: [] as PreceptFlag[] };
 
-  it("excluding the precept maps coverage by (m − 0.10) × 10/9", () => {
+  it("excluding the precept rescales coverage over the surviving verdict weights", () => {
+    // The mapping is derived, not memorised: coverage is Σ(w·conf)/100 over the
+    // EFFECTIVE weights, which are nominal × 100/(100 − excluded). With
+    // development, completeness and continuity always off the axis the two
+    // denominators are 65 (precept in) and 55 (precept out), and a fully
+    // observed precept contributes its nominal 10 to the numerator.
     const m1 = report(withPrecept).coverage.measured;
     const m2 = report(without).coverage.measured;
-    expect(m2).toBeCloseTo(((m1 - 0.1) * 10) / 9, 10);
+    const preceptConf = scoreBoardConfidence(withPrecept, CFG).factors.find(
+      (f) => f.key === "precept",
+    )!.confidence;
+    expect(m2).toBeCloseTo((m1 * 65 - 10 * preceptConf) / 55, 10);
     expect(m2).toBeLessThan(m1); // strictly downward below 1.0
   });
 
