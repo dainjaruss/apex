@@ -77,9 +77,34 @@ import {
  * withheld are suppressed there by `development` confidence 0 tripping the
  * blind-spot gate — a TOOL gap for 80 of 82 ratings, not a fact about the Sailor
  * — and development now carries no weight, so it cannot blind anything. That is
- * the denominator change plus VERDICT_FACTORS doing the work. Measured across
- * 8,000 decorrelated records through both engines side by side: 889 newly
- * scored, 0 newly withheld, a strict widening.
+ * the denominator change plus VERDICT_FACTORS doing the work.
+ *
+ * HOW BIG that effect is depends entirely on the generator, and an earlier
+ * revision of this note reported "889 newly scored, 0 newly withheld, a strict
+ * widening" as though it were a property of the change. It is not. The zero came
+ * from one seed: the SAME generator at another seed gives 635 / 513, a realistic
+ * one (hosted board_precepts empty, curated LaDR for 4 of 82 ratings) gives
+ * 5993 / 0, and the reviewer's gives 725 / 1158. Any figure here is a
+ * measurement of a generator, never of the change.
+ *
+ * No generator is needed to refute "strict widening" — two hand-built records do
+ * it, run against origin/main and this branch:
+ *
+ *   tours blanked, everything else entered, no precept
+ *       main SCORED 65.7  ->  here WITHHELD
+ *   everything entered, LaDR empty (development conf 0)
+ *       main WITHHELD     ->  here SCORED 62.5
+ *
+ * (Those two finals are from one hand-built pair measured against origin/main;
+ * the DIRECTIONS are the claim and they are what no generator can wash out.)
+ *
+ * THIS CHANGE TIGHTENS AS WELL AS WIDENING, by two mechanisms that are both
+ * deliberate safety work in this same PR: AREA_EVIDENCE_FLOOR 0.25 -> 0.50
+ * withholds every record whose lowest verdict-factor confidence lands in
+ * [0.25, 0.50) — the section-blanking gate doing its job — and scorePrecept
+ * returns an honest computable/configured here against an unconditional conf: 1
+ * on main. On the seed-B run those account for 329 and 184 of the 513
+ * respectively.
  *
  * The old `coverageFloor` option and `coverage.floor` field are gone with it.
  * `coverage.measured` — the number that actually matters — is unchanged and is

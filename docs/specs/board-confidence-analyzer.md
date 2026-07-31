@@ -1030,6 +1030,19 @@ Page title uses `apex-page-title` ("Board Confidence Analyzer") with an
 
 ## 7. NORMATIVE SCORING RUBRIC (verbatim)
 
+> **SUPERSEDED IN PART BY PR #37 — read the banner at §7.2 before relying on any
+> line in this section.** The composite is no longer a sum against a fixed
+> denominator of 100, three factors carry no verdict weight, and several inputs
+> and terms below no longer exist. The two that matter most here, because they
+> name an INPUT rather than a coefficient:
+>
+> - **RSCA is deleted from scoring.** The INPUTS list and P2's comparator below
+>   both still describe it. P2's comparator is `summary_group_average` alone.
+> - `esrFlags`, the `×0.5` unverified multipliers, P4's denominator and `S_C`'s
+>   are all changed; see the §7.2 banner for the full list.
+>
+> The live conformance fixture is `tests/unit/boardConfidenceRubric.test.ts`.
+
 This section is the single source of truth for the scoring engine. `rubric.ts` MUST
 implement it exactly; the three worked examples are the conformance fixture pinned by
 tests (§11). The referenced reference implementation lived in the discovery session's
@@ -1039,7 +1052,9 @@ scratchpad and is ephemeral — the worked examples below are the durable artifa
 APEX BOARD CONFIDENCE ANALYZER — DETERMINISTIC SCORING RUBRIC v1
 Reference implementation (runnable, with self-checks): /tmp/claude-1000/-srv-apex/8ff9fb2d-ea37-4a73-b20d-57b59e13c4f0/scratchpad/rubric.mjs
 
-INPUTS: (a) APEX Evaluation rows (types/index.ts Evaluation: promotion_recommendation, trait_average, summary_group_average, summary_group_distribution, period_from/to, report_type) plus per-eval RSCA and sea-duty flag from the structured PSR entry; (b) structured PSR/ESR entry (awards+levels+verified_in_ompf, NECs, education, PFA cycles, tours with sea/leadership flags, adverse count); (c) LaDR milestone checklist (per item: met / not_met / na / unanswered, plus verified_in_ompf on met items); (d) admin-configured precept emphasis flags; (e) board convening date T.
+INPUTS: (a) APEX Evaluation rows (types/index.ts Evaluation: promotion_recommendation, trait_average, summary_group_average, summary_group_distribution, period_from/to, report_type) plus a per-eval sea-duty flag from the structured PSR entry
+(per-eval RSCA was an input here and is NOT one any more — PR #37 deleted it from scoring; it is
+still collected and still persisted, and nothing reads it); (b) structured PSR/ESR entry (awards+levels+verified_in_ompf, NECs, education, PFA cycles, tours with sea/leadership flags, adverse count); (c) LaDR milestone checklist (per item: met / not_met / na / unanswered, plus verified_in_ompf on met items); (d) admin-configured precept emphasis flags; (e) board convening date T.
 
 GLOBAL CONSTANTS (all explicit):
 - monthsBefore(date,T) = floor(daysBetween(date,T)/30.44); daysBetween via UTC-midnight dates.
@@ -1056,7 +1071,13 @@ COMPOSITE: Final = clamp( Σ_f (w_f/100)·S_f·conf_f − A, 0, 100 ), where S_f
 
 FACTOR 1 — PERFORMANCE (w=40). Observed evals = rows in last 72 months with rec != NOB, sorted chronologically. Four subcomponents with sub-weights (sum 1.0):
 - P1 Promotion recommendation (0.35): P1 = Σ r_i·REC_POINTS(rec_i) / Σ r_i.
-- P2 Trait average vs comparator (0.35): per eval, comparator = max(summary_group_average, RSCA) over whichever are present ("at or above summary group AND RSCA" — the tougher bar governs); d_i = trait_average_i − comparator; score2_i = clamp(50 + 125·d_i, 0, 100) (so +0.40 above group → 100, −0.40 → 0, equal → 50). If NO comparator exists for that eval, fallback absolute scale score2_i = clamp(62.5·(ITA_i − 3.4), 0, 100) (3.4→0, 4.2→50, 5.0→100) AND that eval's weight in P2 is r_i·0.6 (FALLBACK_P2_MULT — uncomparable marks are worth less). P2 = Σ w_i·score2_i / Σ w_i.
+- P2 Trait average vs comparator (0.35): per eval, comparator = `summary_group_average` ALONE.
+  (Was `max(summary_group_average, RSCA)` — "the tougher bar governs". PR #37 deleted RSCA: it is
+  self-typed, so the ratchet bound only on Sailors who filled it in, and blanking it was worth +10.8
+  with every confidence and the coverage number unchanged — a withholding channel no gate can read.
+  What that costs is real and is recorded in docs/navy-reference.md: RSCA is the only axis that can
+  see a generous reporting senior, since an RS who inflates everyone also inflates the SGA and that
+  comparison cancels.) d_i = trait_average_i − comparator; score2_i = clamp(50 + 125·d_i, 0, 100) (so +0.40 above group → 100, −0.40 → 0, equal → 50). If NO comparator exists for that eval, fallback absolute scale score2_i = clamp(62.5·(ITA_i − 3.4), 0, 100) (3.4→0, 4.2→50, 5.0→100) AND that eval's weight in P2 is r_i·0.6 (FALLBACK_P2_MULT — uncomparable marks are worth less). P2 = Σ w_i·score2_i / Σ w_i.
 - P3 Trend (0.15): requires ≥4 observed evals, else unavailable. recentMean = mean REC_POINTS of the 3 most recent; priorMean = mean of the up-to-3 preceding; P3 = clamp(50 + 0.5·(recentMean − priorMean), 0, 100). Consistent = 50; improving > 50; declining < 50.
 - P4 EP breakout scarcity (0.15): requires summary_group_distribution on ≥1 eval, else unavailable. Per eval: if rec=EP and distribution present, s_i = 1 − (ep_count−1)/max(1, N−1) where N = total observed in the summary group (sole EP in group → 1.0); otherwise s_i = 0. P4 = 100·Σ r_i·s_i / Σ r_i.
 - Decline penalty: for each chronologically consecutive observed pair where REC_POINTS decreases (e.g. EP→MP, MP→P), subtract 10; cap 20. (Unexplained declining recommendation is a verified board negative; APEX cannot parse write-up mitigation, so the penalty is flat and disclosed.)

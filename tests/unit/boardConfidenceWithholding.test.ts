@@ -272,12 +272,24 @@ describe("published fixtures — what withholding is worth, and what stops it", 
 // .toBe(true)` — true under every possible change, including the one it existed
 // to detect. Deleted. What remains below is scoped to what it can actually see.
 //
-// The true main-vs-PR figures (889 newly scored, 0 newly withheld — a strict
-// widening) are NOT pinned here: they need a vendored copy of main's engine,
-// which does not belong in the repo. They are reported in the PR as a
-// measurement, and the mechanism behind them is separately pinned — development
-// carries weight 0, so it cannot trip the blind-spot gate, which is what
-// suppressed those records on main.
+// Main-vs-PR figures are NOT pinned here and are NOT quoted here either. They
+// need a vendored copy of main's engine, which does not belong in the repo, and
+// every such figure is a measurement of a GENERATOR rather than of the change:
+// one seed gave 889/0, the same generator at another seed 635/513, a realistic
+// one 5993/0, the reviewer's 725/1158. An earlier revision of this comment called
+// 889/0 "the true figures" and "a strict widening"; both were wrong, and no
+// generator is needed to see it — blanking the tours section on an otherwise
+// complete record is SCORED 65.7 on main and WITHHELD here, while the same
+// record with an empty LaDR is WITHHELD on main and SCORED 62.5 here. Both
+// directions, one hand-built pair, no sampling involved.
+//
+// This change tightens as well as widening: AREA_EVIDENCE_FLOOR 0.25 -> 0.50
+// catches every record whose lowest verdict-factor confidence lands in
+// [0.25, 0.50), and scorePrecept reports computable/configured here against an
+// unconditional conf: 1 on main.
+//
+// What IS pinned is the mechanism: development carries weight 0, so it cannot
+// trip the blind-spot gate, which is what suppressed those records on main.
 //
 // ponytail: a seeded LCG over a hand-enumerated parameter space, not a
 // property-testing library. It has to be deterministic and reviewable, and it is
