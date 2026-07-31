@@ -235,28 +235,38 @@ describe("the selector offers only settings the printed form permits", () => {
     }
   }, 60_000);
 
-  it("keeps the Math.min(12) cap honest on the fields that DO reach it", async () => {
-    // The cap looked like dead code — the comment block's widest solved size was 10.7278,
-    // so it never bound there. It is live elsewhere: the career-recommendation fields
-    // pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is really clamped. That
-    // made "delete the cap" a mutation-test survivor, so this pins it: remove the cap and
-    // these render at 12.063 instead of 12.
-    const template = new Uint8Array(
-      fs.readFileSync(path.join(process.cwd(), "public", FORMS.EVAL.blank)),
-    );
-    const ev = {
-      ...draft("EVAL", "12", "SHORT."),
-      career_recommendations: ["DEPTHEADgy", "WARCOLLEGE"],
-    } as unknown as Evaluation;
-    const pdf = await getDocumentProxy(
-      new Uint8Array(await generateOverlayPdf(ev, template)),
-    );
-    const items = (await (await pdf.getPage(2)).getTextContent()).items as any[];
-    const recs = items.filter((i) => /DEPTHEAD|WARCOLL/.test(i.str ?? ""));
-    expect(recs).toHaveLength(2);
-    for (const r of recs)
-      expect(Math.hypot(r.transform[1], r.transform[3])).toBe(12);
-  }, 30_000);
+  it.each(["EVAL", "FITREP"] as const)(
+    "%s: keeps the Math.min(12) cap honest on the fields that DO reach it",
+    async (form) => {
+      // The cap looked like dead code — the comment block's widest solved size was
+      // 10.7278, so it never bound there. It is live on the career-recommendation
+      // fields, which pass cpl 10 in an 80 pt box: that solves to 12.063 pt and is
+      // really clamped. "Delete the cap" was a mutation survivor, and pinning only the
+      // EVAL left fitrepOverlay's own copy unpinned — deleting THAT changed real FITREP
+      // output (12.0000 -> 12.0635) with zero test failures. Both live copies are
+      // covered here.
+      //
+      // CHIEFEVAL is deliberately absent: 1616/27 draws its recommendations through
+      // text(), not narrative(), so no call there reaches 12 pt and removing the cap
+      // leaves its output identical. That mutant is equivalent, not uncovered.
+      const template = new Uint8Array(
+        fs.readFileSync(path.join(process.cwd(), "public", FORMS[form].blank)),
+      );
+      const ev = {
+        ...draft(form, "12", "SHORT."),
+        career_recommendations: ["DEPTHEADgy", "WARCOLLEGE"],
+      } as unknown as Evaluation;
+      const pdf = await getDocumentProxy(
+        new Uint8Array(await generateOverlayPdf(ev, template)),
+      );
+      const items = (await (await pdf.getPage(2)).getTextContent()).items as any[];
+      const recs = items.filter((i) => /DEPTHEAD|WARCOLL/.test(i.str ?? ""));
+      expect(recs).toHaveLength(2);
+      for (const r of recs)
+        expect(Math.hypot(r.transform[1], r.transform[3])).toBe(12);
+    },
+    30_000,
+  );
 
   it("never renders 10.7278 pt again — the size no form permits", async () => {
     // The exact value the old "12-Pitch (84 CPL)" button produced on 1616/26 and 1610/2.
@@ -311,9 +321,12 @@ describe.each([
     const drawn = await renderedCommentLines(form, pitch, capacity);
     for (const line of drawn) {
       expect(line.chars).toBe(COMMENT_PITCH[pitch].charsPerLine); // a real full line
-      expect(line.x).toBeGreaterThanOrEqual(box.boxLeft);
-      expect(line.x + line.chars * line.size * ADVANCE).toBeLessThanOrEqual(
-        box.boxRight,
+      // A minimum INSET, not merely "right of the rule": at >= 0 the EVAL's b43_x could
+      // slide from 22 to 18 (0.36 pt off the rule, touching it at print) and survive.
+      // 2.5 pt is this repo's house inset, the value the CPL derivation assumes.
+      expect(line.x - box.boxLeft).toBeGreaterThanOrEqual(2.5);
+      expect(box.boxRight - (line.x + line.chars * line.size * ADVANCE)).toBeGreaterThanOrEqual(
+        2.5,
       );
     }
   });
@@ -415,8 +428,16 @@ describe("a draft written before the pitch fix still renders the way it was sign
         .CommentsPitch;
     expect(at(commentPitchFields("10"))).toBe("12 POINT");
     expect(at(commentPitchFields("12"))).toBe("10 POINT");
-    // A legacy draft keeps the string it always exported.
+
+    // Legacy rows. TWO are unchanged and ONE changes — assert all three, because the
+    // one that changes is the one an "exports are stable" claim would be wrong about.
+    //   {"comment_pitch":"10"}  before "10 POINT"  after "10 POINT"
+    //   {"comment_pitch":"12"}  before "12 POINT"  after "10 POINT"  <-- CHANGED
+    //   {}                      before "10 POINT"  after "10 POINT"
+    // The new value is the truthful one: a legacy "12" drew 10.7278 pt, so "12 POINT"
+    // never described it either.
     expect(at({ comment_pitch: "10" })).toBe("10 POINT");
+    expect(at({ comment_pitch: "12" })).toBe("10 POINT");
     expect(at({})).toBe("10 POINT");
   });
 });

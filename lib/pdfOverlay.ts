@@ -357,10 +357,13 @@ export async function generateOverlayPdf(
   // it the size is solved so `cpl` chars fill `boxWidth`, which is still how blocks
   // 28/29/44 and the career recommendations are set.
   //
-  // The Math.min(12, …) cap STAYS. It is not dead: the career-recommendation fields below
-  // pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is really clamped to 12 —
-  // confirmed by reading the size back off a generated PDF. It never bound on the comment
-  // block (whose widest solved size was 10.7278), which is why it looked dead there.
+  // The Math.min(12, …) cap STAYS, and is LIVE HERE: the career-recommendation fields
+  // below pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is really clamped to
+  // 12 — confirmed by removing the cap and watching 12.0635 appear in the output. It
+  // never bound on the comment block (widest solved size 10.7278), which is why it looked
+  // dead there. Live in fitrepOverlay for the same reason; genuinely DEAD in
+  // chiefEvalOverlay, which draws its recommendations through text() instead — removing
+  // it there leaves the rendered output identical.
   const narrative = (
     page: PDFPage,
     value: string | undefined,

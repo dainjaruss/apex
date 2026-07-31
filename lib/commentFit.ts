@@ -192,8 +192,21 @@ export const asCommentPitch = (
  *     at exactly 10 pt. The rendering is IDENTICAL to within 0.017 pt. Nothing reflows.
  *   - legacy "12" rendered 84 CPL x 15/7/18. 12-pitch is strictly ROOMIER on both axes,
  *     so text that fit before still fits; the line count can only fall.
- * Neither legacy draft can overflow its box as a result of this change. What a legacy
- * "12" draft does lose is a setting that was never legal to print in the first place.
+ *
+ * BE PRECISE ABOUT WHAT IS GUARANTEED. The claim is NOT "no stored comment reflows" — a
+ * legacy "12" draft demonstrably does: 84 CPL -> 90 CPL re-wraps a flowing paragraph and
+ * six lines can become five. The guarantee is narrower, and is the one that matters:
+ * NO STORED COMMENT REFLOWS *OUT OF ITS BOX*. Both legacy values land on a setting at
+ * least as roomy on both axes, so line counts can only fall and no character that used to
+ * print stops printing.
+ *
+ * SIGNED RECORDS, NOT JUST DRAFTS. app/api/pdf/route.ts regenerates the PDF from the row
+ * on every export, so an already-signed legacy-"12" record re-renders after deploy at a
+ * different size (10.7278 -> 10 pt), a different wrap (84 -> 90 CPL) and a different line
+ * count. No rendered artifact is stored, so there is nothing to pin it to. That is
+ * defensible — the size it used to render was legal in NEITHER unit, so the old output
+ * was the defect — but it is a real change to the appearance of a record someone has
+ * already signed, and it belongs in the release note rather than being discovered.
  */
 export const COMMENT_PITCH_V = 2;
 

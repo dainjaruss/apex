@@ -351,8 +351,11 @@ export async function generateChiefEvalOverlayPdf(
 
   // `fixedSize` sets the point size outright — what the comment block passes, because
   // pitch constrains SIZE and lets CPL fall out of the box (see COMMENT_PITCH). Blocks
-  // 28/29 still solve a size from their CPL target, and the min(12, …) cap is live on
-  // that path in pdfOverlay, so it stays.
+  // 28/29 still solve a size from their CPL target. The min(12, …) cap below is DEAD on
+  // this form specifically — 1616/27 draws its career recommendations through text(), so
+  // no narrative() call here reaches 12 pt and removing the cap leaves output byte-alike.
+  // It stays only to keep the three copies of this helper identical; it is live in
+  // pdfOverlay and fitrepOverlay, where cpl 10 in an 80 pt box solves to 12.063.
   const narrative = (
     pg: PDFPage,
     str: string | undefined | null,

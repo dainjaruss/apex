@@ -219,12 +219,18 @@ export function mapEvaluationToNavfit(evaluation: Evaluation): NavfitReportRow {
     RaterDate: bv.rater_signature_date || null,
     // The column is named "Pitch" but its observed values are POINT strings, so the two
     // units cross here: 10-pitch IS 12 point and 12-pitch IS 10 point (COMMENT_PITCH).
-    // This used to map "12" -> "12 POINT", exporting a size the PDF never rendered —
-    // stored "12" drew at 10.7278 pt. Reading the EFFECTIVE pitch also means a draft
-    // saved before the pitch-label fix still exports "10 POINT", which is what it always
-    // drew, so no existing export changes.
+    //
+    // ONE STORED VALUE'S EXPORT CHANGES. It is NOT true that nothing changes:
+    //
+    //   {"comment_pitch":"10"}   before "10 POINT"   after "10 POINT"
+    //   {"comment_pitch":"12"}   before "12 POINT"   after "10 POINT"   <-- CHANGED
+    //   {}                       before "10 POINT"   after "10 POINT"
+    //
+    // The new value is the truthful one: a legacy "12" draft rendered 10.7278 pt, so
+    // "12 POINT" never described it either. It resolves to 12-pitch = 10 point, which is
+    // both a legal setting and what the PDF now draws for that row.
     // NOTE: spec §8 open question 5 — only "10 POINT" has been observed in a real NAVFIT
-    // DB; the "12 POINT" spelling is still unverified.
+    // DB; the "12 POINT" this now emits for 10-pitch is still unverified.
     CommentsPitch:
       COMMENT_PITCH[resolveCommentPitch(bv)].points === 12
         ? "12 POINT"

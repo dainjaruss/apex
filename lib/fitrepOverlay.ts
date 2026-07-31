@@ -206,10 +206,13 @@ const C = {
     // b43_x was FORM_LEFT (17.3), which put every character of Block 41 **14.38 pt LEFT
     // of the block's own left rule**, i.e. out in the page margin — confirmed by reading
     // x back off a generated PDF (x=17.30 against a rule whose inner ink edge is 31.68).
-    // FORM_LEFT is a pdfOverlay constant for a DIFFERENT blank; page 1 here is wrapped in
-    // translate(14.9, -0.2) which very nearly absorbs it, but page 2 has no translate at
-    // all, so nothing corrected it. 34.2 is the left rule + this repo's 2.5 pt inset, the
-    // same value chiefEvalOverlay uses against the identically-placed rule on 1616/27.
+    // FORM_LEFT is a pdfOverlay constant calibrated against a DIFFERENT blank, and
+    // NOTHING in this file corrects it. The header at the top of this file describes
+    // wrapping page 1 in translate(14.9, -0.2); that translate is never applied. This
+    // file imports pushGraphicsState and translate from pdf-lib and calls neither, and
+    // contains no pushOperators at all — the same imported-but-never-called translate
+    // that caused the original overlay defect. 34.2 is the left rule + this repo's 2.5 pt
+    // inset, matching chiefEvalOverlay against the identically-placed rule on 1616/27.
     //
     // Both pitches are fixed point sizes (COMMENT_PITCH) and their legal first-baseline
     // windows overlap, so one constant serves both:
@@ -221,10 +224,14 @@ const C = {
     // move. Fixing the size also RELIEVED the binding case #36 documented here: the legal
     // window at a solved 10.7278 pt was 0.241 pt wide, and at a fixed 10 pt it is 3.689.
     //
-    // ponytail: b28_x/b29b_x/b44_x on this form still carry the same inherited FORM_LEFT
-    // and are almost certainly off by the same 14.38 pt on page 2. Not touched here —
-    // each has its own box to be measured against, and only Block 41's geometry is what
-    // this change's CPL derivation depends on. Measure them before trusting them.
+    // ponytail: four sibling constants still carry the same inherited FORM_LEFT = 17.3,
+    // and MEASURED, not assumed, they are all outside their rules:
+    //   page 2 (the page fixed above, left rule inner edge 31.680):
+    //     rec1_x (:196, Blocks 46/47) and b44_x (:231) both render at x = 17.300.
+    //   page 1 (left rule inner edge 32.640, measured at 600 dpi):
+    //     b28_x (:153) renders at x = 17.300 — 15.34 pt outside. b29b_x (:158) likewise.
+    // Not touched here: each has its own box to measure against, and only Block 41's
+    // geometry is what this change's CPL derivation depends on. Measure before trusting.
     b43_x: 34.2,
     b43_topBaseline: 442.2,
 
@@ -308,8 +315,9 @@ export async function generateFitrepOverlayPdf(
 
   // `fixedSize` sets the point size outright — what the comment block passes, because
   // pitch constrains SIZE and lets CPL fall out of the box (see COMMENT_PITCH). Blocks
-  // 28/29/44 still solve a size from their CPL target, and the min(12, …) cap is live on
-  // that path in pdfOverlay, so it stays.
+  // 28/29/44 still solve a size from their CPL target. The min(12, …) cap below is LIVE
+  // on this form: rec1/rec2 pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is
+  // clamped to 12 — remove the cap and 12.0635 appears in the output.
   const narrative = (
     pg: PDFPage,
     str: string | undefined | null,
