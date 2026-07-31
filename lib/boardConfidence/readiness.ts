@@ -46,28 +46,40 @@ import {
  * RETIRED as a gate. The aggregate coverage floor is gone; the per-factor
  * AREA_EVIDENCE_FLOOR below is the only gate.
  *
- * It cannot simply be re-tuned, because the sentence that justified it is no
- * longer true. It said: "0.75 encodes: at most a quarter of the weighted record
- * may be scored as zeros it did not earn." Nothing is scored as zeros it did not
- * earn any more — the composite renormalizes by Sigma(w*conf), so an unobserved
- * factor leaves the arithmetic instead of being charged. The floor was
- * protecting against a defect that no longer exists, on a denominator that no
- * longer exists (three factors now carry weight 0, so for a user with no precept
- * loaded — every real user today — coverage is 0.727*conf_P + 0.273*conf_L, and
- * clearing 0.75 requires conf_P >= 0.656).
+ * WHY, CORRECTED. An earlier revision of this note claimed the floor had been
+ * withholding assessable records on `main` — a four-report record with the full
+ * PSR entered and only the trait averages missing, "coverage 0.7455, withheld,
+ * nothing blind". That is FALSE about `main`, and the way it is false matters:
  *
- * What it was doing instead was refusing to score assessable records. Measured:
- * four finalized reports, tours, awards, NECs, education, three PFA cycles, PSR
- * entered, LaDR fully answered, breakout distributions present — but the trait
- * averages not typed, so conf_P = 0.65 — landed at coverage 0.7455 and was
- * withheld with NOTHING blind. APEX holds four promotion recommendations and a
- * summary-group distribution for that Sailor. Refusing them a number because a
- * constant fitted to a different denominator says 0.75 is not caution, it is a
- * bug wearing caution's clothes.
+ *   main:  coverage 0.8444  ->  SCORED 57.7
+ *   here:  coverage 0.7455  ->  would be withheld by a 0.75 floor
  *
- * The substantive protection is per-factor and always was: no area may be less
- * than half observed. An aggregate floor on top of it is a second, independently
- * fitted assertion, and the second one was the one doing damage.
+ * `main` never withheld it. `coverage.measured` is the sum of weight*confidence
+ * over the EFFECTIVE verdict weights, and this change set zeroes three of the
+ * six — a different formula over a different denominator. The SAME record moves
+ * from 0.8444 to 0.7455 because of the weight change, not because anything about
+ * the Sailor changed, and the old note then cited that self-inflicted drop as
+ * proof the floor was mis-calibrated. Circular, and it was the stated
+ * justification for deleting a safety gate.
+ *
+ * The real reason survives the correction and is simpler: 0.75 was fitted against
+ * a coverage formula that no longer exists. A constant calibrated on a six-factor
+ * denominator and re-used unchanged against a three-factor one is not a threshold
+ * any more, it is a number that happens to sit somewhere. Re-fitting it has no
+ * target — the defect it protected against ("at most a quarter of the weighted
+ * record may be scored as zeros it did not earn") cannot occur now that the
+ * composite renormalizes by the sum of weight*confidence. The per-factor rule
+ * below is the substantive protection and always was; an aggregate floor on top
+ * of it was a second independently-fitted assertion, and once the denominator
+ * moved it was the one doing damage.
+ *
+ * AND THE DELETION IS NOT WHAT RESCUES ANYONE. The records `main` actually
+ * withheld are suppressed there by `development` confidence 0 tripping the
+ * blind-spot gate — a TOOL gap for 80 of 82 ratings, not a fact about the Sailor
+ * — and development now carries no weight, so it cannot blind anything. That is
+ * the denominator change plus VERDICT_FACTORS doing the work. Measured across
+ * 8,000 decorrelated records through both engines side by side: 889 newly
+ * scored, 0 newly withheld, a strict widening.
  *
  * The old `coverageFloor` option and `coverage.floor` field are gone with it.
  * `coverage.measured` — the number that actually matters — is unchanged and is
@@ -112,30 +124,54 @@ export const BLIND_SPOT_GATE = true;
  *
  * WHAT THIS GATE DOES NOT DO — read before trusting it.
  *
- * It does NOT close the withholding surface, and no value of it can. The gate
- * acts on a FACTOR's confidence; the exploit acts on the removable SECTIONS
- * inside a factor, whose sub-weights are smaller than the factor. Leadership has
- * two: tours at 0.70 and awards at 0.30. Any floor in (0.30, 0.70] catches the
- * tours removal and leaves the awards removal free — measured on the published
- * fixture, blanking awards is +2.9 and is SHOWN at coverage 0.9308. Push the
- * floor above 0.70 to catch both and it starts rejecting performance at
- * aP = 0.85 (a record whose summary group is simply not linked), and a floor
- * high enough to catch that is a floor that demands a complete record from
- * everyone.
+ * It does NOT close the withholding surface, and no value of it can. The proof is
+ * one line: `rsca`. A Sailor who types their reporting senior's cumulative
+ * average honestly is scored against the tougher of it and the pooled peer
+ * average; one who leaves it blank is not. Measured, SGA present:
  *
- * The reason there is nothing to tune toward: under the old fixed denominator a
- * confidence loss cut `contribution` and partly paid for whatever the removal
- * gained. Under Sigma(w*conf*S)/Sigma(w*conf) the confidence loss is normalized
- * away, so any removal that leaves its factor above the floor converts 1:1 into
- * score. The mean removed the brake and this gate is a coarser replacement, not
- * an equivalent one.
+ *   rsca typed honestly (4.4)   score 60.6   coverage 1.0000
+ *   rsca left blank             score 71.4   coverage 1.0000
  *
- * So this is a MITIGATION with a measured ceiling, not a fix. It catches the
- * largest single-section removal in the leadership factor. It does not catch
- * blanking awards, unlinking a summary group, deleting a weak report, or
- * omitting adverse material. All four are published, with numbers, in
- * tests/unit/boardConfidenceWithholding.test.ts, and the proof that no scoring
- * rule closes them is on scoreBoardConfidence.
+ * +10.8 with EVERY factor confidence identical. A removal that changes no
+ * confidence cannot be seen by a threshold on confidence, whatever the threshold
+ * is. That is the whole argument, and it is why the fix for `rsca` was to delete
+ * the input from scoring (rubric.ts P2) rather than to tune this constant.
+ *
+ * The granularity argument is the weaker, more general version of the same
+ * point: this gate reads a FACTOR's confidence, while the exploit removes a
+ * SUB-COMPONENT, and sub-components are strictly smaller than their containers.
+ * Removable units, with the confidence each leaves behind — note the N-dependence,
+ * which an earlier revision of this note dropped by generalising one measured
+ * record at N >= 4 into a table:
+ *
+ *   leadership: tours (L1+L3)     conf_L 0.30   (any N)
+ *   leadership: awards (L2)       conf_L 0.70   (any N)
+ *   performance: trait averages   conf_P 0.65 at N>=4, 0.5000 at N=3, 0.3333 at N=2
+ *   performance: summary group    conf_P 0.85 at N>=4, 0.7000 at N=3
+ *   precept: the LaDR             conf_X 1.0 -> 0.4 on a five-flag precept
+ *   precept: tours                conf_X 1.0 -> 0.6, while S_X RISES 70.0 -> 100.0
+ *   rsca                          no confidence signature at all
+ *
+ * At N >= 4 a floor in (0.30, 0.70] catches the tours removal and leaves awards;
+ * push past 0.70 and it starts rejecting a merely UNLINKED summary group at 0.85.
+ * At N = 3 those two constraints meet exactly at 0.70 and the window between them
+ * closes entirely; at N = 2 every listed removal is already caught. So the
+ * separable interval is not even a fixed target — it moves with the number of
+ * reports. And the precept factor steps in units of 1/|flags| — 0.2 on a
+ * five-flag precept, FINER than the 0.30/0.70 leadership split the whole
+ * granularity argument was built on, with the second row raising the factor's
+ * score while lowering its confidence.
+ *
+ * So there is nothing to tune toward. Closing this class needs a mechanism that
+ * is not a threshold on `conf`: either delete the self-reported input (what was
+ * done for `rsca`, and the only complete fix available) or corroborate it against
+ * a source APEX does not have — see the withholding proof on scoreBoardConfidence.
+ *
+ * This gate remains a MITIGATION with a measured ceiling. It catches the largest
+ * single-section removal in the leadership factor. It does not catch blanking
+ * awards, unlinking a summary group, deleting a weak report, or omitting adverse
+ * material. All are published with numbers in
+ * tests/unit/boardConfidenceWithholding.test.ts.
  */
 export const AREA_EVIDENCE_FLOOR = 0.5;
 
@@ -405,39 +441,12 @@ const EVIDENCE_NOTE: Record<EvidenceTier, string> = {
 export const PRECEPT_UNSOURCED_PREFIX =
   "Emphasis areas are entered by an APEX Admin and are not taken from the board's convening order. ";
 
-/**
- * Which LaDR category ratios each precept flag's indicator reads. scorePrecept
- * emits 0 for a flag whose inputs are absent (rubric.ts, "never fabricate"), and
- * a 0 from absence is indistinguishable from a 0 from a genuine gap — which is
- * how a Sailor with four years of sea duty was told their record showed little
- * of what the board emphasizes, purely because their rating has no curated LaDR.
- * An empty list means the indicator reads the tours/awards section instead.
- */
-const PRECEPT_RATIO_SOURCES: Record<PreceptFlag, string[]> = {
-  warfighting: ["ratio_qual_warfare"],
-  education: ["ratio_education_degree", "ratio_credential"],
-  technical_expertise: ["ratio_nec_opportunity", "ratio_qual_rate_specific"],
-  leadership_positions: [],
-  sea_duty: [],
-};
 
 // ---------------------------------------------------------------------------
 
 const byKey = (result: RubricResult): Record<FactorKey, FactorResult> =>
   Object.fromEntries(result.factors.map((f) => [f.key, f])) as Record<FactorKey, FactorResult>;
 
-/** True when EVERY active precept flag has data behind its indicator. */
-function preceptFullyComputable(result: RubricResult, inputs: RubricInputs): boolean {
-  if (inputs.preceptFlags.length === 0) return false;
-  const devDetail = byKey(result).development.detail;
-  return inputs.preceptFlags.every((flag) => {
-    const ratios = PRECEPT_RATIO_SOURCES[flag] ?? [];
-    // leadership_positions reads L1 and sea_duty reads seaMonths72; both come
-    // from the tours/awards section — i.e. whatever the leadership factor scored.
-    if (ratios.length === 0) return byKey(result).leadership.confidence > 0;
-    return ratios.some((k) => devDetail[k] != null);
-  });
-}
 
 /**
  * Does this area rest on ANY underlying row? Confidence alone cannot answer it:
@@ -484,7 +493,18 @@ function hasEvidence(key: FactorKey, result: RubricResult, inputs: RubricInputs)
       // grade. Every completeness string is a statement about entry volume.
       return true;
     case "precept":
-      return preceptFullyComputable(result, inputs);
+      // Same rule as every other factor: the FRACTION of the precept APEX could
+      // compute, which is exactly conf_X. It used to require EVERY configured
+      // flag to be computable, and that produced this epic's own defect class
+      // inverted — with two flags configured and no LaDR, precept contributed
+      // 3.85 weighted points to an emitted score of 64.9 while this arm returned
+      // false, so the card rendered the dashed "Not entered" pill, said "APEX
+      // cannot check the emphasis areas", and listed itself under Missing. APEX
+      // had checked them, and the check moved the score: scored data shown as
+      // missing. Now a partially-computable precept is graded like anything else,
+      // and one below AREA_EVIDENCE_FLOOR blinds the whole composite rather than
+      // contributing to a score while claiming to be absent.
+      return f.confidence > 0;
   }
 }
 
@@ -507,6 +527,10 @@ function statusOf(key: FactorKey, result: RubricResult, inputs: RubricInputs): A
     return Number(f.detail.coverage ?? 0) >= 0.95 ? "strong" : "on_track";
   }
 
+  // STRICTLY below, matching the blind-spot gate exactly. conf === 0.5 is
+  // reachable (a two-flag precept with one computable indicator) and is graded
+  // by both, so a record can never be scored while a card calls the same factor
+  // "not entered". Mutating either comparison to <= breaks that agreement.
   if (f.confidence < AREA_EVIDENCE_FLOOR) return "not_enough_entered";
   if (f.score >= AREA_STATUS_THRESHOLDS.strong) return "strong";
   if (f.score >= AREA_STATUS_THRESHOLDS.on_track) return "on_track";

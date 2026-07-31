@@ -701,3 +701,24 @@ describe("assembleRubricInputs — an unsourced precept is treated as an absent 
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// ponytail: a source-text assertion, because scripts/seed-e2e.ts is a top-level
+// script with no seam to call into and refactoring one to unit-test two lines is
+// a worse trade than reading the file. It guards a real regression: the seed
+// builds a readiness report at :594 and used to write overall_score/band
+// unconditionally, so a seeded run could carry a score its own
+// input.readiness.score said was withheld — the exact state migration 013 exists
+// to make unrepresentable, injected into every dev database. Upgrade path: if the
+// seed ever grows a testable export, assert the row instead of the text.
+// ---------------------------------------------------------------------------
+describe("seed-e2e obeys the same suppression rule as service.ts", () => {
+  it("does not write overall_score/band unconditionally", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(process.cwd(), "scripts/seed-e2e.ts"), "utf8");
+    expect(src).toMatch(/overall_score:\s*full\.score\s*\?\s*result\.final\s*:\s*null/);
+    expect(src).toMatch(/band:\s*full\.score\s*\?\s*result\.band\s*:\s*null/);
+    expect(src).not.toMatch(/overall_score:\s*result\.final\s*,/);
+  });
+});

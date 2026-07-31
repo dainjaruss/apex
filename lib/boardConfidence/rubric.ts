@@ -295,13 +295,24 @@ function scorePerformance(evals: RubricEvalInput[], T: string): FactorScore {
   let d2 = 0;
   obs.forEach((e, i) => {
     if (e.trait_average == null) return; // uncomputable row: contributes no P2 weight
-    // `summary_group_average` is pooled server-side from peers; `rsca` is typed by
-    // the Sailor into member_board_records.eval_context. A self-typed number may
-    // only ever make the comparison TOUGHER, never supply the comparator on its
-    // own — as the sole comparator, typing rsca 3.0 against a 4.5 trait average
-    // was worth +31 P2 points over the honest no-comparator fallback.
-    const sga = e.summary_group_average;
-    const comparator = sga == null ? null : Math.max(sga, e.rsca ?? sga);
+    // `summary_group_average` is pooled server-side from peers and is the ONLY
+    // comparator. `rsca` is typed by the Sailor into
+    // member_board_records.eval_context and is not read here at all.
+    //
+    // An earlier revision of this PR kept it as a one-way ratchet — allowed to
+    // make the comparison tougher, never to supply the comparator alone — on the
+    // theory that a self-typed number that can only hurt you is safe. It is not,
+    // and this is the cleanest counter-example in the whole change set: the
+    // ratchet binds only on Sailors who FILL IT IN. Measured on one record,
+    // SGA 4.0 present: rsca typed honestly at 4.4 scores 60.6; rsca left blank
+    // scores 71.4. Coverage is 1.0000 in both, and every factor confidence is
+    // identical — a +10.8 swing with no signal anywhere for a gate to read.
+    //
+    // That is also why it had to be deleted rather than gated: AREA_EVIDENCE_FLOOR
+    // reads confidence, and this removal does not touch confidence. Deleting the
+    // input is the only thing that closes it, and deleting it costs nothing —
+    // `summary_group_average` is the comparator a board actually has.
+    const comparator = e.summary_group_average;
     let s: number;
     let w: number;
     if (comparator != null) {

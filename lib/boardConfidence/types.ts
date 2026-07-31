@@ -59,7 +59,8 @@ export interface RubricEvalInput {
   trait_average: number | null;     // ALWAYS recomputed via computeTraitAverage(trait_grades);
                                     // the stored evaluations.trait_average column is never trusted
   summary_group_average: number | null; // pooled SGA from peers (server-side), null if no group
-  rsca: number | null;              // from member_board_records.eval_context[period_to].rsca
+  rsca: number | null;              // eval_context[period_to].rsca — SELF-TYPED, and
+                                    // no longer read by scoring (see rubric.ts P2)
   sea_duty: boolean;                // eval_context override ?? tour-overlap derivation ?? false
   ep_count: number | null;          // 'Early Promote' count in the summary group (incl. this row)
   group_size: number | null;        // observed (non-NOB) N in the summary group
@@ -255,7 +256,7 @@ export interface BoardAnalysisRow {     // mirror of public.board_analyses
   factor_scores: FactorResult[];
   /**
    * NULL when the readiness layer suppressed the score for this run (migration
-   * 012). A suppressed run used to persist the number the product had just
+   * 013). A suppressed run used to persist the number the product had just
    * declined to show; for a record with nothing entered that number is a
    * fabricated 0, which the band table reads as "Drop-from-consideration risk".
    * Coverage is not duplicated alongside — it is in `input.readiness.coverage`.

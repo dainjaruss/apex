@@ -1387,25 +1387,35 @@ describe("INVARIANT — self-attested fields cannot move the composite", () => {
     }
   });
 
-  it("a self-typed rsca can never RAISE the composite", () => {
-    // rsca comes from member_board_records.eval_context — the Sailor types it.
-    // With no summary group it used to be the sole comparator, so typing 3.0
-    // against a 4.2 trait average was worth double digits.
-    const noSga = solidEvals(4).map((e) => ({ ...e, summary_group_average: null, ep_count: null, group_size: null }));
-    const honest = scoreBoardConfidence(solid({ evals: noSga })).final;
-    for (const rsca of [2.0, 3.0, 3.4, 4.0, 4.2, 4.6, 5.0]) {
-      const typed = scoreBoardConfidence(solid({ evals: noSga.map((e) => ({ ...e, rsca })) })).final;
-      expect(typed).toBeLessThanOrEqual(honest);
+  it("a self-typed rsca cannot move the composite AT ALL, in either direction", () => {
+    // Stronger than the rule this started with. An earlier revision let rsca make
+    // the comparison tougher but never easier, on the theory that a self-typed
+    // number which can only hurt you is safe. It is not: the ratchet binds only
+    // on Sailors who fill it in, so LEAVING IT BLANK pays — measured +10.8 with
+    // SGA present — and the removal changes no confidence and no coverage, so no
+    // gate can see it. The input is gone from scoring instead.
+    const grid = [null, 2.0, 3.0, 3.4, 4.0, 4.2, 4.6, 5.0];
+    for (const sga of [null, 4.0]) {
+      const base = solid({
+        evals: solidEvals(4).map((e) => ({ ...e, summary_group_average: sga })),
+      });
+      const expected = scoreBoardConfidence(base).final;
+      for (const rsca of grid) {
+        const r = scoreBoardConfidence({
+          ...base,
+          evals: base.evals.map((e) => ({ ...e, rsca })),
+        });
+        expect(r.final).toBe(expected);
+        // …and it is not vacuous: the comparator genuinely governs P2 when it is
+        // the pooled peer average, so these two columns differ from each other.
+        expect(Number.isFinite(r.final)).toBe(true);
+      }
     }
-  });
-
-  it("with a real summary group, rsca is still allowed to make the comparison tougher", () => {
-    const withSga = solidEvals(4); // sga 4.0, trait 4.2
-    const plain = scoreBoardConfidence(solid({ evals: withSga })).final;
-    const tougher = scoreBoardConfidence(solid({ evals: withSga.map((e) => ({ ...e, rsca: 4.6 })) })).final;
-    const softer = scoreBoardConfidence(solid({ evals: withSga.map((e) => ({ ...e, rsca: 2.0 })) })).final;
-    expect(tougher).toBeLessThan(plain);
-    expect(softer).toBe(plain); // a lower self-typed number buys nothing
+    expect(scoreBoardConfidence(solid({ evals: solidEvals(4) })).final).not.toBe(
+      scoreBoardConfidence(
+        solid({ evals: solidEvals(4).map((e) => ({ ...e, summary_group_average: null })) }),
+      ).final,
+    );
   });
 });
 

@@ -254,17 +254,29 @@ function CoverageCard({ report }: { report: Report }) {
           className="h-3 w-full rounded-full overflow-hidden"
           style={{ background: "var(--muted)" }}
           role="img"
-          aria-label={`${pct} percent of your record is entered and measurable`}
+          aria-label={`${pct} percent of the areas APEX scores is entered`}
         >
           <div
             className="h-3 rounded-full"
             style={{ width: `${pct}%`, background: "var(--accent-gold)" }}
           />
         </div>
-        <p className="text-sm apex-heading">{pct}% of your record is entered</p>
+        {/* NAMES ITS POPULATION, which the heading above does not share. The
+            heading counts every area shown; this bar is coverage.measured, which
+            is Σ(weight·confidence) over the SCORED areas only. Three areas carry
+            weight 0, so they are in the heading's denominator and not in the
+            bar's. Rendered together as "3 of 5 areas" over "89% of your record",
+            the two contradicted each other — three of five is 60%, and the bar
+            read 89% because the two missing areas carry no weight and therefore
+            no denominator. Same numbers, honest labels. */}
+        <p className="text-sm apex-heading">
+          {pct}% of the areas APEX scores is entered
+        </p>
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          This bar measures how much of your record APEX can see — not how strong
-          it is. Nothing below is a grade on what you have not entered.
+          The bar covers only the areas that feed the assessment; the count above
+          it covers every area on this page. Both measure how much of your record
+          APEX can see — not how strong it is. Nothing below is a grade on what
+          you have not entered.
         </p>
       </div>
 
