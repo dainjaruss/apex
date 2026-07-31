@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { mapEvaluationToNavfit } from "@/lib/navfit98/mapEvaluationToNavfit";
 import { Evaluation } from "@/types";
+import { commentPitchFields } from "@/lib/commentFit";
 
 // Spec §1: all 126 Reports columns minus ReportID (AutoNumbered by the writer).
 const EXPECTED_COLUMNS = [
@@ -594,15 +595,23 @@ describe("mapEvaluationToNavfit — scalars and defaults", () => {
     expect(row.Suffix).toBeNull();
   });
 
-  it('maps comment_pitch to a NAVFIT pitch string, defaulting to "10 POINT"', () => {
+  it("maps the EFFECTIVE pitch to the POINT size the PDF renders", () => {
+    // The column is named Pitch but holds POINT strings, so the units cross: 10-pitch is
+    // 12 point. This used to map "12" -> "12 POINT" while the PDF drew 10.7278 pt.
+    // Both fixtures are unstamped (no comment_pitch_v), so they read as 12-pitch = 10 pt
+    // — the string they have always exported.
     expect(mapEvaluationToNavfit(evalFixture).CommentsPitch).toBe("10 POINT");
-    // fitrepFixture has no comment_pitch — spec default
     expect(mapEvaluationToNavfit(fitrepFixture).CommentsPitch).toBe("10 POINT");
+    const ten = mapEvaluationToNavfit({
+      ...evalFixture,
+      block_values: { ...evalFixture.block_values, ...commentPitchFields("10") },
+    });
+    expect(ten.CommentsPitch).toBe("12 POINT"); // 10-pitch IS 12 point
     const twelve = mapEvaluationToNavfit({
       ...evalFixture,
-      block_values: { ...evalFixture.block_values, comment_pitch: "12" },
+      block_values: { ...evalFixture.block_values, ...commentPitchFields("12") },
     });
-    expect(twelve.CommentsPitch).toBe("12 POINT");
+    expect(twelve.CommentsPitch).toBe("10 POINT");
   });
 });
 

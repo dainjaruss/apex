@@ -51,6 +51,8 @@ import {
   FIELD_FIT,
   getPrimaryDutiesFieldFit,
   getCommentCapacity,
+  COMMENT_PITCH,
+  resolveCommentPitch,
 } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
@@ -197,25 +199,41 @@ const C = {
     rec2_y: 512.0,
 
     // Block 41 comments (1610/2 numbers this block 41, not 43 — the name is legacy).
-    // 462.0 was inherited from the EVAL overlay and put line 1 straight through the
-    // form's own printed instruction header, whose lowest ink is 451.44. 443.9 is
-    // measured off fitrepBlank.pdf, whose Block 41 clear interior is y[226.44, 469.20],
-    // and holds getCommentCapacity("FITREP", pitch) lines — 19 at 10-pitch, 18 at 12.
+    // Clear interior y[226.44, 469.20], printed header ink floor 451.44, printed side
+    // rules x[31.680, 578.880] — all measured off fitrepBlank.pdf page 2 at 600 dpi.
+    // Holds getCommentCapacity("FITREP", pitch) lines — 16 at 10-pitch, 19 at 12.
     //
-    // 12-pitch is the binding case and its legal window is only [443.788, 444.028] wide,
-    // because 18 lines at that size very nearly fill the block. 443.9 is the midpoint,
-    // clearing the header by 0.13 and the floor by 0.11 against CourierPrime's real ink
-    // envelope (+0.6909 em / -0.2002 em). An earlier 444.0 was inside the window but by
-    // only 0.028 pt at the header, and inside is not the same as centred. The 0.11-0.13
-    // that centring buys is a real, stable gap: at 2400 dpi poppler and Ghostscript put
-    // this line in byte-identical rows, and the overlay shares the form's own content
-    // stream, so zoom and fit-to-page scale box and text together.
+    // b43_x was FORM_LEFT (17.3), which put every character of Block 41 **14.38 pt LEFT
+    // of the block's own left rule**, i.e. out in the page margin — confirmed by reading
+    // x back off a generated PDF (x=17.30 against a rule whose inner ink edge is 31.68).
+    // FORM_LEFT is a pdfOverlay constant calibrated against a DIFFERENT blank, and
+    // NOTHING in this file corrects it. The header at the top of this file describes
+    // wrapping page 1 in translate(14.9, -0.2); that translate is never applied. This
+    // file imports pushGraphicsState and translate from pdf-lib and calls neither, and
+    // contains no pushOperators at all — the same imported-but-never-called translate
+    // that caused the original overlay defect. 34.2 is the left rule + this repo's 2.5 pt
+    // inset, matching chiefEvalOverlay against the identically-placed rule on 1616/27.
     //
-    // ponytail: one measured constant, not a calibration pass. The REST of this file's
-    // page-2 map is still the uncalibrated inheritance described at the top; this moves
-    // only the constant the comment capacity is defined against.
-    b43_x: FORM_LEFT,
-    b43_topBaseline: 443.9,
+    // Both pitches are fixed point sizes (COMMENT_PITCH) and their legal first-baseline
+    // windows overlap, so one constant serves both:
+    //   12-pitch = 10 pt, 19 lines: [440.842, 444.531]
+    //   10-pitch = 12 pt, 16 lines: [441.243, 443.149]
+    //   overlap [441.243, 443.149] -> 442.20, the midpoint.
+    // Line 20 at 12-pitch would need 452.642 and line 17 at 10-pitch 455.403, both above
+    // the header. The previous 443.9 sat above the 10-pitch window entirely and had to
+    // move. Fixing the size also RELIEVED the binding case #36 documented here: the legal
+    // window at a solved 10.7278 pt was 0.241 pt wide, and at a fixed 10 pt it is 3.689.
+    //
+    // ponytail: four sibling constants still carry the same inherited FORM_LEFT = 17.3,
+    // and MEASURED, not assumed, they are all outside their rules:
+    //   page 2 (the page fixed above, left rule inner edge 31.680):
+    //     rec1_x (:196, Blocks 46/47) and b44_x (:231) both render at x = 17.300.
+    //   page 1 (left rule inner edge 32.640, measured at 600 dpi):
+    //     b28_x (:153) renders at x = 17.300 — 15.34 pt outside. b29b_x (:158) likewise.
+    // Not touched here: each has its own box to measure against, and only Block 41's
+    // geometry is what this change's CPL derivation depends on. Measure before trusting.
+    b43_x: 34.2,
+    b43_topBaseline: 442.2,
 
     b44_x: FORM_LEFT,
     b44_topBaseline: 220.0,
@@ -295,6 +313,11 @@ export async function generateFitrepOverlayPdf(
     pg.drawText(v, { x, y, size: s, font, color: BLACK });
   };
 
+  // `fixedSize` sets the point size outright — what the comment block passes, because
+  // pitch constrains SIZE and lets CPL fall out of the box (see COMMENT_PITCH). Blocks
+  // 28/29/44 still solve a size from their CPL target. The min(12, …) cap below is LIVE
+  // on this form: rec1/rec2 pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is
+  // clamped to 12 — remove the cap and 12.0635 appears in the output.
   const narrative = (
     pg: PDFPage,
     str: string | undefined | null,
@@ -303,10 +326,13 @@ export async function generateFitrepOverlayPdf(
     cpl: number,
     maxLines: number,
     boxWidth = FORM_RIGHT - FORM_LEFT,
+    fixedSize?: number,
   ) => {
     const v = (str || "").trim();
     if (!v) return;
-    const size = Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
+    const size =
+      fixedSize ??
+      Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
     const lh = size * 1.18;
     const lines = wrapTextToWidth(v, cpl).slice(0, maxLines);
     lines.forEach((ln, i) =>
@@ -439,15 +465,16 @@ export async function generateFitrepOverlayPdf(
   narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80);
   narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80);
 
-  const pitch = (bv.comment_pitch || "10") as "10" | "12";
-  const cpl43 = pitch === "10" ? 90 : 84;
+  const pitch = resolveCommentPitch(bv);
   narrative(
     page2,
     evaluation.comments,
     p2.b43_x,
     p2.b43_topBaseline,
-    cpl43,
+    COMMENT_PITCH[pitch].charsPerLine,
     getCommentCapacity(evaluation.report_type, pitch),
+    undefined,
+    COMMENT_PITCH[pitch].points,
   );
 
   narrative(page2, bv.qualifications, p2.b44_x, p2.b44_topBaseline, p2.b44_cpl, p2.b44_lines);

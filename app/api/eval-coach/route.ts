@@ -34,7 +34,9 @@ const fail = (error: string, status: number) =>
 // maximum so an overflowing draft is still coachable, and it caps the payload.
 const BodySchema = z.object({
   report_type: z.enum(["EVAL", "CHIEFEVAL", "FITREP"]),
-  pitch: z.enum(["10", "12"]).default("10"),
+  // 12-pitch is the roomier of the two legal settings and what an unset draft renders
+  // (resolveCommentPitch), so it is the default here too. See lib/commentFit.ts.
+  pitch: z.enum(["10", "12"]).default("12"),
   comments: z.string().max(5000),
   // Unknown KEYS are dropped downstream by TRAIT_STANDARDS_LOOKUP, so key count
   // cannot amplify the payload. Values were unbounded, though, and a known key

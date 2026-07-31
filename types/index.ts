@@ -103,6 +103,14 @@ export interface Evaluation {
     primary_duty_abbrev?: string; // Block 29A (most-significant primary duty abbreviation, <=14 chars)
     primary_duties?: string; // Block 29B (narrative — 91 CPL × 3 lines)
     qualifications?: string; // Block 44 (narrative — 91 CPL × 2 lines)
+    // Comment-block pitch. READ IT THROUGH resolveCommentPitch(), never directly: what
+    // "10" renders changed with the pitch-label fix, and comment_pitch_v is the only
+    // thing telling a corrected value apart from a legacy one. See lib/commentFit.ts.
+    // Left as `string`, not a "10" | "12" union: this arrives from a jsonb column, so a
+    // literal type here would be a promise the database cannot keep. resolveCommentPitch
+    // is what narrows it, and it treats anything unrecognised as 12-pitch.
+    comment_pitch?: string; // characters per inch — 10-pitch = 12 pt, 12-pitch = 10 pt
+    comment_pitch_v?: number; // COMMENT_PITCH_V when written by current code; absent = legacy
     date_reported?: string; // Block 9 (ISO yyyy-mm-dd)
     // Occasion for Report (Blocks 10-13) — multi-select; "Special" is exclusive
     periodic?: boolean; // Block 10

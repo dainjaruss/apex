@@ -184,7 +184,8 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
   });
 
   it("should check Courier comments text bounds and detect box overflow capacity", () => {
-    // 10-pitch text of 20 lines — over every form's capacity, but by different amounts.
+    // 20 lines, each inside the narrower 10-pitch line width — over every form's
+    // capacity, but by different amounts.
     const longText = Array(20)
       .fill(
         "THIS IS A MONOSPACE COMMENT LINE THAT FITS THE 10-PITCH WIDTH LIMIT.",
@@ -193,12 +194,14 @@ describe("Evaluation Forms & Live Navy Rules Integration Tests", () => {
     const fitResult = checkCommentFit(longText, "10", "EVAL");
     expect(fitResult.fit).toBe(false);
     expect(fitResult.linesUsed).toBe(20);
-    expect(fitResult.maxLines).toBe(17);
-    // Same text, same pitch, a different form: the CHIEFEVAL's Block 40 is half the
-    // size. Before this was per-form, all three reported 18 and this text passed on
-    // none of them for the same wrong reason.
-    expect(checkCommentFit(longText, "10", "CHIEFEVAL").maxLines).toBe(8);
-    expect(checkCommentFit(longText, "10", "FITREP").maxLines).toBe(19);
+    expect(fitResult.maxLines).toBe(14); // 12 pt Courier — 10 chars/inch
+    // Same text, same pitch, a different form: the CHIEFEVAL's Block 40 is less than
+    // half the size. Before this was per-form, all three reported 18 and this text
+    // passed on none of them for the same wrong reason.
+    expect(checkCommentFit(longText, "10", "CHIEFEVAL").maxLines).toBe(6);
+    expect(checkCommentFit(longText, "10", "FITREP").maxLines).toBe(16);
+    // The other pitch is a genuinely different box, not a rounding of the same one.
+    expect(checkCommentFit(longText, "12", "EVAL").maxLines).toBe(17);
 
     const normalText = "SHORT AND SWEET DRAFT.";
     const fitResultNormal = checkCommentFit(normalText, "12", "EVAL");

@@ -4,7 +4,11 @@
 
 import React from "react";
 import { Evaluation } from "@/types";
-import { checkCommentFit } from "@/lib/commentFit";
+import {
+  checkCommentFit,
+  COMMENT_PITCH,
+  resolveCommentPitch,
+} from "@/lib/commentFit";
 import { getCommentsBlock } from "@/lib/traitStandards";
 import { SIGNATURE_BLOCKS, SignatureBlockMeta } from "@/lib/signatures";
 
@@ -211,7 +215,7 @@ function TraitRatingsSection({ e }: { e: Evaluation }) {
 }
 
 function NarrativeSection({ e }: { e: Evaluation }) {
-  const pitch = e.block_values?.comment_pitch || "10";
+  const pitch = resolveCommentPitch(e.block_values);
   const fit = checkCommentFit(e.comments || "", pitch, e.report_type);
   return (
     <div className={PANEL}>
@@ -222,8 +226,7 @@ function NarrativeSection({ e }: { e: Evaluation }) {
         <span
           className={`text-[10px] font-mono ${fit.fit ? "apex-report-faint" : "apex-text-field-error font-bold"}`}
         >
-          Pitch Selected: {pitch}-Pitch | Lines: {fit.linesUsed} /{" "}
-          {fit.maxLines}
+          {COMMENT_PITCH[pitch].label} | Lines: {fit.linesUsed} / {fit.maxLines}
           {fit.fit
             ? ""
             : ` — ${fit.linesUsed - fit.maxLines} line(s) will not print`}

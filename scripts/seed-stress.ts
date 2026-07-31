@@ -15,6 +15,7 @@ import {
 } from "../tests/fixtures/validEval";
 import { Evaluation } from "../types";
 import { participantsThrough } from "../lib/routing";
+import { commentPitchFields } from "@/lib/commentFit";
 
 function loadEnv() {
   for (const file of [".env.local", ".env"]) {
@@ -1138,7 +1139,8 @@ async function seedStressEvals(users: Record<string, string>) {
         primary_duties: `LEADING PETTY OFFICER FOR ${template.rate} DIVISION`,
         date_counseled: "25JAN15",
         counselor: "RAY, A M",
-        comment_pitch: "10",
+        // Stamped: a bare comment_pitch reads back as legacy = 12-pitch (commentFit).
+        ...commentPitchFields("10"),
         billet_subcategory: "NA",
         substantiation_comments:
           promRec === "Significant Problems" || promRec === "Progressing"

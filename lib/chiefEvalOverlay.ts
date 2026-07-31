@@ -47,6 +47,8 @@ import {
   FIELD_FIT,
   getPrimaryDutiesFieldFit,
   getCommentCapacity,
+  COMMENT_PITCH,
+  resolveCommentPitch,
 } from "./commentFit";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
@@ -201,18 +203,31 @@ const C = {
       team_effectiveness: { x0: 233.8, y0: 389.5, x1: 258.7, y1: 407.3 }, // 39
     } as Record<string, Box>,
 
-    // Block 40 REPORTING SENIOR COMMENTS — clear interior y[277.56, 380.64] and the
-    // printed label's lowest ink at 371.64, both re-measured off chiefEvalBlank.pdf at
-    // 600 dpi. Drawing mixed-case Courier from this baseline inks 8 lines at 10-pitch
-    // into y[278.88, 369.72] — 1.32 pt clear of the floor — while a 9th reaches 270.00,
-    // 7.56 pt outside the box.
+    // Block 40 REPORTING SENIOR COMMENTS — clear interior y[277.56, 380.64], printed
+    // header ink floor 371.52, both measured off chiefEvalBlank.pdf at 600 dpi. Its
+    // printed side rules are x[31.680, 578.880], so b40_x = TEXT_X = 34.2 sits 2.52 pt
+    // inside the left rule and a full 90-char 10 pt line ends at 573.85.
+    //
+    // Both pitches are fixed point sizes (COMMENT_PITCH) and their legal first-baseline
+    // windows still overlap, so ONE constant serves both:
+    //   12-pitch = 10 pt, 8 lines: [362.162, 364.611]
+    //   10-pitch = 12 pt, 6 lines: [350.763, 363.229]
+    //   overlap [362.162, 363.229] -> 362.70, the midpoint.
+    // A 9th 12-pitch line would need 373.962 and a 7th 10-pitch line 364.923; both are
+    // above the header. The previous 363.0 was inside the overlap but only 0.23 pt below
+    // the 10-pitch ceiling — centring costs nothing, so it is centred.
+    //
+    // Unlike 1616/26 and 1610/2, NAVPERS 1616/27 prints NO "10 or 12 pitch (10 or 12
+    // point)" sentence in this block — verified against chiefEvalBlank.pdf, which carries
+    // only the substantiation footnote. The pitch rule is applied here from
+    // BUPERSINST 1610.10H 13-2.a(1) (p. 13-1), which is not form-specific.
     //
     // b40_lines10 / b40_lines12 lived here because #34 could clamp rendering but not
     // fix validation, which still promised 18 for every form. That is done now:
-    // getCommentCapacity is the single source and returns exactly the 8 / 7 this file
-    // measured, so the renderer and the measuring canvas can no longer disagree.
+    // getCommentCapacity is the single source, so the renderer and the measuring canvas
+    // can no longer disagree.
     b40_x: TEXT_X,
-    b40_topBaseline: 363.0,
+    b40_topBaseline: 362.7,
 
     // Block 41 Individual — one bordered cell, pre-printed "NOB", value set left.
     b41_cell: { x0: 92.6, y0: 239.0, x1: 211.2, y1: 253.2 } as Box,
@@ -334,6 +349,13 @@ export async function generateChiefEvalOverlayPdf(
     pg.drawText(v, { x, y, size: s, font, color: BLACK });
   };
 
+  // `fixedSize` sets the point size outright — what the comment block passes, because
+  // pitch constrains SIZE and lets CPL fall out of the box (see COMMENT_PITCH). Blocks
+  // 28/29 still solve a size from their CPL target. The min(12, …) cap below is DEAD on
+  // this form specifically — 1616/27 draws its career recommendations through text(), so
+  // no narrative() call here reaches 12 pt and removing the cap leaves output byte-alike.
+  // It stays only to keep the three copies of this helper identical; it is live in
+  // pdfOverlay and fitrepOverlay, where cpl 10 in an 80 pt box solves to 12.063.
   const narrative = (
     pg: PDFPage,
     str: string | undefined | null,
@@ -342,10 +364,13 @@ export async function generateChiefEvalOverlayPdf(
     cpl: number,
     maxLines: number,
     boxWidth = NARRATIVE_WIDTH,
+    fixedSize?: number,
   ) => {
     const v = (str || "").trim();
     if (!v) return;
-    const size = Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
+    const size =
+      fixedSize ??
+      Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
     const lh = size * 1.18;
     const lines = wrapTextToWidth(v, cpl).slice(0, maxLines);
     lines.forEach((ln, i) =>
@@ -492,14 +517,16 @@ export async function generateChiefEvalOverlayPdf(
 
   // Block 40 — reporting senior comments. Qualifications and achievements go here too;
   // 1616/27 has no separate block for them (migration 010).
-  const pitch = (bv.comment_pitch || "10") as "10" | "12";
+  const pitch = resolveCommentPitch(bv);
   narrative(
     page2,
     evaluation.comments,
     p2.b40_x,
     p2.b40_topBaseline,
-    pitch === "10" ? 90 : 84,
+    COMMENT_PITCH[pitch].charsPerLine,
     getCommentCapacity(evaluation.report_type, pitch),
+    undefined,
+    COMMENT_PITCH[pitch].points,
   );
 
   // Block 41 — individual promotion recommendation, over the pre-printed "NOB".

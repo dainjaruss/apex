@@ -41,6 +41,7 @@ import {
   OVERLAY_TRAIT_KEYS,
 } from "@/lib/chiefEvalOverlay";
 import { CHIEFEVAL_TRAIT_KEYS } from "@/types/navpers";
+import { commentPitchFields } from "@/lib/commentFit";
 import { Evaluation } from "@/types";
 
 type Page = 1 | 2;
@@ -512,13 +513,14 @@ describe("NAVPERS 1616/27 page-2 body geometry", () => {
     (_, i) => `Line ${i} substantiating the marks with verifiable specifics and results.`,
   ).join(" ");
 
-  it("clamps Block 40 to the eight lines the box physically holds at 10-pitch", async () => {
-    // The box is 103pt; at 10-pitch Courier (~11.75pt lead) that is EIGHT lines, not the
-    // eighteen lib/commentFit.checkCommentFit still allows — 18 is the 1616/26 Block 43
-    // number. Nine lines would put ink through the PROMOTION RECOMMENDATION panel.
+  it("clamps Block 40 to the eight lines the box physically holds at 12-pitch", async () => {
+    // The box is 103pt; at 12-pitch (10 pt Courier, 11.80pt lead) that is EIGHT lines,
+    // not the eighteen lib/commentFit.checkCommentFit once allowed. Nine lines would put
+    // ink through the PROMOTION RECOMMENDATION panel. This was labelled "10-pitch" while
+    // rendering 12.059 CPI — the mislabelling this PR fixes; the 8 is unchanged.
     const { text } = await render({
       comments: LONG_COMMENT,
-      block_values: { comment_pitch: "10" } as Evaluation["block_values"],
+      block_values: commentPitchFields("12") as Evaluation["block_values"],
     });
     const lines = commentLines(text[2]);
     expect(lines).toHaveLength(8);
@@ -527,13 +529,15 @@ describe("NAVPERS 1616/27 page-2 body geometry", () => {
     );
   });
 
-  it("clamps Block 40 to seven lines at 12-pitch", async () => {
+  it("clamps Block 40 to six lines at 10-pitch — the bigger type, fewer of them", async () => {
+    // 12 pt Courier, 14.16pt lead. The old "12-pitch" button rendered 10.6647 pt and got
+    // 7 lines; that size is not a setting NAVPERS 1616/27 permits.
     const { text } = await render({
       comments: LONG_COMMENT,
-      block_values: { comment_pitch: "12" } as Evaluation["block_values"],
+      block_values: commentPitchFields("10") as Evaluation["block_values"],
     });
     const lines = commentLines(text[2]);
-    expect(lines).toHaveLength(7);
+    expect(lines).toHaveLength(6);
     lines.forEach((l) => expect(within(l, B40)).toBe(true));
   });
 

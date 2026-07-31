@@ -239,9 +239,10 @@ describe("buildCallModel — generateText call shape (mocked 'ai')", () => {
 describe("computeBudgets — pinned to the commentFit constants", () => {
   it('EVAL @ 10-pitch matches the §4.6 payload budgets verbatim', () => {
     expect(computeBudgets("EVAL", "10")).toEqual({
-      // 17 = NAVPERS 1616/26 Block 43 at 10-pitch, measured off the blank
-      // (tests/unit/commentCapacity.test.ts). This budget said 18 for every form.
-      comments: { chars_per_line: 90, max_lines: 17, target_lines: 16 },
+      // 75 x 14 = NAVPERS 1616/26 Block 43 at TRUE 10-pitch (12 pt Courier), measured
+      // off the blank (tests/unit/commentCapacity.test.ts). This budget said 18 lines
+      // for every form, then 90 x 17 — which is the 12-pitch figure, not this one.
+      comments: { chars_per_line: 75, max_lines: 14, target_lines: 13 },
       primary_duties: { chars_per_line: 91, max_lines: 3, first_line_lead: 20 },
       primary_duty_abbrev: { max_chars: 14 },
       command_achievements: { chars_per_line: 91, max_lines: 3 },
@@ -250,14 +251,15 @@ describe("computeBudgets — pinned to the commentFit constants", () => {
     });
   });
 
-  it("CHIEFEVAL @ 12-pitch: 84 CPL, 4-line 29B, and NO qualifications budget", () => {
+  it("CHIEFEVAL @ 12-pitch: 90 CPL, 4-line 29B, and NO qualifications budget", () => {
     const b = computeBudgets("CHIEFEVAL", "12") as any;
-    // 1616/27's Block 40 is less than half the EVAL's Block 43: 7 lines at 12-pitch.
+    // 1616/27's Block 40 is less than half the EVAL's Block 43: 8 lines at 12-pitch.
     // Budgeting the model 18 here was the coach's licence to over-write the block.
+    // 84 CPL is gone — it was the width of a setting no form permits.
     expect(b.comments).toEqual({
-      chars_per_line: 84,
-      max_lines: 7,
-      target_lines: 6,
+      chars_per_line: 90,
+      max_lines: 8,
+      target_lines: 7,
     });
     expect(b.primary_duties).toEqual({
       chars_per_line: 91,
@@ -610,12 +612,13 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     return out;
   };
 
-  it("retries once with concrete 21/17 feedback, then returns flagged with preview + dropped lines", async () => {
+  it("retries once with concrete 21/14 feedback, then returns flagged with preview + dropped lines", async () => {
     const fit = checkCommentFit(overComments, "10", "EVAL");
     expect(fit.linesUsed).toBe(21); // fixture sanity
-    // NAVPERS 1616/26 Block 43 holds 17 lines at 10-pitch — measured off the blank in
-    // tests/unit/commentCapacity.test.ts. Not 18, and not the CHIEFEVAL's or FITREP's.
-    expect(fit.maxLines).toBe(17);
+    // NAVPERS 1616/26 Block 43 holds 14 lines at TRUE 10-pitch (12 pt) — measured off
+    // the blank in tests/unit/commentCapacity.test.ts. Not 18, not 17 (that is this
+    // form at 12-pitch), and not the CHIEFEVAL's or FITREP's.
+    expect(fit.maxLines).toBe(14);
 
     const cm = scriptedModel(overflowOutput(), overflowOutput());
     const res = await runAutofill(makeReq(), cm);
@@ -623,17 +626,17 @@ describe("runAutofill — overflow: one retry, then flag, NEVER truncate (§7 st
     // Exactly one overflow retry (≤3 calls total per run).
     expect(cm).toHaveBeenCalledTimes(2);
     const retryPrompt = cm.mock.calls[1][0];
-    expect(retryPrompt).toContain("21/17");
+    expect(retryPrompt).toContain("21/14");
     expect(JSON.parse(retryPrompt).retry_feedback).toBeDefined();
 
     const report = res.fit_reports.comments;
     expect(report.overflow).toBe(true);
     expect(report.fit.linesUsed).toBe(21);
     expect(report.truncation_preview).toBe(
-      fit.wrappedLines.slice(0, 17).join("\n"),
+      fit.wrappedLines.slice(0, 14).join("\n"),
     );
-    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(17));
-    expect(report.dropped_lines).toHaveLength(4);
+    expect(report.dropped_lines).toEqual(fit.wrappedLines.slice(14));
+    expect(report.dropped_lines).toHaveLength(7);
     // The server never trims the text itself.
     expect(res.blocks.comments.text).toBe(overComments);
 

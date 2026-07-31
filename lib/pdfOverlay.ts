@@ -24,7 +24,13 @@ import {
   translate,
 } from "pdf-lib";
 import { Evaluation } from "@/types";
-import { wrapTextToWidth, FIELD_FIT, getCommentCapacity } from "./commentFit";
+import {
+  wrapTextToWidth,
+  FIELD_FIT,
+  getCommentCapacity,
+  COMMENT_PITCH,
+  resolveCommentPitch,
+} from "./commentFit";
 import { embedNarrativeFont } from "./pdfBoxText";
 import { computeTraitAverage } from "./traitAverage";
 import { formatNavpersDate } from "./navyDate";
@@ -186,35 +192,38 @@ const C = {
     rec2_y: 499,
 
     // Block 43 comments. Neither the line count nor the top baseline is a single
-    // constant: the count is getCommentCapacity("EVAL", pitch) — 17 at 10-pitch, 15 at
+    // constant: the count is getCommentCapacity("EVAL", pitch) — 14 at 10-pitch, 17 at
     // 12-pitch — and the baseline is PER PITCH, because no single value can serve both.
     //
     // Block 43's clear interior is y[253.44, 468.12] (both bounding rules exactly
     // 0.72 pt) and its printed instruction header's lowest ink is 451.92. CourierPrime's
     // real ink envelope is +0.6909 em above the baseline (backtick) and -0.2002 em below
-    // (y, g, j). The two pitches render at different sizes, so their legal first-baseline
-    // windows are:
+    // (y, g, j). The two pitches are now FIXED point sizes rather than sizes solved from
+    // a CPL target (see COMMENT_PITCH), so their legal first-baseline windows are:
     //
-    //   10-pitch (size 10.0166, 17 lines): [444.558, 445.000]
-    //   12-pitch (size 10.7278, 15 lines): [432.811, 444.508]
+    //   10-pitch = 12 pt, leading 14.16, 14 lines: [439.923, 443.629]  (3.706 wide)
+    //   12-pitch = 10 pt, leading 11.80, 17 lines: [444.242, 445.011]  (0.769 wide)
     //
-    // Those windows DO NOT INTERSECT. The previous single 458.5 (page 444.5) sat 0.058 pt
-    // below the 10-pitch window: a `y`, `g` or `j` on line 17 inked to 253.382, grazing
-    // the printed rule at 253.44. Nothing was lost or clipped, but the margin was
-    // negative and the test could not see it — the probe drew only the letter X.
+    // Those windows DO NOT INTERSECT, so the two constants stay. Both are the midpoint of
+    // their own window: 455.78 (page 441.78) and 458.63 (page 444.63). Config space is
+    // page + 14 — page 2 is drawn inside translate(12, -14).
     //
-    // Per pitch, both get real room instead: 458.8 (page 444.8) clears by 0.20 above and
-    // 0.24 below; 458.0 (page 444.0) clears the header by 0.51 with ~11 pt of floor slack
-    // to spare. Buying that headroom by dropping to 16 lines would be the exact error
-    // this whole change exists to correct, so the baseline moves and the count stays.
+    // These moved from 458.8/458.0 with the pitch-label fix. 458.8 was the correct
+    // baseline for a 10.0166 pt line and this file called that "10-pitch"; it was 12
+    // pitch (11.988 CPI), and it is now b43_topBaseline12 re-derived at exactly 10 pt.
+    // 458.0 served 10.7278 pt, a size neither 1616/26 nor 1610/2 permits at all.
     //
     // Do not nudge either value without re-deriving against the ink envelope above.
     // The windows are centred because centring costs nothing, NOT because the margin is
     // uncertain: measured at 600 / 1200 / 2400 dpi the two renderers agree, and what
     // looked like a 0.12 pt spread was the raster's own pixel size.
+    //
+    // b43_x 22 puts text at page x 34.0, inside the block's own printed side rules
+    // (ink edges x[29.640, 576.840], measured at 600 dpi): 4.36 pt clear on the left, and
+    // a full 90-char 10 pt line ends at 573.65, 3.19 pt clear on the right.
     b43_x: 22,
-    b43_topBaseline10: 458.8,
-    b43_topBaseline12: 458.0,
+    b43_topBaseline10: 455.78,
+    b43_topBaseline12: 458.63,
 
     // block 44 qualifications (2 lines)
     b44_x: 22,
@@ -342,7 +351,19 @@ export async function generateOverlayPdf(
       color: BLACK,
     });
   };
-  // wrap+draw a monospace narrative; size chosen so `cpl` Courier chars fill `boxWidth`
+  // wrap+draw a monospace narrative. `fixedSize` sets the point size outright and is what
+  // the comment block passes, because the printed form constrains SIZE ("10 or 12 pitch
+  // (10 or 12 point) only") and lets CPL fall out of the box — see COMMENT_PITCH. Without
+  // it the size is solved so `cpl` chars fill `boxWidth`, which is still how blocks
+  // 28/29/44 and the career recommendations are set.
+  //
+  // The Math.min(12, …) cap STAYS, and is LIVE HERE: the career-recommendation fields
+  // below pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is really clamped to
+  // 12 — confirmed by removing the cap and watching 12.0635 appear in the output. It
+  // never bound on the comment block (widest solved size 10.7278), which is why it looked
+  // dead there. Live in fitrepOverlay for the same reason; genuinely DEAD in
+  // chiefEvalOverlay, which draws its recommendations through text() instead — removing
+  // it there leaves the rendered output identical.
   const narrative = (
     page: PDFPage,
     value: string | undefined,
@@ -351,12 +372,12 @@ export async function generateOverlayPdf(
     cpl: number,
     maxLines: number,
     boxWidth = FORM_RIGHT - FORM_LEFT,
+    fixedSize?: number,
   ) => {
     if (!value) return;
-    const size = Math.max(
-      5,
-      Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)),
-    );
+    const size =
+      fixedSize ??
+      Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
     const lh = size * 1.18;
     const lines = wrapTextToWidth(value, cpl).slice(0, maxLines);
     lines.forEach((ln, i) =>
@@ -566,16 +587,17 @@ export async function generateOverlayPdf(
   narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80);
   narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80);
 
-  // block 43 comments — cpl AND top baseline both follow the pitch (see the constants)
-  const pitch = (bv.comment_pitch || "10") as "10" | "12";
-  const cpl43 = pitch === "10" ? 90 : 84;
+  // block 43 comments — point size, cpl, line count AND top baseline all follow the pitch
+  const pitch = resolveCommentPitch(bv);
   narrative(
     page2,
     evaluation.comments,
     p2.b43_x,
     pitch === "10" ? p2.b43_topBaseline10 : p2.b43_topBaseline12,
-    cpl43,
+    COMMENT_PITCH[pitch].charsPerLine,
     getCommentCapacity(evaluation.report_type, pitch),
+    undefined,
+    COMMENT_PITCH[pitch].points,
   );
 
   // block 44 qualifications

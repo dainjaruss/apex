@@ -52,6 +52,7 @@ import {
   type AcceptedBlocks,
 } from "@/lib/bragSheetService";
 import type { Profile } from "@/types";
+import { COMMENT_PITCH, type CommentPitch } from "@/lib/commentFit";
 
 const supabase = createBrowserClient();
 
@@ -121,7 +122,9 @@ export default function BragSheetPage() {
     available: boolean;
     model: string | null;
   } | null>(null);
-  const [pitch, setPitch] = useState<"10" | "12">("10");
+  // 12-pitch by default: the roomier of the two legal settings, and what a draft with
+  // no stored choice renders (resolveCommentPitch). See lib/commentFit.ts COMMENT_PITCH.
+  const [pitch, setPitch] = useState<CommentPitch>("12");
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [review, setReview] = useState<AutofillResponse | null>(null);
@@ -710,10 +713,17 @@ export default function BragSheetPage() {
                         className="apex-select text-sm"
                         aria-label="Block 43 pitch"
                         value={pitch}
-                        onChange={(e) => setPitch(e.target.value as "10" | "12")}
+                        onChange={(e) =>
+                          setPitch(e.target.value as CommentPitch)
+                        }
                       >
-                        <option value="10">10-pitch (90 CPL)</option>
-                        <option value="12">12-pitch (84 CPL)</option>
+                        {/* Labels from COMMENT_PITCH so they cannot drift from the
+                            geometry the renderer uses. */}
+                        {(["10", "12"] as const).map((p) => (
+                          <option key={p} value={p}>
+                            {COMMENT_PITCH[p].label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <button

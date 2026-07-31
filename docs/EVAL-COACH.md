@@ -78,8 +78,9 @@ the model is *the shipped rule*, not a paraphrase of it maintained here.
 > The system prompt says so explicitly and forbids attributing them to any publication. Do
 > not "fix" this by adding an instruction citation.
 >
-> ⚠️ **`budget.max_lines` is per form.** 17 on an EVAL at 10-pitch, **8** on a CHIEFEVAL, 19
-> on a FITREP (`getCommentCapacity`). It used to be a flat 18 for every report type, which
+> ⚠️ **`budget.max_lines` is per form AND per pitch.** At 10-pitch (12 pt) 14 on an EVAL,
+> **6** on a CHIEFEVAL, 16 on a FITREP; at 12-pitch (10 pt) 17 / **8** / 19
+> (`getCommentCapacity`). It used to be a flat 18 for every report type, which
 > meant the coach — a feature whose entire value is that it understands the form — was
 > telling a Chief to fill ten lines of NAVPERS 1616/27 that do not exist on the printed page.
 > Never reintroduce a constant here.

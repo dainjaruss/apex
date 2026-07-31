@@ -9,6 +9,7 @@
 import { Evaluation } from "@/types";
 import { NavfitReportRow } from "./types";
 import { NAVFIT_TRAIT_MAP } from "./constants";
+import { COMMENT_PITCH, resolveCommentPitch } from "../commentFit";
 
 // §5 ReportType discriminator strings ("Eval" byte-confirmed in the golden DB)
 const REPORT_TYPE: Record<Evaluation["report_type"], string> = {
@@ -216,7 +217,24 @@ export function mapEvaluationToNavfit(evaluation: Evaluation): NavfitReportRow {
     RecommendB: (evaluation.career_recommendations || [])[1] || "",
     Rater: bv.rater_signature || "",
     RaterDate: bv.rater_signature_date || null,
-    CommentsPitch: bv.comment_pitch === "12" ? "12 POINT" : "10 POINT",
+    // The column is named "Pitch" but its observed values are POINT strings, so the two
+    // units cross here: 10-pitch IS 12 point and 12-pitch IS 10 point (COMMENT_PITCH).
+    //
+    // ONE STORED VALUE'S EXPORT CHANGES. It is NOT true that nothing changes:
+    //
+    //   {"comment_pitch":"10"}   before "10 POINT"   after "10 POINT"
+    //   {"comment_pitch":"12"}   before "12 POINT"   after "10 POINT"   <-- CHANGED
+    //   {}                       before "10 POINT"   after "10 POINT"
+    //
+    // The new value is the truthful one: a legacy "12" draft rendered 10.7278 pt, so
+    // "12 POINT" never described it either. It resolves to 12-pitch = 10 point, which is
+    // both a legal setting and what the PDF now draws for that row.
+    // NOTE: spec §8 open question 5 — only "10 POINT" has been observed in a real NAVFIT
+    // DB; the "12 POINT" this now emits for 10-pitch is still unverified.
+    CommentsPitch:
+      COMMENT_PITCH[resolveCommentPitch(bv)].points === 12
+        ? "12 POINT"
+        : "10 POINT",
     Comments: evaluation.comments || "",
     Qualifications: bv.qualifications || "",
     PromotionRecom: PROMOTION_CODES[evaluation.promotion_recommendation] ?? 0,

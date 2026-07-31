@@ -2,8 +2,10 @@
 //
 // Narrative step: Block 43 (Comments on Performance) and Block 44 (Qualifications /
 // Achievements). Both use the shared MeasuredCourierField canvas, which wraps exactly as
-// the printed form. Block 43 keeps its 10/12-pitch toggle (90/84 CPL); Block 44 is a fixed
-// 10-pitch / 91 CPL / 2-line block per BUPERSINST 1610.10H.
+// the printed form. Block 43 keeps its 10/12-pitch toggle, now offering only the two
+// settings the form permits — "Font must be 10 or 12 pitch (10 or 12 point) only"
+// (1616/26 Blk 43, printed on the blank) — at 75 and 90 CPL respectively; see
+// COMMENT_PITCH. Block 44 is a fixed 91 CPL / 2-line block.
 //
 // Block 43 also hosts the narrative coach (POST /api/eval-coach): does this
 // narrative substantiate the trait grades already set? Advisory only — the coach
@@ -15,7 +17,14 @@
 
 import React from "react";
 import { Evaluation, ValidationIssue } from "@/types";
-import { FIELD_FIT, getCommentCapacity } from "@/lib/commentFit";
+import {
+  FIELD_FIT,
+  getCommentCapacity,
+  COMMENT_PITCH,
+  commentPitchFields,
+  resolveCommentPitch,
+  type CommentPitch,
+} from "@/lib/commentFit";
 import { getCommentsBlock } from "@/lib/traitStandards";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
@@ -37,8 +46,10 @@ export default function Block43Comments({
   onFocusField,
   activeField,
 }: Block43CommentsProps) {
-  const pitch = (evalData.block_values?.comment_pitch || "10") as "10" | "12";
-  const commentsCpl = pitch === "10" ? 90 : 84;
+  // resolveCommentPitch, not block_values.comment_pitch: a draft saved before the
+  // pitch-label fix means something different by "10" and is read as 12-pitch.
+  const pitch = resolveCommentPitch(evalData.block_values);
+  const commentsCpl = COMMENT_PITCH[pitch].charsPerLine;
   // The number the Sailor is typing against, per form — 17 lines on 1616/26, 8 on
   // 1616/27, 19 on 1610/2 at 10-pitch. Hardcoding 18 here told a Chief the box was more
   // than twice its printed size, and the overflow vanished at print time with no marker.
@@ -47,8 +58,12 @@ export default function Block43Comments({
   // three; DetailsTab was fixed to ask, the editor the Sailor actually types into was not.
   const commentsBlock = getCommentsBlock(evalData.report_type);
 
-  const setPitch = (p: "10" | "12") =>
-    onChange({ block_values: { ...evalData.block_values, comment_pitch: p } });
+  // commentPitchFields, not a bare comment_pitch: an unstamped write is indistinguishable
+  // from a legacy draft and would read back as 12-pitch whatever the Sailor picked.
+  const setPitch = (p: CommentPitch) =>
+    onChange({
+      block_values: { ...evalData.block_values, ...commentPitchFields(p) },
+    });
 
   const setBlockValue = (key: string, val: string) =>
     onChange({ block_values: { ...evalData.block_values, [key]: val } });
@@ -87,16 +102,17 @@ export default function Block43Comments({
                 background: "var(--form-input-bg)",
               }}
             >
-              <PitchButton
-                label="10-Pitch (90 CPL)"
-                active={pitch === "10"}
-                onClick={() => setPitch("10")}
-              />
-              <PitchButton
-                label="12-Pitch (84 CPL)"
-                active={pitch === "12"}
-                onClick={() => setPitch("12")}
-              />
+              {/* Labels come from COMMENT_PITCH so they cannot drift from the numbers
+                  the renderer uses — which is exactly how "12-Pitch (84 CPL)" came to
+                  name a setting that rendered 11.19 CPI and no form permits. */}
+              {(["10", "12"] as const).map((p) => (
+                <PitchButton
+                  key={p}
+                  label={COMMENT_PITCH[p].label}
+                  active={pitch === p}
+                  onClick={() => setPitch(p)}
+                />
+              ))}
             </div>
           </div>
         </div>
