@@ -30,6 +30,7 @@ import {
   getPrimaryDutiesFieldFit,
   measureTextFit,
   PRIMARY_DUTY_ABBREV_MAX,
+  commentPitchFields,
 } from "@/lib/commentFit";
 import type { CommentFitResult } from "@/lib/commentFit";
 import { runFullValidation } from "@/lib/validationEngine";
@@ -69,10 +70,10 @@ export const BRAG_AI_ENV: AiEnvConfig = {
 // a job queue is the fix if this ever gets real traffic.
 export const AUTOFILL_TIMEOUT_MS = 240_000;
 
-// Comment-block capacity is per form (getCommentCapacity): 17 lines on 1616/26, 8 on
-// 1616/27, 19 on 1610/2 at 10-pitch. These were a flat COMMENTS_MAX_LINES = 18 /
-// COMMENTS_TARGET_LINES = 17, which on a CHIEFEVAL budgeted the model more than twice
-// the block's printed size.
+// Comment-block capacity is per form AND per pitch (getCommentCapacity): at 10-pitch
+// (12 pt) 14 lines on 1616/26, 6 on 1616/27, 16 on 1610/2; at 12-pitch (10 pt) 17/8/19.
+// These were a flat COMMENTS_MAX_LINES = 18 / COMMENTS_TARGET_LINES = 17, which on a
+// CHIEFEVAL budgeted the model more than twice the block's printed size.
 export const commentsMaxLines = (
   reportType: AutofillRequest["report_type"],
   pitch: "10" | "12",
@@ -336,7 +337,7 @@ export function computeBudgets(
   reportType: AutofillRequest["report_type"],
   pitch: "10" | "12",
 ): AutofillBudgets {
-  const comments = checkCommentFit("", pitch, reportType); // 90/84 CPL x per-form lines
+  const comments = checkCommentFit("", pitch, reportType); // 75/90 CPL x per-form lines
   const pd = getPrimaryDutiesFieldFit(reportType);
   const ca = FIELD_FIT.command_achievements;
   const quals = FIELD_FIT.qualifications;
@@ -711,7 +712,7 @@ function buildMergedDraft(
     retention: "",
     status: "draft",
     block_values: {
-      comment_pitch: req.pitch,
+      ...commentPitchFields(req.pitch),
       ...(a.date_reported ? { date_reported: a.date_reported } : {}),
       ...(blocks.primary_duty_abbrev.text
         ? { primary_duty_abbrev: blocks.primary_duty_abbrev.text }
@@ -863,7 +864,7 @@ STYLE (BUPERSINST 1610.10H, Chapter 13)
 
 BLOCK-BY-BLOCK (write to budgets; every value below is enforced after you respond)
 - comments (the comments block — 43 on an EVAL, 40 on a CHIEFEVAL, 41 on a
-  FITREP): budgets.comments.chars_per_line (90 at 10-pitch, 84 at 12-pitch) ×
+  FITREP): budgets.comments.chars_per_line (75 at 10-pitch, 90 at 12-pitch) ×
   budgets.comments.max_lines maximum. That maximum is the PHYSICAL size of this
   form's block and differs sharply between forms — read it, never assume 18.
   TARGET budgets.comments.target_lines to leave the reporting senior editing

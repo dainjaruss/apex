@@ -136,14 +136,14 @@ npm run test         # optional: capture the green summary for B-roll
 
 ### [3:40 – 4:30] COMMENT-FIT (Block 43) — HIGHLIGHT _(rubric: features + UI)_
 
-**SCREEN:** The **Narrative & Comments** step — the Block 43 text area, the **10-Pitch (90 CPL) / 12-Pitch (84 CPL)** toggle, and the live line/character fit indicator.
+**SCREEN:** The **Narrative & Comments** step — the Block 43 text area, the **10-Pitch (12 pt · 75 CPL) / 12-Pitch (10 pt · 90 CPL)** toggle, and the live line/character fit indicator.
 
 **ACTIONS:**
 
 1. Click the **Narrative & Comments** step pill.
 2. Paste the prepared paragraph into the **Block 43** text area; let the **fit indicator** (lines used / capacity) update as it lands.
 3. Keep pasting or hold a key to **overflow** the box — pause on the **red/overflow warning**.
-4. Click the **12-Pitch (84 CPL)** toggle, then back to **10-Pitch (90 CPL)**, to show the limit changes with pitch.
+4. Click the **10-Pitch (12 pt · 75 CPL)** toggle, then back to **12-Pitch (10 pt · 90 CPL)**, to show the limit changes with pitch.
 5. Trim a sentence so it **fits again** — pause on the indicator returning to green.
 
 **NARRATION:**

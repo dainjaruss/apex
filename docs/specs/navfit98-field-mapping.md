@@ -104,8 +104,8 @@ All column names below are copied verbatim from the golden schema (case-sensitiv
 | 87 | `RecommendB` | text(20) | `career_recommendations[1]` | Verbatim | no | `""` |
 | 88 | `Rater` | text(28) | `rater_signature` (typed name, block_values) | Verbatim; **validate ≤28** | no | `""` |
 | 89 | `RaterDate` | date | `rater_signature_date` | ISO → OLE date (§4.1) | no | `NULL` |
-| 90 | `CommentsPitch` | text(8) | `comment_pitch` (block_values) | `"10"` → `"10 POINT"`, `"12"` → `"12 POINT"` (12-point string unobserved — open question) | yes | `"10 POINT"` |
-| 91 | `Comments` | memo | `comments` | Verbatim (this form's own line count × 90/84 cpl already enforced — `getCommentCapacity`: 17/15 EVAL, 8/7 CHIEFEVAL, 19/18 FITREP) | yes | `""` |
+| 90 | `CommentsPitch` | text(8) | `comment_pitch` (block_values, via `resolveCommentPitch`) | **The column is named Pitch but holds POINT strings, so the units cross:** 10-pitch → `"12 POINT"`, 12-pitch → `"10 POINT"` (10 pitch *is* 12 point — see `COMMENT_PITCH`). Previously mapped `"12"` → `"12 POINT"` while the PDF rendered 10.7278 pt. Legacy drafts (no `comment_pitch_v`) resolve to 12-pitch → `"10 POINT"`, unchanged from before. 12-point string still unobserved — open question | yes | `"10 POINT"` |
+| 91 | `Comments` | memo | `comments` | Verbatim (this form's own line count × 75/90 cpl already enforced — `getCommentCapacity` as 10-pitch/12-pitch: 14/17 EVAL, 6/8 CHIEFEVAL, 16/19 FITREP) | yes | `""` |
 | 92 | `Qualifications` | memo | `qualifications` | Verbatim (91 cpl × 2 lines) | no | `""` |
 | 93 | `PromotionRecom` | int16 | `promotion_recommendation` | Enum → code 0–5 (§4.4). **Write explicitly** (no schema default) | yes | `0` |
 | 94 | `SummaryRank` | int32 | — | **Always `0`** (NAVFIT-internal ordering; schema default 0) | no | `0` |
@@ -308,7 +308,7 @@ The exporter runs **server-side**, on the DB row (never a client-supplied body),
 2. **CHIEFEVAL trait-column assignment** — positional map (33→`LEAD`, 34→`TAC`, 35→`PROF`, 36→`MIS`, 37→`EO`, 38→`TEAM`, 39→`MIL`) is inferred from navfit99-js's older Chief form; APEX's CHIEFEVAL trait names differ from that revision's labels. Verify against a Chief report created in NAVFIT 98A v30+ before shipping CHIEFEVAL export.
 3. **`ReportType` casing for non-EVAL** — `"FitRep"`/`"Chief"` from navfit99-js only; confirm exact strings from a NAVFIT-produced officer/chief DB.
 4. **Per-trait NOB = 0 vs NULL** — radio-index evidence says explicit NOB stores `0`; golden row (blank report) only shows NULL. Confirm a NAVFIT-graded NOB trait dumps as 0.
-5. **`CommentsPitch` 12-point string** — `"10 POINT"` confirmed; is 12-pitch stored as `"12 POINT"`? Unobserved.
+5. **`CommentsPitch` 12-point string** — `"10 POINT"` confirmed. APEX now emits it for **12-pitch** (10 pt), which is what it always rendered, so no existing export changes. `"12 POINT"` is emitted for 10-pitch (12 pt) and remains **unobserved** in a real NAVFIT DB — verify by keying a 10-pitch report into NAVFIT 98A and dumping the row.
 6. **`IsValidated`** — spec writes `0` (NAVFIT re-validates after import). If receiving commands complain about re-validating every imported report, flip to `-1` only for evals that passed `runFullValidation`.
 7. **`PhysicalReadiness2`/`PhysicalReadinessDt`** — newer PFA fields' exact content (e.g. `P/P/P` extended codes, cycle date) unobserved; currently NULL. If NAVFIT v30+ reads block 20 from these instead of the legacy `PhysicalReadiness`, exported PFA data won't display — verify with a round-trip.
 8. **SSN policy** — blocks 4/27 export blank. Confirm with stakeholders that receiving commands accept keying SSNs manually in NAVFIT (the alternative — carrying SSNs in APEX — contradicts the PII policy in `001_initial_schema.sql:93`).

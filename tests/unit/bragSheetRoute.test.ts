@@ -200,7 +200,7 @@ describe("POST /api/brag-sheet/autofill — sheet lookup and authorization", () 
 });
 
 describe("POST /api/brag-sheet/autofill — success", () => {
-  it("200 returns the service response; pitch defaults to '10'", async () => {
+  it("200 returns the service response; pitch defaults to '12'", async () => {
     withGateway();
     const res = await POST(postReq(validBody));
     expect(res.status).toBe(200);
@@ -209,7 +209,8 @@ describe("POST /api/brag-sheet/autofill — success", () => {
       expect.anything(),
       "u1",
       expect.objectContaining({ id: SHEET_ID, user_id: "u1" }),
-      "10",
+      // 12-pitch: the roomier legal setting, and what an unstamped draft renders.
+      "12",
     );
   });
 

@@ -17,6 +17,7 @@ import {
   measureTextFit,
   FIELD_FIT,
   getPrimaryDutiesFieldFit,
+  resolveCommentPitch,
 } from "./commentFit";
 import { getCommentsBlock } from "./traitStandards";
 
@@ -206,11 +207,13 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   }
 
   // 3. Courier narrative comment fit/overflow check. Capacity AND block number are both
-  //    per form: EVAL 43 / CHIEFEVAL 40 / FITREP 41, and 16 / 8 / 19 lines at 10-pitch.
+  //    per form: EVAL 43 / CHIEFEVAL 40 / FITREP 41, and 14 / 6 / 16 lines at 10-pitch.
   //    This used to check every form against the EVAL's line count and label the error
   //    "Block 43", so a CHIEFEVAL passed validation at 18 lines and the printed form
   //    silently dropped ten of them.
-  const pitch = evalData.block_values?.comment_pitch || "10";
+  //    resolveCommentPitch, not block_values.comment_pitch: a draft saved before the
+  //    pitch-label fix means something different by "10" and must be read as 12-pitch.
+  const pitch = resolveCommentPitch(evalData.block_values);
   const fitResult = checkCommentFit(
     evalData.comments || "",
     pitch,

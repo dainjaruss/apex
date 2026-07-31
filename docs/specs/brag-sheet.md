@@ -146,7 +146,7 @@ validated by `runFullValidation`.
 ### 1.4 Authority notes
 
 - **Fit authority is `lib/commentFit.ts`**, period: `checkCommentFit` (Block 43 — 18
-  lines max, 90 CPL at 10-pitch / 84 CPL at 12-pitch), `FIELD_FIT`
+  lines max, 75 CPL at 10-pitch / 90 CPL at 12-pitch), `FIELD_FIT`
   (`command_achievements` 91×3, `primary_duties` 91×3 with `firstLineLead: 20`,
   `primary_duties_extended` 91×4, `qualifications` 91×2),
   `getPrimaryDutiesFieldFit(reportType)` (3-line EVAL vs 4-line CHIEFEVAL/FITREP),

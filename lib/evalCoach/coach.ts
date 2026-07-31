@@ -30,7 +30,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { AiEnvConfig, ResolvedAiModel } from "@/lib/aiProvider";
-import { checkCommentFit } from "@/lib/commentFit";
+import { checkCommentFit, commentPitchFields } from "@/lib/commentFit";
 import {
   GRADE_SCALE_NOTE,
   getSubstantiationNote,
@@ -159,7 +159,7 @@ export function narrativeIssues(req: CoachRequest): ValidationIssue[] {
     promotion_recommendation: "",
     retention: "",
     status: "draft",
-    block_values: { comment_pitch: req.pitch },
+    block_values: commentPitchFields(req.pitch),
   } as Evaluation;
   const result = runFullValidation(stub);
   return [...result.errors, ...result.warnings].filter(

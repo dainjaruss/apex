@@ -14,6 +14,7 @@ import {
 } from "@/lib/formDefinitions";
 import { collapsePfa, emptyBragSheetData } from "@/lib/bragSheet/template";
 import { BRAG_SHEET_VERSION } from "@/lib/bragSheet/types";
+import { commentPitchFields } from "@/lib/commentFit";
 import type { AutofillResponse, BragSheet } from "@/lib/bragSheet/types";
 import type { BragExtractSuggestions } from "@/lib/bragSheet/extract";
 
@@ -206,7 +207,7 @@ export const applyBragDraft = async (
     // copied (invariant §1.2 item 3). retention: seed handles per report type.
     block_values: {
       ...seed.block_values,
-      comment_pitch: pitch,
+      ...commentPitchFields(pitch),
       ...(a.date_reported ? { date_reported: a.date_reported } : {}),
       ...(accepted.primary_duty_abbrev
         ? { primary_duty_abbrev: accepted.primary_duty_abbrev }

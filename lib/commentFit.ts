@@ -2,8 +2,8 @@
 //
 // Text-fit measurement for the fixed-width (Courier) narrative blocks. A single wrap
 // algorithm backs the on-screen measuring canvas, the fit validation, and the PDF
-// renderer so all three agree exactly (true WYSIWYG). Block 43 keeps its pitch toggle
-// (90/84 CPL); blocks 28/29/44 use the shared FIELD_FIT config below.
+// renderer so all three agree exactly (true WYSIWYG). Block 43 keeps its pitch toggle;
+// blocks 28/29/44 use the shared FIELD_FIT config below.
 
 export interface CommentFitResult {
   fit: boolean;
@@ -115,6 +115,110 @@ export function measureTextFit(
 }
 
 /**
+ * The two comment-block settings the forms permit, and what each one physically IS.
+ *
+ * SOURCE, in the precedence this repo uses. The blank forms in public/ outrank
+ * everything, and two of the three print the rule inside the comment block itself:
+ *
+ *   NAVPERS 1616/26 (EVAL) Block 43 and NAVPERS 1610/2 (FITREP) Block 41, verbatim:
+ *     "Font must be 10 or 12 pitch (10 or 12 point) only. Use upper and lower case."
+ *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 prints NO typography sentence at all.
+ *
+ *   BUPERSINST 1610.10H (30 Jul 2025, w/ CH-1 and CH-2), para 13-2.a(1), page 13-1:
+ *     "NAVFIT98A reports with 10- or 12-pitch will still be accepted."
+ *   That is the ONLY occurrence of "pitch" in all 174 pages. The instruction names no
+ *   font family, no point size, and never defines pitch or relates it to point — so the
+ *   equivalence below is NOT a Navy claim and must not be cited as one.
+ *
+ * PITCH IS CHARACTERS PER INCH; POINT IS GLYPH HEIGHT. For a fixed-pitch font they are
+ * inversely related, so the form's parenthetical "(10 or 12 point)" does NOT pair up in
+ * the order it reads. Measured off the font this repo actually embeds,
+ * public/fonts/CourierPrime-Regular.ttf — every printable ASCII glyph advances
+ * 1228/2048 em = 0.5996094 em, i.e. it is genuinely monospaced:
+ *
+ *     10 point -> advance 5.9961 pt -> 72/5.9961 = 12.008 CPI  =>  10 point IS 12 PITCH
+ *     12 point -> advance 7.1953 pt -> 72/7.1953 = 10.007 CPI  =>  12 point IS 10 PITCH
+ *
+ * (Nominal Courier is 0.6 em exactly, which would give 12.000 and 10.000; CourierPrime
+ * is 0.065% narrower. That is why the CPI figures are 12.008/10.007 and not round.)
+ *
+ * charsPerLine is DERIVED from the printed box, not chosen. All three comment blocks
+ * measure the SAME clear interior width — 547.200 pt — between their own printed
+ * vertical rules (each rule 0.72 pt; rasterised at 600 dpi off the blanks in public/,
+ * ink edges EVAL x[29.640, 576.840], CHIEFEVAL and FITREP x[31.680, 578.880]). Holding
+ * back this file's house inset of 2.5 pt at each edge leaves 542.2 pt of usable width:
+ *
+ *     10-pitch: floor(542.2 / 7.1953) = floor(75.36) = 75 chars
+ *     12-pitch: floor(542.2 / 5.9961) = floor(90.43) = 90 chars
+ *
+ * WHAT THIS REPLACES. APEX used to name a CPL target and solve for a font size:
+ * size = min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)) against cpl 90 or 84. Read back
+ * off real generated PDFs, that rendered 10.0166 pt / 11.988 CPI for the button labelled
+ * "10-Pitch" and 10.7278 pt / 11.193 CPI for the one labelled "12-Pitch" (9.9576 and
+ * 10.6647 pt on the CHIEFEVAL, whose narrative width differed again). So:
+ *   - "10-Pitch (90 CPL)" was really 12 pitch at ~10 point. Legal setting, INVERTED LABEL.
+ *   - "12-Pitch (84 CPL)" was 11.19 CPI and 10.73 point — neither legal value in EITHER
+ *     unit, i.e. a setting the printed form does not permit.
+ * Size is now the input, because size is what the instruction constrains; CPL falls out
+ * of the box. Do not reintroduce a CPL-target solver here.
+ */
+export const COMMENT_PITCH = {
+  /** 10 characters per inch = 12 point. Larger type, less of it. */
+  "10": { points: 12, charsPerLine: 75, label: "10-Pitch (12 pt · 75 CPL)" },
+  /** 12 characters per inch = 10 point. */
+  "12": { points: 10, charsPerLine: 90, label: "12-Pitch (10 pt · 90 CPL)" },
+} as const;
+
+export type CommentPitch = keyof typeof COMMENT_PITCH;
+
+/** Narrows the historic `"10" | "12" | 10 | 12` callers to a table key. */
+export const asCommentPitch = (
+  pitch: CommentPitch | 10 | 12 | string | number | undefined,
+): CommentPitch => (Number(pitch) === 10 ? "10" : "12");
+
+/**
+ * Stamp written beside `comment_pitch` by everything that SETS a pitch, so a stored
+ * value can be told apart from one written before the meaning of "10" was corrected.
+ *
+ * WHY A DRAFT NEEDS THIS. The stored token did not change, but what it renders did:
+ * "10" used to mean 90 CPL over 17/8/19 lines and now means 75 CPL over 14/6/16. A
+ * draft saved under the old code and reopened under the new one would silently reflow —
+ * a full EVAL Block 43 (17 lines x 90 chars) needs 20+ lines at 75 CPL, and everything
+ * past line 14 would be dropped from the printed record.
+ *
+ * resolveCommentPitch() therefore reads any UNSTAMPED draft as 12-pitch, whatever token
+ * it carries. That is the safe answer for both legacy values, not a guess:
+ *   - legacy "10" rendered 90 CPL x 17/8/19 at 10.0166 pt; 12-pitch is 90 CPL x 17/8/19
+ *     at exactly 10 pt. The rendering is IDENTICAL to within 0.017 pt. Nothing reflows.
+ *   - legacy "12" rendered 84 CPL x 15/7/18. 12-pitch is strictly ROOMIER on both axes,
+ *     so text that fit before still fits; the line count can only fall.
+ * Neither legacy draft can overflow its box as a result of this change. What a legacy
+ * "12" draft does lose is a setting that was never legal to print in the first place.
+ */
+export const COMMENT_PITCH_V = 2;
+
+/**
+ * The block_values keys that record a pitch choice. Spread this rather than assigning
+ * `comment_pitch` alone — an unstamped write is indistinguishable from a legacy draft
+ * and will read back as 12-pitch no matter what the caller asked for.
+ */
+export const commentPitchFields = (pitch: CommentPitch) => ({
+  comment_pitch: pitch,
+  comment_pitch_v: COMMENT_PITCH_V,
+});
+
+/** The pitch a stored draft actually prints at. See COMMENT_PITCH_V for the legacy rule. */
+export function resolveCommentPitch(
+  blockValues:
+    | { comment_pitch?: string; comment_pitch_v?: number }
+    | null
+    | undefined,
+): CommentPitch {
+  if (blockValues?.comment_pitch_v !== COMMENT_PITCH_V) return "12";
+  return asCommentPitch(blockValues.comment_pitch);
+}
+
+/**
  * Comment-block capacity in PRINTED LINES, per report type and Courier pitch.
  *
  * This was a single hardcoded 18 for every form. 18 came from NAVPERS 1616/26 and was
@@ -142,30 +246,38 @@ export function measureTextFit(
  * ink is the parentheses in "(10 or 12 point)", which hang below the metric descender,
  * and 'y'/'g'/'j' hang 0.017 em below the value that revision assumed.
  *
+ * Capacity now falls out of a FIXED point size (COMMENT_PITCH above) rather than a size
+ * solved from a CPL target, so every number below moved when the pitch labels were
+ * corrected. With leading = 1.18 x size, the deepest legal first baseline for N lines is
+ * boxFloor + 0.20022*size + (N-1)*leading, and the highest is headerFloor - 0.69092*size;
+ * N is the largest count for which those two still admit a baseline.
+ *
  *   NAVPERS 1616/26 (EVAL) Block 43 — clear interior y[253.44, 468.12], header ink
  *     floor 451.92. The two pitches render at different sizes and their legal
  *     first-baseline windows DO NOT INTERSECT, so pdfOverlay carries one baseline each:
- *     10-pitch window [444.558, 445.000] -> 444.8 (constant 458.8), 17 lines,
- *       clearing the header by 0.20 and the floor by 0.24.
- *     12-pitch window [432.811, 444.508] -> 444.0 (constant 458.0), 15 lines,
- *       clearing the header by 0.51 with ~11 pt of floor slack.
- *     An 18th 10-pitch line would need a baseline of 456.4 and a 16th 12-pitch line
- *     445.5; both are above their own header ceiling, so neither exists at any legal
- *     baseline. A single shared 444.5 inked line 17 to 253.382 against the rule at
- *     253.44 — negative, though nothing was clipped or lost.
+ *     12-pitch (10 pt, leading 11.80): window [444.242, 445.011] -> 444.63
+ *       (constant 458.63), 17 lines. Line 18 would need 456.042, above the header.
+ *     10-pitch (12 pt, leading 14.16): window [439.923, 443.629] -> 441.78
+ *       (constant 455.78), 14 lines. Line 15 would need 454.083, above the header.
  *
  *   NAVPERS 1616/27 (CHIEFEVAL) Block 40 — clear interior y[277.56, 380.64], header ink
- *     floor 371.52, first baseline 363.0 (chiefEvalOverlay b40_topBaseline, from #34).
- *     10-pitch window [361.804, 364.640], 8 lines; 12-pitch [355.201, 364.152], 7 lines.
- *     A 9th line would need 373.6, well above the header. Comfortable on both pitches,
- *     so one baseline serves both. Independently reproduces the 8 / 7 measured on #34.
+ *     floor 371.52. 12-pitch window [362.162, 364.611], 8 lines; 10-pitch
+ *     [350.763, 363.229], 6 lines. They overlap on [362.162, 363.229], so one baseline
+ *     still serves both: 362.70 (chiefEvalOverlay b40_topBaseline). A 9th 12-pitch line
+ *     would need 373.962 and a 7th 10-pitch line 364.923, both above the header.
  *
  *   NAVPERS 1610/2 (FITREP) Block 41 — clear interior y[226.44, 469.20], header ink
- *     floor 451.44, first baseline 443.9 (the old 462.0 printed line 1 straight through
- *     that header).
- *     10-pitch window [441.197, 444.520], 19 lines. 12-pitch [443.788, 444.028] — only
- *     0.241 pt wide, the binding case — 18 lines, and 443.9 is its midpoint, clearing
- *     the header by 0.13 and the floor by 0.11.
+ *     floor 451.44. 12-pitch window [440.842, 444.531], 19 lines; 10-pitch
+ *     [441.243, 443.149], 16 lines. Overlap [441.243, 443.149] -> 442.20, one baseline
+ *     for both. Line 20 at 12-pitch would need 452.642, line 17 at 10-pitch 455.403.
+ *     The old 443.9 is ABOVE the 10-pitch window and had to move. Note this change
+ *     RELIEVES the binding case #36 documented: at a solved 10.7278 pt the legal window
+ *     here was 0.241 pt wide, and at a fixed 10 pt it is 3.689 pt.
+ *
+ * The 12-pitch column is numerically unchanged from the "10" column #36 measured (17/8/19)
+ * because #36's "10-pitch" was already rendering 11.99-12.06 CPI — 12 pitch, mislabelled.
+ * The old "12" column (15/7/18, at 10.7278 pt) described a setting the forms do not permit
+ * and has no successor; 14/6/16 is the TRUE 10-pitch capacity, which had never been built.
  *
  * Margins this fine are real, not rounding — and they are also stable. An earlier
  * revision claimed poppler and Ghostscript disagreed by 0.12 pt on the tight cases and
@@ -187,11 +299,16 @@ export function measureTextFit(
  * tests/unit/commentCapacity.test.ts renders real PDFs off these blanks and asserts every
  * line lands inside the measured box, so the renderer and this table cannot drift apart
  * without that test going red.
+ *
+ * ponytail: leading stays at APEX's existing 1.18 x size. BUPERSINST 1610.10H prescribes
+ * no line spacing — "pitch" is its only typography word (13-2.a(1)) — so there is nothing
+ * to calibrate against and tightening it would be an unsourced second change. If a source
+ * for 6 lines/inch ever turns up, leading becomes 12.0 pt flat and every N below rises.
  */
-const COMMENT_CAPACITY: Record<string, { "10": number; "12": number }> = {
-  EVAL: { "10": 17, "12": 15 }, // 1616/26 Block 43
-  CHIEFEVAL: { "10": 8, "12": 7 }, // 1616/27 Block 40
-  FITREP: { "10": 19, "12": 18 }, // 1610/2  Block 41
+const COMMENT_CAPACITY: Record<string, Record<CommentPitch, number>> = {
+  EVAL: { "10": 14, "12": 17 }, // 1616/26 Block 43
+  CHIEFEVAL: { "10": 6, "12": 8 }, // 1616/27 Block 40
+  FITREP: { "10": 16, "12": 19 }, // 1610/2  Block 41
 };
 
 /**
@@ -208,15 +325,15 @@ const COMMENT_CAPACITY: Record<string, { "10": number; "12": number }> = {
  */
 export function getCommentCapacity(
   reportType: string | undefined,
-  pitch: "10" | "12" | 10 | 12,
+  pitch: CommentPitch | 10 | 12,
 ): number {
   const form = COMMENT_CAPACITY[reportType ?? ""] ?? COMMENT_CAPACITY.EVAL;
-  return Number(pitch) === 10 ? form["10"] : form["12"];
+  return form[asCommentPitch(pitch)];
 }
 
 /**
  * Checks whether the given text fits the comment block of `reportType` at the selected
- * Courier pitch (10-pitch = 90 CPL, 12-pitch = 84 CPL).
+ * pitch (10-pitch = 12 pt = 75 CPL, 12-pitch = 10 pt = 90 CPL — see COMMENT_PITCH).
  *
  * `reportType` is REQUIRED on purpose. It used to be absent and every caller silently got
  * the EVAL's line count; making it a parameter the compiler demands is what proves no
@@ -224,14 +341,14 @@ export function getCommentCapacity(
  */
 export function checkCommentFit(
   text: string,
-  pitch: "10" | "12" | 10 | 12,
+  pitch: CommentPitch | 10 | 12,
   reportType: string | undefined,
 ): CommentFitResult {
-  const charsPerLine = Number(pitch) === 10 ? 90 : 84;
+  const p = asCommentPitch(pitch);
   return measureTextFit(
     text,
-    charsPerLine,
-    getCommentCapacity(reportType, pitch),
+    COMMENT_PITCH[p].charsPerLine,
+    getCommentCapacity(reportType, p),
   );
 }
 

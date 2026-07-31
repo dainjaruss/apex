@@ -29,7 +29,9 @@ const fail = (error: string, status: number) =>
 
 const BodySchema = z.object({
   bragSheetId: z.string().uuid(),
-  pitch: z.enum(["10", "12"]).default("10"),
+  // 12-pitch is the roomier of the two legal settings and what an unset draft renders
+  // (resolveCommentPitch), so it is the default here too. See lib/commentFit.ts.
+  pitch: z.enum(["10", "12"]).default("12"),
 });
 
 // AI-calling route: same in-process cap as board-confidence analyze (its lines 21-27).
