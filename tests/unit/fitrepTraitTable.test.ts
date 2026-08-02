@@ -17,9 +17,17 @@ import { ReportBanner } from "../../components/report/ReportChrome";
 import {
   PDFDocument,
   PDFArray,
+  PDFDict,
+  PDFName,
   PDFRawStream,
   decodePDFRawStream,
 } from "pdf-lib";
+import {
+  FITREP_TRAIT_STANDARDS,
+  ANCHOR_GRADES,
+  getTraitStandard,
+} from "../../lib/traitStandards";
+import { coachPayload } from "../../lib/evalCoach/coach";
 import { FITREP_TRAIT_KEYS, FitrepSchema } from "../../types/navpers";
 import { NAVFIT_TRAIT_MAP } from "../../lib/navfit98/constants";
 import { computeTraitAverage } from "../../lib/traitAverage";
@@ -290,5 +298,258 @@ describe("NAVPERS 1610/2 overlay geometry", () => {
           `marks were ${JSON.stringify(marks[page])}`,
       ).toBe(1);
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trait DESCRIPTORS, read out of the blank form itself.
+//
+// The block numbers above were already right while the prose under them was the
+// EVAL's: the flat TRAIT_STANDARDS_LOOKUP merge resolved six of the seven officer
+// keys to the 1616/26 table, so "Command or Organizational Climate (34)" printed
+// above the EVAL's Block 35 anchors and Block 33 offered "advancement/PQS
+// requirements" to an officer whose form grades qualifications.
+//
+// So these tests do not compare APEX to a hand-typed copy of the form — a copy is
+// just the same transcription twice, and it passes whatever the transcription got
+// wrong. They read the descriptor text out of public/fitrepBlank.pdf at run time
+// and require APEX's strings to be IN it. Retyping a bullet from memory, or
+// re-merging the EVAL table, fails.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The blank's text layer. Its glyphs are CID-encoded against a subset font, so the
+ * codes are decoded through the PDF's own /ToUnicode CMaps rather than read as
+ * latin1 (which yields mojibake — see the overlay readers above, which decode
+ * pdf-lib's OUTPUT and need the shipped TTF instead).
+ */
+function blankFormText(file: string): Promise<string> {
+  const bytes = new Uint8Array(
+    fs.readFileSync(path.join(process.cwd(), "public", file)),
+  );
+  return PDFDocument.load(bytes).then((doc) => {
+    const ctx = doc.context;
+    const cmap = new Map<string, string>();
+    for (const [, obj] of ctx.enumerateIndirectObjects()) {
+      if (!(obj instanceof PDFDict)) continue;
+      const tu = obj.get(PDFName.of("ToUnicode"));
+      if (!tu) continue;
+      const s = ctx.lookup(tu);
+      if (!(s instanceof PDFRawStream)) continue;
+      const t = Buffer.from(decodePDFRawStream(s).decode()).toString("latin1");
+      for (const m of Array.from(
+        t.matchAll(/<([0-9A-Fa-f]{4})>\s*<([0-9A-Fa-f]{4,})>/g),
+      )) {
+        cmap.set(
+          m[1].toUpperCase(),
+          String.fromCharCode(parseInt(m[2].slice(0, 4), 16)),
+        );
+      }
+    }
+    const decodeHex = (hex: string) => {
+      let out = "";
+      for (let i = 0; i + 4 <= hex.length; i += 4)
+        out += cmap.get(hex.slice(i, i + 4).toUpperCase()) ?? "";
+      return out;
+    };
+
+    let text = "";
+    for (const page of doc.getPages()) {
+      const contents = page.node.Contents();
+      const streams =
+        contents instanceof PDFArray
+          ? contents.asArray().map((r) => page.node.context.lookup(r))
+          : [contents];
+      let raw = "";
+      for (const s of streams)
+        if (s instanceof PDFRawStream)
+          raw += Buffer.from(decodePDFRawStream(s).decode()).toString("latin1");
+
+      // `[ <hex> kern <hex> … ] TJ` and `<hex> Tj`. Ordinary letter-fit kerns in
+      // this file are under 40; the cell gaps the form uses instead of a space
+      // glyph are ~250. Anything past 100 is a gap, so it becomes a space.
+      for (const m of Array.from(
+        raw.matchAll(/\[([^\]]*)\]\s*TJ|<([0-9A-Fa-f]+)>\s*Tj/g),
+      )) {
+        if (m[2] !== undefined) {
+          text += " " + decodeHex(m[2]);
+          continue;
+        }
+        for (const t of Array.from(m[1].matchAll(/<([0-9A-Fa-f]+)>|(-?[\d.]+)/g)))
+          text +=
+            t[1] !== undefined
+              ? decodeHex(t[1])
+              : Math.abs(Number(t[2])) > 100
+                ? " "
+                : "";
+        text += " ";
+      }
+    }
+    return text;
+  });
+}
+
+// Whitespace-and-case insensitive containment. The form wraps mid-phrase and even
+// mid-token ("command/" / "organizational climate"), and prints trait names in
+// caps, so comparing raw would fail on layout rather than on content. Every
+// character and its order still has to match.
+const squash = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+
+describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", () => {
+  it("prints every title and sub-caption APEX shows the officer", async () => {
+    const form = squash(await blankFormText("fitrepBlank.pdf"));
+    // Sanity: the decoder produced the form, not an empty string that would make
+    // every containment check below pass for free.
+    expect(form).toContain(squash("NAVPERS 1610/2 (REV 05-2025)"));
+    expect(form.length).toBeGreaterThan(5000);
+
+    for (const [key, std] of Object.entries(FITREP_TRAIT_STANDARDS)) {
+      for (const claim of [std.title, std.definition]) {
+        expect(
+          form.includes(squash(claim)),
+          `Block ${std.block} (${key}): "${claim}" is not printed on NAVPERS 1610/2`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("reproduces each anchor column WHOLE, in the form's own order", async () => {
+    // Not per-bullet containment: a bullet cut short is still "contained" in the
+    // form, and a truncation mutant passed that check. The blank prints a column's
+    // bullets consecutively, dash-separated, so assert the whole joined column.
+    // That fails on a dropped bullet, a truncated one, a reordered pair, and on
+    // any word that is not on the page — one assertion instead of ninety-five.
+    const form = squash(await blankFormText("fitrepBlank.pdf"));
+    let columns = 0;
+    for (const [key, std] of Object.entries(FITREP_TRAIT_STANDARDS)) {
+      for (const grade of ANCHOR_GRADES) {
+        const column = "-" + std.anchors[grade].join("-");
+        expect(
+          form.includes(squash(column)),
+          `Block ${std.block} (${key}) ${grade} column is not printed on NAVPERS ` +
+            `1610/2 as APEX has it:\n  ${std.anchors[grade].join("\n  ")}`,
+        ).toBe(true);
+        columns++;
+      }
+    }
+    expect(columns).toBe(21); // seven traits × 1.0 / 3.0 / 5.0
+  });
+
+  it("never hands an officer a phrase that only 1616/26 prints", async () => {
+    // Each of these is EVAL prose the officer was shown under a 1610/2 heading.
+    // They are absent from the officer blank — asserted, not assumed.
+    const EVAL_ONLY = [
+      "Marginal knowledge of rating, specialty or job",
+      "Fails to meet advancement/PQS requirements",
+      "Meets advancement/PQS requirements on time",
+      "Poor self-control; conduct resulting in disciplinary action",
+      "Model of conduct, on and off duty",
+      "Needs prodding to attain qualification or finish job",
+      "Avoids responsibility",
+      "Seeks extra responsibility and takes on the hardest jobs",
+      "Needs excessive supervision", // Quality of Work — no such trait on 1610/2
+    ];
+    const form = squash(await blankFormText("fitrepBlank.pdf"));
+    const officer = squash(JSON.stringify(FITREP_TRAIT_STANDARDS));
+    for (const phrase of EVAL_ONLY) {
+      expect(form, `1610/2 does print "${phrase}"`).not.toContain(squash(phrase));
+      expect(
+        officer,
+        `the officer trait table still serves EVAL prose: "${phrase}"`,
+      ).not.toContain(squash(phrase));
+    }
+  });
+
+  it("answers per form — no key borrows another form's entry", () => {
+    // `work` (Quality of Work) is 1616/26 Block 34 and prints nowhere on 1610/2;
+    // `tactical_performance` is 1610/2 Block 39 and prints on neither enlisted form.
+    // A form that does not print a trait must answer undefined, so callers skip it
+    // explicitly instead of receiving a plausible-looking wrong standard.
+    expect(getTraitStandard("FITREP", "work")).toBeUndefined();
+    expect(getTraitStandard("EVAL", "tactical_performance")).toBeUndefined();
+    expect(getTraitStandard("CHIEFEVAL", "tactical_performance")).toBeUndefined();
+    expect(getTraitStandard("FITREP", "professionalism")).toBeUndefined();
+
+    // …and the seven keys the officer form DOES print resolve to officer prose.
+    expect(getTraitStandard("FITREP", "knowledge")?.title).toBe(
+      "Professional Expertise",
+    );
+    expect(getTraitStandard("EVAL", "knowledge")?.title).toBe(
+      "Professional Knowledge",
+    );
+    expect(getTraitStandard("FITREP", "eo")?.block).toBe(34);
+    expect(getTraitStandard("EVAL", "eo")?.block).toBe(35);
+  });
+
+  it("shows the officer 1610/2 prose on screen, not 1616/26 prose", () => {
+    render(
+      React.createElement(Block33to39Traits, {
+        evalData: {
+          report_type: "FITREP",
+          trait_grades: { knowledge: "1.0", bearing: "5.0" },
+        } as unknown as Evaluation,
+        onChange: () => {},
+        issues: [],
+      }),
+    );
+
+    // Block 33 at 1.0 and Block 35 at 5.0, as 1610/2 prints them…
+    expect(
+      screen.getByText("Lacks basic professional knowledge to perform effectively"),
+    ).toBeTruthy();
+    expect(screen.getByText("Exemplary Navy representative")).toBeTruthy();
+    // …and not as 1616/26 prints the traits it numbers 33 and 36.
+    expect(screen.queryByText(/Marginal knowledge of rating/)).toBeNull();
+    expect(screen.queryByText(/Model of conduct, on and off duty/)).toBeNull();
+  });
+
+  it("keeps descriptors and headings on the same form when only the form id says FITREP", () => {
+    // A draft identified by form_definition_id alone used to take its trait
+    // HEADINGS from that id and its descriptor prose from an undefined report
+    // type — officer headings, enlisted anchors, on the same row.
+    render(
+      React.createElement(Block33to39Traits, {
+        evalData: {
+          form_definition_id: "FITREP-1610-2",
+          trait_grades: { knowledge: "1.0" },
+        } as unknown as Evaluation,
+        onChange: () => {},
+        issues: [],
+      }),
+    );
+    expect(screen.getByText(/Professional Expertise \(33\)/)).toBeTruthy();
+    expect(
+      screen.getByText("Lacks basic professional knowledge to perform effectively"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Marginal knowledge of rating/)).toBeNull();
+  });
+
+  it("coaches an officer against the officer form's anchors", async () => {
+    // The AI coach reads the same table. A live FITREP run was measured judging an
+    // officer's narrative against 1616/26 anchors before this; the payload is what
+    // carries them, so pin the payload.
+    const p = coachPayload({
+      report_type: "FITREP",
+      pitch: "10",
+      comments: "QUALIFIED EARLY AND LED THE WATCH TEAM.",
+      trait_grades: { knowledge: "5.0", eo: "3.0" },
+    });
+
+    const knowledge = p.traits.find((t) => t.key === "knowledge");
+    expect(knowledge?.block).toBe(33);
+    expect(knowledge?.title).toBe("Professional Expertise");
+    expect(knowledge?.anchors?.["5.0"]).toContain(
+      "Achieves early/highly advanced qualifications",
+    );
+
+    // Every anchor the model is handed is printed on the officer's own form, and
+    // no trait reaches it with an empty yardstick.
+    const form = squash(await blankFormText("fitrepBlank.pdf"));
+    for (const t of p.traits) {
+      const bullets = ANCHOR_GRADES.flatMap((g) => t.anchors?.[g] ?? []);
+      expect(bullets.length, `${t.key} reached the model with no anchors`).toBeGreaterThan(0);
+      for (const b of bullets)
+        expect(form, `coach fed "${b}" — not on NAVPERS 1610/2`).toContain(squash(b));
+    }
   });
 });

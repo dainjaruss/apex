@@ -17,7 +17,7 @@ import { BOARD_DISCLAIMER } from "@/lib/boardConfidence/types";
 import {
   CHIEFEVAL_TRAIT_STANDARDS,
   CHIEFEVAL_TRAIT_ORDER,
-  TRAIT_STANDARDS_LOOKUP,
+  getTraitStandard,
 } from "@/lib/traitStandards";
 import {
   CHIEFEVAL_TRAIT_KEYS,
@@ -133,14 +133,18 @@ describe("CHIEFEVAL_TRAIT_STANDARDS — NAVPERS 1616/27 (navy-reference §3.1)",
     expect(CHIEFEVAL_TRAIT_STANDARDS.accountability.title).toBe("Accountability");
   });
 
-  it("no longer shadows the EVAL Teamwork/Leadership rows in the shared lookup", () => {
+  it("no longer shadows the EVAL Teamwork/Leadership rows", () => {
     // Old table stopped at five entries, so CHIEFEVAL blocks 38/39 fell through to
-    // the 1616/26 EVAL rows. Those keys must now resolve to the EVAL blocks only.
-    expect(TRAIT_STANDARDS_LOOKUP.teamwork.block).toBe(38);
-    expect(TRAIT_STANDARDS_LOOKUP.teamwork.title).toBe("Teamwork");
-    expect(TRAIT_STANDARDS_LOOKUP.leadership.block).toBe(39);
-    expect(TRAIT_STANDARDS_LOOKUP.deckplate_leadership.block).toBe(38);
-    expect(TRAIT_STANDARDS_LOOKUP.professionalism.block).toBe(35);
+    // the 1616/26 EVAL rows. Resolution is per form now, so the EVAL keys must
+    // answer with EVAL blocks and the CHIEFEVAL keys with CHIEFEVAL blocks — and
+    // neither form may answer for the other's keys at all.
+    expect(getTraitStandard("EVAL", "teamwork")?.block).toBe(38);
+    expect(getTraitStandard("EVAL", "teamwork")?.title).toBe("Teamwork");
+    expect(getTraitStandard("EVAL", "leadership")?.block).toBe(39);
+    expect(getTraitStandard("CHIEFEVAL", "deckplate_leadership")?.block).toBe(38);
+    expect(getTraitStandard("CHIEFEVAL", "professionalism")?.block).toBe(35);
+    expect(getTraitStandard("CHIEFEVAL", "teamwork")).toBeUndefined();
+    expect(getTraitStandard("EVAL", "deckplate_leadership")).toBeUndefined();
   });
 });
 

@@ -46,6 +46,15 @@ export default function Block33to39Traits({
     [evalData.report_type, evalData.form_definition_id],
   );
 
+  // The form the trait list below is built for. Passing the raw `report_type`
+  // instead would split the row in half on a draft identified only by
+  // form_definition_id: officer headings from `isFitrep`, EVAL descriptor prose and
+  // EVAL block numbers from an undefined report type. One resolved value, one form.
+  const formType = useMemo(
+    () => (isChiefEval ? "CHIEFEVAL" : isFitrep ? "FITREP" : "EVAL"),
+    [isFitrep, isChiefEval],
+  );
+
   const traitList = useMemo(() => {
     if (isChiefEval) {
       // NAVPERS 1616/27 (REV 05-2025), Blocks 33–39 as printed on
@@ -206,7 +215,7 @@ export default function Block33to39Traits({
             onChange={handleTraitChange}
             gradeValues={GRADE_VALUES}
             onFocus={() => onFocusField?.(`trait_grades.${key}`)}
-            reportType={evalData.report_type}
+            reportType={formType}
           />
         ))}
       </div>

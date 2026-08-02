@@ -1,12 +1,11 @@
 import React from "react";
 import {
-  TRAIT_STANDARDS_LOOKUP,
+  getTraitStandard,
   TRAIT_GRADE_LABELS,
   GRADE_SCALE_NOTE,
   ANCHOR_GRADES,
   getSubstantiationNote,
   getCommentsBlock,
-  TraitKey,
   AnchorGrade,
 } from "@/lib/traitStandards";
 
@@ -21,11 +20,16 @@ export default function TraitStandardPanel({
   grade,
   reportType,
 }: {
-  traitKey: TraitKey;
+  // Not TraitKey: that union is the EVAL's seven keys, and the officer form's
+  // `tactical_performance` is not among them. Callers were casting past it.
+  traitKey: string;
   grade: string;
   reportType?: string;
 }) {
-  const std = TRAIT_STANDARDS_LOOKUP[traitKey];
+  // Per form. The merged lookup this replaced showed 1616/26 prose under 1610/2
+  // headings for six of the seven officer traits.
+  const std = getTraitStandard(reportType, traitKey);
+  // This form prints no such trait — show nothing rather than another form's prose.
   if (!std) return null;
 
   // NAVPERS 1616/27 (CHIEFEVAL) prints one bullet list per trait and no 1.0/3.0/5.0
