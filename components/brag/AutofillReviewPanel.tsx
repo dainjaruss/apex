@@ -194,6 +194,38 @@ function CitationChips({
   );
 }
 
+/** Ghost rows for content the citation gate deleted (§7 step 2). Used by every
+ *  card that can lose content — narrative blocks, Block 41, and the advisory —
+ *  because a gate that drops content without saying so on screen reads to the
+ *  Sailor as a clean generation. `bad_sources` lists only the paths that FAILED,
+ *  so a partially-cited item does not send its author chasing a good citation. */
+function RemovedItems({
+  failures,
+}: {
+  failures: AutofillResponse["citation_failures"];
+}) {
+  return (
+    <>
+      {failures.map((f, i) => (
+        <p
+          key={i}
+          className="text-xs line-through"
+          style={{ color: "var(--subtle)" }}
+        >
+          {f.text}{" "}
+          <span className="no-underline not-italic">
+            — removed — citation did not resolve (
+            {f.bad_sources.length
+              ? f.bad_sources.join(", ")
+              : "no sources cited"}
+            )
+          </span>
+        </p>
+      ))}
+    </>
+  );
+}
+
 function StatusBadge({ status }: { status: BlockState["status"] }) {
   if (status === "accepted")
     return <span className="apex-badge-emerald px-2 py-0.5 text-[10px]">Accepted</span>;
@@ -367,6 +399,7 @@ export default function AutofillReviewPanel({
     result.citation_failures.filter((f) => f.block === key);
 
   const advisory = result.promotion_advisory;
+  const advisoryFailures = failuresFor("promotion_advisory");
 
   return (
     <section className="space-y-4" aria-label="Generated draft review">
@@ -503,18 +536,7 @@ export default function AutofillReviewPanel({
 
             <CitationChips block={gen} data={data} onGoToSource={onGoToSource} />
 
-            {failuresFor(key).map((f, i) => (
-              <p
-                key={i}
-                className="text-xs line-through"
-                style={{ color: "var(--subtle)" }}
-              >
-                {f.text}{" "}
-                <span className="no-underline not-italic">
-                  — removed — citation did not resolve ({f.bad_sources.join(", ")})
-                </span>
-              </p>
-            ))}
+            <RemovedItems failures={failuresFor(key)} />
 
             <div className="flex gap-2">
               <button
@@ -604,6 +626,7 @@ export default function AutofillReviewPanel({
           data={data}
           onGoToSource={onGoToSource}
         />
+        <RemovedItems failures={failuresFor("career_recommendations")} />
         <div className="flex gap-2">
           <button
             type="button"
@@ -712,13 +735,19 @@ export default function AutofillReviewPanel({
           <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
             ADVISORY ONLY — not written to the form
           </h3>
+          {/* A withheld advisory shows NO recommendation. The badge is the
+              loudest thing on this card; leaving "Early Promote" beside a
+              rationale that says the evidence did not survive keeps the
+              conclusion whose evidence was just deleted — the same laundering
+              the item gate exists to stop, one level up (§7 step 2). */}
           <span className="apex-badge-amber px-2.5 py-1 text-[11px]">
-            {advisory.recommendation}
+            {advisoryFailures.length > 0 ? "Withheld" : advisory.recommendation}
           </span>
         </div>
         <p className="text-xs leading-relaxed" style={{ color: "var(--foreground)" }}>
           {advisory.rationale}
         </p>
+        <RemovedItems failures={advisoryFailures} />
         <div className="flex flex-wrap gap-1.5">
           {advisory.sources.map((src) => (
             <button

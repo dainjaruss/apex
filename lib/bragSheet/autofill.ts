@@ -21,6 +21,7 @@ import type {
   BlockFitReport,
   BragSheetData,
   GeneratedItem,
+  LadrMilestoneStatus,
   PriorEvalSummary,
 } from "@/lib/bragSheet/types";
 import {
@@ -403,24 +404,87 @@ const PRIOR_EVAL_FIELDS: readonly string[] = [
   "trait_average",
 ];
 
+/** Fields of a LadrMilestoneStatus a `ladr[<n>].<field>` citation may name.
+ *  Whitelisted for the same reason PRIOR_EVAL_FIELDS is: a fixed list can never
+ *  walk into `constructor` or `__proto__`. */
+const LADR_FIELDS: readonly string[] = [
+  "milestone_id",
+  "category",
+  "item",
+  "status",
+];
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
   const proto = Object.getPrototypeOf(v);
   return proto === Object.prototype || proto === null;
 }
 
-/** v1.1 review fix — a resolved brag leaf is evidence ONLY when it is a
- *  non-empty string, a non-empty array, or a plain object with at least one
- *  non-empty own string field. Numbers, booleans, functions, null, undefined,
- *  and everything else REJECT (an inherited method or an array's length can
- *  never substantiate a claim). */
+/** A resolved payload leaf is evidence when it is TRUTHY and either scalar or
+ *  populated: a non-blank string, a non-zero finite number, boolean `true`, a
+ *  non-empty array, or a plain object with ≥1 non-blank own string field.
+ *  Everything else rejects.
+ *
+ *  v1.1 rejected ALL numbers and booleans, reasoning that "an inherited method
+ *  or an array's length can never substantiate a claim". Both of those examples
+ *  are already rejected one level up, by the own-enumerable walk in
+ *  `resolveCitation`: `brag.duties.length` dies because an array is not a plain
+ *  object and takes index segments only, and `brag.constructor` /
+ *  `brag.__proto__` / `brag.admin.hasOwnProperty` die because they are not
+ *  own-enumerable. (The hostile-path suite proves this — it passes unchanged
+ *  under this rule.) So the number/boolean rejection was doing no
+ *  anti-fabrication work at all; it was only refusing the Sailor's own scalar
+ *  entries: `leadership.supervised_military: 22`, `duties[n].months_assigned`,
+ *  `education[n].credit_hours`, `duties[n].is_most_significant`.
+ *
+ *  That was survivable while the source gate was `some()` — the model always
+ *  pairs the count with a title or bullet, and the string carried the item. It
+ *  is not survivable under `every()`. Measured live (claude-opus-5, direct, 12
+ *  runs over 3 fixtures, 226 items): 75 of the 76 unresolvable citations were
+ *  CORRECT citations to real payload data the v1.1 rule refused — 58 numbers,
+ *  13 `true` booleans, 4 to `physical_readiness`. Exactly one was a fabrication
+ *  (the string "placeholder"). `every()` on top of the v1.1 rule deleted 59 of
+ *  226 items: Block 29A in 12 runs of 12, and all 28 Block 29B duty entries
+ *  ("COMBAT SYSTEMS OFFICER-12;" cites `duties[0].months_assigned`).
+ *
+ *  Falsy scalars still reject, for the reason "" always did: `emptyBragSheetData`
+ *  seeds `supervised_military: 0` and friends, so 0 is indistinguishable from a
+ *  field the Sailor never filled in, and `false` substantiates no positive
+ *  claim. This gate asks whether a path points at something real, never whether
+ *  the value AGREES with the sentence — that is a separate check the brag-sheet
+ *  pipeline has never made (cf. #39 for the board narrative).
+ *
+ *  The OBJECT branch takes the same correction, one review later. v1.1 accepted
+ *  a plain object only via a non-blank own STRING field, which made the rule
+ *  self-contradictory the moment scalars became evidence:
+ *      brag.leadership.supervised_military  → resolves (22)
+ *      brag.leadership                      → did NOT (no own string field)
+ *  The container of a fact was refused while the fact itself resolved, and
+ *  `brag.qualifications` (quals + education + awards, all populated) and
+ *  `brag.off_duty` (populated arrays) failed the same way. Recursing makes
+ *  "populated" mean the same thing at every depth. Empty containers still
+ *  reject — `counseling: {}`, and a `job` of all `""`/`[]` has no evidence
+ *  anywhere inside it. Recursion is bounded by the payload's own JSON depth;
+ *  arrays short-circuit on length and never recurse.
+ *
+ *  THE DIRECTION OF THIS TRADE, stated plainly: accepting scalars and populated
+ *  containers ENLARGES the claim-level hole. Under v1.1,
+ *      { text: "PERSONALLY SAVED THE NAVY $4.2M AND EARNED THE NAM",
+ *        sources: ["brag.duties[0].months_assigned"] }        // the number 12
+ *  was deleted; it now ships whole with `citation_failures: []`. v1.1 caught it
+ *  by accident and for the wrong reason — it was refusing the citation's TYPE,
+ *  not noticing that the sentence is about something else — and it paid for that
+ *  accident by refusing a quarter to two-fifths of all correct content once the
+ *  gate became `every()`. Whether a sentence is ABOUT what it cites is the
+ *  subject-vs-citation question #39 named for the board narrative and did not
+ *  solve either; no path-RESOLUTION rule can answer it, and nothing in this file
+ *  pretends to. */
 function isEvidenceLeaf(v: unknown): boolean {
   if (typeof v === "string") return v.trim().length > 0;
+  if (typeof v === "number") return Number.isFinite(v) && v !== 0;
+  if (typeof v === "boolean") return v;
   if (Array.isArray(v)) return v.length > 0;
-  if (isPlainObject(v))
-    return Object.values(v).some(
-      (f) => typeof f === "string" && f.trim().length > 0,
-    );
+  if (isPlainObject(v)) return Object.values(v).some(isEvidenceLeaf);
   return false;
 }
 
@@ -429,8 +493,18 @@ function isEvidenceLeaf(v: unknown): boolean {
  *  plain objects only; arrays accept index segments only, never names;
  *  brag.admin.dod_id never resolves; the leaf must satisfy isEvidenceLeaf),
  *  prior_evals[<period_to>](.field)? (field from the enumerated whitelist),
- *  and ladr.<category>[<milestone_id>]. Anything else: unresolvable. */
+ *  ladr[<n>](.field)?, and ladr.<category>[<milestone_id>] (or its dot
+ *  spelling), plus the payload's own physical_readiness root. Anything else:
+ *  unresolvable. */
 export function resolveCitation(path: string, req: AutofillRequest): boolean {
+  // The payload's own top-level Block 20 string (buildAutofillPayload →
+  // collapsePfa). The prompt hands it to the model as an input field and tells
+  // it to echo the value verbatim, so the model cites it — 4 times in the 12-run
+  // campaign — but the v1.1 grammar had no root for it and every such citation
+  // failed. A grammar that cannot express a path the prompt itself supplies is
+  // the same defect the board narrative had before #24's rewrite.
+  if (path === "physical_readiness") return collapsePfa(req.brag).length > 0;
+
   if (path.startsWith("brag.")) {
     // Stripped from the payload — a citation to it can never be evidence.
     if (path === "brag.admin.dod_id" || path.startsWith("brag.admin.dod_id."))
@@ -468,10 +542,39 @@ export function resolveCitation(path: string, req: AutofillRequest): boolean {
     return nonEmpty(summary[prior[2] as keyof PriorEvalSummary]);
   }
 
-  const ladr = /^ladr\.([^[\]]+)\[([^\]]+)\]$/.exec(path);
+  // `ladr[<n>](.<field>)?` — the array-index spelling. `req.ladr` really is an
+  // array in the payload, so this names a real milestone as unambiguously as the
+  // category form does, and it resolves nothing the category form could not. An
+  // independent 8-run campaign saw it in 2 runs (`ladr[0].status`,
+  // `ladr[2].status`) on items whose every other source resolved and whose claim
+  // was entirely true — a higher rate than the 1-in-12 dot spelling below, and
+  // the same class of loss. Status is NOT read as agreement: `ladr.<cat>[<id>]`
+  // has always resolved a `not_met` milestone too (see #39 for the
+  // does-the-source-agree question, which this gate has never asked).
+  const ladrIdx = /^ladr\[(\d+)\](?:\.([a-z_]+))?$/.exec(path);
+  if (ladrIdx) {
+    const milestone = req.ladr[Number(ladrIdx[1])];
+    if (!milestone) return false;
+    if (!ladrIdx[2]) return true;
+    if (!LADR_FIELDS.includes(ladrIdx[2])) return false;
+    return nonEmpty(milestone[ladrIdx[2] as keyof LadrMilestoneStatus]);
+  }
+
+  // `ladr.<category>[<milestone_id>]` is what the prompt documents;
+  // `ladr.<category>.<milestone_id>` is what the model actually emitted in 1 of
+  // the 12 post-fix live runs (`ladr.leadership.m-lpo`, 5 occurrences). Both
+  // name the same (category, milestone_id) pair against the same list, so the
+  // dot form cannot resolve anything the bracket form could not — it is a
+  // spelling, not a loosening. Accepted because under `every()` the alternative
+  // is deleting a correctly-sourced bullet (and that run's closing promotion
+  // line) over punctuation. NOT a licence to keep widening the grammar: no
+  // LadrCategory contains a dot, which is what keeps this split unambiguous,
+  // and the slip is still worth fixing prompt-side.
+  const ladr = /^ladr\.([^.[\]]+)(?:\[([^\]]+)\]|\.(.+))$/.exec(path);
   if (ladr) {
+    const milestoneId = ladr[2] ?? ladr[3];
     return req.ladr.some(
-      (s) => s.category === ladr[1] && s.milestone_id === ladr[2],
+      (s) => s.category === ladr[1] && s.milestone_id === milestoneId,
     );
   }
 
@@ -547,29 +650,71 @@ function validatePass(
   // text is REBUILT from the surviving items (the model-authored block.text is
   // never released and never applied), so uncited text cannot be laundered by
   // one resolvable sibling item. Fit checks (step 4) run on the rebuilt text.
+  //
+  // EVERY source must resolve, not merely one. The `some()` this replaced closed
+  // the CROSS-item hole and left the WITHIN-item one wide open, which is the same
+  // defect the board narrative had before #24:
+  //   { text: "LED 22 SAILORS AND EARNED THE NAM",
+  //     sources: ["brag.leadership.supervised_military", "awards.fabricated"] }
+  // was kept whole — one real path carried the invented one into released form
+  // text — and `bad_sources` stayed empty because it only populated when ALL
+  // sources failed, so nothing on screen said a citation had failed at all.
+  //
+  // The item is DELETED, not repaired. Dropping only the bad source would keep
+  // the sentence that the bad source was cited to support ("AND EARNED THE NAM")
+  // while erasing the only evidence it was unsupported — the record would then
+  // read as fully cited. Rewording is worse still: released text is derived from
+  // the model's items, never authored here (§7 step 2). Deletion is the
+  // recoverable failure — the panel shows the dropped text struck through with
+  // the paths that failed, so a Sailor who knows the claim is true can retype it;
+  // a laundered claim is indistinguishable from a grounded one.
+  //
+  // `bad_sources` now carries ONLY the paths that failed, not all of the item's
+  // sources: on a partial failure, listing the resolving path beside the bogus
+  // one tells the Sailor to go fix a citation that was never broken.
   const citation_failures: AutofillResponse["citation_failures"] = [];
+  const unresolved = (sources: string[]) =>
+    sources.filter((s) => !resolveCitation(s, req));
+
   for (const name of BLOCK_NAMES) {
     const block = out.blocks[name];
     if (!block) continue;
     const kept: GeneratedItem[] = [];
     for (const item of block.items) {
-      if (item.sources.some((s) => resolveCitation(s, req))) {
+      const bad = unresolved(item.sources);
+      // `every` on an empty array is vacuously true, so length is checked too —
+      // an item citing nothing is ungrounded by definition. GeneratedItemSchema's
+      // .min(1) makes it unreachable here; the check costs nothing and does not
+      // depend on that staying true.
+      if (bad.length === 0 && item.sources.length > 0) {
         kept.push(item);
       } else {
-        citation_failures.push({
-          block: name,
-          text: item.text,
-          bad_sources: item.sources,
-        });
+        citation_failures.push({ block: name, text: item.text, bad_sources: bad });
       }
     }
     block.items = kept;
     block.text = rebuildBlockText(name, kept);
   }
+
+  // The advisory is neutered rather than deleted (its shape is required by the
+  // schema), and — unlike GeneratedItem — its `sources` has no .min(1), so the
+  // empty case is genuinely reachable from the model and must still withhold.
+  // The withheld advisory also drops its source chips: the surviving good paths
+  // substantiate nothing now, and rendering the failed one as a provenance chip
+  // is how a "placeholder" citation reached the user. The failure is recorded in
+  // citation_failures so the panel can say what was withheld and why, instead of
+  // the Sailor inferring it from replaced prose.
   const advisory = out.promotion_advisory;
-  if (!advisory.sources.some((s) => resolveCitation(s, req))) {
+  const badAdvisory = unresolved(advisory.sources);
+  if (badAdvisory.length > 0 || advisory.sources.length === 0) {
+    citation_failures.push({
+      block: "promotion_advisory",
+      text: advisory.rationale,
+      bad_sources: badAdvisory,
+    });
     advisory.rationale =
       "No cited evidence survived validation — advisory withheld.";
+    advisory.sources = [];
   }
 
   // Step 3 — deterministic Block 20: the server value always wins.
@@ -592,6 +737,17 @@ function validatePass(
 
   // Step 4 — career recommendations: trim + upcase, then slot/length caps;
   // violations drop the offending entry with a Block 41 flag.
+  //
+  // KNOWN GAP, pre-existing and NOT closed here: `entries` is the only block
+  // whose applied value is not derived from `items`, so it never passes the
+  // citation gate above. `entries: ["NUCLEAR POWER"]` with no basis anywhere in
+  // the sheet survives intact while the `items` entry beside it is deleted for a
+  // bad citation. This PR's new Block 41 ghost rows make that card LOOK gated
+  // when its applied field is not — worth knowing before trusting the ghost rows
+  // there. Closing it means either deriving `entries` from surviving items (a
+  // §5.3 apply-path change) or gating each entry against
+  // brag.goals.career_recommendations / desired_duties; both are their own
+  // change with their own measurement.
   const rec = out.blocks.career_recommendations;
   const entries: string[] = [];
   for (const entry of rec.entries.map((e) => e.trim().toUpperCase())) {
