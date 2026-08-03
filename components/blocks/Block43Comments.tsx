@@ -227,6 +227,11 @@ function NarrativeCoach({
     };
   }, []);
 
+  // Its own component, its own `evalData` prop — the parent's resolved value is not
+  // in scope here. The route's z.enum rejects undefined, so a draft carrying only a
+  // form_definition_id used to 400 instead of being coached.
+  const reportType = resolveReportType(evalData);
+
   const run = async () => {
     setBusy(true);
     setError(null);

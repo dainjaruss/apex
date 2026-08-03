@@ -7,12 +7,13 @@
 // text layer (`pdftotext -layout public/fitrepBlank.pdf`) and the block-number/label
 // pairs are re-checkable in five seconds against that command's output.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import Block33to39Traits from "../../components/blocks/Block33to39Traits/Block33to39Traits";
+import Block43Comments from "../../components/blocks/Block43Comments";
 import { ReportBanner } from "../../components/report/ReportChrome";
 import {
   PDFDocument,
@@ -608,5 +609,58 @@ describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", ()
       for (const b of bullets)
         expect(form, `coach fed "${b}" — not on NAVPERS 1610/2`).toContain(squash(b));
     }
+  });
+});
+
+describe("the narrative coach asks about the officer's own form", () => {
+  // NarrativeCoach is a separate component from Block43Comments with its own
+  // `evalData` prop, so the parent's resolved report type is not in scope there —
+  // a fact that first surfaced as a compile error, which means nothing was pinning
+  // what this call site actually sends. The route's z.enum rejects undefined, so
+  // passing the raw field 400s a draft carrying only a form_definition_id instead
+  // of coaching it, and passing the WRONG form coaches it against wrong anchors.
+  const coachBody = async (evalData: Partial<Evaluation>) => {
+    localStorage.setItem("apex:eval-coach-consent", "true");
+    let posted: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (!init) return Promise.resolve({ ok: true, json: async () => ({ available: true }) });
+      posted = JSON.parse(String(init.body));
+      return Promise.resolve({ ok: true, json: async () => ({ findings: [], notes: [], unassessed: [], dropped: 0 }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      React.createElement(Block43Comments, {
+        evalData: evalData as Evaluation,
+        onChange: () => {},
+        issues: [],
+      }),
+    );
+    const btn = await screen.findByRole("button", { name: /review my narrative/i });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    vi.unstubAllGlobals();
+    return posted as Record<string, unknown> | null;
+  };
+
+  it("sends FITREP for a draft identified only by its form id", async () => {
+    const body = await coachBody({
+      form_definition_id: "FITREP-1610-2",
+      comments: "COMMANDED THE WATCH.",
+      trait_grades: { knowledge: "5.0" },
+    });
+    // Not undefined — the route's z.enum would 400 — and not "EVAL".
+    expect(body?.report_type).toBe("FITREP");
+  });
+
+  it("still honours an explicit report_type", async () => {
+    const body = await coachBody({
+      report_type: "CHIEFEVAL",
+      form_definition_id: "",
+      comments: "LED THE MESS.",
+      trait_grades: { accountability: "4.0" },
+    });
+    expect(body?.report_type).toBe("CHIEFEVAL");
   });
 });
