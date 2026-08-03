@@ -184,14 +184,30 @@ says plainly that this is normal.
   the rubric drops the factor to weight 0 and coverage counts five areas; the
   screen drops the card rather than showing a sixth "Not entered".
 - **Path-shaped tokens are stripped at display time.** The narrative's citation
-  gate parses only the *trailing* bracket group, deliberately, so prose brackets
-  survive — `Complete "Advanced Network Analyst [NEC 742A]"` keeps its NEC code,
+  gate *strips* only the **trailing** bracket group but *checks* **every** group
+  — three separate questions that were conflated once and produced a bypass, so
+  keep them apart. Stripping only the trailing group is what lets prose brackets
+  survive: `Complete "Advanced Network Analyst [NEC 742A]"` keeps its NEC code,
   which matters now that 80 transcribed milestones carry bracketed NEC and CIN
   codes. The cost is that a path-shaped token in non-final position reaches the
-  reader. It cannot launder a claim (the trailing group still gates the whole
-  item), but it is ugly, so the display strips a `word.word` shape *inside*
-  brackets — never all brackets, which would eat the codes the gate just worked
-  to preserve.
+  reader. It cannot launder a claim (every group is validated), but it is ugly,
+  so the display strips a `word.word` shape *inside* brackets — never all
+  brackets, which would eat the codes the gate just worked to preserve.
+- **The gate checks the SUBJECT, not just the cited path.** Each `strengths` /
+  `gaps` item the model returns carries a structured `subject` — one of the six
+  areas, or `record` — and two rules run on it: the subject area's status must
+  clear the same bar a cited area does (**S1**), and if the item cites any area
+  the subject must be among them (**S2**). Without this, a claim about a weak
+  area survived intact whenever it cited something else, and the honestly-cited
+  form was the only one deleted. Requiring an area *citation* would have closed
+  the same hole but deletes legitimate whole-record items, which is why the
+  subject is a field rather than a citation rule. `subject` is consumed by the
+  gate and is never stored or rendered — `GatedNarrative` stays plain strings, so
+  there is no migration and no engine internal on screen.
+  **Known ceiling:** a declared subject that is false about the prose but healthy
+  for its valence and self-consistent with its citation still passes. The
+  contradiction table in `tests/unit/boardConfidenceCitationSweep.test.ts` names
+  every surviving member of that class rather than counting them.
 - **`board_analyses.input.readiness`** (additive, jsonb, no migration) holds the
   run's report, snapshotted like the rest of the run so a prior review renders
   what it said at the time. Runs written before v2 show *"predates the readiness

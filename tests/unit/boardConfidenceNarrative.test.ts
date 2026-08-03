@@ -27,6 +27,7 @@ import {
   NARRATIVE_SYSTEM_PROMPT,
   DEFAULT_NARRATIVE_MODEL,
   narrativeModelId,
+  SUBJECT_KEYS,
   type ModelNarrative,
   type SubjectKey,
 } from "@/lib/boardConfidence/narrative";
@@ -884,6 +885,27 @@ describe("the citation must agree with the status of the area it cites", () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("strong or on_track");
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("on_track or needs_attention");
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("EVERY cited area");
+  });
+
+  it("the system prompt states the SUBJECT rule too, and the whole vocabulary", () => {
+    // Same reason, and it was missed: rule 2c shipped with no pin at all while
+    // 2b had three. Delete 2c and every test stayed green — but the schema still
+    // forces a `subject` value, so the model would pick one uninformed and the
+    // failure would land in the COLLATERAL-DAMAGE direction: honest items
+    // deleted, `withheld` climbing, on a rule nobody told the model about.
+    const p = NARRATIVE_SYSTEM_PROMPT;
+    expect(p).toContain("`subject` names the area the sentence is ABOUT");
+    // Every value the enum will accept has to be a value the prompt named, or
+    // the model is guessing at the grammar it is being graded against.
+    for (const key of SUBJECT_KEYS)
+      expect(p, `rule 2c never names the subject value "${key}"`).toContain(key);
+    // Both halves of the check, in the prompt's own words.
+    expect(p).toContain("must satisfy rule 2b");
+    expect(p).toContain("must be among the areas");
+    // And the one thing the gate does NOT enforce, which the prompt asserts
+    // anyway — see the ceiling note on subjectCheck. If this line is ever made
+    // true in code, that note has to move with it.
+    expect(p).toContain('"record" sentence to get around');
   });
 });
 

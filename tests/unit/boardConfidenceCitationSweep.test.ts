@@ -300,7 +300,10 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
         strong2: string;
         r: (typeof RECORDS)[number];
       }) => string;
-      subject: (area: string) => SubjectKey;
+      subject: (
+        area: string,
+        k: { weak: string; strong: string; strong2: string },
+      ) => SubjectKey;
       caught: boolean;
     }> = [
       // ── caught before this change, by the path rule alone ──
@@ -334,7 +337,11 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
       },
       // ── used to survive; caught by S1, the subject's own status ──
       {
-        name: "S1: cites a healthy area for a claim about the weak one",
+        // Caught TWICE over — S1 on the subject's own status, and independently
+        // by S2, since the subject is not among the cited areas. Named rather
+        // than filed under S1 alone: this file's whole argument is that rows get
+        // credited to the wrong rule unless someone checks.
+        name: "S1+S2: cites a healthy area for a claim about the weak one",
         subjectArea: "weak",
         cite: ({ strong }) => `[areas.${strong}]`,
         subject: (a) => a as SubjectKey,
@@ -380,6 +387,14 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
         caught: true,
       },
       // ── the residual, stated rather than hidden ──
+      //
+      // ONE CLASS, FOUR MEMBERS. An earlier revision of this table listed only
+      // the two `record` rows, which reads as though that one dodge is the whole
+      // hole. It is not: declaring a HEALTHY AREA and citing that same area is
+      // identical in effect and needs no `record` at all. The class is "any
+      // declared subject that is false about the prose but healthy for its
+      // valence and consistent with its own citation"; `record` is merely its
+      // cheapest member. Enumerate the class, not its laziest instance.
       {
         name: "RESIDUAL: statusless citation AND subject declared `record`",
         subjectArea: "weak",
@@ -392,6 +407,20 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
         subjectArea: "weak",
         cite: ({ strong }) => `[areas.${strong}]`,
         subject: () => "record",
+        caught: false,
+      },
+      {
+        name: "RESIDUAL: declares a healthy AREA as the subject, and cites it",
+        subjectArea: "weak",
+        cite: ({ strong }) => `[areas.${strong}]`,
+        subject: (_a, k) => k.strong as SubjectKey,
+        caught: false,
+      },
+      {
+        name: "RESIDUAL: declares a healthy AREA as the subject, cites nothing with a status",
+        subjectArea: "weak",
+        cite: () => "[monthsToBoard]",
+        subject: (_a, k) => k.strong as SubjectKey,
         caught: false,
       },
     ];
@@ -409,7 +438,7 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
           r,
           "strengths",
           `Your ${about} record stands out. ${cite}`,
-          row.subject(about),
+          row.subject(about, keys),
         );
         const survived = gated.strengths.length === 1;
         if (survived === row.caught)
@@ -421,13 +450,18 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
       expect(rowChecks.get(row.name) ?? 0, `row never ran: ${row.name}`).toBeGreaterThan(0);
     expect(failures.slice(0, 10)).toEqual([]);
 
-    // The scoreboard, asserted so it cannot drift silently: 10 of 12 caught, and
-    // both survivors need the model to make a SECOND false statement in a field
-    // whose only purpose is to be checked.
+    // The scoreboard, asserted so it cannot drift silently: 10 of 14 caught, and
+    // every survivor needs the model to make a SECOND false statement in a field
+    // whose only purpose is to be checked. The survivor LIST is asserted by name,
+    // not just counted — an incomplete scoreboard is worse than no scoreboard,
+    // and this one was incomplete until a reviewer constructed the two
+    // healthy-area rows it did not contain.
     expect(ROWS.filter((x) => x.caught)).toHaveLength(10);
     expect(ROWS.filter((x) => !x.caught).map((x) => x.name)).toEqual([
       "RESIDUAL: statusless citation AND subject declared `record`",
       "RESIDUAL: cites a healthy area AND calls the subject `record`",
+      "RESIDUAL: declares a healthy AREA as the subject, and cites it",
+      "RESIDUAL: declares a healthy AREA as the subject, cites nothing with a status",
     ]);
   });
 

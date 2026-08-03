@@ -185,14 +185,15 @@ export const NARRATIVE_SYSTEM_PROMPT =
   "sentence, ending in its bracketed citation exactly as rule 2 describes, and " +
   "`subject` names the area the sentence is ABOUT — one of performance, " +
   "leadership, development, continuity, completeness, precept, or \"record\" when " +
-  "the sentence is about the record as a whole and no single area (breadth of " +
-  "coverage, months remaining, the record overall). `subject` is machine-checked " +
-  "the same way the citation is, and two ways: the subject area's status must " +
-  "satisfy rule 2b, and if the item cites any area at all then the subject must be " +
-  "one of the areas it cites. So do not write about one area and cite another — " +
-  "naming leadership as the subject while citing continuity deletes the item, and " +
-  "so does calling a sentence about leadership a \"record\" sentence to get around " +
-  "rule 2b. Say what the sentence is about and cite that.\n" +
+  "the sentence is about the record as a whole and no single area (its breadth of " +
+  "coverage, the record overall). `subject` is machine-checked the same way the " +
+  "citation is, and two ways: the subject area's status must satisfy rule 2b, and " +
+  "if the item names an area as its subject then that area must be among the areas " +
+  "it cites. So do not write about one area and cite another — naming leadership " +
+  "as the subject while citing continuity deletes the item, and so does calling a " +
+  "sentence about leadership a \"record\" sentence to get around rule 2b. Say what " +
+  "the sentence is about and cite that. Months remaining is never what an item is " +
+  "ABOUT in the gaps list: a board does not observe your timeline.\n" +
   "3. NEVER state, estimate, imply or reconstruct an overall score, a total, a " +
   "point value, a percentage of points, a weight, or a band. The payload " +
   "deliberately omits them. If scored is false, APEX has decided it cannot " +
@@ -529,17 +530,34 @@ function areaIndex(payload: NarrativePayload) {
  * path. S1 already covers the unhealthy half of that case.
  *
  * ponytail: KNOWN CEILING, and it is narrower than the one it replaces rather
- * than gone. A model that declares `subject: "record"` for a sentence plainly
- * about one area still gets past both tests — the field is the model's own
- * assertion about its own output, so nothing here can make it truthful. What
- * changed is the cost: laundering now takes a deliberate second false statement
- * in a field whose only purpose is to be checked, rather than falling out of an
- * incidentally convenient citation. The residual is not closeable by any
- * structural check; closing it means matching prose to subject, which is a
- * language model judging a language model and can be wrong in the direction that
- * matters. It is measured rather than assumed —
- * tests/unit/boardConfidenceCitationSweep.test.ts carries the contradiction table
- * and names which rows survive.
+ * than gone.
+ *
+ * STATE THE RESIDUAL AS A CLASS, NOT AS ITS LAZIEST MEMBER. An earlier revision
+ * of this note named only `subject: "record"`, which reads as though that one
+ * dodge is the whole hole. It is not. The surviving class is:
+ *
+ *     any declared subject that is FALSE about the prose but healthy for its
+ *     valence and consistent with its own citation
+ *
+ * `record` is merely the cheapest way to be in it — declaring a healthy AREA and
+ * citing that same area works identically, whatever the sentence actually says.
+ * Both forms are in the contradiction table in
+ * tests/unit/boardConfidenceCitationSweep.test.ts, measured rather than assumed.
+ *
+ * What changed is the COST, and it is the same for every member of the class:
+ * laundering now takes a deliberate second false statement in a field whose only
+ * purpose is to be checked, rather than falling out of an incidentally convenient
+ * citation. The field is the model's own assertion about its own output, so
+ * nothing here can make it truthful. Closing it means matching prose to subject,
+ * which is a language model judging a language model and can be wrong in the
+ * direction that matters.
+ *
+ * Prompt rule 2c tells the model that calling an area sentence a "record"
+ * sentence deletes the item. THAT IS UNBACKED — `subject === "record"` returns
+ * true here unconditionally. It is a bluff, in the safe direction, and it is the
+ * only thing discouraging the cheapest member of the class, so it stays; but this
+ * file's own doctrine is that enforcing weaker than a promise is an invitation,
+ * so the disagreement is written down rather than left for someone to discover.
  */
 function subjectCheck(
   payload: NarrativePayload,
