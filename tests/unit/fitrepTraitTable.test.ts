@@ -729,10 +729,38 @@ const B29 = {
   floor: 539.64,
   /** Lowest header ink RIGHT of the 29A box, which is where line 1 goes. */
   headerFloor: 590.16,
-  abbrev: { left: 40.56, right: 155.76, floor: 578.52, ceiling: 590.04 },
+  /**
+   * The 29A box. `floor`/`ceiling` are the INTERIOR, which is what the
+   * abbreviation itself has to stay inside. `inkFloor` is the box's lowest
+   * printed ink — the bottom stroke's outer edge — and it is what a full-width
+   * line BELOW the box has to clear. They differ by exactly the 0.72 pt stroke,
+   * and conflating them made the "lines 2+ clear the box" assertion 0.72 pt
+   * looser than the derivation lib/fitrepOverlay.ts actually used: a line topping
+   * out at 578.4 would have passed while sitting on the printed rule.
+   */
+  abbrev: { left: 40.56, right: 155.76, floor: 578.52, ceiling: 590.04, inkFloor: 577.8 },
 };
 /** The rule between the two cells — the one Block 28 used to print through. */
 const B28_B29_RULE = 600.84;
+
+/**
+ * Blocks 22-27, the Reporting Senior identity row. Cell y[649.080, 673.560];
+ * column strokes at x[182.400, 183.120] / [232.800, 233.520] / [283.920, 284.640]
+ * / [415.680, 416.400] / [470.400, 471.120]; lowest header ink 662.880.
+ *
+ * Here because this row USED to draw at y 616.0 — inside Block 28's cell — which
+ * was invisible while Block 28 itself drew a cell low, and became an unreadable
+ * overprint the moment Block 28 was corrected.
+ */
+const RS_ROW = { floor: 649.08, ceiling: 673.56, headerFloor: 662.88 };
+const RS_COLS: Array<[number, number]> = [
+  [32.64, 182.4],
+  [183.12, 232.8],
+  [233.52, 283.92],
+  [284.64, 415.68],
+  [416.4, 470.4],
+  [471.12, 579.84],
+];
 
 /** House inset off a printed rule. Same 2.5 the comment blocks are held to. */
 const INSET = 2.5;
@@ -876,8 +904,19 @@ async function renderProbeFitrep() {
         regular_report: true,
         not_observed: true,
         concurrent_rs_signature_date: "2025-11-23",
+        // All SIX Blocks 22-27 fields, not two. The first revision of this fixture
+        // set only name and grade, so four of the six columns never drew and the
+        // sweep could not see them — the same miss-a-sibling failure that let the
+        // whole row sit in Block 28's cell unnoticed.
         reporting_senior_name: "REPORTINGSENIORNAME, JOHN A",
         reporting_senior_grade: "RADM",
+        // Every value DISTINCT from the member's own — the fixture's
+        // designator is 1110 and its UIC N00011, and a lookup by string then
+        // finds the identity row's run instead of this one.
+        reporting_senior_designator: "1310",
+        reporting_senior_title: "COMMANDING OFFICER",
+        reporting_senior_uic: "N00022",
+        reporting_senior_dod_id: "1234509876",
         command_achievements: B28_TEXT,
         primary_duty_abbrev: "OPS",
         primary_duties: B29_TEXT,
@@ -1027,10 +1066,11 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     expect(first.top).toBeLessThanOrEqual(B29.headerFloor);
     expect(first.bot).toBeGreaterThanOrEqual(B29.floor);
 
-    // Lines 2+ are full width, so they have to clear the 29A box's FLOOR, not its side.
+    // Lines 2+ are full width, so they have to clear the 29A box's printed INK,
+    // not its interior — the bottom stroke is 0.72 pt of black between the two.
     for (const l of rest) {
       expect(l.x).toBeLessThan(B29.abbrev.left);
-      expect(l.top).toBeLessThanOrEqual(B29.abbrev.floor);
+      expect(l.top).toBeLessThanOrEqual(B29.abbrev.inkFloor);
       expect(l.bot).toBeGreaterThanOrEqual(B29.floor);
     }
     const lead = lines[0].base - lines[1].base;
@@ -1043,12 +1083,75 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     // Block 33 trait descriptors. Both were inside the page frame, so the sweep below
     // saw nothing. Assert the cells directly.
     const runs = await overlayRuns(await renderProbeFitrep(), 1);
-    for (const l of fillLines(runs, B28_FILL))
-      expect(l.bot).toBeGreaterThan(B28_B29_RULE);
-    for (const l of fillLines(runs, B29_FILL)) {
+    const b28 = fillLines(runs, B28_FILL);
+    const b29 = fillLines(runs, B29_FILL);
+    // Length pins first: two `for` loops over an empty match pass green, and this
+    // is the one assertion in the group that has no count of its own.
+    expect(b28).toHaveLength(3);
+    expect(b29).toHaveLength(4);
+    for (const l of b28) expect(l.bot).toBeGreaterThan(B28_B29_RULE);
+    for (const l of b29) {
       expect(l.top).toBeLessThan(B28_B29_RULE);
       expect(l.bot).toBeGreaterThan(B29.floor);
     }
+  }, 30_000);
+
+  it("no OTHER field prints through Block 28's or Block 29's lines", async () => {
+    // The gap that let the reporting-senior row hide. Every assertion above
+    // filters drawn runs to one block's probe alphabet, so a line overprinted by
+    // a DIFFERENT drawText passes all of them — and correcting Block 28's
+    // baseline moved it on top of Blocks 22-27, which were themselves drawing a
+    // whole cell low at y 616.0. Compare the two blocks' runs to EVERY other run
+    // instead of each to its own box.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const narrative = [...fillLines(runs, B28_FILL), ...fillLines(runs, B29_FILL)];
+    expect(narrative).toHaveLength(7);
+
+    const collisions: string[] = [];
+    for (const other of runs) {
+      if (narrative.includes(other)) continue;
+      for (const l of narrative) {
+        const overlapsY = other.bot < l.top && other.top > l.bot;
+        const overlapsX = other.x < l.x2 && other.x2 > l.x;
+        if (overlapsY && overlapsX)
+          collisions.push(
+            `"${other.str.slice(0, 24)}" at (${other.x.toFixed(1)}, ${other.base.toFixed(1)}) ` +
+              `over a narrative line at ${l.base.toFixed(2)}`,
+          );
+      }
+    }
+    expect(collisions).toEqual([]);
+  }, 30_000);
+
+  it("the reporting-senior row prints in Blocks 22-27, each field in its own column", async () => {
+    // It drew at y 616.0 — inside Block 28's cell, 9.14 pt out in the page margin,
+    // and with five of six fields starting far enough right to overflow their own
+    // column ("RADM" at x 212.0 ended at 236.0, past the stroke at 232.800).
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const fields = [
+      "REPORTINGSENIORNAME, JOHN A",
+      "RADM",
+      "1310",
+      "COMMANDING OFFICER",
+      "N00022",
+      "1234509876",
+    ];
+    fields.forEach((str, i) => {
+      // Exactly one run, or the lookup is finding some other field that happens
+      // to carry the same text — which it did, until the fixture stopped giving
+      // the reporting senior the member's own designator and UIC.
+      const hits = runs.filter((r) => r.str === str);
+      expect(hits, `Block ${22 + i} (${str}) drew ${hits.length} times`).toHaveLength(1);
+      const run = hits[0];
+      expect(run, `Block ${22 + i} (${str}) was not drawn`).toBeDefined();
+      const [left, right] = RS_COLS[i];
+      expect(run.x, `Block ${22 + i} starts left of its column`).toBeGreaterThanOrEqual(
+        left + INSET,
+      );
+      expect(run.x2, `Block ${22 + i} overruns its column`).toBeLessThanOrEqual(right);
+      expect(run.top).toBeLessThanOrEqual(RS_ROW.headerFloor);
+      expect(run.bot).toBeGreaterThanOrEqual(RS_ROW.floor);
+    });
   }, 30_000);
 
   it("draws exactly as many lines as the editor and the validator promise", async () => {
@@ -1102,7 +1205,9 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
       "1|28.10|717.40", // p1.dutyCx[0] mark (cx 31.5)
       "1|546.50|721.50", // p1.datereported_x — overruns the RIGHT rule, ends at 588.47
       "1|28.10|682.20", // p1.periodicCx mark (cx 31.5)
-      "1|23.50|616.00", // p1.rsName_x — reporting senior row
+      // p1.rsName_x's line is GONE: Blocks 22-27 are measured on both axes now.
+      // It had to be — correcting Block 28 moved its narrative on top of this row,
+      // which was drawing a whole cell low at y 616.0.
       "1|28.10|646.20", // p1.notObservedCx mark (cx 31.5) — Block 16, a routine report
       "1|23.50|400.00", // p1.dateCounseled_x
       "2|23.50|755.30", // p2.name_x — identity row

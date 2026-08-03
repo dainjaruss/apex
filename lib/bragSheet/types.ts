@@ -221,7 +221,7 @@ export interface LadrMilestoneStatus {   // from member_board_records.ladr_check
 //                      6/8 CHIEFEVAL, 16/19 FITREP (10-pitch/12-pitch),
 //                      target_lines: max_lines - 1 }
 //   primary_duties:  getPrimaryDutiesFieldFit(report_type)  → 91 CPL × 3 (EVAL) / 4
-//                    (CHIEFEVAL/FITREP), first_line_lead: 20
+//                    (CHIEFEVAL/FITREP), first_line_lead: 21
 //   primary_duty_abbrev: { max_chars: PRIMARY_DUTY_ABBREV_MAX }        // 14
 //   command_achievements: FIELD_FIT.command_achievements               // 91 × 3
 //   qualifications:  FIELD_FIT.qualifications (EVAL only)              // 91 × 2

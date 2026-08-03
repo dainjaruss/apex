@@ -639,7 +639,7 @@ export interface LadrMilestoneStatus {   // from member_board_records.ladr_check
 //                      6/8 CHIEFEVAL, 16/19 FITREP (10-pitch/12-pitch),
 //                      target_lines: max_lines - 1 }
 //   primary_duties:  getPrimaryDutiesFieldFit(report_type)  → 91 CPL × 3 (EVAL) / 4
-//                    (CHIEFEVAL/FITREP), first_line_lead: 20
+//                    (CHIEFEVAL/FITREP), first_line_lead: 21
 //   primary_duty_abbrev: { max_chars: PRIMARY_DUTY_ABBREV_MAX }        // 14
 //   command_achievements: FIELD_FIT.command_achievements               // 91 × 3
 //   qualifications:  FIELD_FIT.qualifications (EVAL only)              // 91 × 2
@@ -1145,7 +1145,8 @@ BLOCK-BY-BLOCK (write to budgets; every value below is enforced after you respon
   notes from brag.pfa (e.g. "25-1:P/PRT OUTSTANDING/BCA WNL"). A Block 20 code
   of B REQUIRES a PFA comment here. Budget: 91 chars/line ×
   budgets.primary_duties.max_lines (3 on EVAL, 4 on CHIEFEVAL/FITREP); the
-  FIRST line is budgets.primary_duties.first_line_lead (20) characters shorter
+  FIRST line is budgets.primary_duties.first_line_lead (20 on 1616/26, 21 on the two
+  REV 05-2025 forms) characters shorter
   because Block 29A shares it.
 - command_achievements (Block 28): command employment and command-level awards
   only, from brag.job.team_contributions and brag context — operational/

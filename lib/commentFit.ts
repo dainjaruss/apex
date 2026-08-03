@@ -388,7 +388,11 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
     block: 28,
     charsPerLine: 91,
     maxLines: 3,
-    label: "Command Employment and Achievements",
+    // The blank prints "28. Command Employment and Command Achievements" — the
+    // second "Command" is on the form and was missing here. Checked with
+    // `pdftotext -layout public/fitrepBlank.pdf`; 1616/26 and 1616/27 print the
+    // same wording.
+    label: "Command Employment and Command Achievements",
   },
   primary_duties: {
     block: 29,
@@ -409,17 +413,37 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
    * remainder. That is why this spec carries a lead at all.
    *
    * THE LEAD IS 21, not 20, and the extra character is the whole point: 20 put line 1's
-   * first glyph ON the 29A box's right stroke on a FITREP. Measured off the blanks at
-   * 600 dpi, 29A's right stroke and the x line 1 starts at (b29b_x + lead x advance):
+   * first glyph ON the 29A box's right stroke on a FITREP.
    *
-   *   1610/2  (FITREP)     stroke x[155.760, 156.480]   lead 20 -> 153.80  OVERPRINTS
-   *                                                     lead 21 -> 159.73  3.25 pt clear
-   *   1616/27 (CHIEFEVAL)  stroke x[148.320, 149.040]   lead 20 -> 152.31  3.27 pt clear
-   *                                                     lead 21 -> 158.22  9.18 pt clear
+   * ALL THREE BLANKS PRINT THE SAME 29A BOX — interior 115.200 x 11.520 pt, measured at
+   * 600 dpi on each. An earlier revision of this comment said 1616/26's box "is a third
+   * size again", which is false and is exactly the kind of invented cross-form fact this
+   * file's defect history is made of; the next maintainer would have gone looking for a
+   * size difference that does not exist. What actually differs is where the box sits
+   * relative to each form's TEXT ORIGIN, and therefore how much the lead has to cover:
    *
-   * So 21 is required by 1610/2 and merely roomier on 1616/27, which is what lets one
-   * number serve both. 1616/26 keeps its own 20 in `primary_duties` above — its 29A box
-   * is a third size again, and EVAL is not this form.
+   *                          text origin   29A right stroke   gap to cover   lead 20   lead 21
+   *   1610/2  (FITREP)          35.14         156.480            121.34      OVERPRINTS  clear
+   *   1616/27 (CHIEFEVAL)       34.20         149.040            114.84        clear     clear
+   *   1616/26 (EVAL)            41.00         154.440            113.44        clear       —
+   *
+   * 1610/2 and 1616/26 inset the box 7.20 pt from their left rule; 1616/27 is the outlier
+   * and prints it flush at 0.72. So 21 is REQUIRED by 1610/2, merely roomier on 1616/27 —
+   * which is what lets one number serve both — and 1616/26 keeps its own 20 because its
+   * text origin already starts 5.86 pt further right.
+   *
+   * ponytail: KNOWN COST, measured. Line 1 holds one character fewer than it did, so a
+   * stored body that filled four lines EXACTLY at lead 20 now wraps to five and
+   * `narrativeWithLead`'s `.slice(0, maxLines)` drops the tail — on export, with no marker.
+   * Sampled over 200,000 realistic duty bodies: 70,423 filled four lines exactly at lead
+   * 20, and 872 of those (1.2%) overflow at 21. The stored text is never mutated and the
+   * editor's canvas and the validator both re-measure at the new lead, so a Sailor who
+   * reopens the record is told; the exposure is app/api/pdf/route.ts, which regenerates
+   * from the row with no validation gate. Same class as the COMMENT_PITCH_V note above,
+   * and it belongs in the release note for the same reason.
+   * Upgrade path: make the overlays mark a truncation instead of slicing silently.
+   * `.slice(0, maxLines)` predates this change, sits in all three overlays, and is a
+   * standing hazard for every capacity constant — so it is its own change, not this one.
    *
    * Changing this moves the editor's measuring canvas, the validator, the brag-sheet
    * budget and the PDF together: every one of them reads the lead off the spec

@@ -176,13 +176,59 @@ const C = {
     billet_x: 388.0,
     pfaBilletBaseline: 651.0,
 
-    rsName_x: 23.5,
-    rsGrade_x: 212.0,
-    rsDesig_x: 268.0,
-    rsTitle_x: 343.0,
-    rsUic_x: 432.0,
-    rsDodid_x: 488.0,
-    rsBaseline: 616.0,
+    // BLOCKS 22-27, the Reporting Senior identity row — cell y[649.080, 673.560]
+    // between the rules at y[673.560, 674.280] and y[648.360, 649.080], split by
+    // strokes at x[182.400, 183.120] / [232.800, 233.520] / [283.920, 284.640] /
+    // [415.680, 416.400] / [470.400, 471.120]. Header labels floor at 662.880 in
+    // the widest two columns and 664.440 in the rest.
+    //
+    // THIS ROW HAD TO MOVE WITH BLOCK 28, and finding out why is the reason this
+    // section exists. `rsBaseline` was 616.0 — one whole cell low, INSIDE Block
+    // 28's cell y[601.560, 648.360]. That was invisible while Block 28 itself
+    // drew at 574.0, because both were displaced and neither was where the other
+    // was. Correcting Block 28 to 628.87 put its second line at 617.195, 1.195 pt
+    // from this row: rendered, the name, grade, designator, title, UIC and DoD ID
+    // print straight through Block 28's narrative. Fixing one field into a cell
+    // another field is squatting in is not a fix.
+    //
+    // The suite could not see it either. The Block 28/29 assertions filter drawn
+    // runs to each block's probe alphabet, so a line overprinted by a DIFFERENT
+    // drawText passes every one of them. The pin is below, and it compares the
+    // two blocks' runs to each other rather than each to its box.
+    //
+    // At the 10 pt these fields draw, ink runs base - 2.002 to base + 6.909, so
+    // the legal window is [649.080 + 2.002, 662.880 - 6.909] = [651.082, 655.971]
+    // -> 653.53. (1616/27 places the same row at 651.8 in a cell measuring
+    // y[648.7, 673.7], which is the same band; only 1610/2 had it wrong.)
+    //
+    // Every x is its own column's inner edge plus the house inset. The inherited
+    // values were 23.5 / 212.0 / 268.0 / 343.0 / 432.0 / 488.0: the first sat
+    // 9.14 pt out in the page margin (its own line in the frame ledger, now gone)
+    // and the other five, while nominally inside their columns, started far
+    // enough right to OVERFLOW them — "RADM" at 212.0 ends at 236.0, past the
+    // stroke at 232.800 and into the designator cell.
+    //
+    // Each field also carries its column's usable WIDTH, which none of them did.
+    // The x fix alone is not enough: "REPORTINGSENIORNAME, JOHN A" is 27
+    // characters, 161.90 pt at the default 10 pt, and from 35.14 it ends at
+    // 197.03 — 14.63 pt into the Grade cell. `text()` already shrinks to a
+    // maxWidth (it is how `counselor` fits); these six just never passed one, so
+    // a long but ordinary Navy name printed over the next block.
+    rsName_x: 32.64 + INSET,
+    rsGrade_x: 183.12 + INSET,
+    rsDesig_x: 233.52 + INSET,
+    rsTitle_x: 284.64 + INSET,
+    rsUic_x: 416.4 + INSET,
+    rsDodid_x: 471.12 + INSET,
+    rsBaseline: 653.53,
+    rsWidths: [
+      182.4 - 32.64 - 2 * INSET,
+      232.8 - 183.12 - 2 * INSET,
+      283.92 - 233.52 - 2 * INSET,
+      415.68 - 284.64 - 2 * INSET,
+      470.4 - 416.4 - 2 * INSET,
+      579.84 - 471.12 - 2 * INSET,
+    ],
 
     // Blocks 28 and 29 are both full-width panels bounded by the page-1 side rules, so
     // both start one house inset off P1_RULE_L. They were FORM_LEFT (17.3): 15.34 pt
@@ -196,7 +242,12 @@ const C = {
     // is that window's midpoint, because centring is free.
     //
     // Both blocks solve s = (547.20 - 4) / (91.5 * 0.6) = 9.894353 from their CPL, so
-    // 0.6909*s = 6.83499, 0.2002*s = 1.98085 and the leading is 11.675337.
+    // 0.6909*s = 6.836009, 0.2002*s = 1.980849 and the leading is 11.675337.
+    //
+    // (The envelope and the leading are the comment blocks' model. The SIZE is
+    // not: Block 41 takes a fixed point size from COMMENT_PITCH, while 28/29
+    // still solve one from a CPL target in `narrative()`. Same envelope,
+    // different origin for s.)
     b28_x: P1_RULE_L + INSET,
 
     // BLOCK 28 — cell y[601.560, 648.360] between the rules at y[648.360, 649.080] and
@@ -207,7 +258,7 @@ const C = {
     // the editor and the validator have always enforced. This file hardcoded 4 — 43.85 pt
     // of ink against 36.12 pt of box — and drew them from 574.0, which is not in this
     // block at all: it is inside Block 29's cell and through the rule beneath it.
-    //   window [626.892, 630.845] -> 628.87, giving 1.98 pt clear of the header and
+    //   window [626.892, 630.844] -> 628.87, giving 1.98 pt clear of the header and
     //   1.98 pt clear of the cell floor. A 4th line would need 638.567, 7.7 pt above
     //   the header's lowest ink.
     // Read the count off FIELD_FIT like the two sibling overlays do, so the drift that
@@ -226,9 +277,9 @@ const C = {
     // real only because line 1 sits BESIDE the 29A box, which is the layout the 20-space
     // lead was always implying and the geometry never delivered — it used to draw from
     // 486.0, a whole block low, over the Block 33 trait descriptors.
-    //   line 4's floor gives 576.647; line 2 clearing the 29A box floor gives 582.640;
-    //   line 1 clearing the header gives 583.325 and is not binding.
-    //   window [576.647, 582.640] -> 579.64: 3.00 pt clear at the 29A box floor, 3.00 pt
+    //   line 4's floor gives 576.647; line 2 clearing the 29A box floor gives 582.639;
+    //   line 1 clearing the header gives 583.324 and is not binding.
+    //   window [576.647, 582.639] -> 579.64: 3.00 pt clear at the 29A box floor, 3.00 pt
     //   at the cell floor, 3.69 pt under the header.
     //
     // b29b_contX is gone: it was a third FORM_LEFT site, always equal to b29b_x, and
@@ -246,6 +297,13 @@ const C = {
     // Width is the interior less one inset each side, so an over-long legacy value shrinks
     // to fit the box instead of running out of it (the editor caps at
     // PRIMARY_DUTY_ABBREV_MAX; a direct DB write does not).
+    // ponytail: KNOWN CEILING at ~30 characters. `text()`'s shrink-to-fit floors the point
+    // size at 6, so past that the value overruns the box again — 40 characters by 33.7 pt.
+    // The clamp is unreachable from validated input at all (all three zod schemas cap 29A
+    // at PRIMARY_DUTY_ABBREV_MAX = 14, which is 79.75 pt against a 110.20 pt box, so it
+    // first engages at 20), and the 6 pt floor is `text()`'s, shared with the other two
+    // overlays. Upgrade path if a direct write ever produces one: clamp the string, not
+    // the size — truncating an abbreviation is honest in a way a 6 pt smear is not.
     b29a_x: 40.56 + INSET,
     b29a_baseline: 581.95,
     b29a_width: 155.76 - 40.56 - 2 * INSET,
@@ -536,12 +594,19 @@ export async function generateFitrepOverlayPdf(
   text(page1, up(bv.physical_readiness), p1.pfa_x, p1.pfaBilletBaseline);
   text(page1, up(bv.billet_subcategory), p1.billet_x, p1.pfaBilletBaseline);
 
-  text(page1, up(bv.reporting_senior_name), p1.rsName_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_grade), p1.rsGrade_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_designator), p1.rsDesig_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_title), p1.rsTitle_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_uic, p1.rsUic_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_dod_id, p1.rsDodid_x, p1.rsBaseline);
+  // Blocks 22-27, each held to its own column's width — see rsWidths.
+  (
+    [
+      [up(bv.reporting_senior_name), p1.rsName_x],
+      [up(bv.reporting_senior_grade), p1.rsGrade_x],
+      [up(bv.reporting_senior_designator), p1.rsDesig_x],
+      [up(bv.reporting_senior_title), p1.rsTitle_x],
+      [bv.reporting_senior_uic, p1.rsUic_x],
+      [bv.reporting_senior_dod_id, p1.rsDodid_x],
+    ] as [string | undefined, number][]
+  ).forEach(([v, x], i) =>
+    text(page1, v, x, p1.rsBaseline, 10, courier, p1.rsWidths[i]),
+  );
 
   narrative(page1, bv.command_achievements, p1.b28_x, p1.b28_topBaseline, p1.b28_cpl, p1.b28_lines);
 

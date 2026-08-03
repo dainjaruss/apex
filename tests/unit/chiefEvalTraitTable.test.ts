@@ -41,7 +41,7 @@ import {
   OVERLAY_TRAIT_KEYS,
 } from "@/lib/chiefEvalOverlay";
 import { CHIEFEVAL_TRAIT_KEYS } from "@/types/navpers";
-import { commentPitchFields } from "@/lib/commentFit";
+import { commentPitchFields, getPrimaryDutiesFieldFit } from "@/lib/commentFit";
 import { Evaluation } from "@/types";
 
 type Page = 1 | 2;
@@ -617,5 +617,93 @@ describe("NAVPERS 1616/27 Block 12 is not APEX's Block 12", () => {
     expect(
       text[1].filter((d) => d.str === "X" && within(d, CHECKBOX["10_PERIODIC"].cell)),
     ).toHaveLength(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block 29 — the ONE thing a FITREP-scoped change moves on this form.
+//
+// `FIELD_FIT.primary_duties_extended.firstLineLead` is shared by 1610/2 and
+// 1616/27, so raising it from 20 to 21 for the FITREP's 29A box shifts THIS
+// form's first printed line right by one character too. Nothing in this file or
+// in pdfOverlayForms.test.ts touched Block 29 before, so that move had no pin at
+// all — a shared constant is only ever verified on the form that forced it, and
+// this epic's entire defect history is one form's number carried onto another.
+//
+// Measured off public/chiefEvalBlank.pdf at 600 dpi, page 1:
+//   Block 29 cell      y[539.640, 600.840]
+//   29A box strokes    x[32.400, 33.120] / x[148.320, 149.040]
+//                      y[577.800, 578.520] / y[590.040, 590.760]
+//   29A interior       x[33.120, 148.320] y[578.520, 590.040]
+// Same 115.200 x 11.520 interior the other two blanks print; only its offset
+// from the text origin differs, which is the whole reason 21 serves both.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CE_B29 = {
+  cellFloor: 539.64,
+  abbrev: { left: 32.4, right: 149.04, floor: 578.52, ceiling: 590.04 },
+};
+
+describe("NAVPERS 1616/27 Block 29 — the shared first-line lead", () => {
+  const DUTIES =
+    "LEADING CHIEF PETTY OFFICER for a 40-Sailor division; directs watchbill, " +
+    "training and qualification for the department and serves as command duty " +
+    "officer in port.";
+
+  it("starts line 1 clear of the 29A box's right stroke", async () => {
+    const { text } = await render({
+      block_values: {
+        primary_duty_abbrev: "LCPO",
+        primary_duties: DUTIES,
+      } as Evaluation["block_values"],
+    });
+
+    // The narrative lines: everything drawn at the solved 29B size inside the cell.
+    const lines = text[1]
+      .filter((d) => d.str.length > 20 && d.y0 > CE_B29.cellFloor && d.y0 < 600.84)
+      .sort((a, b) => b.y0 - a.y0);
+    expect(lines.length, "Block 29B drew nothing to measure").toBeGreaterThanOrEqual(2);
+
+    // Line 1 shares its printed line with the 29A box and must begin to its RIGHT.
+    // At lead 20 it began at 152.31 — clear here by luck, 3.27 pt, on a form whose
+    // box happens to sit further left. At 21 it is 158.21.
+    const [first] = lines;
+    expect(first.y0).toBeGreaterThan(CE_B29.abbrev.floor - 2);
+
+    // `drawnText` reports the raw `Tm` origin, and line 1 is drawn as the lead's
+    // spaces FOLLOWED by the text — so x0 is the origin of the padding, not of
+    // the first character. Advance past the spaces to get where ink actually
+    // starts. (The FITREP suite reads through pdf.js, which strips them and
+    // re-bases x; this file parses the content stream directly and does not.)
+    const lead = first.str.length - first.str.trimStart().length;
+    expect(lead, "line 1 carries no reserved lead").toBe(
+      getPrimaryDutiesFieldFit("CHIEFEVAL").firstLineLead,
+    );
+    const inkStart = first.x0 + lead * COURIER_ADVANCE * first.size;
+    expect(
+      inkStart,
+      "line 1 starts on or left of the 29A box's right stroke",
+    ).toBeGreaterThanOrEqual(CE_B29.abbrev.right);
+
+    // Lines 2+ are full width and drop below the box.
+    for (const l of lines.slice(1))
+      expect(l.y0).toBeLessThan(CE_B29.abbrev.floor);
+  });
+
+  it("prints the abbreviation inside the 29A box", async () => {
+    // Not moved by this change — asserted because the lead only makes sense if the
+    // box it is clearing is where this file says it is.
+    const { text } = await render({
+      block_values: {
+        primary_duty_abbrev: "LCPO",
+        primary_duties: DUTIES,
+      } as Evaluation["block_values"],
+    });
+    const abbrev = text[1].filter((d) => d.str === "LCPO");
+    expect(abbrev).toHaveLength(1);
+    expect(abbrev[0].x0).toBeGreaterThanOrEqual(CE_B29.abbrev.left);
+    expect(abbrev[0].x1).toBeLessThanOrEqual(CE_B29.abbrev.right);
+    expect(abbrev[0].y0).toBeGreaterThanOrEqual(CE_B29.abbrev.floor);
+    expect(abbrev[0].y1).toBeLessThanOrEqual(CE_B29.abbrev.ceiling);
   });
 });
