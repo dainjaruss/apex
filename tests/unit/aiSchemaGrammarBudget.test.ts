@@ -39,7 +39,7 @@ import { asSchema } from "ai";
 import { resolveAiModel } from "@/lib/aiProvider";
 import {
   DEFAULT_NARRATIVE_MODEL,
-  NarrativeSchema,
+  ModelNarrativeSchema,
 } from "@/lib/boardConfidence/narrative";
 import {
   AutofillModelOutputSchema,
@@ -124,7 +124,11 @@ describe("autofill sends the reference-sharing schema, not seven inlined copies"
 describe("structured-output schemas stay clear of the known provider limits", () => {
   const schemas: [string, unknown][] = [
     ["brag-sheet autofill", AutofillProviderSchema],
-    ["board-confidence narrative", NarrativeSchema],
+    // ModelNarrativeSchema, not NarrativeSchema: the narrative now has two
+    // shapes, and only this one is ever compiled and sent. `NarrativeSchema` is
+    // the gated/persisted shape — measuring it here would have quietly stopped
+    // guarding the schema that reaches the provider the moment the two diverged.
+    ["board-confidence narrative", ModelNarrativeSchema],
     ["eval coach", CoachOutputSchema],
   ];
 

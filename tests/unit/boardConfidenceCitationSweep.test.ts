@@ -29,7 +29,8 @@ import {
   narrativePayload,
   fallbackNarrative,
   applyCitationGate,
-  type Narrative,
+  type ModelNarrative,
+  type SubjectKey,
 } from "@/lib/boardConfidence/narrative";
 import {
   DEFAULT_RUBRIC_CONFIG as CFG,
@@ -116,22 +117,28 @@ const RECORDS = Array.from({ length: N }, (_, i) => {
   return { report, payload: narrativePayload(report, result), det: fallbackNarrative(report) };
 });
 
+/**
+ * One item through the gate. `subject` defaults to `record`, which ABSTAINS from
+ * the subject rule — so every sweep below that was written for the CITATION rule
+ * still measures the citation rule and nothing else. The subject rule has its own
+ * sweep and its own contradiction table.
+ */
 const gateOne = (
   r: (typeof RECORDS)[number],
-  list: "strengths" | "gaps",
+  list: "strengths" | "gaps" | "recommendations",
   text: string,
-) =>
-  applyCitationGate(
-    {
-      strengths: [],
-      gaps: [],
-      recommendations: [],
-      factor_commentary: r.det.factor_commentary,
-      [list]: [text],
-    } as Narrative,
-    r.payload,
-    r.det,
-  );
+  subject: SubjectKey = "record",
+) => {
+  const model: ModelNarrative = {
+    strengths: [],
+    gaps: [],
+    recommendations: [],
+    factor_commentary: r.det.factor_commentary,
+  };
+  if (list === "recommendations") model.recommendations = [text];
+  else model[list] = [{ text, subject }];
+  return applyCitationGate(model, r.payload, r.det);
+};
 
 describe(`the semantic citation gate, swept over ${N} generated records`, () => {
   it("the sweep actually reaches all four statuses", () => {
@@ -241,13 +248,241 @@ describe(`the semantic citation gate, swept over ${N} generated records`, () => 
     expect(failures).toEqual([]);
   });
 
+  // ── The subject rule ──────────────────────────────────────────────────────
+  //
+  // What the path rule alone could never see: the area the prose is ABOUT. Each
+  // row below is a strengths item praising an area the report says is weak — the
+  // shape that shipped live, with `withheld === 0`, one viewport above a card
+  // reading NEEDS ATTENTION.
+  //
+  // The table is the honest scoreboard, not a pass list. It names which rows the
+  // gate catches AND which it still does not, because "closed" here would be a
+  // claim no structural check can support: `subject` is the model's own assertion
+  // about its own output, so a model that lies twice still gets through.
+
+  /**
+   * A weak area (for a strengths claim) and TWO healthy ones, on the same record.
+   *
+   * Two healthy areas, not one, because the two rules catch different things and
+   * a fixture with one healthy area cannot tell them apart. S1 fires whenever the
+   * subject area's own status disagrees, which covers most of the table on its
+   * own; S2 only decides the case where the subject area is perfectly healthy and
+   * the citation names a DIFFERENT healthy area. Written against a single strong
+   * area, three separate S2 mutants survived this suite.
+   */
+  const polarised = RECORDS.map((r) => {
+    const healthy = r.report.areas.filter((a) => EXPECT_KEEP.strengths[a.status]);
+    return {
+      r,
+      weak: r.report.areas.find((a) => !EXPECT_KEEP.strengths[a.status]),
+      strong: healthy[0],
+      strong2: healthy[1],
+    };
+  }).filter((x) => x.weak && x.strong && x.strong2);
+
+  it("the sweep reaches records carrying a weak area and two healthy ones at once", () => {
+    // Without such a record there is no contradiction to construct and every row
+    // below would pass vacuously.
+    expect(polarised.length).toBeGreaterThan(20);
+  });
+
+  it("scores the contradiction table — every row, caught or named", () => {
+    // Each row: how the model dresses a strengths claim about `weak`, except the
+    // two S2 rows, which are claims about `strong` citing `strong2` — a
+    // misattributed citation between two areas the status rule is happy with, so
+    // S1 abstains and only coherence can see it.
+    const ROWS: Array<{
+      name: string;
+      subjectArea: "weak" | "strong";
+      cite: (a: {
+        weak: string;
+        strong: string;
+        strong2: string;
+        r: (typeof RECORDS)[number];
+      }) => string;
+      subject: (area: string) => SubjectKey;
+      caught: boolean;
+    }> = [
+      // ── caught before this change, by the path rule alone ──
+      {
+        name: "cites the weak area honestly",
+        subjectArea: "weak",
+        cite: ({ weak }) => `[areas.${weak}]`,
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "cites the weak area, subject `record`",
+        subjectArea: "weak",
+        cite: ({ weak }) => `[areas.${weak}]`,
+        subject: () => "record",
+        caught: true,
+      },
+      {
+        name: "cites weak + healthy together",
+        subjectArea: "weak",
+        cite: ({ weak, strong }) => `[areas.${weak}, areas.${strong}]`,
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "cites the weak area, then a statusless second group",
+        subjectArea: "weak",
+        cite: ({ weak }) => `[areas.${weak}] [monthsToBoard]`,
+        subject: () => "record",
+        caught: true,
+      },
+      // ── used to survive; caught by S1, the subject's own status ──
+      {
+        name: "S1: cites a healthy area for a claim about the weak one",
+        subjectArea: "weak",
+        cite: ({ strong }) => `[areas.${strong}]`,
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "S1: cites monthsToBoard",
+        subjectArea: "weak",
+        cite: () => "[monthsToBoard]",
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "S1: cites coverage.measured",
+        subjectArea: "weak",
+        cite: () => "[coverage.measured]",
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "S1: cites an unmet milestone",
+        subjectArea: "weak",
+        cite: ({ r }) =>
+          r.payload.unmet.length ? `[unmet.${r.payload.unmet[0].milestone_id}]` : "",
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      // ── used to survive; caught by S2, coherence. S1 abstains on these: both
+      //    areas are healthy, so nothing about a STATUS is wrong — only the
+      //    provenance is, and the bracket is read as provenance.
+      {
+        name: "S2: a claim about one healthy area citing a different healthy one",
+        subjectArea: "strong",
+        cite: ({ strong2 }) => `[areas.${strong2}]`,
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      {
+        name: "S2: the same, hidden behind a statusless trailing group",
+        subjectArea: "strong",
+        cite: ({ strong2 }) => `[areas.${strong2}] [monthsToBoard]`,
+        subject: (a) => a as SubjectKey,
+        caught: true,
+      },
+      // ── the residual, stated rather than hidden ──
+      {
+        name: "RESIDUAL: statusless citation AND subject declared `record`",
+        subjectArea: "weak",
+        cite: () => "[monthsToBoard]",
+        subject: () => "record",
+        caught: false,
+      },
+      {
+        name: "RESIDUAL: cites a healthy area AND calls the subject `record`",
+        subjectArea: "weak",
+        cite: ({ strong }) => `[areas.${strong}]`,
+        subject: () => "record",
+        caught: false,
+      },
+    ];
+
+    const failures: string[] = [];
+    const rowChecks = new Map<string, number>();
+    for (const { r, weak, strong, strong2 } of polarised) {
+      const keys = { weak: weak!.key, strong: strong!.key, strong2: strong2!.key, r };
+      for (const row of ROWS) {
+        const cite = row.cite(keys);
+        if (!cite) continue; // this record has no unmet milestone to cite
+        const about = keys[row.subjectArea];
+        rowChecks.set(row.name, (rowChecks.get(row.name) ?? 0) + 1);
+        const gated = gateOne(
+          r,
+          "strengths",
+          `Your ${about} record stands out. ${cite}`,
+          row.subject(about),
+        );
+        const survived = gated.strengths.length === 1;
+        if (survived === row.caught)
+          failures.push(`${row.name}: about=${about} weak=${weak!.status} survived=${survived}`);
+      }
+    }
+    // Every row was actually exercised — a row that never ran is not a row that passed.
+    for (const row of ROWS)
+      expect(rowChecks.get(row.name) ?? 0, `row never ran: ${row.name}`).toBeGreaterThan(0);
+    expect(failures.slice(0, 10)).toEqual([]);
+
+    // The scoreboard, asserted so it cannot drift silently: 10 of 12 caught, and
+    // both survivors need the model to make a SECOND false statement in a field
+    // whose only purpose is to be checked.
+    expect(ROWS.filter((x) => x.caught)).toHaveLength(10);
+    expect(ROWS.filter((x) => !x.caught).map((x) => x.name)).toEqual([
+      "RESIDUAL: statusless citation AND subject declared `record`",
+      "RESIDUAL: cites a healthy area AND calls the subject `record`",
+    ]);
+  });
+
+  it("an honest subject on a healthy area is not collateral damage", () => {
+    // The other direction, and the one that decides whether this rule is
+    // shippable: requiring an area CITATION was rejected because it deleted
+    // legitimate items. The subject rule must not re-introduce that.
+    const failures: string[] = [];
+    RECORDS.forEach((r, i) => {
+      for (const area of r.report.areas)
+        for (const list of ["strengths", "gaps"] as const) {
+          // Honest: subject names the area, citation names the same area.
+          const honest = gateOne(
+            r,
+            list,
+            `Claim about ${area.key}. [areas.${area.key}]`,
+            area.key,
+          );
+          if ((honest[list].length === 1) !== EXPECT_KEEP[list][area.status])
+            failures.push(`#${i} ${list} honest ${area.key}=${area.status}`);
+        }
+      // And the item the rejected rule would have deleted: about the record as a
+      // whole, citing a statusless path, subject `record`. Must survive.
+      for (const list of ["strengths", "gaps"] as const)
+        if (gateOne(r, list, "APEX could see most of your record. [coverage.measured]")[list].length !== 1)
+          failures.push(`#${i} ${list} breadth item dropped`);
+    });
+    expect(failures).toEqual([]);
+  });
+
+  it("S2 abstains when the item cites no area at all — it is not the rejected rule", () => {
+    // The line between this and the rule that WAS rejected. "Every strengths/gaps
+    // item must cite an area" would delete an honest claim about a healthy area
+    // that happens to cite a statusless path; S2 only fires when there IS a cited
+    // area to disagree with. Tightening `citedAreas.size === 0 || …` into a bare
+    // `citedAreas.has(subject)` re-introduces exactly the rejected rule, so this
+    // is the assertion standing between the two.
+    const failures: string[] = [];
+    for (const { r, strong } of polarised)
+      for (const path of ["monthsToBoard", "coverage.measured"])
+        if (
+          gateOne(r, "strengths", `Your ${strong!.key} record is solid. [${path}]`, strong!.key)
+            .strengths.length !== 1
+        )
+          failures.push(`${strong!.key}=${strong!.status} [${path}] dropped`);
+    expect(failures).toEqual([]);
+  });
+
   it("recommendations survive every status on every record", () => {
     // The no-regression half: the gate must not quietly start eating the list it
     // does not police.
     const failures: string[] = [];
     RECORDS.forEach((r, i) => {
       for (const area of r.report.areas) {
-        const gated = gateOne(r, "recommendations" as any, `Do something. [areas.${area.key}]`);
+        const gated = gateOne(r, "recommendations", `Do something. [areas.${area.key}]`);
         if (gated.recommendations.length !== 1) failures.push(`#${i} ${area.key}=${area.status}`);
         if ((gated.withheld ?? 0) !== 0) failures.push(`#${i} ${area.key} withheld≠0`);
       }
