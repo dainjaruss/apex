@@ -34,7 +34,7 @@ import { checkCommentFit, commentPitchFields } from "@/lib/commentFit";
 import {
   GRADE_SCALE_NOTE,
   getSubstantiationNote,
-  TRAIT_STANDARDS_LOOKUP,
+  getTraitStandard,
 } from "@/lib/traitStandards";
 import { getTraitMap, runFullValidation } from "@/lib/validationEngine";
 import type { Evaluation, ValidationIssue } from "@/types";
@@ -168,12 +168,18 @@ export function narrativeIssues(req: CoachRequest): ValidationIssue[] {
 }
 
 /**
- * The model payload. Traits are resolved through TRAIT_STANDARDS_LOOKUP by the
- * draft's own grade keys — deliberately shallow coupling to that table: a key
- * it does not know is skipped rather than guessed at, so the inbound CHIEFEVAL
- * trait-key rename (#26) degrades to "that trait is not coached" instead of
- * emitting anchors from the wrong trait. NOB is skipped: an unobserved trait
+ * The model payload. Traits are resolved through getTraitStandard(report_type, …)
+ * by the draft's own grade keys — deliberately shallow coupling to that table: a
+ * key that form does not print is skipped rather than guessed at, so the inbound
+ * CHIEFEVAL trait-key rename (#26) degrades to "that trait is not coached" instead
+ * of emitting anchors from the wrong trait. NOB is skipped: an unobserved trait
  * has nothing to substantiate.
+ *
+ * The report type picks the table, so it also picks the anchors. It used to pick
+ * only the block numbers, while a merged lookup supplied the prose: a live FITREP
+ * run was measured coaching an officer against 1616/26 enlisted anchors —
+ * "advancement/PQS requirements" on a trait the officer form grades as
+ * qualifications and professional development.
  */
 export function coachPayload(req: CoachRequest): CoachPayload {
   // Per-form capacity. budget.max_lines is handed to the model as "the physical size of
@@ -187,14 +193,12 @@ export function coachPayload(req: CoachRequest): CoachPayload {
   const blocks = getTraitMap(req.report_type);
   const traits: CoachPayloadTrait[] = [];
   for (const [key, grade] of Object.entries(req.trait_grades)) {
-    const std = TRAIT_STANDARDS_LOOKUP[key];
+    const std = getTraitStandard(req.report_type, key);
     if (!std || !grade || grade === "NOB") continue;
     // A trait this form does not print is not coached. There is deliberately NO
-    // fallback to std.block: that field comes from the merged lookup this
-    // function just refused to trust, and falling back to it reintroduces the
-    // exact collision — a stale client can still send `work` on a FITREP (the
-    // route's z.record accepts any key), and the EVAL entry's block 34 would
-    // then sit beside `eo`, also 34. No block number, no card.
+    // fallback to std.block: a stale client can still send `work` on a FITREP
+    // (the route's z.record accepts any key), and getTraitStandard already
+    // refuses to answer for it. No block number, no card.
     if (blocks[key] === undefined) continue;
     // A trait with neither anchors nor standards has nothing to judge against;
     // coaching it would be the model inventing the yardstick.

@@ -8,6 +8,9 @@ import {
   SUBSTANTIATION_NOTE_EVAL,
   SUBSTANTIATION_NOTE_FITREP,
   TraitKey,
+  resolveReportType,
+  getTraitStandard,
+  getCommentsBlock,
 } from "../../lib/traitStandards";
 
 // The 7 traits map to blocks 33-39 in order.
@@ -82,5 +85,51 @@ describe("NAVPERS 1616/26 trait standards", () => {
       expect(note).not.toMatch(/5\.0/);
     expect(SUBSTANTIATION_NOTE_EVAL).toMatch(/all 1\.0 marks/i);
     expect(SUBSTANTIATION_NOTE_EVAL).toMatch(/block 35/i);
+  });
+});
+
+describe("resolveReportType — which form a draft is on", () => {
+  // Every report-type-aware helper in this module reads an absent type as EVAL, so a
+  // draft carrying only a form_definition_id silently became an EVAL: enlisted
+  // descriptors, enlisted block numbers, enlisted line capacity. The components used
+  // to answer this question inline and only half of them asked about the form id.
+  it("prefers an explicit report_type", () => {
+    expect(resolveReportType({ report_type: "FITREP" })).toBe("FITREP");
+    expect(resolveReportType({ report_type: "CHIEFEVAL" })).toBe("CHIEFEVAL");
+    expect(resolveReportType({ report_type: "EVAL" })).toBe("EVAL");
+    // An explicit type wins over a contradicting id rather than being overridden.
+    expect(
+      resolveReportType({ report_type: "EVAL", form_definition_id: "FITREP-x" }),
+    ).toBe("EVAL");
+  });
+
+  it("falls back to the form_definition_id, for every form", () => {
+    for (const id of ["FITREP-1610-2", "x-f1610020-y", "x-f1610050-y"])
+      expect(resolveReportType({ form_definition_id: id }), id).toBe("FITREP");
+    for (const id of ["CHIEFEVAL-1616-27", "x-c1616270-y"])
+      expect(resolveReportType({ form_definition_id: id }), id).toBe("CHIEFEVAL");
+  });
+
+  it("defaults to EVAL when nothing identifies the form", () => {
+    expect(resolveReportType({})).toBe("EVAL");
+    expect(resolveReportType({ report_type: null, form_definition_id: null })).toBe(
+      "EVAL",
+    );
+    expect(resolveReportType({ form_definition_id: "EVAL-1616-26" })).toBe("EVAL");
+  });
+
+  it("carries a form-id-only draft through the helpers that consume it", () => {
+    // The point of the helper: same draft, right descriptors and right block, on
+    // all three of the seams that used to read report_type raw.
+    const chief = resolveReportType({ form_definition_id: "CHIEFEVAL-1616-27" });
+    expect(getTraitStandard(chief, "accountability")?.block).toBe(37);
+    expect(getTraitStandard(chief, "knowledge")).toBeUndefined(); // an EVAL key
+    expect(getCommentsBlock(chief)).toBe(40);
+
+    const officer = resolveReportType({ form_definition_id: "FITREP-1610-2" });
+    expect(getTraitStandard(officer, "knowledge")?.title).toBe(
+      "Professional Expertise",
+    );
+    expect(getCommentsBlock(officer)).toBe(41);
   });
 });

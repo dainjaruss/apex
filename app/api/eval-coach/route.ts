@@ -38,7 +38,7 @@ const BodySchema = z.object({
   // (resolveCommentPitch), so it is the default here too. See lib/commentFit.ts.
   pitch: z.enum(["10", "12"]).default("12"),
   comments: z.string().max(5000),
-  // Unknown KEYS are dropped downstream by TRAIT_STANDARDS_LOOKUP, so key count
+  // Unknown KEYS are dropped downstream by getTraitStandard(), so key count
   // cannot amplify the payload. Values were unbounded, though, and a known key
   // holding a 320 KB value was forwarded verbatim to the provider. A grade is
   // "5.0" or "NOB" — nothing legitimate comes near 8 characters.

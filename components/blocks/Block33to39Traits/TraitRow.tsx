@@ -2,7 +2,7 @@
 import React from "react";
 import { Evaluation } from "@/types";
 import TraitStandardPanel from "@/components/blocks/Block33to39Traits/TraitStandardPanel";
-import { TRAIT_STANDARDS_LOOKUP, TraitKey } from "@/lib/traitStandards";
+import { getTraitStandard } from "@/lib/traitStandards";
 
 type TraitRowProps = {
   traitKey: string;
@@ -25,7 +25,10 @@ export default function TraitRow({
   onFocus,
   reportType,
 }: TraitRowProps) {
-  const std = TRAIT_STANDARDS_LOOKUP[traitKey];
+  // The sub-caption printed under the trait name on THIS form. 1610/2 Block 33
+  // captions "Professional knowledge proficiency, and qualifications"; 1616/26
+  // Block 33 captions "Technical knowledge and practical application".
+  const std = getTraitStandard(reportType, traitKey);
 
   const handleGradeChange = (newVal: string | undefined) => {
     onChange({
@@ -90,7 +93,7 @@ export default function TraitRow({
 
       {value && (
         <TraitStandardPanel
-          traitKey={traitKey as TraitKey}
+          traitKey={traitKey}
           grade={value}
           reportType={reportType}
         />

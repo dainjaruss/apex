@@ -46,7 +46,7 @@ import {
   suggestsGradeOrRecommendation,
   type CoachRequest,
 } from "@/lib/evalCoach/coach";
-import { TRAIT_STANDARDS_LOOKUP } from "@/lib/traitStandards";
+import { getTraitStandards } from "@/lib/traitStandards";
 import { GET, POST } from "@/app/api/eval-coach/route";
 
 const REQ: CoachRequest = {
@@ -419,7 +419,7 @@ describe("form differences the standards table models", () => {
   });
 
   it("FITREP block numbers come from the report-type map, not the merged lookup", () => {
-    // TRAIT_STANDARDS_LOOKUP reports block 39 for BOTH leadership and
+    // The merged lookup reported block 39 for BOTH leadership and
     // tactical_performance, which rendered two cards headed "39".
     const p = coachPayload({
       report_type: "FITREP",
@@ -449,15 +449,17 @@ describe("form differences the standards table models", () => {
     });
     expect(p.traits.map((t) => [t.key, t.block])).toEqual([["eo", 34]]);
     // …and every graded trait that IS coached keeps a unique block on all three
-    // forms, which is the invariant that matters.
+    // forms, which is the invariant that matters. Grade every key ANY form knows,
+    // on each form, so each one is offered the other two forms' keys as well.
+    const everyKey = ["EVAL", "CHIEFEVAL", "FITREP"].flatMap((t) =>
+      Object.keys(getTraitStandards(t)),
+    );
     for (const report_type of ["EVAL", "CHIEFEVAL", "FITREP"] as const) {
       const all = coachPayload({
         report_type,
         pitch: "10",
         comments: "X.",
-        trait_grades: Object.fromEntries(
-          Object.keys(TRAIT_STANDARDS_LOOKUP).map((k) => [k, "4.0"]),
-        ),
+        trait_grades: Object.fromEntries(everyKey.map((k) => [k, "4.0"])),
       });
       const bs = all.traits.map((t) => t.block);
       expect(new Set(bs).size, `${report_type} block collision`).toBe(bs.length);

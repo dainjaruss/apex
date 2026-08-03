@@ -25,7 +25,7 @@ import {
   resolveCommentPitch,
   type CommentPitch,
 } from "@/lib/commentFit";
-import { getCommentsBlock } from "@/lib/traitStandards";
+import { getCommentsBlock, resolveReportType } from "@/lib/traitStandards";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
 import { FORM_PANEL, evalFieldId } from "@/lib/formStyles";
@@ -53,10 +53,14 @@ export default function Block43Comments({
   // The number the Sailor is typing against, per form — 17 lines on 1616/26, 8 on
   // 1616/27, 19 on 1610/2 at 10-pitch. Hardcoding 18 here told a Chief the box was more
   // than twice its printed size, and the overflow vanished at print time with no marker.
-  const commentsMaxLines = getCommentCapacity(evalData.report_type, pitch);
+  // Resolved once, as the trait grid does it. All three uses took the raw
+  // report_type, so a draft carrying only a form_definition_id got EVAL line
+  // capacity, an EVAL block heading, and a 400 from the coach route's z.enum.
+  const reportType = resolveReportType(evalData);
+  const commentsMaxLines = getCommentCapacity(reportType, pitch);
   // 1616/27 numbers this block 40 and 1610/2 numbers it 41. The heading said "43" on all
   // three; DetailsTab was fixed to ask, the editor the Sailor actually types into was not.
-  const commentsBlock = getCommentsBlock(evalData.report_type);
+  const commentsBlock = getCommentsBlock(reportType);
 
   // commentPitchFields, not a bare comment_pitch: an unstamped write is indistinguishable
   // from a legacy draft and would read back as 12-pitch whatever the Sailor picked.
@@ -223,6 +227,11 @@ function NarrativeCoach({
     };
   }, []);
 
+  // Its own component, its own `evalData` prop — the parent's resolved value is not
+  // in scope here. The route's z.enum rejects undefined, so a draft carrying only a
+  // form_definition_id used to 400 instead of being coached.
+  const reportType = resolveReportType(evalData);
+
   const run = async () => {
     setBusy(true);
     setError(null);
@@ -231,7 +240,7 @@ function NarrativeCoach({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          report_type: evalData.report_type,
+          report_type: reportType,
           pitch,
           comments: evalData.comments || "",
           trait_grades: evalData.trait_grades || {},

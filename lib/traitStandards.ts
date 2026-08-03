@@ -1,13 +1,22 @@
 // lib/traitStandards.ts
 //
-// Official NAVPERS 1616/26 (REV 05-2025) performance-trait standards. Each trait
-// (blocks 33-39) prints anchor descriptions in the 1.0, 3.0, and 5.0 columns of the
-// trait grid; the 2.0 and 4.0 columns are intentionally blank "between" steps.
+// Official performance-trait standards for all three forms, ONE TABLE PER FORM.
+// Resolve them with getTraitStandard(reportType, key) — there is no merged lookup,
+// because a merged lookup is how officers came to read EVAL prose on a FITREP.
 //
-// Source of truth: the printed grid on public/navpers-1616-26_2025.pdf (REV 05-2025),
-// transcribed from the PDF text layer and verified against the rendered form. These are
-// the verbatim standards shown to the rater — do NOT paraphrase; correct against the
-// form if the official wording changes.
+//   EVAL      NAVPERS 1616/26 (E1-E6)  → TRAIT_STANDARDS
+//   CHIEFEVAL NAVPERS 1616/27 (E7-E9)  → CHIEFEVAL_TRAIT_STANDARDS
+//   FITREP    NAVPERS 1610/2  (W2-O6)  → FITREP_TRAIT_STANDARDS
+//
+// Source of truth: the printed grids on public/navpers-1616-26_2025.pdf,
+// public/chiefEvalBlank.pdf and public/fitrepBlank.pdf (all REV 05-2025), transcribed
+// from the PDF text layer and verified against the rendered forms. These are the
+// verbatim standards shown to the rater — do NOT paraphrase, and do NOT reuse one
+// form's wording for another; correct against the form if the official wording changes.
+//
+// On 1616/26 and 1610/2 each trait prints anchor descriptions in the 1.0, 3.0 and 5.0
+// columns of the trait grid; the 2.0 and 4.0 columns are intentionally blank "between"
+// steps. 1616/27 prints no anchor columns at all — see `standards`.
 
 export type TraitKey =
   | "knowledge"
@@ -98,6 +107,31 @@ export function getSubstantiationNote(
   if (reportType === "CHIEFEVAL") return SUBSTANTIATION_NOTE_CHIEFEVAL;
   if (reportType === "FITREP") return SUBSTANTIATION_NOTE_FITREP;
   return SUBSTANTIATION_NOTE_EVAL;
+}
+
+/**
+ * Which form a draft is on — the input every report-type-aware helper here wants.
+ *
+ * `report_type` is the answer whenever it is set. A draft carrying only a
+ * `form_definition_id` still has a form, and all of these helpers silently treat an
+ * absent report type as EVAL, so reading the id is what stops a half-resolved row:
+ * officer headings from one source, enlisted descriptors and enlisted block numbers
+ * from the other, on the same screen.
+ */
+export function resolveReportType(evalData: {
+  report_type?: string | null;
+  form_definition_id?: string | null;
+}): string {
+  if (evalData.report_type) return evalData.report_type;
+  const id = evalData.form_definition_id ?? "";
+  if (id.startsWith("CHIEFEVAL") || id.includes("c1616270")) return "CHIEFEVAL";
+  if (
+    id.startsWith("FITREP") ||
+    id.includes("f1610020") ||
+    id.includes("f1610050")
+  )
+    return "FITREP";
+  return "EVAL";
 }
 
 export const ANCHOR_GRADES: readonly AnchorGrade[] = ["1.0", "3.0", "5.0"];
@@ -395,22 +429,263 @@ export const CHIEFEVAL_TRAIT_ORDER = [
 
 export { CHIEFEVAL_TRAIT_STANDARDS };
 
-const FITREP_EXTRA_STANDARDS: Record<string, TraitStandard> = {
+// NAVPERS 1610/2 (FITREP, REV 05-2025) — "FITNESS REPORT & COUNSELING RECORD (W2-O6)".
+//
+// SEVEN performance traits, Blocks 33-39. Blocks 33-37 print on page 1, Blocks 38-39
+// on page 2. This form DOES print 1.0 / 3.0 / 5.0 anchor columns (the grid header row
+// reads "1.0* Below Standards | 2.0 Pro-gressing | 3.0 Meets Standards | 4.0 Above
+// Standards | 5.0 Greatly Exceeds Standards"), so every entry carries `anchors` —
+// unlike 1616/27, which prints none.
+//
+// Transcribed block-by-block from the text layer of public/fitrepBlank.pdf, in both
+// `pdftotext -layout` and reading-order modes, with bullet boundaries confirmed against
+// `pdftotext -bbox-layout` glyph positions (a bullet's "-" sits at xMin≈107, its text at
+// ≈110, and wrapped continuations at ≈117). Transcribed from the blank form itself —
+// not from the instruction, not from the EVAL table, and not from memory.
+//
+// These are NOT the 1616/26 (EVAL) descriptors. Officer and enlisted prose diverge in
+// substance, not only wording: Block 33 grades qualifications and professional
+// development where the EVAL grades "rating, specialty or job" and "advancement/PQS
+// requirements"; Block 35 grades "demeanor, or conduct" where the EVAL grades "self-
+// control; conduct resulting in disciplinary action"; Block 37 (MISSION ACCOMPLISHMENT
+// AND INITIATIVE) shares no bullet at all with the EVAL's Block 37 (PERSONAL JOB
+// ACCOMPLISHMENT/INITIATIVE). There is no QUALITY OF WORK trait on 1610/2, and no
+// TACTICAL PERFORMANCE trait on 1616/26.
+//
+// Typographic quirks below are the FORM's, reproduced rather than corrected:
+//  - Block 33's sub-caption prints "Professional knowledge proficiency, and
+//    qualifications" (no comma after "knowledge").
+//  - Block 35's sub-caption prints "adherance", the form's own misspelling of
+//    "adherence". 1616/26 misspells it identically.
+//  - Block 39's second 1.0 bullet runs "...employment Below others in..." with no
+//    dash and no sentence break at the join; the 3.0 and 5.0 columns punctuate the
+//    same thought with a period. Whether the form intends one bullet with a dropped
+//    period or two bullets with a dropped dash could not be established from the
+//    blank, so it is transcribed exactly as printed.
+const FITREP_TRAIT_STANDARDS: Record<
+  string,
+  TraitStandard & { anchors: Record<AnchorGrade, string[]> }
+> = {
+  knowledge: {
+    block: 33,
+    title: "Professional Expertise",
+    definition: "Professional knowledge proficiency, and qualifications",
+    anchors: {
+      "1.0": [
+        "Lacks basic professional knowledge to perform effectively",
+        "Cannot apply basic skills",
+        "Fails to develop professionally or achieve timely qualifications",
+      ],
+      "3.0": [
+        "Has thorough professional knowledge",
+        "Competently performs both routine and new tasks",
+        "Steadily improves skills, achieves timely qualifications",
+      ],
+      "5.0": [
+        "Recognized expert, sought after to solve difficult problems",
+        "Exceptionally skilled, develops and executes innovative ideas",
+        "Achieves early/highly advanced qualifications",
+      ],
+    },
+  },
+  eo: {
+    block: 34,
+    title: "Command or Organizational Climate",
+    definition:
+      "Contributions to growth and development, human worth, community",
+    anchors: {
+      "1.0": [
+        "Actions counter to Navy's retention goals",
+        "Uninvolved with mentoring or professional development of subordinates",
+        "Demonstrates behavior that stifles command or work center success",
+        "Actions counter to good order and discipline and negatively affect command/organizational climate",
+      ],
+      // 1610/2 prints "Appreciates contributions of Navy personnel" and "Positive
+      // influence on command climate" as two separate dashed bullets. 1616/26 runs
+      // them together in one bullet (and duplicates the word "Personnel." doing it).
+      "3.0": [
+        "Positive leadership supports Navy's increased retention goals. Active in decreasing attrition",
+        "Actions adequately encourage/support subordinates' personal/professional growth",
+        "Fosters an atmosphere conducive to personal and team success",
+        "Appreciates contributions of Navy personnel",
+        "Positive influence on command climate",
+        "Actions contribute to good order and discipline and positively improves command/organizational climate",
+      ],
+      "5.0": [
+        "Measurably contributes to Navy's increased retention and reduced attrition objectives",
+        "Proactive leader/exemplary mentor. Involved in subordinates' personal development leading to professional growth/sustained commitment",
+        "Initiates support programs for military, civilian, and families to achieve exceptional command and organizational climate",
+      ],
+    },
+  },
+  bearing: {
+    block: 35,
+    title: "Military Bearing/Character",
+    definition:
+      "Appearance, conduct, physical fitness, adherance to Navy Core Values",
+    anchors: {
+      "1.0": [
+        "Consistent unsatisfactory appearance",
+        "Unsatisfactory demeanor, or conduct",
+        "Unable to meet one or more physical readiness standards",
+        "Fails to live up to one or more Navy Core Values: HONOR, COURAGE, COMMITMENT",
+      ],
+      "3.0": [
+        "Excellent personal appearance",
+        "Excellent demeanor or conduct",
+        "Complies with physical readiness program",
+        "Always lives up to Navy Core Values: HONOR, COURAGE, COMMITMENT",
+      ],
+      "5.0": [
+        "Exemplary personal appearance",
+        "Exemplary Navy representative",
+        "A leader in physical readiness",
+        "Exemplifies Navy Core Values: HONOR, COURAGE, COMMITMENT",
+      ],
+    },
+  },
+  teamwork: {
+    block: 36,
+    title: "Teamwork",
+    definition: "Contributions toward team building and team results",
+    anchors: {
+      "1.0": [
+        "Creates conflict, unwilling to work with others, puts self above team",
+        "Fails to understand team goals or teamwork techniques",
+        "Does not take direction well",
+      ],
+      "3.0": [
+        "Reinforces others' efforts, meets personal commitments to team",
+        "Understands team goals, employs good teamwork techniques",
+        "Accepts and offers team direction",
+      ],
+      "5.0": [
+        "Team builder, inspires cooperation and progress",
+        "Talented mentor; focuses goals and techniques for team",
+        "The best at accepting and offering team direction",
+      ],
+    },
+  },
+  accomplishment: {
+    block: 37,
+    title: "Mission Accomplishment and Initiative",
+    definition: "Taking initiative, planning/prioritizing, achieving mission",
+    anchors: {
+      "1.0": [
+        "Lacks initiative",
+        "Unable to plan or prioritize",
+        "Does not maintain readiness",
+        "Fails to get the job done",
+      ],
+      "3.0": [
+        "Takes initiative to meet goals",
+        "Plans/prioritizes effectively",
+        "Maintains high state of readiness",
+        "Always gets the job done",
+      ],
+      "5.0": [
+        "Develops innovative ways to accomplish mission",
+        "Plans/prioritizes with exceptional skill and foresight",
+        "Maintains superior readiness, even with limited resources",
+        "Gets jobs done earlier and far better than expected",
+      ],
+    },
+  },
+  leadership: {
+    block: 38,
+    title: "Leadership",
+    definition:
+      "Organizing, motivating and developing others to accomplish goals",
+    anchors: {
+      "1.0": [
+        "Neglects growth/development or welfare of subordinates",
+        "Fails to organize; creates problems for subordinates",
+        "Does not set or achieve goals relevant to command's mission and vision",
+        "Lacks ability to cope with or tolerate stress",
+        "Inadequate communicator",
+        "Tolerates hazards or unsafe practices",
+      ],
+      // Closest of the seven to its EVAL counterpart (1616/26 Block 39) — the
+      // divergence is punctuation only: 1610/2 prints "useful realistic goals" with
+      // no comma, "trainer, subordinates" with a comma, and "safety-conscious;
+      // maintains" with a semicolon, each the opposite of the EVAL's.
+      "3.0": [
+        "Effectively stimulates growth/development in subordinates",
+        "Organizes successfully, implementing process improvements and efficiencies",
+        "Sets/achieves useful realistic goals that support command's mission",
+        "Performs well in stressful situations",
+        "Clear, timely communicator",
+        "Ensures safety of personnel and equipment",
+      ],
+      "5.0": [
+        "Inspiring motivator and trainer, subordinates reach highest level of growth and development",
+        "Superb organizer, great foresight, develops process improvements and efficiencies",
+        "Leadership achievements dramatically further command's mission and vision",
+        "Perseveres through the toughest challenges and inspires others",
+        "Exceptional communicator",
+        "Makes subordinates safety-conscious; maintains top safety record",
+        "Constantly improves the personal and professional lives of others",
+      ],
+    },
+  },
   tactical_performance: {
     block: 39,
+    // Printed as "TACTICAL PERFORMANCE: (Warfare qualified officers only)" above the
+    // sub-caption. Officer-only trait — 1616/26 and 1616/27 print no equivalent.
     title: "Tactical Performance",
-    definition: "Tactical/operational proficiency and warfare employment (officers)",
+    definition:
+      "(Warfare qualified officers only) Basic and tactical employment of weapons systems",
     anchors: {
-      "1.0": ["Below expected tactical proficiency for grade"],
-      "3.0": ["Capably employs platforms/systems; meets warfare expectations"],
-      "5.0": ["Innovative tactical employment; exceeds peers in warfare skills"],
+      "1.0": [
+        "Has difficulty attaining qualification expected of the rank and experience",
+        "Has difficulty in ship(s), aircraft or weapons systems employment Below others in knowledge and employment",
+        "Warfare skills in specialty are below standards compared to others of same rank and experience",
+      ],
+      "3.0": [
+        "Attains qualifications as required and expected",
+        "Capably employs ship(s), aircraft, or weapons systems. Equal to others in warfare knowledge and employment",
+        "Warfare skills in specialty equal to others of same rank and experience",
+      ],
+      "5.0": [
+        "Fully qualified at appropriate level for rank and experience",
+        "Innovatively employs ship(s), aircraft, or weapons systems. Well above others in warfare knowledge and employment",
+        "Warfare skills in specialty exceed others of same rank and experience",
+      ],
     },
   },
 };
 
-/** Unified lookup for EVAL, CHIEFEVAL, and FITREP trait rows. */
-export const TRAIT_STANDARDS_LOOKUP: Record<string, TraitStandard> = {
-  ...TRAIT_STANDARDS,
-  ...CHIEFEVAL_TRAIT_STANDARDS,
-  ...FITREP_EXTRA_STANDARDS,
-};
+export { FITREP_TRAIT_STANDARDS };
+
+/**
+ * The trait table for one form, keyed by trait key.
+ *
+ * Same shape as getCommentsBlock()/getSubstantiationNote(): the report type picks
+ * the form, and an unknown or absent type falls back to the EVAL (1616/26).
+ *
+ * There is deliberately no merged all-forms lookup. The flat merge this replaced
+ * (`TRAIT_STANDARDS_LOOKUP`) let six of the seven officer rows resolve to the EVAL
+ * table, so an officer filling in a FITREP read 1616/26 descriptor prose under
+ * 1610/2 trait headings. Resolve descriptors here, per form, or not at all.
+ */
+export function getTraitStandards(
+  reportType?: string,
+): Record<string, TraitStandard> {
+  if (reportType === "CHIEFEVAL") return CHIEFEVAL_TRAIT_STANDARDS;
+  if (reportType === "FITREP") return FITREP_TRAIT_STANDARDS;
+  return TRAIT_STANDARDS;
+}
+
+/**
+ * One trait's printed standard on one form, or undefined when that form prints no
+ * such trait (`work` on a FITREP, `tactical_performance` on an EVAL).
+ *
+ * Undefined is a real answer, not a miss to paper over: callers must skip the trait
+ * explicitly. Never substitute another form's entry — that is the bug this replaced.
+ */
+export function getTraitStandard(
+  reportType: string | undefined,
+  traitKey: string,
+): TraitStandard | undefined {
+  return getTraitStandards(reportType)[traitKey];
+}
