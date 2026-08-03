@@ -664,3 +664,306 @@ describe("the narrative coach asks about the officer's own form", () => {
     expect(body?.report_type).toBe("CHIEFEVAL");
   });
 });
+// ─────────────────────────────────────────────────────────────────────────────
+// Horizontal geometry.
+//
+// The axis that had NO coverage at all until PR #41, which added it for Block 41 only —
+// which is why four more constants sat 14-15 pt out in the page margin through #32, #34
+// and #36, all of which measured the vertical axis exhaustively.
+//
+// Every bound below is MEASURED off public/fitrepBlank.pdf and transcribed here
+// independently of lib/fitrepOverlay.ts, so these fail when a constant drifts off the
+// FORM, not when it drifts off today's output.
+//
+// Method (re-runnable): `pdftoppm -r 600 -gray public/fitrepBlank.pdf out`, then within
+// each block's y band take the columns dark on >90% of the band's rows. Every rule on the
+// form strokes exactly 0.72 pt; the numbers are INNER ink edges. Re-measured at 2400 dpi,
+// where the same edges read 32.630 / 579.830 / 31.640 / 578.870 / 470.120 — agreement to
+// within one 600 dpi pixel (0.12 pt).
+//
+// THE TWO PAGES DO NOT SHARE A LEFT RULE, which is the substance of this fix: one
+// constant for both is how the margin defect happened.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RULES: Record<1 | 2, { left: number; right: number }> = {
+  1: { left: 32.64, right: 579.84 },
+  2: { left: 31.68, right: 578.88 },
+};
+const FRAME_TOP = 769.32;
+const FRAME_FLOOR = 47.16;
+
+/**
+ * Block 40's empty right cell — where the two career-milestone recommendations go. The
+ * block is split by a rule at x[469.440, 470.160]; the wide left cell carries the form's
+ * own three lines of instruction text (ink y[477.840, 500.160]), leaving 8.04 pt of clear
+ * height there, under one 12 pt line. This cell holds ZERO form ink at 600 dpi.
+ */
+const B40_CELL = { left: 470.16, right: 578.88, floor: 469.8, top: 505.08 };
+
+/** House inset off a printed rule. Same 2.5 the comment blocks are held to. */
+const INSET = 2.5;
+
+/** CourierPrime-Regular: every printable glyph advances 1228/2048 em. */
+const ADVANCE = 1228 / 2048;
+/** Real outline extents over printable ASCII — '`' highest, 'y'/'g'/'j' deepest. */
+const INK_ABOVE = 0.6909;
+const INK_BELOW = 0.2002;
+
+/**
+ * A probe line of EXACTLY n characters carrying both ink extremes and ending in a
+ * descender. An earlier suite on this epic drew nothing but "X": no descender ever
+ * reached the renderer, and the line was ~20 characters short of the box, so it could not
+ * see a horizontal overrun at all.
+ */
+const probe = (n: number, alphabet: string) =>
+  alphabet.repeat(Math.ceil(n / alphabet.length)).slice(0, n - 1) + "g";
+
+/** Read back every glyph run APEX drew, in page coordinates. */
+async function overlayRuns(bytes: Uint8Array, page: 1 | 2) {
+  const { getDocumentProxy } = await import("unpdf");
+  const doc = await getDocumentProxy(new Uint8Array(bytes));
+  const tc = await (await doc.getPage(page)).getTextContent();
+  const styles = tc.styles as Record<string, { fontFamily: string; descent: number }>;
+  // The blank embeds serif faces only; the overlay adds CourierPrime, which pdf.js
+  // reports as sans-serif with the font's own declared descent of -700/2048. Asserted,
+  // not assumed — a filter that silently matched nothing would make every test below
+  // vacuously green.
+  const mine = Object.entries(styles)
+    .filter(([, s]) => s.fontFamily === "sans-serif")
+    .map(([k]) => k);
+  expect(mine).toHaveLength(1);
+  expect(styles[mine[0]].descent).toBeCloseTo(-700 / 2048, 6);
+
+  return (tc.items as any[])
+    .filter((i) => i.fontName === mine[0] && (i.str ?? "").trim())
+    .map((i) => {
+      const str = (i.str as string).replace(/\s+$/, "");
+      const size = Math.hypot(i.transform[1], i.transform[3]) as number;
+      const x = i.transform[4] as number;
+      const y = i.transform[5] as number;
+      return {
+        str,
+        size,
+        x,
+        x2: x + str.length * size * ADVANCE,
+        base: y,
+        top: y + size * INK_ABOVE,
+        bot: y - size * INK_BELOW,
+      };
+    });
+}
+
+const B28_FILL = "Xygj`Q";
+const B29_FILL = "Wygj`Q";
+
+/**
+ * 20 chars — CAREER_REC_MAX, which is what the editor accepts, the validator allows and
+ * NAVFIT's RecommendA/B carry. Uppercased by the overlay, so the deepest ink available is
+ * punctuation and 'Q'; the assertions use the global -0.2002 em anyway, which is the
+ * conservative direction.
+ */
+const REC_A = "DEPARTMENT HEAD (Q),";
+const REC_B = "POSTGRADUATE SCHOOL,";
+
+async function renderProbeFitrep() {
+  const template = new Uint8Array(
+    fs.readFileSync(path.join(process.cwd(), "public", "fitrepBlank.pdf")),
+  );
+  return generateFitrepOverlayPdf(
+    {
+      report_type: "FITREP",
+      member_name: "TESTMEMBERLONGNAME, SAILOR A",
+      grade_rate: "CDR",
+      designator: "1110",
+      dod_id: "1234567890",
+      period_from: "2025-01-01",
+      period_to: "2025-11-15",
+      duty_status: "ACT",
+      promotion_status: "REGULAR",
+      uic: "N00011",
+      ship_station: "USS FRANKLYN",
+      trait_grades: { knowledge: "5.0", leadership: "5.0" },
+      comments: "SHORT.",
+      career_recommendations: [REC_A, REC_B],
+      promotion_recommendation: "Early Promote",
+      summary_group_average: 4.55,
+      // summary_group_distribution, not_observed and concurrent_rs_signature_date are
+      // set because the sweep below can only see fields that DRAW. The first revision of
+      // this fixture omitted all three, and the ledger silently missed two constants that
+      // print outside the form (notObservedCx, date52_x) — the same miss-a-sibling
+      // failure this whole epic keeps repeating.
+      summary_group_distribution: {
+        "Significant Problems": 0,
+        Progressing: 1,
+        Promotable: 2,
+        "Must Promote": 3,
+        "Early Promote": 4,
+      },
+      block_values: {
+        date_reported: "2024-08-01",
+        periodic: true,
+        regular_report: true,
+        not_observed: true,
+        concurrent_rs_signature_date: "2025-11-23",
+        reporting_senior_name: "REPORTINGSENIORNAME, JOHN A",
+        reporting_senior_grade: "RADM",
+        // 4 lines' worth of unbroken text, so the wrap force-splits at exactly the CPL.
+        command_achievements: probe(91 * 4, B28_FILL),
+        primary_duty_abbrev: "OPS",
+        primary_duties: probe(91 * 4, B29_FILL),
+        date_counseled: "2025-05-01",
+        counselor: "JONES, CARL R",
+        qualifications: "ESWS QUALIFIED THIS PERIOD.",
+        reporting_senior_address: "1234 NAVY WAY\nNORFOLK VA 23511",
+        member_statement_intent: "I INTEND TO SUBMIT A STATEMENT",
+        senior_rater_signature_date: "2025-11-20",
+        reporting_senior_signature_date: "2025-11-21",
+        member_signature_date: "2025-11-22",
+        comment_pitch: "12",
+        comment_pitch_v: 2,
+      },
+    } as unknown as Evaluation,
+    template,
+  );
+}
+
+describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
+  it.each([
+    ["Block 28 command achievements", 1 as const, B28_FILL, 91],
+    ["Block 29B primary duties", 1 as const, B29_FILL, 91],
+  ])(
+    "%s: every full-width line sits between the page's own side rules",
+    async (_label, page, fill, cpl) => {
+      const runs = await overlayRuns(await renderProbeFitrep(), page);
+      const lines = runs.filter((r) => new RegExp(`^[${fill}]{20,}`).test(r.str));
+
+      // The probe must have reached the renderer at FULL width, or the assertions below
+      // are measuring a line the form never has to hold.
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      expect(Math.max(...lines.map((l) => l.str.length))).toBe(cpl);
+
+      // The point size these blocks solve comes from the box the BLANK has, not from a
+      // width carried over from another form. The inherited FORM_RIGHT - FORM_LEFT was
+      // 547.9 against a real 547.200 — right by accident, and the accident is what this
+      // pins. (Both pages measure the same interior; so do all three comment blocks.)
+      const interior = RULES[page].right - RULES[page].left;
+      expect(interior).toBeCloseTo(547.2, 6);
+      for (const l of lines)
+        expect(l.size).toBeCloseTo((interior - 4) / ((cpl + 0.5) * 0.6), 6);
+
+      for (const l of lines) {
+        expect(l.x - RULES[page].left).toBeGreaterThanOrEqual(INSET);
+        expect(RULES[page].right - l.x2).toBeGreaterThanOrEqual(INSET);
+      }
+    },
+    30_000,
+  );
+
+  it("Block 29B's duty abbreviation starts inside the rule too", async () => {
+    // Drawn by narrativeWithLead at the same x as the body; it was the third FORM_LEFT
+    // site once b29b_contX is counted, and it prints on its own.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const lead = runs.find((r) => r.str === "OPS");
+    expect(lead).toBeDefined();
+    expect(lead!.x - RULES[1].left).toBeGreaterThanOrEqual(INSET);
+  });
+
+  it("Block 40's two recommendations land in the block's own empty cell", async () => {
+    const runs = await overlayRuns(await renderProbeFitrep(), 2);
+    const recs = runs.filter((r) => /DEPARTMENT HEAD|POSTGRADUATE/.test(r.str));
+    expect(recs).toHaveLength(2);
+
+    for (const r of recs) {
+      // Full width — 20 characters, the length every other layer of APEX carries, at the
+      // size THIS cell solves for them. A shorter probe could not see a right-hand
+      // overrun, and a probe that let the entry truncate would not notice it had.
+      expect(r.str).toHaveLength(20);
+      const cellWidth = B40_CELL.right - B40_CELL.left;
+      expect(cellWidth).toBeCloseTo(108.72, 6);
+      expect(r.size).toBeCloseTo((cellWidth - 4) / ((20 + 0.5) * 0.6), 6);
+      expect(r.x - B40_CELL.left).toBeGreaterThanOrEqual(INSET);
+      expect(B40_CELL.right - r.x2).toBeGreaterThanOrEqual(INSET);
+      // BOTH axes: they used to draw at y 512.0, which is 6.92 pt above this block
+      // entirely, inside the Block 39 trait row. x alone would not have moved them in.
+      expect(r.bot - B40_CELL.floor).toBeGreaterThanOrEqual(INSET);
+      expect(B40_CELL.top - r.top).toBeGreaterThanOrEqual(INSET);
+    }
+    // Two lines, not one on top of the other.
+    const [a, b] = recs.sort((p, q) => q.base - p.base);
+    expect(a.bot).toBeGreaterThan(b.top);
+  });
+
+  it("uses the cell's full width — one more character at this size would overrun", async () => {
+    // The other direction: a CPL short by one costs the Sailor a character of a career
+    // recommendation. This says 20 characters is what the cell holds AT THE SOLVED SIZE;
+    // it is not a claim that 20 is forced by the geometry alone, since the formula
+    // rescales with CPL. 20 comes from CAREER_REC_MAX, and this is what proves it fits.
+    const runs = await overlayRuns(await renderProbeFitrep(), 2);
+    const rec = runs.find((r) => /DEPARTMENT HEAD/.test(r.str))!;
+    expect(rec.x + (rec.str.length + 1) * rec.size * ADVANCE).toBeGreaterThan(
+      B40_CELL.right - INSET,
+    );
+  });
+
+  it("draws no Qualifications block — 1610/2 does not have one", async () => {
+    // Block 44 on this form is "Reporting Senior Address" (header at x 402.68), and the
+    // brag sheet already treats qualifications as EVAL-only. It used to print at x 17.30,
+    // in the margin beside the promotion-recommendation grid.
+    const runs = await overlayRuns(await renderProbeFitrep(), 2);
+    expect(runs.some((r) => /ESWS QUALIFIED/.test(r.str))).toBe(false);
+  });
+
+  it("keeps every remaining field inside the printed frame, bar a named ledger", async () => {
+    // The general guard the four constants slipped past: nothing may print outside the
+    // form's outer rules. The exemptions are the fields this PR did NOT fix — each is
+    // wrong on both axes (wrong CELL, not merely a margin), and each is described in the
+    // note in lib/fitrepOverlay.ts. Fixing one deletes its line; adding one fails here.
+    const LEDGER = new Set([
+      "1|23.50|755.30", // p1.name_x — identity row
+      "1|28.10|717.40", // p1.dutyCx[0] mark (cx 31.5)
+      "1|546.50|721.50", // p1.datereported_x — overruns the RIGHT rule, ends at 588.47
+      "1|28.10|682.20", // p1.periodicCx mark (cx 31.5)
+      "1|23.50|616.00", // p1.rsName_x — reporting senior row
+      "1|28.10|646.20", // p1.notObservedCx mark (cx 31.5) — Block 16, a routine report
+      "1|23.50|400.00", // p1.dateCounseled_x
+      "2|23.50|755.30", // p2.name_x — identity row
+      "2|135.00|47.00", // p2.summaryAvg_x — ink floor 45.00 under the 47.16 bottom rule
+      "2|25.00|47.00", // p2.date49_x — margin AND under the bottom rule
+      "2|205.00|47.00", // p2.date50_x
+      "2|433.00|47.00", // p2.date51_x
+      "2|522.00|47.00", // p2.date52_x — concurrent reporting senior's signature date
+    ]);
+
+    const bytes = await renderProbeFitrep();
+    const seen: string[] = [];
+    const all: Array<{ str: string; size: number }> = [];
+    for (const page of [1, 2] as const) {
+      const runs = await overlayRuns(bytes, page);
+      all.push(...runs);
+      for (const r of runs) {
+        const outside =
+          r.x < RULES[page].left ||
+          r.x2 > RULES[page].right ||
+          r.bot < FRAME_FLOOR ||
+          r.top > FRAME_TOP;
+        if (outside)
+          seen.push(`${page}|${r.x.toFixed(2)}|${r.base.toFixed(2)}`);
+      }
+    }
+    // The probe really drew a populated report on both pages — a sweep over an empty
+    // form would pass every assertion below without testing anything.
+    expect(all.length).toBeGreaterThan(30);
+    for (const sentinel of ["TESTMEMBERLONGNAME", "REPORTINGSENIORNAME", "DEPARTMENT HEAD"])
+      expect(all.some((r) => r.str.includes(sentinel))).toBe(true);
+    // The checkbox marks specifically. A plain `includes("X")` sentinel passed on the
+    // Block 28 probe alphabet ("Xygj`Q") whether or not mark() drew anything at all —
+    // making mark() a no-op left it green. mark() is the only 11 pt single-glyph draw.
+    expect(all.some((r) => r.str === "X" && r.size === 11)).toBe(true);
+
+    const unlisted = seen.filter((s) => !LEDGER.has(s));
+    expect(unlisted, `new field(s) printing outside the form frame`).toEqual([]);
+    // ...and every field this PR moved is off the ledger for good: no run starts at the
+    // inherited FORM_LEFT.
+    expect(seen.some((s) => s.includes("|17.30|"))).toBe(false);
+  }, 30_000);
+});
