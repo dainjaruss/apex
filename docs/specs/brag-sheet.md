@@ -1,6 +1,16 @@
 # APEX Brag Sheet + AI Auto-Fill — Implementation Specification
 
-Status: **APPROVED FOR BUILD** · Version 1.1 · 2026-07-18 · Branch `feat/brag-sheet`
+Status: **APPROVED FOR BUILD** · Version 1.2 · 2026-08-02 · Branch `feat/brag-sheet`
+
+v1.2 (adversarial-review fixes, normative changes marked "v1.2 review fix"): the
+§7 step 2 citation gate requires EVERY source to resolve, not one — a real path
+must not carry a fabricated one inside the same item — and `bad_sources` reports
+only the failing paths (§1.2 item 4, §7 step 2); the advisory is withheld on any
+unresolvable or absent source, with its sources emptied and the withholding
+recorded in `citation_failures` so §6 can render it; the evidence-leaf rule
+accepts truthy scalars the Sailor entered (counts, months, flags) and the
+grammar gains the `physical_readiness` root, without which `every()` deletes a
+quarter of all generated items (§4.6).
 
 v1.1 (adversarial-review fixes, normative changes marked "v1.1 review fix"):
 citation walk hardened to own-enumerable keys with an evidence-leaf rule (§4.6);
@@ -91,11 +101,17 @@ draft is indistinguishable from a hand-typed draft — the audit log
    writes it to `Evaluation.promotion_recommendation` (which stays the seed default
    `"Promotable"`; the user picks Block 45 on the form, where
    `refinePromotionRecommendation` (`types/navpers.ts`) still gates it).
-4. **Citation-or-delete.** Every generated item must carry ≥1 source citation that
-   resolves against the actual request payload (§7 step 2). Unresolvable ⇒ the item
-   is deleted before the user sees it and recorded in `citation_failures`.
+4. **Citation-or-delete.** Every generated item must carry ≥1 source citation, and
+   **every** citation it carries must resolve against the actual request payload
+   (§7 step 2). Any unresolvable source ⇒ the item is deleted before the user sees
+   it and recorded in `citation_failures`, whose `bad_sources` lists only the paths
+   that failed.
    (v1.1 review fix) Released block text is rebuilt exclusively from surviving
    cited items — the model-authored `block.text` is never released or applied.
+   (v1.2 review fix) `every`, not `some`: one resolving source must not carry a
+   fabricated one inside the same item. The item is deleted whole, never repaired
+   by dropping the bad source — that keeps the clause the bad source was cited to
+   support while erasing the evidence that it was unsupported.
 5. **Block 20 is deterministic.** `physical_readiness` =
    `brag.pfa.map(c => c.result).join("")`, computed server-side, echoed by the
    model, and **overwritten** server-side after generation. The model can never
@@ -957,16 +973,55 @@ fix — the original plain-property walk resolved inherited/junk paths like
   `req.brag` over **own-enumerable keys of plain objects only**
   (`Object.prototype.propertyIsEnumerable.call`); arrays accept `[n]` index
   segments only, never named properties (`.length`, `.constructor` etc. never
-  resolve). The resolved leaf must be **evidence**: a non-empty string, a
-  non-empty array, or a plain object with at least one non-empty own string
-  field — numbers, booleans, functions, and everything else REJECT.
-  `brag.admin.dod_id` never resolves (stripped from the payload).
+  resolve). The resolved leaf must be **evidence**: a **truthy** scalar or a
+  populated container — a non-blank string, a non-zero finite number, boolean
+  `true`, a non-empty array, or a plain object with at least one own field that
+  is **itself evidence** (recursively). Functions, `null`, `undefined`, `""`,
+  `0`, `false`, empty arrays and objects with nothing real anywhere inside them
+  all REJECT. `brag.admin.dod_id` never resolves (stripped from the payload).
+  (v1.2 review fix — v1.1 rejected ALL numbers and booleans on the grounds that
+  "an inherited method or an array's length can never substantiate a claim", but
+  both of those are rejected by the own-enumerable walk above, independently of
+  the leaf rule; the leaf rule was therefore refusing only the Sailor's own
+  scalar entries — `leadership.supervised_military`, `duties[n].months_assigned`,
+  `education[n].credit_hours`, `duties[n].is_most_significant`. Harmless while
+  the §7 step 2 gate was `some()`; under `every()` it deleted 26.1% of live
+  items. `0` and `false` still reject for the reason `""` always did:
+  `emptyBragSheetData` seeds them, so they cannot be distinguished from a field
+  the Sailor never filled in. The **object** branch takes the same correction:
+  v1.1 accepted a plain object only via a non-blank own STRING field, so
+  `brag.leadership.supervised_military` resolved while `brag.leadership` did
+  not, and `brag.qualifications` / `brag.off_duty` failed while fully populated.
+  **Direction of the trade, stated:** this ENLARGES the claim-level hole — an
+  item whose sentence is about something its citation does not cover now
+  survives where v1.1 deleted it by accident, for the wrong reason. Whether a
+  sentence is ABOUT what it cites is #39's subject-vs-citation question; no
+  path-resolution rule answers it and this one does not pretend to.)
+- `physical_readiness` — the payload's own top-level Block 20 string
+  (`collapsePfa(req.brag)`); resolves iff it is non-empty. (v1.2 review fix: the
+  prompt hands this field to the model and instructs it to echo the value, and
+  the model duly cites it, but v1.1 had no root for it so every such citation
+  failed. It is a leaf root — `physical_readiness.<anything>` does not resolve.)
 - `prior_evals[<period_to>]` optionally followed by
   `.comments|.qualifications|.primary_duties|.promotion_recommendation|.trait_average`
   — resolves iff a summary with that exact `period_to` exists (and the field is
   non-empty when named).
+- `ladr[<n>]` optionally followed by
+  `.milestone_id|.category|.item|.status` — resolves iff a milestone exists at
+  that index (and the named field is non-empty). `req.ladr` really is an array in
+  the payload; the model spells the citation this way in 2 of 8 runs on an
+  independent campaign, on items whose every other source resolves. The field
+  list is a whitelist for the same reason `prior_evals`' is: a fixed list can
+  never walk into `constructor` or `__proto__`. `status` is not read as
+  agreement — the category forms have always resolved a `not_met` milestone too.
 - `ladr.<category>[<milestone_id>]` — resolves iff a `LadrMilestoneStatus` with
-  that `category` and `milestone_id` exists.
+  that `category` and `milestone_id` exists. (v1.2 review fix)
+  `ladr.<category>.<milestone_id>` is accepted as an alternate spelling of the
+  same pair — the model emitted it in 1 of 12 post-fix live runs and under
+  `every()` the alternative is deleting a correctly-sourced bullet over
+  punctuation. It resolves exactly what the bracket form resolves and nothing
+  more; no `LadrCategory` contains a dot, which is what keeps the split
+  unambiguous. The prompt still documents only the bracket form.
 - Anything else: unresolvable.
 
 **Model call** (`buildCallModel(resolved)` returns this wrapper; the service
@@ -1606,7 +1661,13 @@ small ones in the page file is permitted):
       source path(s) and, when the path points into `brag`, the cited source text
       rendered beside it (the "side-by-side": clicking a chip scrolls/highlights
       the source row in the editor). `citation_failures` render as struck-through
-      ghost rows with "removed — citation did not resolve".
+      ghost rows with "removed — citation did not resolve (<failing paths>)"
+      (`RemovedItems`). (v1.2 review fix) Every card that can lose content renders
+      them — the five narrative blocks, Block 41, and the advisory card; only the
+      failing paths are named, and an entry with no sources at all reads
+      "no sources cited". Block 20 is exempt: its text is overwritten
+      deterministically at §7 step 3, so no item drop there changes what is
+      applied.
     - **Fit meter** — for comments/29B/28/44: `linesUsed / maxLines` bar from
       `fit_reports` (e.g. "14 / 17 lines at 90 CPL" on an EVAL at 12-pitch), green under target, amber at
       max, red on overflow. 29A shows a char counter (`n/14`) driven by its own
@@ -1620,6 +1681,12 @@ small ones in the page file is permitted):
     - **Accept / Edit / Reject** per block. Accepted (or accept-after-edit) blocks
       populate `AcceptedBlocks`; Block 20 renders read-only ("computed from your
       PFA rows") — not accept/rejectable.
+  - **Block 41 caveat (v1.2, pre-existing and NOT closed):**
+    `career_recommendations.entries` is the only applied value not derived from
+    `items`, so it never passes the §7 step 2 citation gate — an ungrounded
+    `entries: ["NUCLEAR POWER"]` survives while the `items` entry beside it is
+    deleted for a bad citation. The v1.2 ghost rows make this card *look* gated
+    when its applied field is not.
   - **Missing-info list** — every `MissingInfoFlag` as a row: block badge,
     `message`, and a "Go to field" link when `field` names a `brag.*` path.
   - **Dry-run panel** — `dry_run` (`ValidationResult`) rendered in the same visual
@@ -1628,7 +1695,13 @@ small ones in the page file is permitted):
   - **Promotion advisory card** — recommendation + rationale + citation chips,
     visually distinct (`apex-badge-*`), headed "ADVISORY ONLY — not written to the
     form" and footed with the rationale's own closing sentence. No control exists
-    to copy it into Block 45.
+    to copy it into Block 45. (v1.2 review fix) When a
+    `citation_failures` entry with `block: "promotion_advisory"` is present the
+    card is in the **withheld** state: the badge reads "Withheld" instead of the
+    model's `recommendation`, and the withheld rationale plus its failing paths
+    render as a `RemovedItems` ghost row. Keeping the recommendation badge beside
+    a withheld rationale would preserve the conclusion whose evidence was just
+    deleted.
   - **"Create draft <EVAL|CHIEFEVAL|FITREP>"** (`apex-btn-primary`) — enabled once
     ≥1 block is accepted and no accepted block overflows →
     `applyBragDraft(userId, sheet, accepted, pitch)` → `router.push(/evaluations/<id>)`.
@@ -1646,8 +1719,13 @@ Implemented in `runAutofill` (§4.6); this section is the single source of truth
    partial apply).
 2. **CITATION RESOLUTION** (anti-fabrication gate; v1.1 review fix) —
    `resolveCitation` on every `GeneratedItem.sources` path against the actual
-   `AutofillRequest`. An item with zero resolvable sources is stripped from
-   `items[]` and recorded in `citation_failures`; it never reaches the user.
+   `AutofillRequest`. An item is kept only if it has ≥1 source and **every** one
+   of them resolves; otherwise it is stripped from `items[]` and recorded in
+   `citation_failures` with `bad_sources` = **only the paths that failed**
+   (v1.2 review fix — `some` let one real source carry a fabricated one inside
+   the same item, and left `bad_sources` empty unless *all* sources failed, so a
+   partial failure was invisible). The item is deleted whole; the server never
+   repairs an item by dropping the bad source, and never rewords one.
    Then every block's released `text` is **REBUILT exclusively from the
    surviving cited items** (join per the block's shape, §4.2: `comments`
    newline-joined, all other blocks space-joined). The model-authored
@@ -1657,9 +1735,15 @@ Implemented in `runAutofill` (§4.6); this section is the single source of truth
    exact-substring-removal surgery is DELETED — it silently no-op'd on
    whitespace drift and could excise substrings from legitimate sentences.)
    Fit checks (step 4) run on the rebuilt text. `promotion_advisory.sources`
-   are resolved the same way; if none resolve, the advisory's `recommendation`
-   is kept but `rationale` is replaced with
-   `"No cited evidence survived validation — advisory withheld."`.
+   are resolved the same way: if it cites nothing, or **any** cited path fails,
+   the advisory is withheld — `rationale` is replaced with
+   `"No cited evidence survived validation — advisory withheld."`, `sources` is
+   emptied (a failed path must not render as a provenance chip), and one
+   `citation_failures` entry with `block: "promotion_advisory"` carries the
+   original rationale and the failing paths so §6 can show what was withheld.
+   The `recommendation` field is left intact in the payload — the schema
+   requires an enum member and no member means "absent" — but §6 renders
+   "Withheld" in its place whenever that failure entry is present.
 3. **DETERMINISTIC BLOCK 20** — recompute `collapsePfa(req.brag)`; **overwrite**
    `blocks.physical_readiness.text` (server value always wins) and assert
    `/^[PBFMWN]*$/`. If any cycle has `result: "B"` and `blocks.primary_duties.text`
@@ -1813,11 +1897,46 @@ pipeline-only behavior is under test.
   text rebuilt without it, plus one `citation_failures` entry naming the bad
   path. (v1.1 review fix) Junk/inherited paths never resolve
   (`brag.constructor`, `brag.toString`, `brag.hasOwnProperty`,
-  `brag.__proto__`, array `.length` even on empty arrays); non-string leaves
-  (numbers, booleans, string-free objects) are not evidence; released
+  `brag.__proto__`, array `.length` even on empty arrays) — and this suite must
+  keep passing UNCHANGED under the v1.2 leaf rule, which is the evidence that the
+  own-enumerable walk, not the number/boolean rejection, is what stops them.
+  (v1.2 review fix) A truthy scalar the Sailor entered IS evidence
+  (`duties[0].months_assigned`, `duties[0].is_most_significant`); `0` and `false`
+  are not, and the same path carrying a real value resolves — so the rejection is
+  about the value, not the type. A populated CONTAINER resolves (`brag.leadership`
+  where only `supervised_military` is set; a `qualifications` of nothing but
+  arrays) while an empty one does not (`counseling: {}`, `off_duty` of empty
+  arrays) — and the same paths resolve once something real is inside them.
+  `physical_readiness` resolves against the collapsed Block 20 string, and not
+  when `brag.pfa` is empty. The dot spelling of a ladr path resolves iff the
+  bracket spelling would (wrong category, wrong milestone id, and no id at all
+  all still reject), the `ladr[<n>](.field)?` index spelling resolves iff the
+  index is in range and the whitelisted field is non-empty
+  (`ladr[0].constructor` and `ladr[0].__proto__` never resolve), and no
+  `LadrCategory` contains a dot — asserted over `LADR_CATEGORY_WEIGHTS`, whose
+  keys the compiler makes exhaustive, because the dot/bracket split depends on
+  it. Objects with nothing real anywhere inside them are still not evidence;
+  released
+  objects are still not evidence; released
   `block.text` equals the join of surviving items (comments newline-joined,
   flowed blocks space-joined) — model-authored text containing an uncited
   sentence is dropped by construction even when a cited sibling item resolves.
+  (v1.2 review fix) **Within-item laundering:** an item citing one resolvable and
+  one unresolvable path is deleted, its text absent from the rebuilt block text,
+  and its `citation_failures.bad_sources` equals exactly the unresolvable path —
+  the resolvable sibling path is not listed. Its all-resolving twin survives with
+  its text present (the positive half — a gate that deleted everything would pass
+  the negative assertion alone). An advisory citing one resolvable and one
+  unresolvable path is withheld with `sources` emptied and one
+  `block: "promotion_advisory"` failure entry; an advisory citing an empty
+  `sources` array is withheld too (`every` is vacuously true on `[]`); an
+  all-resolving advisory keeps its rationale and its sources and produces no
+  failure entry. `AutofillModelOutputSchema` rejects an item with `sources: []`,
+  which is what makes the item-level empty case unreachable.
+- **Panel renders what the gate dropped (v1.2 review fix):** `AutofillReviewPanel`
+  shows each removed item's text and its failing paths, for narrative blocks and
+  for Block 41; a withheld advisory renders the "Withheld" badge and not the
+  model's `recommendation`, and an unwithheld one renders the recommendation.
 - **Stored-response boundary (v1.1 review fix):** a real `runAutofill` result
   plus a model id round-trips `AutofillResponseSchema.safeParse`; `null`,
   legacy shapes, and bare model output fail it (the page renders the

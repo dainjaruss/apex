@@ -43,6 +43,7 @@ import {
 } from "@/lib/bragSheet/autofill";
 import { resolveAiModel } from "@/lib/aiProvider";
 import { DEFAULT_NARRATIVE_MODEL } from "@/lib/boardConfidence/narrative";
+import { LADR_CATEGORY_WEIGHTS } from "@/lib/boardConfidence/rubric";
 import { emptyBragSheetData } from "@/lib/bragSheet/template";
 import { checkCommentFit } from "@/lib/commentFit";
 import type {
@@ -336,13 +337,90 @@ describe("resolveCitation — citation grammar", () => {
     expect(resolveCitation("brag.accomplishments.length", req)).toBe(false);
   });
 
-  it("non-string leaves are not evidence: numbers, booleans, string-free objects reject", () => {
-    expect(resolveCitation("brag.duties[0].months_assigned", req)).toBe(false); // number
-    expect(resolveCitation("brag.leadership.supervised_military", req)).toBe(false); // number
-    expect(resolveCitation("brag.duties[0].is_most_significant", req)).toBe(false); // boolean
-    // Objects resolve only via ≥1 non-empty own string field.
+  // v1.2 review fix. v1.1 rejected every number and boolean, justified as "an
+  // inherited method or an array's length can never substantiate a claim" — but
+  // BOTH of those are killed by the own-enumerable walk (the test above), not by
+  // the leaf rule, so the rule only ever refused the Sailor's own scalar entries.
+  // Harmless under a `some()` source gate; under `every()` it deleted 59 of 226
+  // items across 12 live claude-opus-5 runs, Block 29A in all 12 of them.
+  it("a truthy scalar the Sailor entered IS evidence — counts, months, flags", () => {
+    expect(resolveCitation("brag.duties[0].months_assigned", req)).toBe(true); // 12
+    expect(resolveCitation("brag.duties[0].is_most_significant", req)).toBe(true); // true
+    // Fixture sanity: these are really the number and the boolean, not strings.
+    expect(typeof req.brag.duties[0].months_assigned).toBe("number");
+    expect(typeof req.brag.duties[0].is_most_significant).toBe("boolean");
+  });
+
+  it("a falsy scalar is NOT evidence — 0 and false are template defaults, like \"\"", () => {
+    // emptyBragSheetData seeds these at 0, so 0 cannot be told apart from a
+    // field the Sailor never filled in — the same reason "" has always rejected.
+    expect(req.brag.leadership.supervised_military).toBe(0); // untouched default
+    expect(resolveCitation("brag.leadership.supervised_military", req)).toBe(
+      false,
+    );
+    // ...and the SAME path with a real value resolves, so the rejection above is
+    // about the value, not about the path or the type.
+    const led = makeReq();
+    led.brag.leadership.supervised_military = 22;
+    expect(resolveCitation("brag.leadership.supervised_military", led)).toBe(true);
+
+    const falseFlag = makeReq();
+    falseFlag.brag.duties[0].is_most_significant = false;
+    expect(resolveCitation("brag.duties[0].is_most_significant", falseFlag)).toBe(
+      false,
+    );
+  });
+
+  // v1.2: the object branch takes the same correction as the scalar branch. It
+  // used to need a non-blank own STRING field, so the container of a fact was
+  // refused while the fact itself resolved.
+  it("a container resolves when anything inside it is evidence, at any depth", () => {
     expect(resolveCitation("brag.duties[0]", req)).toBe(true); // title is a non-empty string
     expect(resolveCitation("brag.pfa[0]", req)).toBe(true); // cycle/result strings
+
+    // The exact contradiction v1.1 left behind.
+    const led = makeReq();
+    led.brag.leadership.supervised_military = 22;
+    expect(resolveCitation("brag.leadership.supervised_military", led)).toBe(true);
+    expect(resolveCitation("brag.leadership", led)).toBe(true);
+
+    // Populated only through nested containers — no own string field at all.
+    const quals = makeReq();
+    quals.brag.qualifications.awards.push({ title: "NAM", date: "2025-09-30" });
+    expect(
+      Object.values(quals.brag.qualifications).every((v) => Array.isArray(v)),
+    ).toBe(true);
+    expect(resolveCitation("brag.qualifications", quals)).toBe(true);
+  });
+
+  it("an empty container is still not evidence", () => {
+    // The negative half must not come free: these are empty in the fixture...
+    expect(req.brag.counseling).toEqual({});
+    expect(resolveCitation("brag.counseling", req)).toBe(false);
+    expect(resolveCitation("brag.off_duty", req)).toBe(false);
+    expect(resolveCitation("brag.qualifications", req)).toBe(false);
+
+    // ...and the SAME paths resolve once something real is inside them, so the
+    // rejection is about emptiness, not about the path.
+    const filled = makeReq();
+    filled.brag.counseling.counselor = "ITC MORALES";
+    filled.brag.off_duty.community.push({ text: "Coached youth robotics" });
+    expect(resolveCitation("brag.counseling", filled)).toBe(true);
+    expect(resolveCitation("brag.off_duty", filled)).toBe(true);
+  });
+
+  // The prompt hands the model a top-level `physical_readiness` string and tells
+  // it to echo the value; before v1.2 the grammar had no root for it, so the
+  // model's correct citation failed.
+  it("resolves the payload's own physical_readiness root when there are PFA rows", () => {
+    expect(buildAutofillPayload(req).physical_readiness).toBe("PB");
+    expect(resolveCitation("physical_readiness", req)).toBe(true);
+
+    const noPfa = makeReq();
+    noPfa.brag.pfa = [];
+    expect(resolveCitation("physical_readiness", noPfa)).toBe(false);
+    // It is a root in its own right, not a prefix that opens up others.
+    expect(resolveCitation("physical_readiness.text", req)).toBe(false);
   });
 
   it("resolves prior_evals by exact period_to key, with optional field", () => {
@@ -355,6 +433,46 @@ describe("resolveCitation — citation grammar", () => {
     expect(resolveCitation("ladr.qual_warfare[m1]", req)).toBe(true);
     expect(resolveCitation("ladr.credential[m1]", req)).toBe(false);
     expect(resolveCitation("ladr.qual_warfare[m9]", req)).toBe(false);
+  });
+
+  // v1.2: the model emitted the dot spelling in 1 of 12 live runs. It names the
+  // same pair against the same list, so it resolves exactly what the bracket
+  // form resolves — and nothing more.
+  it("accepts the dot spelling of a ladr path, with identical strictness", () => {
+    expect(resolveCitation("ladr.qual_warfare.m1", req)).toBe(true);
+    expect(resolveCitation("ladr.credential.m1", req)).toBe(false); // wrong category
+    expect(resolveCitation("ladr.qual_warfare.m9", req)).toBe(false); // wrong id
+    expect(resolveCitation("ladr.qual_warfare", req)).toBe(false); // no id at all
+  });
+
+  // M20 — the bracket form's category group is `[^.[\]]+`, so "no LadrCategory
+  // contains a dot" became load-bearing for the dot-vs-bracket split above.
+  // LADR_CATEGORY_WEIGHTS is `Record<LadrCategory, number>`, so the compiler
+  // makes its keys the exhaustive list.
+  it("no LadrCategory contains a dot — the dot/bracket split depends on it", () => {
+    const categories = Object.keys(LADR_CATEGORY_WEIGHTS);
+    expect(categories.length).toBeGreaterThan(5);
+    expect(categories.filter((c) => c.includes("."))).toEqual([]);
+  });
+
+  // v1.2 (F2): `req.ladr` is an array in the payload, and the model spells the
+  // citation that way in 2 of 8 runs on an independent campaign.
+  it("accepts the array-index spelling of a ladr path", () => {
+    expect(resolveCitation("ladr[0]", req)).toBe(true);
+    expect(resolveCitation("ladr[0].status", req)).toBe(true);
+    expect(resolveCitation("ladr[0].milestone_id", req)).toBe(true);
+    expect(resolveCitation("ladr[9]", req)).toBe(false); // out of range
+    expect(resolveCitation("ladr[9].status", req)).toBe(false);
+    // Whitelisted fields only — the index form can never walk into junk.
+    expect(resolveCitation("ladr[0].constructor", req)).toBe(false);
+    expect(resolveCitation("ladr[0].__proto__", req)).toBe(false);
+    expect(resolveCitation("ladr[0].nope", req)).toBe(false);
+    // A blank whitelisted field is not evidence, and the same field with a real
+    // value is — so the rejection is about the value, not the spelling.
+    const blank = makeReq();
+    blank.ladr[0].item = "";
+    expect(resolveCitation("ladr[0].item", blank)).toBe(false);
+    expect(resolveCitation("ladr[0].item", req)).toBe(true);
   });
 
   it("anything else is unresolvable — including non-payload roots", () => {
@@ -500,6 +618,138 @@ describe("runAutofill — citation-or-delete (§7 step 2, invariant §1.2 item 4
     expect(res.promotion_advisory.rationale).toBe(
       "No cited evidence survived validation — advisory withheld.",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v1.2 review fix — WITHIN-item laundering (§7 step 2, invariant §1.2 item 4)
+// ---------------------------------------------------------------------------
+//
+// The gate was `sources.some(resolveCitation)`. The v1.1 rebuild closed the
+// CROSS-item hole (an uncited sentence riding in block.text beside a cited
+// sibling item) and left the WITHIN-item one open: an item citing one real path
+// and one invented one was kept WHOLE, and `bad_sources` stayed empty because it
+// only populated when every source failed — so the failure was invisible on
+// screen as well as in the payload. This is the same defect #24 fixed in
+// lib/boardConfidence/narrative.ts (`cited.every(...)`, checkCitation).
+describe("runAutofill — one real source must not carry a fabricated one", () => {
+  // Shaped like a real award citation; `qualifications.awards` is empty in the
+  // fixture, so index 0 is out of range and the path cannot resolve.
+  const INVENTED = "brag.qualifications.awards[0].title";
+  const GROUNDED = "LED 12 SAILORS THROUGH INSURV";
+  const MIXED = "LED 12 SAILORS THROUGH INSURV AND EARNED THE NAM";
+
+  it("fixture sanity: one path resolves and the other does not", () => {
+    const req = makeReq();
+    expect(req.brag.qualifications.awards).toEqual([]);
+    expect(resolveCitation(CIT, req)).toBe(true);
+    expect(resolveCitation(INVENTED, req)).toBe(false);
+  });
+
+  it("deletes the mixed item, keeps its all-resolving twin, and reports only the failing path", async () => {
+    const out = baseOutput();
+    out.blocks.comments = {
+      text: "model text is never released",
+      items: [
+        { text: GROUNDED, sources: [CIT, "brag.pfa[0]"] },
+        { text: MIXED, sources: [CIT, INVENTED] },
+      ],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    // POSITIVE: multi-source is not itself disqualifying — the item whose every
+    // source resolves survives with its text intact. (A gate that deleted both
+    // items would satisfy the negative assertions below on its own.)
+    expect(res.blocks.comments.items.map((i) => i.text)).toEqual([GROUNDED]);
+    expect(res.blocks.comments.text).toBe(GROUNDED);
+
+    // The laundered claim is gone from the released text, not merely from items.
+    expect(res.blocks.comments.text).not.toContain("NAM");
+
+    const failure = res.citation_failures.find((f) => f.text === MIXED);
+    expect(failure).toBeDefined();
+    expect(failure!.block).toBe("comments");
+    // bad_sources is the failing path ALONE — listing the resolving sibling
+    // would send its author to fix a citation that was never broken.
+    expect(failure!.bad_sources).toEqual([INVENTED]);
+  });
+
+  it("the same gate covers every block, not just comments", async () => {
+    const out = baseOutput();
+    out.blocks.command_achievements = {
+      text: "model text is never released",
+      items: [{ text: "COMMAND EARNED THE BATTLE E", sources: [CIT, INVENTED] }],
+    };
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    expect(res.blocks.command_achievements.items).toEqual([]);
+    expect(res.blocks.command_achievements.text).toBe("");
+    expect(res.citation_failures).toContainEqual({
+      block: "command_achievements",
+      text: "COMMAND EARNED THE BATTLE E",
+      bad_sources: [INVENTED],
+    });
+  });
+
+  it("an item citing nothing cannot reach the gate — the schema rejects it", () => {
+    const out = baseOutput();
+    out.blocks.comments.items[0].sources = [];
+    expect(AutofillModelOutputSchema.safeParse(out).success).toBe(false);
+    // POSITIVE control: the same output with one source parses, so the failure
+    // above is about `sources: []` and not about some other field.
+    out.blocks.comments.items[0].sources = [CIT];
+    expect(AutofillModelOutputSchema.safeParse(out).success).toBe(true);
+  });
+
+  it("withholds a partly-cited advisory, empties its sources, and records the failure", async () => {
+    const out = baseOutput();
+    const original = out.promotion_advisory.rationale;
+    out.promotion_advisory.sources = [CIT, "placeholder"];
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    expect(res.promotion_advisory.rationale).toBe(
+      "No cited evidence survived validation — advisory withheld.",
+    );
+    // A path that failed must not render as a provenance chip beside the
+    // withheld advisory (§6).
+    expect(res.promotion_advisory.sources).toEqual([]);
+
+    const failure = res.citation_failures.find(
+      (f) => f.block === "promotion_advisory",
+    );
+    expect(failure).toBeDefined();
+    expect(failure!.text).toBe(original); // the panel shows what was withheld
+    expect(failure!.bad_sources).toEqual(["placeholder"]);
+  });
+
+  it("withholds an advisory that cites nothing at all (every() is vacuous on [])", async () => {
+    // promotion_advisory.sources has no .min(1), so this shape really does
+    // arrive from the model — and `[].every(...)` is true.
+    const out = baseOutput();
+    out.promotion_advisory.sources = [];
+    expect(AutofillModelOutputSchema.safeParse(out).success).toBe(true);
+
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+    expect(res.promotion_advisory.rationale).toBe(
+      "No cited evidence survived validation — advisory withheld.",
+    );
+    expect(
+      res.citation_failures.filter((f) => f.block === "promotion_advisory"),
+    ).toHaveLength(1);
+  });
+
+  it("POSITIVE: a fully cited advisory keeps its rationale and its sources, unreported", async () => {
+    const out = baseOutput();
+    const original = out.promotion_advisory.rationale;
+    out.promotion_advisory.sources = [CIT, "brag.pfa[0]"];
+    const res = await runAutofill(makeReq(), scriptedModel(out));
+
+    expect(res.promotion_advisory.rationale).toBe(original);
+    expect(res.promotion_advisory.recommendation).toBe("Must Promote");
+    expect(res.promotion_advisory.sources).toEqual([CIT, "brag.pfa[0]"]);
+    expect(
+      res.citation_failures.filter((f) => f.block === "promotion_advisory"),
+    ).toEqual([]);
   });
 });
 
