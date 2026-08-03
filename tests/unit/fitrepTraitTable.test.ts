@@ -395,6 +395,11 @@ function blankFormText(file: string): Promise<string> {
 // character and its order still has to match.
 const squash = (s: string) => s.replace(/\s+/g, "").toLowerCase();
 
+// Whitespace-only, CASE PRESERVED. The anchor bullets match the blank's casing
+// exactly, and keeping case is what lets the boundary check below tell the form's
+// next cell from more of APEX's own last bullet.
+const stripWs = (s: string) => s.replace(/\s+/g, "");
+
 describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", () => {
   it("prints every title and sub-caption APEX shows the officer", async () => {
     const form = squash(await blankFormText("fitrepBlank.pdf"));
@@ -413,26 +418,75 @@ describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", ()
     }
   });
 
+  // Bullets per anchor column, counted off the printed grid — 83 across 21 columns.
+  // A LITERAL, not derived from FITREP_TRAIT_STANDARDS, because a table cannot count
+  // itself: a column missing its last bullet is still a PREFIX of the form's real run,
+  // and `includes` is satisfied by a prefix.
+  const BULLETS_PER_COLUMN: Record<string, [number, number, number]> = {
+    knowledge: [3, 3, 3],
+    eo: [4, 6, 3],
+    bearing: [4, 4, 4],
+    teamwork: [3, 3, 3],
+    accomplishment: [4, 4, 4],
+    leadership: [6, 6, 7],
+    tactical_performance: [3, 3, 3],
+  };
+
   it("reproduces each anchor column WHOLE, in the form's own order", async () => {
     // Not per-bullet containment: a bullet cut short is still "contained" in the
     // form, and a truncation mutant passed that check. The blank prints a column's
     // bullets consecutively, dash-separated, so assert the whole joined column.
-    // That fails on a dropped bullet, a truncated one, a reordered pair, and on
-    // any word that is not on the page — one assertion instead of ninety-five.
-    const form = squash(await blankFormText("fitrepBlank.pdf"));
+    //
+    // Three assertions per column, because the joined needle by itself is still only
+    // a PREFIX test. It pins the 62 bullets that have a sibling behind them and says
+    // nothing about the 21 that END a column — drop or truncate one of those and the
+    // needle stays a valid prefix. So:
+    //   1. the form contains the joined column        (order, spelling, wholeness)
+    //   2. what follows it is the next CELL           (last bullet is not truncated)
+    //   3. the bullet count matches the printed grid  (last bullet is not missing)
+    //
+    // For (2): across all 21 columns the blank continues with exactly one of three
+    // things — the next cell's dash, the next block number ("34."), or the page-1
+    // footer after Block 37's 5.0 column, which is the last on the page. Anything
+    // else means APEX stopped mid-bullet and the form kept going. Checked with case
+    // preserved, so a cut before a capitalised word ("…Navy Core Values:" / "HONOR")
+    // fails too — a lowercase-only check would have waved that through.
+    const form = stripWs(await blankFormText("fitrepBlank.pdf"));
+    expect(form).toContain(stripWs("NAVPERS 1610/2 (REV 05-2025)"));
+
     let columns = 0;
+    let bullets = 0;
     for (const [key, std] of Object.entries(FITREP_TRAIT_STANDARDS)) {
-      for (const grade of ANCHOR_GRADES) {
-        const column = "-" + std.anchors[grade].join("-");
+      ANCHOR_GRADES.forEach((grade, i) => {
+        const printed = std.anchors[grade];
+        const where = `Block ${std.block} (${key}) ${grade}`;
+        const column = stripWs("-" + printed.join("-"));
+        const at = form.indexOf(column);
+
         expect(
-          form.includes(squash(column)),
-          `Block ${std.block} (${key}) ${grade} column is not printed on NAVPERS ` +
-            `1610/2 as APEX has it:\n  ${std.anchors[grade].join("\n  ")}`,
+          at,
+          `${where} column is not printed on NAVPERS 1610/2 as APEX has it:\n  ` +
+            printed.join("\n  "),
+        ).toBeGreaterThanOrEqual(0);
+
+        const after = form.slice(at + column.length, at + column.length + 20);
+        expect(
+          /^(?:-|\d|NAVPERS)/.test(after),
+          `${where}: the form continues "${after}" past APEX's last bullet — ` +
+            `"${printed[printed.length - 1]}" is truncated`,
         ).toBe(true);
+
+        expect(
+          printed.length,
+          `${where}: the printed grid has ${BULLETS_PER_COLUMN[key][i]} bullets`,
+        ).toBe(BULLETS_PER_COLUMN[key][i]);
+
         columns++;
-      }
+        bullets += printed.length;
+      });
     }
     expect(columns).toBe(21); // seven traits × 1.0 / 3.0 / 5.0
+    expect(bullets).toBe(83);
   });
 
   it("never hands an officer a phrase that only 1616/26 prints", async () => {
@@ -450,6 +504,9 @@ describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", ()
       "Needs excessive supervision", // Quality of Work — no such trait on 1610/2
     ];
     const form = squash(await blankFormText("fitrepBlank.pdf"));
+    // A `not.toContain` over an empty read passes for free. Guard locally rather
+    // than leaning on the previous test having run.
+    expect(form).toContain(squash("NAVPERS 1610/2 (REV 05-2025)"));
     const officer = squash(JSON.stringify(FITREP_TRAIT_STANDARDS));
     for (const phrase of EVAL_ONLY) {
       expect(form, `1610/2 does print "${phrase}"`).not.toContain(squash(phrase));

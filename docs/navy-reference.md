@@ -522,7 +522,7 @@ argument APEX has for acting before the LTB deadline. Requests go to **PERS-803 
 | 34 | QUALITY OF WORK | INSTITUTIONAL EXPERTISE *(COMPETENCY)* | **COMMAND OR ORGANIZATIONAL CLIMATE** |
 | 35 | **COMMAND OR ORGANIZATIONAL CLIMATE** | PROFESSIONALISM *(CHARACTER)* | MILITARY BEARING/CHARACTER |
 | 36 | MILITARY BEARING/CHARACTER | INTEGRITY *(CHARACTER)* | TEAMWORK |
-| 37 | PERSONAL JOB ACCOMPLISHMENT/INITIATIVE | **ACCOUNTABILITY** *(CHARACTER)* | MISSION ACCOMPLISHMENT |
+| 37 | PERSONAL JOB ACCOMPLISHMENT/INITIATIVE | **ACCOUNTABILITY** *(CHARACTER)* | MISSION ACCOMPLISHMENT AND INITIATIVE |
 | 38 | TEAMWORK | DECKPLATE LEADERSHIP *(CULTURE)* | LEADERSHIP |
 | 39 | LEADERSHIP | TEAM EFFECTIVENESS *(CULTURE)* | TACTICAL PERFORMANCE |
 
@@ -1403,6 +1403,28 @@ opposite, using the same word.**
   EFFECTIVENESS (§3.1). The 3.0 gate does land on Block 37 — right number, **wrong label**
   ("Accountability", not "Equal Opportunity / Command Climate").
 - **Fix:** transcribe from `/srv/apex/public/chiefEvalBlank.pdf`, already in the repo.
+
+**3b. `tactical_performance` was fabricated too — the officer counterpart of #3.** *(Fixed, PR #44.)*
+
+- **Where:** `lib/traitStandards.ts`, `FITREP_EXTRA_STANDARDS` — the one entry the repo held that was
+  supposed to be officer-specific. Its three anchors read "Below expected tactical proficiency for
+  grade" (1.0), "Capably employs platforms/systems; meets warfare expectations" (3.0), "Innovative
+  tactical employment; exceeds peers in warfare skills" (5.0), and its definition read
+  "Tactical/operational proficiency and warfare employment (officers)".
+- **Reality:** **none of those four strings appears on any of the three blanks** — checked against the
+  text layer and against 600 dpi OCR, which never touches the text layer. NAVPERS 1610/2 Block 39
+  prints **nine** bullets, three per anchor column, beginning "Has difficulty attaining qualification
+  expected of the rank and experience" / "Attains qualifications as required and expected" / "Fully
+  qualified at appropriate level for rank and experience".
+- **Blast radius, and why it hid:** `TRAIT_STANDARDS_LOOKUP` was a flat merge of all three form tables
+  with no report-type dimension, so this was the *only* officer entry — the other six FITREP rows
+  resolved to the 1616/26 EVAL table. Officers were shown, and the AI narrative coach judged them
+  against, enlisted descriptors: Block 33 offered "advancement/PQS requirements" three times, and PQS
+  and advancement exams are enlisted instruments. **40 of 83 anchor bullets were wrong** on a fully
+  graded FITREP. Item #7 below records the "8 total" doc error but not that the prose was invented.
+- **Fix:** transcribed all seven traits from `/srv/apex/public/fitrepBlank.pdf`; the lookup now
+  resolves per form via `getTraitStandard(reportType, key)`. `tests/unit/fitrepTraitTable.test.ts`
+  reads the blank at run time so a fabricated bullet cannot pass again.
 
 ### 🟠 Wrong claims in shipped docs and specs
 

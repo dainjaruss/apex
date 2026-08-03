@@ -3,6 +3,7 @@ import { Evaluation, ValidationIssue } from "@/types";
 import TraitRow from "@/components/blocks/Block33to39Traits/TraitRow";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import { computeTraitAverage } from "@/lib/traitAverage";
+import { resolveReportType } from "@/lib/traitStandards";
 import { FORM_PANEL, FORM_SECTION_TITLE } from "@/lib/formStyles";
 
 interface Block33to39TraitsProps {
@@ -29,31 +30,13 @@ export default function Block33to39Traits({
   summaryGroupAverage,
   showSummaryGroupAverage,
 }: Block33to39TraitsProps) {
-  const isFitrep = useMemo(
-    () =>
-      evalData.report_type === "FITREP" ||
-      evalData.form_definition_id?.startsWith("FITREP") ||
-      evalData.form_definition_id?.includes("f1610020") ||
-      evalData.form_definition_id?.includes("f1610050"),
-    [evalData.report_type, evalData.form_definition_id],
-  );
-
-  const isChiefEval = useMemo(
-    () =>
-      evalData.report_type === "CHIEFEVAL" ||
-      evalData.form_definition_id?.startsWith("CHIEFEVAL") ||
-      evalData.form_definition_id?.includes("c1616270"),
-    [evalData.report_type, evalData.form_definition_id],
-  );
-
-  // The form the trait list below is built for. Passing the raw `report_type`
-  // instead would split the row in half on a draft identified only by
-  // form_definition_id: officer headings from `isFitrep`, EVAL descriptor prose and
-  // EVAL block numbers from an undefined report type. One resolved value, one form.
-  const formType = useMemo(
-    () => (isChiefEval ? "CHIEFEVAL" : isFitrep ? "FITREP" : "EVAL"),
-    [isFitrep, isChiefEval],
-  );
+  // ONE resolved form for the whole block: the headings below, the descriptor prose
+  // TraitRow renders, and the block numbers beside them. Reading report_type here and
+  // form_definition_id there is what split a row in half — officer headings above EVAL
+  // anchors, on a draft carrying only a form id.
+  const formType = useMemo(() => resolveReportType(evalData), [evalData]);
+  const isFitrep = formType === "FITREP";
+  const isChiefEval = formType === "CHIEFEVAL";
 
   const traitList = useMemo(() => {
     if (isChiefEval) {

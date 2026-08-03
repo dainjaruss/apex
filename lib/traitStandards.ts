@@ -109,6 +109,31 @@ export function getSubstantiationNote(
   return SUBSTANTIATION_NOTE_EVAL;
 }
 
+/**
+ * Which form a draft is on — the input every report-type-aware helper here wants.
+ *
+ * `report_type` is the answer whenever it is set. A draft carrying only a
+ * `form_definition_id` still has a form, and all of these helpers silently treat an
+ * absent report type as EVAL, so reading the id is what stops a half-resolved row:
+ * officer headings from one source, enlisted descriptors and enlisted block numbers
+ * from the other, on the same screen.
+ */
+export function resolveReportType(evalData: {
+  report_type?: string | null;
+  form_definition_id?: string | null;
+}): string {
+  if (evalData.report_type) return evalData.report_type;
+  const id = evalData.form_definition_id ?? "";
+  if (id.startsWith("CHIEFEVAL") || id.includes("c1616270")) return "CHIEFEVAL";
+  if (
+    id.startsWith("FITREP") ||
+    id.includes("f1610020") ||
+    id.includes("f1610050")
+  )
+    return "FITREP";
+  return "EVAL";
+}
+
 export const ANCHOR_GRADES: readonly AnchorGrade[] = ["1.0", "3.0", "5.0"];
 
 // 1616/26 prints anchor columns for every trait, so `anchors` is required here.
