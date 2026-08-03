@@ -663,6 +663,7 @@ describe("the narrative coach asks about the officer's own form", () => {
     });
     expect(body?.report_type).toBe("CHIEFEVAL");
   });
+});
 // ─────────────────────────────────────────────────────────────────────────────
 // Horizontal geometry.
 //
@@ -755,9 +756,14 @@ async function overlayRuns(bytes: Uint8Array, page: 1 | 2) {
 const B28_FILL = "Xygj`Q";
 const B29_FILL = "Wygj`Q";
 
-/** 14 chars: what Block 40's cell holds at the clamped 12 pt. Uppercased by the overlay. */
-const REC_A = "CO(Q),DEPTHEAD";
-const REC_B = "MAJOR COMMAND,";
+/**
+ * 20 chars — CAREER_REC_MAX, which is what the editor accepts, the validator allows and
+ * NAVFIT's RecommendA/B carry. Uppercased by the overlay, so the deepest ink available is
+ * punctuation and 'Q'; the assertions use the global -0.2002 em anyway, which is the
+ * conservative direction.
+ */
+const REC_A = "DEPARTMENT HEAD (Q),";
+const REC_B = "POSTGRADUATE SCHOOL,";
 
 async function renderProbeFitrep() {
   const template = new Uint8Array(
@@ -781,10 +787,24 @@ async function renderProbeFitrep() {
       career_recommendations: [REC_A, REC_B],
       promotion_recommendation: "Early Promote",
       summary_group_average: 4.55,
+      // summary_group_distribution, not_observed and concurrent_rs_signature_date are
+      // set because the sweep below can only see fields that DRAW. The first revision of
+      // this fixture omitted all three, and the ledger silently missed two constants that
+      // print outside the form (notObservedCx, date52_x) — the same miss-a-sibling
+      // failure this whole epic keeps repeating.
+      summary_group_distribution: {
+        "Significant Problems": 0,
+        Progressing: 1,
+        Promotable: 2,
+        "Must Promote": 3,
+        "Early Promote": 4,
+      },
       block_values: {
         date_reported: "2024-08-01",
         periodic: true,
         regular_report: true,
+        not_observed: true,
+        concurrent_rs_signature_date: "2025-11-23",
         reporting_senior_name: "REPORTINGSENIORNAME, JOHN A",
         reporting_senior_grade: "RADM",
         // 4 lines' worth of unbroken text, so the wrap force-splits at exactly the CPL.
@@ -850,14 +870,17 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
 
   it("Block 40's two recommendations land in the block's own empty cell", async () => {
     const runs = await overlayRuns(await renderProbeFitrep(), 2);
-    const recs = runs.filter((r) => /DEPTHEAD|MAJOR COMMAND/.test(r.str));
+    const recs = runs.filter((r) => /DEPARTMENT HEAD|POSTGRADUATE/.test(r.str));
     expect(recs).toHaveLength(2);
 
     for (const r of recs) {
-      // Full width for this cell — 14 characters is what it holds at 12 pt, and a
-      // shorter probe could not see a right-hand overrun.
-      expect(r.str).toHaveLength(14);
-      expect(r.size).toBe(12);
+      // Full width — 20 characters, the length every other layer of APEX carries, at the
+      // size THIS cell solves for them. A shorter probe could not see a right-hand
+      // overrun, and a probe that let the entry truncate would not notice it had.
+      expect(r.str).toHaveLength(20);
+      const cellWidth = B40_CELL.right - B40_CELL.left;
+      expect(cellWidth).toBeCloseTo(108.72, 6);
+      expect(r.size).toBeCloseTo((cellWidth - 4) / ((20 + 0.5) * 0.6), 6);
       expect(r.x - B40_CELL.left).toBeGreaterThanOrEqual(INSET);
       expect(B40_CELL.right - r.x2).toBeGreaterThanOrEqual(INSET);
       // BOTH axes: they used to draw at y 512.0, which is 6.92 pt above this block
@@ -870,10 +893,13 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     expect(a.bot).toBeGreaterThan(b.top);
   });
 
-  it("one more character would overrun Block 40's cell", async () => {
-    // The other direction: a CPL short by one costs the Sailor a character.
+  it("uses the cell's full width — one more character at this size would overrun", async () => {
+    // The other direction: a CPL short by one costs the Sailor a character of a career
+    // recommendation. This says 20 characters is what the cell holds AT THE SOLVED SIZE;
+    // it is not a claim that 20 is forced by the geometry alone, since the formula
+    // rescales with CPL. 20 comes from CAREER_REC_MAX, and this is what proves it fits.
     const runs = await overlayRuns(await renderProbeFitrep(), 2);
-    const rec = runs.find((r) => /DEPTHEAD/.test(r.str))!;
+    const rec = runs.find((r) => /DEPARTMENT HEAD/.test(r.str))!;
     expect(rec.x + (rec.str.length + 1) * rec.size * ADVANCE).toBeGreaterThan(
       B40_CELL.right - INSET,
     );
@@ -898,20 +924,22 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
       "1|546.50|721.50", // p1.datereported_x — overruns the RIGHT rule, ends at 588.47
       "1|28.10|682.20", // p1.periodicCx mark (cx 31.5)
       "1|23.50|616.00", // p1.rsName_x — reporting senior row
+      "1|28.10|646.20", // p1.notObservedCx mark (cx 31.5) — Block 16, a routine report
       "1|23.50|400.00", // p1.dateCounseled_x
       "2|23.50|755.30", // p2.name_x — identity row
       "2|135.00|47.00", // p2.summaryAvg_x — ink floor 45.00 under the 47.16 bottom rule
       "2|25.00|47.00", // p2.date49_x — margin AND under the bottom rule
       "2|205.00|47.00", // p2.date50_x
       "2|433.00|47.00", // p2.date51_x
+      "2|522.00|47.00", // p2.date52_x — concurrent reporting senior's signature date
     ]);
 
     const bytes = await renderProbeFitrep();
     const seen: string[] = [];
-    const all: string[] = [];
+    const all: Array<{ str: string; size: number }> = [];
     for (const page of [1, 2] as const) {
       const runs = await overlayRuns(bytes, page);
-      all.push(...runs.map((r) => r.str));
+      all.push(...runs);
       for (const r of runs) {
         const outside =
           r.x < RULES[page].left ||
@@ -925,8 +953,12 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     // The probe really drew a populated report on both pages — a sweep over an empty
     // form would pass every assertion below without testing anything.
     expect(all.length).toBeGreaterThan(30);
-    for (const sentinel of ["TESTMEMBERLONGNAME", "REPORTINGSENIORNAME", "DEPTHEAD", "X"])
-      expect(all.some((s) => s.includes(sentinel))).toBe(true);
+    for (const sentinel of ["TESTMEMBERLONGNAME", "REPORTINGSENIORNAME", "DEPARTMENT HEAD"])
+      expect(all.some((r) => r.str.includes(sentinel))).toBe(true);
+    // The checkbox marks specifically. A plain `includes("X")` sentinel passed on the
+    // Block 28 probe alphabet ("Xygj`Q") whether or not mark() drew anything at all —
+    // making mark() a no-op left it green. mark() is the only 11 pt single-glyph draw.
+    expect(all.some((r) => r.str === "X" && r.size === 11)).toBe(true);
 
     const unlisted = seen.filter((s) => !LEDGER.has(s));
     expect(unlisted, `new field(s) printing outside the form frame`).toEqual([]);

@@ -60,11 +60,16 @@ const BLACK = rgb(0, 0, 0);
 
 // Side rules of NAVPERS 1610/2, INNER INK EDGES, measured off public/fitrepBlank.pdf by
 // rasterising each page at 600 dpi and scanning for columns dark on >90% of the rows in
-// each block's y band. Every rule on the form strokes exactly 0.72 pt. Re-measured at
-// 2400 dpi, where the same edges read 32.630 / 579.830 / 31.640 / 578.870 — agreement to
-// within one 600 dpi pixel (0.12 pt), which is the quantisation, not a disagreement.
+// each block's y band. Every rule on the form strokes exactly 0.72 pt.
 //
-// THE TWO PAGES DO NOT SHARE A LEFT RULE. Page 1 sits 0.96 pt right of page 2. One
+// Cross-checked against the PDF's own stroke operators with no rasteriser in the loop
+// (`pdftocairo -svg`, centreline +/- half of a 0.96 stroke under the page's 0.75 matrix):
+//   page 1   32.64125 / 579.83922      page 2   31.64125 / 578.83922
+// The constants below are the 600 dpi reads, which sit 0.001-0.041 pt INSIDE the true
+// edges — conservative, i.e. every inset assertion built on them is stricter than the
+// form requires. Page separation is exactly 1.00000 pt and both interiors are 547.19797.
+//
+// THE TWO PAGES DO NOT SHARE A LEFT RULE. Page 1 sits exactly 1 pt right of page 2. One
 // FORM_LEFT for both is how four fields ended up in the margin: the constant that used to
 // live here was 17.3, inherited from lib/pdfOverlay.ts (NAVPERS 1616/26, a different
 // blank), and nothing in this file ever corrected it.
@@ -75,8 +80,8 @@ const P2_RULE_R = 578.88;
 
 /**
  * Block 40's interior divider, inner ink edge of its right side — the left rule of the
- * empty cell the career recommendations go in. Measured the same way; 2400 dpi reads
- * 470.120.
+ * empty cell the career recommendations go in. Measured the same way; the stroke
+ * operators put it at 470.12172.
  */
 const B40_CELL_L = 470.16;
 
@@ -84,9 +89,10 @@ const B40_CELL_L = 470.16;
 const INSET = 2.5;
 
 /**
- * Clear interior of a full-width block. Both pages measure the SAME 547.200 — as do all
- * three comment blocks across the three blanks (see tests/unit/commentCapacity.test.ts),
- * which is what makes one CPL table serve every form.
+ * Clear interior of a full-width block. Both pages measure the SAME 547.200 (547.19797
+ * by the stroke operators) — as do all three comment blocks across the three blanks (see
+ * tests/unit/commentCapacity.test.ts), which is what makes one CPL table serve every
+ * form. The inherited FORM_RIGHT - FORM_LEFT was 547.9: right by accident.
  */
 const CLEAR_INTERIOR = P1_RULE_R - P1_RULE_L;
 
@@ -243,21 +249,26 @@ const C = {
     // this pair needs both axes, not just the x the margin defect names: x = the cell's
     // own rule + inset, and one line each stacked inside the cell.
     //
-    // Sizing is unchanged and still runs through the Math.min(12, …) clamp: passing the
-    // cell's REAL width (108.72) with the 14 characters it really holds solves 12.0368
-    // and clamps to 12.0000, exactly as cpl 10 in a notional 80 pt box did. Deleting the
-    // clamp still moves the output, so tests/unit/commentCapacity.test.ts keeps its grip
-    // on this file's own copy of it.
+    // CPL is 20 because 20 is what the rest of APEX carries: CAREER_REC_MAX, the
+    // editor's counter, the validator's only length rule, and NAVFIT's RecommendA/B
+    // text(20). Through the size formula, 20 chars in the measured 108.72 pt cell solve
+    // 8.5138 pt — a 102.10 pt line with 4.12 pt clear of the right rule, past the inset.
+    // An earlier revision of this fix used 14, the cell's capacity at 12 pt, which
+    // silently dropped the tail of every entry longer than that ("DEPARTMENT HEAD" ->
+    // "DEPARTMENT") while the NAVFIT export of the same record still carried all 20.
+    // Truncating a signed evaluation to keep a font size is the wrong trade.
     //
-    // ponytail: 14 chars/entry is the cell at 12 pt; APEX and NAVFIT both allow 20, so a
-    // longer entry still loses its tail at the wrap. Fixing that means dropping below
-    // 12 pt (20 chars needs 8.65), which is a capacity question for the block, not a
-    // geometry one — take it with Blocks 28/29 below.
+    // The consequence, stated: Math.min(12, …) now binds NOWHERE in this file — b28/b29
+    // solve 9.8944, rsAddr 8.6831, Block 41 passes fixedSize, and these solve 8.5138. Its
+    // FITREP mutant is therefore equivalent, like CHIEFEVAL's, and the live pin moved to
+    // pdfOverlay's copy, which still binds (cpl 10 in an 80 pt box -> 12.0635). The blank
+    // outranks the pin.
     rec_x: B40_CELL_L + INSET,
     rec_cellWidth: P2_RULE_R - B40_CELL_L,
-    rec_cpl: 14,
-    // Two 12 pt lines centred in the cell: ink top 499.89 against a 505.080 ceiling,
-    // ink floor 474.998 against a 469.800 floor — 5.19 / 5.20 pt clear, well past INSET.
+    rec_cpl: 20,
+    // Two lines in the cell: at 8.5138 pt, ink top 497.48 against a 505.080 ceiling and
+    // ink floor 475.70 against a 469.800 floor — 7.60 / 5.90 pt clear, past INSET on
+    // both, and 6.61 pt of white between the two lines.
     rec1_y: 491.6,
     rec2_y: 477.4,
 
@@ -307,13 +318,14 @@ const C = {
     //   abbreviation inline as a 20-space lead on the duties' first line, the 1616/26
     //   layout, so it lands nowhere near that box.
     //
-    //   OTHER FIELDS OUTSIDE A RULE, none of which came from FORM_LEFT (x, then what is
-    //   wrong): identity + reporting-senior rows and Block 30 date at 23.5, page 1, 9.14
-    //   pt into the margin; the Block 5/10/16 X marks at 28.10 (cx 31.5 − 3.4), 4.54 pt
-    //   into the margin; Block 9 date reported ends at 588.47 against a 579.840 right
-    //   rule; date49 at 25.0 on page 2, 6.68 into the margin; and the whole signature-date
-    //   row at y 47.0, whose ink floor is 45.00 under a bottom rule inked [46.440,
-    //   47.160] — printed off the form altogether. Same
+    //   OTHER FIELDS OUTSIDE A RULE — thirteen runs at eight distinct x positions, none
+    //   of which came from FORM_LEFT (x, then what is wrong): identity + reporting-senior rows and
+    //   Block 30 date at 23.5, page 1, 9.14 pt into the margin; the Block 5/10/16 X marks
+    //   at 28.10 (cx 31.5 − 3.4), 4.54 pt into the margin — Block 16 is notObservedCx and
+    //   a Not Observed report is routine; Block 9 date reported ends at 588.47 against a
+    //   579.840 right rule; date49 at 25.0 on page 2, 6.68 into the margin; and the whole
+    //   signature-date row at y 47.0 — date49/50/51 AND date52 — whose ink floor is 45.00
+    //   under a bottom rule inked [46.440, 47.160], printed off the form altogether. Same
     //   root cause as this fix — 1616/26 constants on a 1610/2 blank — but each needs its
     //   own cell measured, and several are wrong on both axes, so none is a constant swap.
     b43_x: P2_RULE_L + INSET,
@@ -394,10 +406,12 @@ export async function generateFitrepOverlayPdf(
 
   // `fixedSize` sets the point size outright — what the comment block passes, because
   // pitch constrains SIZE and lets CPL fall out of the box (see COMMENT_PITCH). Blocks
-  // 28/29 still solve a size from their CPL target. The min(12, …) cap below is LIVE on
-  // this form: the two Block 40 recommendations pass 14 chars in their measured 108.72 pt
-  // cell, which solves to 12.0368 pt and is clamped to 12 — remove the cap and 12.0368
-  // appears in the output.
+  // 28/29 still solve a size from their CPL target. The min(12, …) cap below is DEAD on
+  // this form — every caller solves under 12 (b28/b29 9.8944, Block 40 8.5138, rsAddr
+  // 8.6831; Block 41 passes fixedSize) — so deleting it here is an equivalent mutant. It
+  // is live and pinned in lib/pdfOverlay.ts, whose Block 41 recommendations pass cpl 10
+  // in an 80 pt box and really do clamp. Kept only to stay identical to the two sibling
+  // overlays' copy of this helper.
   const narrative = (
     pg: PDFPage,
     str: string | undefined | null,

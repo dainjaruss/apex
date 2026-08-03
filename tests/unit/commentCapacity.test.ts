@@ -235,20 +235,28 @@ describe("the selector offers only settings the printed form permits", () => {
     }
   }, 60_000);
 
-  it.each(["EVAL", "FITREP"] as const)(
+  it.each(["EVAL"] as const)(
     "%s: keeps the Math.min(12) cap honest on the fields that DO reach it",
     async (form) => {
       // The cap looked like dead code — the comment block's widest solved size was
-      // 10.7278, so it never bound there. It is live on the career-recommendation
+      // 10.7278, so it never bound there. It is live on 1616/26's career-recommendation
       // fields, which pass cpl 10 in an 80 pt box: that solves to 12.063 pt and is
-      // really clamped. "Delete the cap" was a mutation survivor, and pinning only the
-      // EVAL left fitrepOverlay's own copy unpinned — deleting THAT changed real FITREP
-      // output (12.0000 -> 12.0635) with zero test failures. Both live copies are
-      // covered here.
+      // really clamped. "Delete the cap" was a mutation survivor before this pinned it.
       //
-      // CHIEFEVAL is deliberately absent: 1616/27 draws its recommendations through
-      // text(), not narrative(), so no call there reaches 12 pt and removing the cap
-      // leaves its output identical. That mutant is equivalent, not uncovered.
+      // CHIEFEVAL is absent because 1616/27 draws its recommendations through text(),
+      // not narrative(), so no call there reaches 12 pt.
+      //
+      // FITREP WAS covered here and is not any more, and the reason is measured, not
+      // assumed. Its recommendations used to pass cpl 10 in a notional 80 pt box; they
+      // now pass the 20 characters CAREER_REC_MAX allows in Block 40's measured 108.72
+      // pt cell, which solves 8.5138. Every other caller in fitrepOverlay is under 12
+      // too (b28/b29 9.8944, rsAddr 8.6831; Block 41 passes fixedSize), so deleting that
+      // file's copy of the cap is now an EQUIVALENT mutant, like CHIEFEVAL's — an
+      // unreachable branch, not an uncovered one. Pinning it there again would mean
+      // holding the recommendations at 14 characters and silently dropping the tail of
+      // "DEPARTMENT HEAD" off a signed evaluation to keep a mutation score. The blank
+      // outranks the pin. fitrepOverlay's Block 40 geometry is covered instead by
+      // tests/unit/fitrepTraitTable.test.ts, against the cell measured off the form.
       const template = new Uint8Array(
         fs.readFileSync(path.join(process.cwd(), "public", FORMS[form].blank)),
       );
