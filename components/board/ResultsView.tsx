@@ -560,14 +560,18 @@ function ModelNarrative({ narrative }: { narrative: BoardAnalysisRow["narrative"
           style={{ color: "var(--muted-foreground)" }}
           data-testid="narrative-withheld"
         >
-          {/* `withheld` counts BOTH kinds of drop — a citation that resolves to
-              nothing, and one that disagrees with what it points at — so the
-              wording has to cover both. Naming only the second was wrong for
-              items that cited no area at all. */}
+          {/* `withheld` counts THREE kinds of drop — a citation that resolves to
+              nothing, one that disagrees with what it points at, and one where
+              the source is fine but the sentence was about a different part of
+              the record (narrative.ts, rule S2). "does not SUPPORT" covers all
+              three; "does not SAY" was false of the third, where the cited area
+              says exactly what it says and the sentence simply came from
+              somewhere else. Naming only the second was wrong for items that
+              cited no area at all. */}
           APEX removed {withheld} written {withheld === 1 ? "statement" : "statements"}{" "}
           it could not verify against your record: the source{" "}
           {withheld === 1 ? "it cited" : "they cited"} is either not in your
-          record, or does not say what the sentence claimed. That is a check on
+          record, or does not support what the sentence claimed. That is a check on
           the writing, not a finding about your record — the area cards above are
           what APEX actually measured.
         </p>

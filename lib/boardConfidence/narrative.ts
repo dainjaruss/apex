@@ -31,9 +31,54 @@ import type {
   RubricResult,
 } from "@/lib/boardConfidence/types";
 
-export const NarrativeSchema = z.object({
-  strengths: z.array(z.string()),
-  gaps: z.array(z.string()),
+const AREA_ORDER = [
+  "performance",
+  "leadership",
+  "development",
+  "continuity",
+  "completeness",
+  "precept",
+] as const;
+/** Compile-time proof the list above names FactorKeys and nothing else. */
+const _areaOrderIsFactorKeys: readonly FactorKey[] = AREA_ORDER;
+void _areaOrderIsFactorKeys;
+
+/**
+ * What a strengths/gaps item may declare itself to be ABOUT.
+ *
+ * `record` is the honest escape, and it has to exist: live output is full of
+ * legitimate items like "APEX could see five of the six areas of your record,
+ * which is enough breadth to give you specific feedback" that are about the
+ * record as a whole and name no area. Forcing an area on those would delete
+ * them — which is exactly why requiring an area CITATION was rejected.
+ */
+export const SUBJECT_KEYS = [...AREA_ORDER, "record"] as const;
+export type SubjectKey = (typeof SUBJECT_KEYS)[number];
+
+/**
+ * ONE strengths/gaps item as the MODEL emits it. `subject` is the field the gate
+ * needed and never had: see the ceiling note on `agreementCheck`, which could
+ * only ever check the area a citation POINTS AT, never the one the sentence is
+ * ABOUT — so a claim about leadership citing `[monthsToBoard]` was invisible to
+ * it however wrong it was.
+ */
+const ModelItemSchema = z.object({
+  text: z.string(),
+  subject: z.enum(SUBJECT_KEYS),
+});
+
+/**
+ * The model's structured-output grammar. NOT the persisted shape.
+ *
+ * `subject` exists only to be checked; it is consumed by `applyCitationGate` and
+ * never stored or rendered, so `GatedNarrative` — what the row carries and what
+ * ResultsView reads — stays arrays of plain strings and no migration is needed.
+ * Keeping the two apart is also what keeps `subject` out of the Sailor's view: it
+ * is an assertion by the model about its own output, not a fact about the record.
+ */
+export const ModelNarrativeSchema = z.object({
+  strengths: z.array(ModelItemSchema),
+  gaps: z.array(ModelItemSchema),
   recommendations: z.array(z.string()),
   factor_commentary: z.object({
     performance: z.string(),
@@ -43,6 +88,15 @@ export const NarrativeSchema = z.object({
     completeness: z.string(),
     precept: z.string(),
   }),
+});
+export type ModelNarrative = z.infer<typeof ModelNarrativeSchema>;
+
+/** The gated, persisted, rendered shape. */
+export const NarrativeSchema = z.object({
+  strengths: z.array(z.string()),
+  gaps: z.array(z.string()),
+  recommendations: z.array(z.string()),
+  factor_commentary: ModelNarrativeSchema.shape.factor_commentary,
 });
 export type Narrative = z.infer<typeof NarrativeSchema>;
 
@@ -127,6 +181,19 @@ export const NARRATIVE_SYSTEM_PROMPT =
   "an item cites more than one area, EVERY cited area must satisfy this, so do " +
   "not add a healthy area to a sentence that is about a weak one. " +
   "recommendations are not checked this way: any status may be cited there.\n" +
+  "2c. Each strengths and gaps item is an OBJECT, not a string: `text` is the " +
+  "sentence, ending in its bracketed citation exactly as rule 2 describes, and " +
+  "`subject` names the area the sentence is ABOUT — one of performance, " +
+  "leadership, development, continuity, completeness, precept, or \"record\" when " +
+  "the sentence is about the record as a whole and no single area (its breadth of " +
+  "coverage, the record overall). `subject` is machine-checked the same way the " +
+  "citation is, and two ways: the subject area's status must satisfy rule 2b, and " +
+  "if the item names an area as its subject then that area must be among the areas " +
+  "it cites. So do not write about one area and cite another — naming leadership " +
+  "as the subject while citing continuity deletes the item, and so does calling a " +
+  "sentence about leadership a \"record\" sentence to get around rule 2b. Say what " +
+  "the sentence is about and cite that. Months remaining is never what an item is " +
+  "ABOUT in the gaps list: a board does not observe your timeline.\n" +
   "3. NEVER state, estimate, imply or reconstruct an overall score, a total, a " +
   "point value, a percentage of points, a weight, or a band. The payload " +
   "deliberately omits them. If scored is false, APEX has decided it cannot " +
@@ -145,15 +212,6 @@ export const NARRATIVE_SYSTEM_PROMPT =
   "8. Plain language. 2-5 items per list. Write to the Sailor, in the second " +
   "person. No engine internals, no field names, and no jargon in the prose " +
   "itself — the bracketed citation is the only place a path may appear.";
-
-const AREA_ORDER: FactorKey[] = [
-  "performance",
-  "leadership",
-  "development",
-  "continuity",
-  "completeness",
-  "precept",
-];
 
 // ── Citation-or-delete (the brag-sheet anti-fabrication gate, §4.6) ──────────
 // The old prompt demanded citations to paths like [performance.detail.P1] that
@@ -386,49 +444,136 @@ const AGREEING_STATUSES: Record<"strengths" | "gaps", ReadonlySet<AreaStatus>> =
  *  - `unmet.<milestone_id>`, `coverage.measured|areasKnown|areasTotal` and
  *    `monthsToBoard` really do have no area, and really do abstain.
  *
- * ponytail: KNOWN CEILING — this checks the status of the path the item CITES,
- * never the subject the prose is ABOUT, so a misattributed citation is invisible
- * to it. Measured, not theorised: with leadership at `needs_attention`, both
+ * WHAT THIS RULE ALONE CANNOT SEE, and why `subject` exists. Checking the path an
+ * item CITES says nothing about the subject the prose is ABOUT, so a misattributed
+ * citation was invisible to it. Measured, not theorised: with leadership at
+ * `needs_attention`, both
  *   "Your leadership record stands out. [monthsToBoard]"
  *   "Your leadership record stands out. [areas.continuity]"   (continuity strong)
- * survive, while the honestly-cited [areas.leadership] form is deleted. Live
- * output hits this for real — one screen carried "your remaining roadmap items
- * are down to two clearly named targets [unmet.m2-1]" under What is working and
- * "most of the milestones on your rating's roadmap are still open
- * [areas.development]" under What a board would notice, with `withheld === 0`.
+ * survived, while the honestly-cited [areas.leadership] form was deleted — the gate
+ * punished the one item that told the truth about where it came from. Live output
+ * hit this for real: one screen carried "your remaining roadmap items are down to
+ * two clearly named targets [unmet.m2-1]" under What is working and "most of the
+ * milestones on your rating's roadmap are still open [areas.development]" under
+ * What a board would notice, with `withheld === 0`.
  *
  * Requiring every strengths/gaps item to cite at least one area would close the
  * statusless-path half, and was REJECTED on evidence: live output is full of
  * legitimate items like "APEX could see five of the six areas of your record,
  * which is enough breadth to give you specific feedback" citing
- * `coverage.measured`, and that rule would delete them. The same-status-wrong-
- * subject half cannot be closed by any check over paths at all; it needs the
- * prose matched to a subject, which is a language model judging a language model
- * and can be wrong in the direction that matters. Upgrade path if this proves to
- * bite: have the model emit the subject area as a STRUCTURED field beside each
- * item instead of inferring it from the citation, and check that field.
+ * `coverage.measured`, and that rule would delete them. So the subject moved into
+ * the grammar instead — see `subjectCheck`.
  */
 function agreementCheck(
   payload: NarrativePayload,
   valence: "strengths" | "gaps",
 ): (cited: string[]) => boolean {
-  const byArea = new Map(payload.areas.map((a) => [a.key, a.status]));
-  const status = new Map<string, string>();
-  for (const a of payload.areas) status.set(`areas.${a.key}`, a.status);
-  for (const m of payload.coverage.missing) {
-    const s = byArea.get(m.area);
-    if (s !== undefined) status.set(`coverage.missing.${m.area}`, s);
-  }
-  for (const a of payload.actions) {
-    const s = byArea.get(a.area);
-    if (s !== undefined) status.set(`actions.${a.id}`, s);
-  }
+  const { byArea, pathArea } = areaIndex(payload);
   const allowed = AGREEING_STATUSES[valence];
   return (cited) =>
     cited.every((c) => {
-      const s = status.get(c);
+      const area = pathArea.get(c);
+      if (area === undefined) return true; // genuinely statusless: abstains
+      const s = byArea.get(area);
       return s === undefined || allowed.has(s as AreaStatus);
     });
+}
+
+/**
+ * The area each citeable path speaks for. One map, because the status rule and
+ * the subject rule need the SAME answer to "which area is this path about" — and
+ * the first version of the status rule got it wrong for two of the three families
+ * by hardcoding rather than looking up.
+ *
+ * A path whose area is not in `payload.areas` is omitted, so it abstains rather
+ * than resolving to an undefined status. That is deliberate and matches the rest
+ * of the file: the gate deletes on a proven contradiction, never on an absence.
+ */
+function areaIndex(payload: NarrativePayload) {
+  const byArea = new Map(payload.areas.map((a) => [a.key, a.status]));
+  const pathArea = new Map<string, FactorKey>();
+  const put = (path: string, area: FactorKey) => {
+    if (byArea.has(area)) pathArea.set(path, area);
+  };
+  for (const a of payload.areas) put(`areas.${a.key}`, a.key);
+  for (const m of payload.coverage.missing) put(`coverage.missing.${m.area}`, m.area);
+  for (const a of payload.actions) put(`actions.${a.id}`, a.area);
+  return { byArea, pathArea };
+}
+
+/**
+ * The subject rule: check the area the item SAYS it is about, not just the one it
+ * points at. Two independent tests, both abstaining when the subject is `record`.
+ *
+ *   S1 STATUS      the subject area's status must satisfy AGREEING_STATUSES, the
+ *                  same bar a cited area has to clear. S1 does nearly all the
+ *                  work, because the shape that shipped is praise for a WEAK
+ *                  area: "Your leadership record stands out. [monthsToBoard]"
+ *                  and the same sentence citing `[areas.continuity]` are both
+ *                  deleted by S1 alone once `subject` says leadership. Nothing
+ *                  about the citation had to change for the gate to see them.
+ *
+ *   S2 COHERENCE   if the item cites ANY area-bearing path, the subject must be
+ *                  among the areas those paths resolve to. S2 decides exactly the
+ *                  case S1 cannot: BOTH areas healthy, so no status is wrong and
+ *                  only the provenance is — a claim about continuity citing
+ *                  completeness. It asks only whether the item is self-consistent,
+ *                  so no language model judges prose here. Either the subject or
+ *                  the citation is wrong, and either way the bracket the Sailor
+ *                  reads as "this is where the sentence comes from" points
+ *                  somewhere the sentence did not come from.
+ *
+ * S2 ABSTAINS WHEN NO AREA IS CITED, and that clause is load-bearing rather than
+ * defensive. Dropping it turns S2 into "every strengths/gaps item naming an area
+ * must cite that area" — which is the rule REJECTED above one step removed, and
+ * it would delete an honest claim about a healthy area that cites a statusless
+ * path. S1 already covers the unhealthy half of that case.
+ *
+ * ponytail: KNOWN CEILING, and it is narrower than the one it replaces rather
+ * than gone.
+ *
+ * STATE THE RESIDUAL AS A CLASS, NOT AS ITS LAZIEST MEMBER. An earlier revision
+ * of this note named only `subject: "record"`, which reads as though that one
+ * dodge is the whole hole. It is not. The surviving class is:
+ *
+ *     any declared subject that is FALSE about the prose but healthy for its
+ *     valence and consistent with its own citation
+ *
+ * `record` is merely the cheapest way to be in it — declaring a healthy AREA and
+ * citing that same area works identically, whatever the sentence actually says.
+ * Both forms are in the contradiction table in
+ * tests/unit/boardConfidenceCitationSweep.test.ts, measured rather than assumed.
+ *
+ * What changed is the COST, and it is the same for every member of the class:
+ * laundering now takes a deliberate second false statement in a field whose only
+ * purpose is to be checked, rather than falling out of an incidentally convenient
+ * citation. The field is the model's own assertion about its own output, so
+ * nothing here can make it truthful. Closing it means matching prose to subject,
+ * which is a language model judging a language model and can be wrong in the
+ * direction that matters.
+ *
+ * Prompt rule 2c tells the model that calling an area sentence a "record"
+ * sentence deletes the item. THAT IS UNBACKED — `subject === "record"` returns
+ * true here unconditionally. It is a bluff, in the safe direction, and it is the
+ * only thing discouraging the cheapest member of the class, so it stays; but this
+ * file's own doctrine is that enforcing weaker than a promise is an invitation,
+ * so the disagreement is written down rather than left for someone to discover.
+ */
+function subjectCheck(
+  payload: NarrativePayload,
+  valence: "strengths" | "gaps",
+): (subject: SubjectKey, cited: string[]) => boolean {
+  const { byArea, pathArea } = areaIndex(payload);
+  const allowed = AGREEING_STATUSES[valence];
+  return (subject, cited) => {
+    if (subject === "record") return true; // claims no area: abstains
+    const s = byArea.get(subject);
+    if (s !== undefined && !allowed.has(s as AreaStatus)) return false; // S1
+    const citedAreas = new Set(
+      cited.map((c) => pathArea.get(c)).filter((a): a is FactorKey => !!a),
+    );
+    return citedAreas.size === 0 || citedAreas.has(subject); // S2
+  };
 }
 
 /**
@@ -453,13 +598,11 @@ function agreementCheck(
  * about whether this function is correct — only the tests do that.
  */
 export function applyCitationGate(
-  narrative: Narrative,
+  narrative: ModelNarrative,
   payload: NarrativePayload,
   deterministic: Narrative,
 ): GatedNarrative {
   const valid = citationPaths(payload);
-  const list = (items: string[], agrees?: (cited: string[]) => boolean) =>
-    items.map((t) => checkCitation(t, valid, agrees)).filter((t): t is string => !!t);
 
   const factor_commentary = { ...narrative.factor_commentary };
   for (const key of AREA_ORDER) {
@@ -467,13 +610,37 @@ export function applyCitationGate(
     factor_commentary[key] = kept ?? deterministic.factor_commentary[key];
   }
 
-  const strengths = list(narrative.strengths, agreementCheck(payload, "strengths"));
-  const gaps = list(narrative.gaps, agreementCheck(payload, "gaps"));
+  /**
+   * Both rules, in order: the citation must resolve and agree, and then the
+   * declared subject must survive S1/S2. The subject test reads the union of
+   * EVERY citation group, not just the trailing one — same reason the path rule
+   * does (the R1 bypass above), so a second bracket cannot hide the area the
+   * item really cites from the coherence test either.
+   */
+  const gated = (valence: "strengths" | "gaps") => {
+    const agrees = agreementCheck(payload, valence);
+    const subjectOk = subjectCheck(payload, valence);
+    return narrative[valence]
+      .map((item) => {
+        const kept = checkCitation(item.text, valid, agrees);
+        if (kept === null) return null;
+        return subjectOk(item.subject, citationGroups(item.text).flat()) ? kept : null;
+      })
+      .filter((t): t is string => !!t);
+  };
+
+  const strengths = gated("strengths");
+  const gaps = gated("gaps");
 
   return {
     strengths,
     gaps,
-    recommendations: list(narrative.recommendations),
+    // Ungated for valence on purpose (see above): "Fill in your PSR" is equally
+    // true of a strong area and an empty one, so there is no subject rule here
+    // either — and the schema keeps these plain strings for the same reason.
+    recommendations: narrative.recommendations
+      .map((t) => checkCitation(t, valid))
+      .filter((t): t is string => !!t),
     factor_commentary,
     withheld:
       narrative.strengths.length -
@@ -655,7 +822,7 @@ export async function generateNarrative(
       abortSignal: AbortSignal.timeout(30_000),
       system: NARRATIVE_SYSTEM_PROMPT,
       prompt: JSON.stringify(payload),
-      output: Output.object({ schema: NarrativeSchema }),
+      output: Output.object({ schema: ModelNarrativeSchema }),
     });
 
     if (!output) return fallbackOutcome("model_error");

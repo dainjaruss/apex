@@ -27,7 +27,9 @@ import {
   NARRATIVE_SYSTEM_PROMPT,
   DEFAULT_NARRATIVE_MODEL,
   narrativeModelId,
-  type Narrative,
+  SUBJECT_KEYS,
+  type ModelNarrative,
+  type SubjectKey,
 } from "@/lib/boardConfidence/narrative";
 import {
   DEFAULT_RUBRIC_CONFIG as CFG,
@@ -100,10 +102,21 @@ const fixtureWarnings = [
 ];
 const resultWithWarnings = { ...fixtureResult, warnings: fixtureWarnings };
 
+/**
+ * Wrap plain strings as model items.
+ *
+ * The default subject is `record`, which ABSTAINS from the subject rule — so
+ * every test below that was written to pin the PATH rule keeps pinning exactly
+ * that rule, and nothing here passes or fails for the new reason by accident.
+ * The subject rule has its own tests, which pass a subject explicitly.
+ */
+const modelItems = (texts: string[], subject: SubjectKey = "record") =>
+  texts.map((text) => ({ text, subject }));
+
 /** A model reply whose every item cites a path that really is in the payload. */
-const citedNarrative = (): Narrative => ({
-  strengths: ["Your reporting periods run without a break. [areas.continuity]"],
-  gaps: ["Most of your rating's roadmap is still open. [areas.development]"],
+const citedNarrative = (): ModelNarrative => ({
+  strengths: modelItems(["Your reporting periods run without a break. [areas.continuity]"]),
+  gaps: modelItems(["Most of your rating's roadmap is still open. [areas.development]"]),
   recommendations: ["Complete CompTIA Security+. [actions.ladr:m-cert:meet]"],
   factor_commentary: {
     performance: "Solid recent reports. [areas.performance]",
@@ -351,11 +364,11 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
     const gated = applyCitationGate(
       {
         ...citedNarrative(),
-        strengths: [
+        strengths: modelItems([
           "Your reporting periods run without a break. [areas.continuity]",
           "Invented claim about a medal. [performance.detail.P1]",
           "No citation at all here.",
-        ],
+        ]),
       },
       payload(),
       deterministic,
@@ -387,10 +400,10 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
     const gated = applyCitationGate(
       {
         ...citedNarrative(),
-        strengths: [
+        strengths: modelItems([
           "You failed your PFA and hold no warfare device. [areas.continuity, awards.fabricated]",
           "Both of these resolve. [areas.continuity, areas.completeness]",
-        ],
+        ]),
       },
       payload(),
       deterministic,
@@ -435,7 +448,7 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
   it("the model path runs the gate on real output", async () => {
     process.env.AI_GATEWAY_API_KEY = "test-dummy-key";
     h.generateText.mockResolvedValue({
-      output: { ...citedNarrative(), gaps: ["Fabricated. [nonsense.path]"] },
+      output: { ...citedNarrative(), gaps: modelItems(["Fabricated. [nonsense.path]"]) },
     });
 
     const out = await run();
@@ -457,12 +470,20 @@ describe("citation-or-delete — a bracket pointing at nothing is worse than no 
 // ───────────────────────────────────────────────────────────────────────────
 describe("the citation must agree with the status of the area it cites", () => {
   const payload = () => narrativePayload(fixtureReport, fixtureResult);
-  const gate = (n: Partial<Narrative>) =>
-    applyCitationGate(
-      { ...citedNarrative(), strengths: [], gaps: [], recommendations: [], ...n },
-      payload(),
-      fallbackNarrative(fixtureReport),
-    );
+  /**
+   * Lists as plain strings, wrapped into model items at the boundary. `subject`
+   * defaults to `record` so these tests keep measuring the CITATION rule alone;
+   * the subject rule's own tests pass one explicitly.
+   */
+  type Lists = { strengths?: string[]; gaps?: string[]; recommendations?: string[] };
+  const asModel = (n: Lists, subject: SubjectKey) => ({
+    ...citedNarrative(),
+    strengths: modelItems(n.strengths ?? [], subject),
+    gaps: modelItems(n.gaps ?? [], subject),
+    recommendations: n.recommendations ?? [],
+  });
+  const gate = (n: Lists, subject: SubjectKey = "record") =>
+    applyCitationGate(asModel(n, subject), payload(), fallbackNarrative(fixtureReport));
   const statusOfArea = (key: string) =>
     fixtureReport.areas.find((a) => a.key === key)!.status;
 
@@ -479,12 +500,8 @@ describe("the citation must agree with the status of the area it cites", () => {
   const sparseResult = scoreBoardConfidence(sparseInputs, CFG);
   const sparseReport = buildReadinessReport(sparseResult, sparseInputs, CFG, { asOf: "2026-04-01" });
   const sparsePayload = () => narrativePayload(sparseReport, sparseResult);
-  const sparseGate = (n: Partial<Narrative>) =>
-    applyCitationGate(
-      { ...citedNarrative(), strengths: [], gaps: [], recommendations: [], ...n },
-      sparsePayload(),
-      fallbackNarrative(sparseReport),
-    );
+  const sparseGate = (n: Lists, subject: SubjectKey = "record") =>
+    applyCitationGate(asModel(n, subject), sparsePayload(), fallbackNarrative(sparseReport));
 
   it("the two fixtures between them carry all four statuses", () => {
     // Without this, every test below could be asserting on a status the rubric
@@ -840,7 +857,7 @@ describe("the citation must agree with the status of the area it cites", () => {
     const gatedWeak = applyCitationGate(
       {
         ...citedNarrative(),
-        strengths: [`Your roadmap is moving. [actions.${dev.id}]`],
+        strengths: modelItems([`Your roadmap is moving. [actions.${dev.id}]`]),
         gaps: [],
         recommendations: [],
       },
@@ -868,6 +885,27 @@ describe("the citation must agree with the status of the area it cites", () => {
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("strong or on_track");
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("on_track or needs_attention");
     expect(NARRATIVE_SYSTEM_PROMPT).toContain("EVERY cited area");
+  });
+
+  it("the system prompt states the SUBJECT rule too, and the whole vocabulary", () => {
+    // Same reason, and it was missed: rule 2c shipped with no pin at all while
+    // 2b had three. Delete 2c and every test stayed green — but the schema still
+    // forces a `subject` value, so the model would pick one uninformed and the
+    // failure would land in the COLLATERAL-DAMAGE direction: honest items
+    // deleted, `withheld` climbing, on a rule nobody told the model about.
+    const p = NARRATIVE_SYSTEM_PROMPT;
+    expect(p).toContain("`subject` names the area the sentence is ABOUT");
+    // Every value the enum will accept has to be a value the prompt named, or
+    // the model is guessing at the grammar it is being graded against.
+    for (const key of SUBJECT_KEYS)
+      expect(p, `rule 2c never names the subject value "${key}"`).toContain(key);
+    // Both halves of the check, in the prompt's own words.
+    expect(p).toContain("must satisfy rule 2b");
+    expect(p).toContain("must be among the areas");
+    // And the one thing the gate does NOT enforce, which the prompt asserts
+    // anyway — see the ceiling note on subjectCheck. If this line is ever made
+    // true in code, that note has to move with it.
+    expect(p).toContain('"record" sentence to get around');
   });
 });
 
