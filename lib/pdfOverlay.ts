@@ -110,8 +110,22 @@ const C = {
     specialCx: 333.4,
 
     // type 16-18
+    // ALL THREE type-of-report squares are in ONE row: measured on the blank at
+    // 600 dpi, each strokes y[665.400, 666.120] and y[677.640, 678.360], interior
+    // y[666.120, 677.640], at centres x 93.60 / 173.52 / 267.84. Block 16's LABEL
+    // wraps onto two lines ("16. Not Observed" then "Report"); its BOX does not.
+    //
+    // notObservedCy was 695.1 here, which is that row plus one printed line, so
+    // the mark drew 12.2 pt ABOVE the square — measured on a generated EVAL at
+    // page (89.93, 680.14) against a box topping out at 677.640 — and Block 16
+    // printed EMPTY. A Not Observed report is routine, so that is a record a
+    // board reads with an occasion selected and no type of report marked.
+    // Blocks 17 and 18 were already correct at 682.9; 16 is the same row.
+    //
+    // Found via NAVPERS 1610/2, which inherited these constants and the error
+    // with them (#48). This is the origin, not the copy.
     notObservedCx: 80.6,
-    notObservedCy: 695.1,
+    notObservedCy: 682.9,
     regularCx: 160.6,
     regularCy: 682.9,
     concurrentCx: 254.9,
@@ -128,7 +142,23 @@ const C = {
     pfa_x: 365,
     billet_x: 465,
 
-    // reporting senior 22-27 (cell-lefts measured from blank: 167.8/218.2/269.3/401.0/455.8)
+    // Blocks 22-27, cell y[638.040, 662.520] in PAGE coordinates. Column
+    // dividers measured at 600 dpi off public/navpers-1616-26_2025.pdf:
+    // x[180.360, 181.080] / [230.760, 231.480] / [281.880, 282.600] /
+    // [413.640, 414.360] / [468.360, 469.080], so the six column interiors are
+    // [30.600, 180.360] [181.080, 230.760] [231.480, 281.880] [282.600, 413.640]
+    // [414.360, 468.360] [469.080, 577.800].
+    //
+    // Every x below starts inside its own column and always did. What was
+    // missing is a WIDTH: `text()` shrinks to fit one, and these six never
+    // passed one, so a long-but-ordinary Navy name ran straight through the
+    // divider. Measured on a generated EVAL, "REPORTINGSENIORNAME, JOHN A" at
+    // 12 pt reached x 233.21 against a Block 22 column ending at 180.360 — 52.9
+    // pt into the Grade cell. Same defect NAVPERS 1610/2 had (#48); found here
+    // by porting that PR's sweep to this form.
+    //
+    // Each width is its column's right edge, less this file's 2.5 pt house
+    // inset, less the field's own page x (constant + OFFSET_P1.dx = +13).
     rsBaseline: 652,
     rsName_x: 26,
     rsGrade_x: 180,
@@ -136,6 +166,7 @@ const C = {
     rsTitle_x: 280,
     rsUic_x: 409,
     rsDodid_x: 463,
+    rsWidths: [138.86, 35.26, 36.38, 118.14, 43.86, 99.3],
 
     // block 28 narrative (full width; 3 lines)
     b28_x: 21,
@@ -500,12 +531,19 @@ export async function generateOverlayPdf(
   text(page1, up(bv.billet_subcategory), p1.billet_x, p1.pfaBilletBaseline);
 
   // reporting senior 22-27
-  text(page1, up(bv.reporting_senior_name), p1.rsName_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_grade), p1.rsGrade_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_designator), p1.rsDesig_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_title), p1.rsTitle_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_uic, p1.rsUic_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_dod_id, p1.rsDodid_x, p1.rsBaseline);
+  // Blocks 22-27, each held to its own column's width — see rsWidths.
+  (
+    [
+      [up(bv.reporting_senior_name), p1.rsName_x],
+      [up(bv.reporting_senior_grade), p1.rsGrade_x],
+      [up(bv.reporting_senior_designator), p1.rsDesig_x],
+      [up(bv.reporting_senior_title), p1.rsTitle_x],
+      [bv.reporting_senior_uic, p1.rsUic_x],
+      [bv.reporting_senior_dod_id, p1.rsDodid_x],
+    ] as [string | undefined, number][]
+  ).forEach(([v, x], k) =>
+    text(page1, v, x, p1.rsBaseline, 12, courier, p1.rsWidths[k]),
+  );
 
   // block 28 narrative
   narrative(
