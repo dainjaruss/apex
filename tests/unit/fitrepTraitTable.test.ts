@@ -34,6 +34,11 @@ import { NAVFIT_TRAIT_MAP } from "../../lib/navfit98/constants";
 import { computeTraitAverage } from "../../lib/traitAverage";
 import { runFullValidation } from "../../lib/validationEngine";
 import { generateFitrepOverlayPdf } from "../../lib/fitrepOverlay";
+import {
+  FIELD_FIT,
+  getPrimaryDutiesFieldFit,
+  measureTextFit,
+} from "../../lib/commentFit";
 import { Evaluation } from "../../types";
 
 // Blocks 33-39 exactly as printed on NAVPERS 1610/2 (REV 05-2025), in form order.
@@ -700,6 +705,35 @@ const FRAME_FLOOR = 47.16;
  */
 const B40_CELL = { left: 470.16, right: 578.88, floor: 469.8, top: 505.08 };
 
+/**
+ * Blocks 28 and 29, page 1, measured the same way — and this is the axis the horizontal
+ * sweep below cannot see: both blocks used to print INSIDE THE FRAME and inside the wrong
+ * cell, so every assertion in this file passed while Block 28 drew over Block 29 and
+ * Block 29 drew over the Block 33 trait descriptors.
+ *
+ * The three rules that bound the pair strike at y[648.360, 649.080], y[600.840, 601.560]
+ * and y[538.920, 539.640]; the numbers below are inner ink edges.
+ *
+ * Block 28's only form ink is its header, x[35.160, 220.920] y[637.680, 644.880] — so the
+ * cell is clear full width from 637.680 down to 601.560, 36.12 pt.
+ *
+ * Block 29 carries two things. Its header prints y[590.160, 597.360] out to x 311.520, and
+ * the 29A abbreviation box hangs below it on its own line: strokes x[39.840, 40.560] /
+ * x[155.760, 156.480] and y[577.800, 578.520] / y[590.040, 590.760]. Right of that box the
+ * cell is clear from the header's floor down; below it the cell is clear full width from
+ * 577.800 to 539.640, which is 38.16 pt and holds three lines, not four. The fourth line
+ * exists only because line 1 sits beside the box.
+ */
+const B28 = { floor: 601.56, headerFloor: 637.68 };
+const B29 = {
+  floor: 539.64,
+  /** Lowest header ink RIGHT of the 29A box, which is where line 1 goes. */
+  headerFloor: 590.16,
+  abbrev: { left: 40.56, right: 155.76, floor: 578.52, ceiling: 590.04 },
+};
+/** The rule between the two cells — the one Block 28 used to print through. */
+const B28_B29_RULE = 600.84;
+
 /** House inset off a printed rule. Same 2.5 the comment blocks are held to. */
 const INSET = 2.5;
 
@@ -756,6 +790,43 @@ async function overlayRuns(bytes: Uint8Array, page: 1 | 2) {
 const B28_FILL = "Xygj`Q";
 const B29_FILL = "Wygj`Q";
 
+/** 4 lines' worth of unbroken text, so the wrap force-splits at exactly the CPL. */
+const B28_TEXT = probe(91 * 4, B28_FILL);
+
+/**
+ * TWO tokens, not one unbroken run, and the first is exactly 91 - lead long.
+ *
+ * Block 29's first line is shared with the 29A box, so it holds only 91 - lead characters.
+ * An unbroken token cannot start there: wrapTextToWidth emits the reserved lead as a line
+ * of its OWN, pushing the narrative down one line and dropping the last chunk at the
+ * slice. The fixture used to do exactly that, so line 1 of Block 29 never reached the
+ * renderer and nothing here could see where it landed. Sized to fill all four lines.
+ */
+const B29_TEXT =
+  probe(91 - (getPrimaryDutiesFieldFit("FITREP").firstLineLead ?? 0), B29_FILL) +
+  " " +
+  probe(91 * 3, B29_FILL);
+
+/**
+ * The narrative lines one block drew, top-down. Selected by ALPHABET, never by position —
+ * a y-band filter would assume the answer these tests exist to check. `X` and `W` are what
+ * tell the two blocks apart; the rest of both alphabets is shared, and every line is long
+ * enough to carry many of them.
+ */
+function fillLines<T extends { str: string; base: number }>(
+  runs: T[],
+  fill: string,
+): T[] {
+  return runs
+    .filter(
+      (r) =>
+        r.str.length >= 20 &&
+        r.str.includes(fill[0]) &&
+        new RegExp(`^[${fill}]+$`).test(r.str),
+    )
+    .sort((a, b) => b.base - a.base);
+}
+
 /**
  * 20 chars — CAREER_REC_MAX, which is what the editor accepts, the validator allows and
  * NAVFIT's RecommendA/B carry. Uppercased by the overlay, so the deepest ink available is
@@ -807,10 +878,9 @@ async function renderProbeFitrep() {
         concurrent_rs_signature_date: "2025-11-23",
         reporting_senior_name: "REPORTINGSENIORNAME, JOHN A",
         reporting_senior_grade: "RADM",
-        // 4 lines' worth of unbroken text, so the wrap force-splits at exactly the CPL.
-        command_achievements: probe(91 * 4, B28_FILL),
+        command_achievements: B28_TEXT,
         primary_duty_abbrev: "OPS",
-        primary_duties: probe(91 * 4, B29_FILL),
+        primary_duties: B29_TEXT,
         date_counseled: "2025-05-01",
         counselor: "JONES, CARL R",
         qualifications: "ESWS QUALIFIED THIS PERIOD.",
@@ -912,6 +982,115 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     const runs = await overlayRuns(await renderProbeFitrep(), 2);
     expect(runs.some((r) => /ESWS QUALIFIED/.test(r.str))).toBe(false);
   });
+
+  it("Block 28's narrative stays in Block 28's cell", async () => {
+    const lines = fillLines(await overlayRuns(await renderProbeFitrep(), 1), B28_FILL);
+
+    // The count is the BOX's, not a preference: FIELD_FIT is what the editor and the
+    // validator enforce, and this file used to hardcode 4 against a 3-line box.
+    expect(lines).toHaveLength(FIELD_FIT.command_achievements.maxLines);
+    expect(lines).toHaveLength(3);
+
+    for (const l of lines) {
+      expect(l.top).toBeLessThanOrEqual(B28.headerFloor);
+      expect(l.bot).toBeGreaterThanOrEqual(B28.floor);
+    }
+    // And 3 is what the cell HOLDS — one more line would break the floor. Without this
+    // the count assertion above is just two constants agreeing with each other.
+    const lead = lines[0].base - lines[1].base;
+    expect(lines[lines.length - 1].bot - lead).toBeLessThan(B28.floor);
+  }, 30_000);
+
+  it("Block 29's abbreviation prints inside the 29A box, not over its rules", async () => {
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const abbrev = runs.find((r) => r.str === "OPS");
+    expect(abbrev).toBeDefined();
+    // It used to draw at the 29B text origin — 4.7 pt left of this box's left stroke,
+    // running straight over it — and at the 29B baseline, which sits below the floor.
+    expect(abbrev!.x).toBeGreaterThanOrEqual(B29.abbrev.left + INSET);
+    expect(abbrev!.x2).toBeLessThanOrEqual(B29.abbrev.right - INSET);
+    expect(abbrev!.top).toBeLessThanOrEqual(B29.abbrev.ceiling);
+    expect(abbrev!.bot).toBeGreaterThanOrEqual(B29.abbrev.floor);
+  }, 30_000);
+
+  it("Block 29's narrative stays in Block 29's cell, line 1 beside the 29A box", async () => {
+    const lines = fillLines(await overlayRuns(await renderProbeFitrep(), 1), B29_FILL);
+    const spec = getPrimaryDutiesFieldFit("FITREP");
+    expect(lines).toHaveLength(spec.maxLines);
+    expect(lines).toHaveLength(4);
+
+    // Line 1 is the only one that clears the 29A box, and only because it starts to its
+    // RIGHT. That is what the first-line lead buys, and a lead of 20 did not buy it: the
+    // first glyph landed at 153.80, on top of the box's right stroke.
+    const [first, ...rest] = lines;
+    expect(first.x).toBeGreaterThanOrEqual(B29.abbrev.right + INSET);
+    expect(first.top).toBeLessThanOrEqual(B29.headerFloor);
+    expect(first.bot).toBeGreaterThanOrEqual(B29.floor);
+
+    // Lines 2+ are full width, so they have to clear the 29A box's FLOOR, not its side.
+    for (const l of rest) {
+      expect(l.x).toBeLessThan(B29.abbrev.left);
+      expect(l.top).toBeLessThanOrEqual(B29.abbrev.floor);
+      expect(l.bot).toBeGreaterThanOrEqual(B29.floor);
+    }
+    const lead = lines[0].base - lines[1].base;
+    expect(lines[lines.length - 1].bot - lead).toBeLessThan(B29.floor);
+  }, 30_000);
+
+  it("does not print either block into the other's cell", async () => {
+    // The defect this pair had: Block 28 drew 4 lines from 574.0 — inside Block 29's
+    // cell and through the rule beneath it — and Block 29 drew from 486.0, over the
+    // Block 33 trait descriptors. Both were inside the page frame, so the sweep below
+    // saw nothing. Assert the cells directly.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    for (const l of fillLines(runs, B28_FILL))
+      expect(l.bot).toBeGreaterThan(B28_B29_RULE);
+    for (const l of fillLines(runs, B29_FILL)) {
+      expect(l.top).toBeLessThan(B28_B29_RULE);
+      expect(l.bot).toBeGreaterThan(B29.floor);
+    }
+  }, 30_000);
+
+  it("draws exactly as many lines as the editor and the validator promise", async () => {
+    // The trap named in lib/fitrepOverlay.ts: move a line count in one place and the
+    // editor keeps accepting text the PDF silently slices off. measureTextFit is what
+    // backs the measuring canvas (MeasuredCourierField) and rule 30 in validationEngine,
+    // so wrapping the SAME fixture through it must give the same number of lines the
+    // renderer drew — at the cap, where a mismatch actually costs the Sailor text.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+
+    const ca = measureTextFit(
+      B28_TEXT,
+      FIELD_FIT.command_achievements.charsPerLine,
+      FIELD_FIT.command_achievements.maxLines,
+      FIELD_FIT.command_achievements.firstLineLead ?? 0,
+    );
+    const spec = getPrimaryDutiesFieldFit("FITREP");
+    const pd = measureTextFit(
+      B29_TEXT,
+      spec.charsPerLine,
+      spec.maxLines,
+      spec.firstLineLead ?? 0,
+    );
+
+    // Block 28's fixture deliberately OVERFLOWS — 4 lines' worth into a 3-line block, so
+    // the horizontal sweep gets full-width lines to measure. The guarantee that direction
+    // is that the overflow is visible: the validator rejects it rather than the renderer
+    // quietly slicing a line off a record the editor said was fine.
+    expect(ca.fit).toBe(false);
+    expect(ca.linesUsed).toBeGreaterThan(FIELD_FIT.command_achievements.maxLines);
+    expect(fillLines(runs, B28_FILL)).toHaveLength(
+      FIELD_FIT.command_achievements.maxLines,
+    );
+
+    // Block 29's fixture fills its block EXACTLY, which is the case that matters: the
+    // editor accepts it, and every line it accepted reaches the page. This is what breaks
+    // if the lead moves in one layer and not the other — at lead 20 the canvas would fit
+    // this text in 4 lines while the PDF started it on top of the 29A box's rule.
+    expect(pd.fit).toBe(true);
+    expect(pd.linesUsed).toBe(spec.maxLines);
+    expect(fillLines(runs, B29_FILL)).toHaveLength(pd.linesUsed);
+  }, 30_000);
 
   it("keeps every remaining field inside the printed frame, bar a named ledger", async () => {
     // The general guard the four constants slipped past: nothing may print outside the

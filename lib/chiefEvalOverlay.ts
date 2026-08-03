@@ -473,7 +473,11 @@ export async function generateChiefEvalOverlayPdf(
     p1.b29b_cpl,
     p1.b29b_lines,
     p1.b29_abbrevSize,
-    FIELD_FIT.primary_duties.firstLineLead ?? 0,
+    // The lead comes off the spec THIS form uses, not the EVAL's. Both were 20 and it
+    // happened to clear 1616/27's 29A box by 3.27 pt; 1610/2's box is wider and 20 ran the
+    // first glyph over its right stroke, so the shared value is 21 and this call site has
+    // to read it from the same place the editor and the validator do.
+    getPrimaryDutiesFieldFit("CHIEFEVAL").firstLineLead ?? 0,
     p1.b29b_contX,
   );
 

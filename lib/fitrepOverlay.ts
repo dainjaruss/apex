@@ -9,10 +9,10 @@
 // Reporting Senior on Concurrent Report".
 //
 // ponytail: measured against public/fitrepBlank.pdf so far — the trait grid
-// (GRADE_COLS_P1/P2 and both `traitCy` maps), Block 41's box (#41), and, here, the
-// HORIZONTAL axis of Blocks 28/29 plus both axes of Block 40. Every other coordinate in
-// `C` is still inherited from NAVPERS 1616/26 and UNVERIFIED; the note beside b43_x lists
-// the ones known to print outside a rule.
+// (GRADE_COLS_P1/P2 and both `traitCy` maps), Block 41's box (#41), both axes of Block 40,
+// and both axes of Blocks 28/29 including the 29A abbreviation cell. Every other coordinate
+// in `C` is still inherited from NAVPERS 1616/26 and UNVERIFIED; the note beside b43_x
+// lists the ones known to print outside a rule.
 //
 // Root cause, for whoever picks this up: lib/pdfOverlay.ts (EVAL) wraps its page draw in a
 // rigid translate (OFFSET_P1 = {dx: 13, dy: -11}), so its constants are expressed in
@@ -188,19 +188,67 @@ const C = {
     // both start one house inset off P1_RULE_L. They were FORM_LEFT (17.3): 15.34 pt
     // LEFT of the rule, i.e. out in the page margin, on every line of both blocks.
     //
-    // Only the HORIZONTAL axis of these two is fixed here; their baselines are still the
-    // inherited 1616/26 values and are still wrong — see the note in p2 below.
+    // Both baselines below are now DERIVED from the blank, by the same method the comment
+    // blocks use (see getCommentCapacity): a line's ink runs from base - 0.2002*size to
+    // base + 0.6909*size — the real outline extents of CourierPrime-Regular over printable
+    // ASCII, not its declared metrics — and leading is 1.18*size. For N lines the legal
+    // first baseline is [floor + 0.2002*s + (N-1)*1.18*s, ceiling - 0.6909*s]; the constant
+    // is that window's midpoint, because centring is free.
+    //
+    // Both blocks solve s = (547.20 - 4) / (91.5 * 0.6) = 9.894353 from their CPL, so
+    // 0.6909*s = 6.83499, 0.2002*s = 1.98085 and the leading is 11.675337.
     b28_x: P1_RULE_L + INSET,
-    b28_topBaseline: 574.0,
-    b28_lines: 4,
-    b28_cpl: 91,
 
+    // BLOCK 28 — cell y[601.560, 648.360] between the rules at y[648.360, 649.080] and
+    // y[600.840, 601.560]; its only form ink is the header, x[35.160, 220.920]
+    // y[637.680, 644.880]. So 36.12 pt of clear height, full width.
+    //
+    // THREE lines, which is what FIELD_FIT.command_achievements has always said and what
+    // the editor and the validator have always enforced. This file hardcoded 4 — 43.85 pt
+    // of ink against 36.12 pt of box — and drew them from 574.0, which is not in this
+    // block at all: it is inside Block 29's cell and through the rule beneath it.
+    //   window [626.892, 630.845] -> 628.87, giving 1.98 pt clear of the header and
+    //   1.98 pt clear of the cell floor. A 4th line would need 638.567, 7.7 pt above
+    //   the header's lowest ink.
+    // Read the count off FIELD_FIT like the two sibling overlays do, so the drift that
+    // let 4 and 3 coexist cannot come back.
+    b28_topBaseline: 628.87,
+    b28_lines: FIELD_FIT.command_achievements.maxLines,
+    b28_cpl: FIELD_FIT.command_achievements.charsPerLine,
+
+    // BLOCK 29 — cell y[539.640, 600.840]. Form ink: the header, and the 29A abbreviation
+    // box whose strokes measure x[39.840, 40.560] / x[155.760, 156.480] and
+    // y[577.800, 578.520] / y[590.040, 590.760], i.e. an interior of x[40.560, 155.760]
+    // y[578.520, 590.040]. Right of the box the cell is clear from the header's floor
+    // (590.160) down; below the box it is clear from 577.800 to the cell floor.
+    //
+    // That 38.16 pt of full-width clearance holds THREE lines, not four. The fourth is
+    // real only because line 1 sits BESIDE the 29A box, which is the layout the 20-space
+    // lead was always implying and the geometry never delivered — it used to draw from
+    // 486.0, a whole block low, over the Block 33 trait descriptors.
+    //   line 4's floor gives 576.647; line 2 clearing the 29A box floor gives 582.640;
+    //   line 1 clearing the header gives 583.325 and is not binding.
+    //   window [576.647, 582.640] -> 579.64: 3.00 pt clear at the 29A box floor, 3.00 pt
+    //   at the cell floor, 3.69 pt under the header.
+    //
     // b29b_contX is gone: it was a third FORM_LEFT site, always equal to b29b_x, and
     // `narrativeWithLead` already defaults contX to x.
     b29b_x: P1_RULE_L + INSET,
-    b29_firstBaseline: 486.0,
+    b29_firstBaseline: 579.64,
     b29b_lines: getPrimaryDutiesFieldFit("FITREP").maxLines,
     b29b_cpl: getPrimaryDutiesFieldFit("FITREP").charsPerLine,
+
+    // 29A, the duty abbreviation, drawn into its own printed box rather than as an inline
+    // lead at the 29B origin. At the 29B origin it would start 4.7 pt LEFT of the box's
+    // left stroke and run straight over it; and while its baseline could share line 1's,
+    // 579.64 puts the envelope's floor 0.78 pt under the box. Its own cell is 11.52 pt
+    // tall, so at 9.5 pt the legal window is [580.422, 583.476] -> 581.95.
+    // Width is the interior less one inset each side, so an over-long legacy value shrinks
+    // to fit the box instead of running out of it (the editor caps at
+    // PRIMARY_DUTY_ABBREV_MAX; a direct DB write does not).
+    b29a_x: 40.56 + INSET,
+    b29a_baseline: 581.95,
+    b29a_width: 155.76 - 40.56 - 2 * INSET,
     b29_abbrevSize: 9.5,
 
     dateCounseled_x: 23.5,
@@ -295,28 +343,9 @@ const C = {
     // window at a solved 10.7278 pt was 0.241 pt wide, and at a fixed 10 pt it is 3.689.
     //
     // Every remaining FORM_LEFT site is now measured against its own rule; the constant
-    // itself is gone. What is NOT fixed, measured off the blank rather than assumed:
-    //
-    //   VERTICAL, blocks 28/29. Both draw one whole block low. Block 28's box is
-    //   y[601.560, 648.360], its only printed ink the header at y[637.680, 644.880], and
-    //   it draws 4 lines from 574.0 — inside Block 29's box and through the rule at
-    //   539.640 beneath it. Block 29's box is y[539.640, 600.840], printed ink y[577.800,
-    //   597.360], and it draws from 486.0, over the Block 33 trait descriptors.
-    //
-    //   Neither is a constant swap, because the line counts are unsettled too. At the
-    //   solved 9.894 pt, 4 lines need 43.85 pt of ink height and 3 need 32.17; Block 28
-    //   has 36.12 pt clear below its header and this file hardcodes 4 while
-    //   FIELD_FIT.command_achievements says 3. Block 29 has 38.16 pt clear below the
-    //   abbreviation box — 4 lines only fit if the first sits BESIDE that box, which is
-    //   a layout decision, not a measurement. Settling it is #36's per-form capacity
-    //   derivation, never done for 28/29, and it has to move FIELD_FIT, the validator,
-    //   the coach budget and the brag-sheet budget together, or the editor will promise
-    //   lines the PDF silently drops.
-    //
-    //   Block 29's abbreviation has its own printed box, x[40.520, 155.720] y[578.520,
-    //   590.040], on its own line under the header. This file still draws the
-    //   abbreviation inline as a 20-space lead on the duties' first line, the 1616/26
-    //   layout, so it lands nowhere near that box.
+    // itself is gone. Blocks 28 and 29 are measured on BOTH axes now too — see the p1
+    // section above for the derivation and tests/unit/fitrepTraitTable.test.ts for the
+    // pins. What is still NOT fixed, measured off the blank rather than assumed:
     //
     //   OTHER FIELDS OUTSIDE A RULE — thirteen runs at eight distinct x positions, none
     //   of which came from FORM_LEFT (x, then what is wrong): identity + reporting-senior rows and
@@ -516,16 +545,29 @@ export async function generateFitrepOverlayPdf(
 
   narrative(page1, bv.command_achievements, p1.b28_x, p1.b28_topBaseline, p1.b28_cpl, p1.b28_lines);
 
+  // 29A goes in its own printed box; 29B still reserves the same character count on line 1
+  // so the narrative resumes clear of that box's right stroke. The lead comes off the spec
+  // this form actually uses — reading FIELD_FIT.primary_duties here was reading the EVAL's
+  // lead, which is a character short of what 1610/2's wider 29A box needs.
+  text(
+    page1,
+    up(bv.primary_duty_abbrev),
+    p1.b29a_x,
+    p1.b29a_baseline,
+    p1.b29_abbrevSize,
+    courier,
+    p1.b29a_width,
+  );
   narrativeWithLead(
     page1,
-    bv.primary_duty_abbrev,
+    null,
     bv.primary_duties,
     p1.b29b_x,
     p1.b29_firstBaseline,
     p1.b29b_cpl,
     p1.b29b_lines,
     p1.b29_abbrevSize,
-    FIELD_FIT.primary_duties.firstLineLead ?? 0,
+    getPrimaryDutiesFieldFit("FITREP").firstLineLead ?? 0,
   );
 
   text(page1, formatNavpersDate(bv.date_counseled), p1.dateCounseled_x, p1.counselBaseline);

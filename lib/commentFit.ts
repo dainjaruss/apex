@@ -397,13 +397,42 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
     label: "Primary/Collateral/Watchstanding Duties",
     firstLineLead: 20,
   },
-  /** Block 29B on NAVPERS 1610/2 & 1616/27 (REV 05-2025) — taller duties box than 1616/26. */
+  /**
+   * Block 29B on NAVPERS 1610/2 & 1616/27 (REV 05-2025) — taller duties box than 1616/26.
+   *
+   * FOUR lines is measured, not assumed, and it only holds because line 1 sits BESIDE the
+   * 29A abbreviation box rather than under it. Both blanks print Block 29 as a cell
+   * y[539.640, 600.840] whose lowest form ink is the 29A box floor at 577.800 — 38.16 pt
+   * clear, which holds three lines of the 9.85-9.89 pt these blocks solve and not four.
+   * The fourth line exists because the region to the RIGHT of the 29A box is clear from
+   * the header floor down, so line 1 draws there and lines 2-4 fall in the full-width
+   * remainder. That is why this spec carries a lead at all.
+   *
+   * THE LEAD IS 21, not 20, and the extra character is the whole point: 20 put line 1's
+   * first glyph ON the 29A box's right stroke on a FITREP. Measured off the blanks at
+   * 600 dpi, 29A's right stroke and the x line 1 starts at (b29b_x + lead x advance):
+   *
+   *   1610/2  (FITREP)     stroke x[155.760, 156.480]   lead 20 -> 153.80  OVERPRINTS
+   *                                                     lead 21 -> 159.73  3.25 pt clear
+   *   1616/27 (CHIEFEVAL)  stroke x[148.320, 149.040]   lead 20 -> 152.31  3.27 pt clear
+   *                                                     lead 21 -> 158.22  9.18 pt clear
+   *
+   * So 21 is required by 1610/2 and merely roomier on 1616/27, which is what lets one
+   * number serve both. 1616/26 keeps its own 20 in `primary_duties` above — its 29A box
+   * is a third size again, and EVAL is not this form.
+   *
+   * Changing this moves the editor's measuring canvas, the validator, the brag-sheet
+   * budget and the PDF together: every one of them reads the lead off the spec
+   * getPrimaryDutiesFieldFit() returns. Do not read FIELD_FIT.primary_duties.firstLineLead
+   * from a 1610/2 or 1616/27 caller — that is the EVAL's lead, and the two overlays used
+   * to do exactly that.
+   */
   primary_duties_extended: {
     block: 29,
     charsPerLine: 91,
     maxLines: 4,
     label: "Primary/Collateral/Watchstanding Duties",
-    firstLineLead: 20,
+    firstLineLead: 21,
   },
   qualifications: {
     block: 44,
