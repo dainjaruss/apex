@@ -1038,7 +1038,7 @@ BLOCK-BY-BLOCK (write to budgets; every value below is enforced after you respon
   notes from brag.pfa (e.g. "25-1:P/PRT OUTSTANDING/BCA WNL"). A Block 20 code
   of B REQUIRES a PFA comment here. Budget: 91 chars/line ×
   budgets.primary_duties.max_lines (3 on EVAL, 4 on CHIEFEVAL/FITREP); the
-  FIRST line is budgets.primary_duties.first_line_lead (20) characters shorter
+  FIRST line is budgets.primary_duties.first_line_lead characters shorter
   because Block 29A shares it.
 - command_achievements (Block 28): command employment and command-level awards
   only, from brag.job.team_contributions and brag context — operational/

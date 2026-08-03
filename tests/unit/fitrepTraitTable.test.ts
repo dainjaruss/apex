@@ -900,9 +900,17 @@ async function renderProbeFitrep() {
       },
       block_values: {
         date_reported: "2024-08-01",
+        // EVERY occasion and type flag, so all seven header checkboxes draw.
+        // Contradictory as a real report — deliberately, because the sweep can
+        // only see a field that DRAWS, and leaving three unset left Blocks 11, 13
+        // and 18 unpinned: their constants could be moved to another cell
+        // entirely and the whole suite stayed green.
         periodic: true,
+        detachment_individual: true,
+        special: true,
         regular_report: true,
         not_observed: true,
+        concurrent_report: true,
         concurrent_rs_signature_date: "2025-11-23",
         // All SIX Blocks 22-27 fields, not two. The first revision of this fixture
         // set only name and grade, so four of the six columns never drew and the
@@ -1150,11 +1158,32 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     b31: [290.4, 427.2],
   };
 
-  /** Checkbox squares the probe actually stamps, inner ink edges off the blank. */
+  /**
+   * EVERY checkbox square on page 1, inner ink edges off the blank — not just the
+   * ones the probe stamps.
+   *
+   * The census matters because the assertion is inverted below. Listing only the
+   * stamped boxes and checking "each listed box got a mark" is what let Block 16
+   * ship 12.2 pt above its square: the mark existed, `toHaveLength(5)` counted
+   * it, and no assertion asked where it went. The question has to be "did every
+   * mark land in a box", which needs all the boxes.
+   *
+   * All four type-of-report squares (16-19) are in ONE row at y[677.160, 688.680]
+   * — Block 16's LABEL wraps to two lines, its box does not.
+   */
   const P1_BOXES: Record<string, { x: [number, number]; y: [number, number] }> = {
     "5_ACT": { x: [45.6, 59.28], y: [725.4, 736.92] },
+    "5_TAR": { x: [75.12, 88.8], y: [725.4, 736.92] },
+    "5_INACT": { x: [103.92, 117.6], y: [725.4, 736.92] },
+    "5_AT_ADSW": { x: [132.0, 145.68], y: [725.4, 736.92] },
     "10_PERIODIC": { x: [88.8, 102.48], y: [701.64, 713.16] },
+    "11_DET_INDIV": { x: [168.72, 182.4], y: [701.64, 713.16] },
+    "12_DET_RS": { x: [263.04, 276.72], y: [701.64, 713.16] },
+    "13_SPECIAL": { x: [341.52, 355.2], y: [701.64, 713.16] },
+    "16_NOT_OBSERVED": { x: [88.8, 102.48], y: [677.16, 688.68] },
     "17_REGULAR": { x: [168.72, 182.4], y: [677.16, 688.68] },
+    "18_CONCURRENT": { x: [263.04, 276.72], y: [677.16, 688.68] },
+    "19_OPS_CDR": { x: [341.52, 355.2], y: [677.16, 688.68] },
   };
 
   it("every page-1 field prints in the cell whose header names it", async () => {
@@ -1195,22 +1224,52 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
 
     // The three checkbox marks the probe stamps, each inside its own printed
     // square — not merely inside the right cell.
-    // Five on page 1 from this fixture: Block 5 ACT, Block 10 Periodic, Block 16
-    // Not Observed, Block 17 Regular, and the Block 33 trait grade. Block 12 is
-    // deliberately absent even though the fixture sets its flag — see below.
+    // Eight on page 1: Block 5 ACT, Blocks 10/11/13, Blocks 16/17/18, and the
+    // Block 33 trait grade. Block 12 is deliberately absent even though the
+    // fixture sets its flag, and Block 19 has no APEX field — see below.
     const marks = runs.filter((r) => r.str === "X" && r.size === 11);
-    expect(marks).toHaveLength(5);
-    // By CENTRE, the idiom the trait-grid test above uses: the mark is an 11 pt
-    // "X" with no descender, so the -0.2002 em envelope that full-width narrative
-    // lines are held to reads 0.2 pt below ink that does not exist.
-    for (const [name, box] of Object.entries(P1_BOXES)) {
-      const hit = marks.filter((m) => {
-        const cx = m.x + 6.6 / 2;
-        const cy = m.base + 6.3 / 2;
-        return cx > box.x[0] && cx < box.x[1] && cy > box.y[0] && cy < box.y[1];
-      });
-      expect(hit, `no mark landed in ${name}`).toHaveLength(1);
+    expect(marks).toHaveLength(8);
+    const centreOf = (m: (typeof marks)[number]) => ({
+      cx: m.x + 6.6 / 2,
+      cy: m.base + 6.3 / 2,
+    });
+    // INVERTED: every mark must land in SOME box. "Each listed box got a mark" is
+    // the form this test had, and it cannot see a mark that went nowhere — which
+    // is exactly how Block 16 shipped 12.2 pt above its square, on a printed rule,
+    // while the count assertion above passed. The trait-grid mark is excluded by
+    // y band; it has its own test against GRADE_COLS_P1.
+    //
+    // By CENTRE, the idiom the trait-grid test uses: the mark is an 11 pt "X" with
+    // no descender, so the -0.2002 em envelope that full-width narrative lines are
+    // held to reads 0.2 pt below ink that does not exist.
+    const inBox = (m: (typeof marks)[number], box: (typeof P1_BOXES)[string]) => {
+      const { cx, cy } = centreOf(m);
+      return cx > box.x[0] && cx < box.x[1] && cy > box.y[0] && cy < box.y[1];
+    };
+    const headerMarks = marks.filter((m) => centreOf(m).cy > 660);
+    expect(headerMarks).toHaveLength(7);
+    for (const m of headerMarks) {
+      const landed = Object.entries(P1_BOXES).filter(([, box]) => inBox(m, box));
+      expect(
+        landed.map(([n]) => n),
+        `a mark at (${m.x.toFixed(2)}, ${m.base.toFixed(2)}) is in no checkbox`,
+      ).toHaveLength(1);
     }
+    // …and each flag the fixture sets marked its OWN box, so a pair of constants
+    // cannot be swapped and still satisfy the "every mark is in some box" rule.
+    for (const name of [
+      "5_ACT",
+      "10_PERIODIC",
+      "11_DET_INDIV",
+      "13_SPECIAL",
+      "16_NOT_OBSERVED",
+      "17_REGULAR",
+      "18_CONCURRENT",
+    ])
+      expect(
+        headerMarks.filter((m) => inBox(m, P1_BOXES[name])),
+        `no mark landed in ${name}`,
+      ).toHaveLength(1);
   }, 30_000);
 
   it("never stamps Block 12 — on 1610/2 it is Detachment of Reporting Senior", async () => {
@@ -1325,6 +1384,16 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
       expect(run.x2, `Block ${22 + i} overruns its column`).toBeLessThanOrEqual(right);
       expect(run.top).toBeLessThanOrEqual(RS_ROW.headerFloor);
       expect(run.bot).toBeGreaterThanOrEqual(RS_ROW.floor);
+      // SIZE, not just position. `rsWidths` is a positional array paired against
+      // a hand-written field list, and `text()` shrinks to fit — so pairing the
+      // longest name with the narrowest column renders it at 6.4 pt instead of
+      // 8.9 and still lands inside its column. Reversing the array passed every
+      // other assertion in this file. Nothing on a signed record should print
+      // that much smaller than the row around it.
+      expect(
+        run.size,
+        `Block ${22 + i} shrank to ${run.size.toFixed(2)} pt — rsWidths mispaired?`,
+      ).toBeGreaterThanOrEqual(8);
     });
   }, 30_000);
 

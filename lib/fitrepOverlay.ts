@@ -26,11 +26,11 @@
 // copied from: comments are Block 41, not 43, and Block 44 is the Reporting Senior
 // Address, not Qualifications.
 //
-// Upgrade path, page 1: 1610/2 page 1 is 1616/26 page 1 rigidly shifted by (+1.9, +10.8)
-// pt (verified on five independent landmark clusters), so delete the invented page-1
-// constants, reuse pdfOverlay's proven ones, and apply that shift. Page 2 genuinely
-// differs and needs its ~15 fields measured the way the grid was (300 dpi raster scan for
-// box/rule positions). Where a value lands on a placeholder the blank pre-prints ("0.00"
+// Page 1 IS THAT SHIFT, and it is now applied rather than described. 1610/2 page 1 is
+// 1616/26 page 1 rigidly shifted; the estimate that used to sit here, (+1.9, +10.8), was
+// close enough to mislead and not close enough to use. See the derivation on C.p1. Page 2
+// genuinely differs and still needs its ~15 fields measured the way the grid was (300 dpi
+// raster scan for box/rule positions). Where a value lands on a placeholder the blank pre-prints ("0.00"
 // in both average fields, an "X" in Block 42 NOB), the decided approach is: draw a white
 // rectangle, then the text — reversible, never edits the official blank, and keeps the
 // artifact byte-diffable against public/fitrepBlank.pdf.
@@ -150,13 +150,24 @@ const C = {
     //   1. pdfOverlay draws the EVAL inside translate(OFFSET_P1 = 13, -11), so
     //      its constants are PRE-translate. EVAL page coords = its value + (13, -11).
     //   2. 1610/2 page 1 IS 1616/26 page 1, rigidly shifted. Measured at 600 dpi
-    //      on both blanks: all TWELVE page-1 rules differ by exactly +11.040 pt
-    //      (769.320/746.280/722.520/697.320/673.560/648.360/600.840/538.920/
-    //      516.600/515.160/491.400/467.640 against 758.280/735.240/711.480/
-    //      686.280/662.520/637.320/589.800/527.880/505.560/504.120/480.360/
-    //      456.600), and BOTH side rules by exactly +2.040. Zero variance.
+    //      on both blanks: all seventeen page-1 rules spanning >50% of the width
+    //      differ by exactly +11.040 pt and all seven full-height verticals by
+    //      exactly +2.040, with zero variance; a 2-D ink cross-correlation over
+    //      the whole page returns the same (2.040, 11.040) as its global optimum.
     //
     //   => 1610/2 page coords = pdfOverlay p1 value + (15.040, +0.040)
+    //
+    // THE LAST 0.04 IS DISPUTED AND DELIBERATELY NOT RESOLVED. Reading the
+    // content streams' stroke operators instead of rasterising puts 1616/26's
+    // rules 0.040 pt higher, which makes the shift exactly (+2.000, +11.000) and
+    // the composite offset exactly (15.000, 0.000) — i.e. pdfOverlay's y values
+    // unchanged. Two competent measurements, two instruments, 0.04 pt apart:
+    // one third of a 600 dpi pixel, and smaller than the 0.1 pt rounding
+    // pdfOverlay's own constants already carry. It decides nothing here — every
+    // field lands inside its cell and its column under either value, and the
+    // landmark agreement below is 0.08 pt either way — so it is written down
+    // rather than picked. If it ever matters, settle it with a third instrument;
+    // do not assume this comment settled it.
     //
     // THIS IS THE WHOLE BUG. This file inherited pdfOverlay's numbers and dropped
     // the translate that made them mean anything, so every page-1 field except
@@ -182,12 +193,21 @@ const C = {
     // outranks a derivation from another form; the agreement above is the check,
     // not the source.
 
-    // Blocks 1-4, cell y[747.000, 769.320].
+    // Blocks 1-4, cell y[747.000, 769.320], header ink floor 757.200, columns
+    // split at x[304.080, 304.800] / [369.600, 370.320] / [470.400, 471.120].
+    //
+    // The baseline is CENTRED in its window rather than taken raw from the shift.
+    // The shifted 749.04 is legal but sits 0.038 pt off the cell floor — inside,
+    // and only because these fields are uppercased so nothing descends. That is
+    // not a margin to rest a signed record on. Window at 10 pt is
+    // [747.000 + 2.002, 757.200 - 6.909] = [749.002, 750.291] -> 749.65, which
+    // clears by 0.65 pt below and 0.64 above. Same rule as Blocks 30-31 below:
+    // the offset places the row, the blank settles the baseline inside it.
     name_x: 40.04,
     grade_x: 310.04,
     desig_x: 375.04,
     dodid_x: 475.04,
-    identityBaseline: 749.04,
+    identityBaseline: 749.65,
 
     // Block 5 ACT / TAR / INACT / AT-ADSW, cell y[723.240, 746.280].
     dutyCx: [52.44, 82.04, 110.84, 138.84],
@@ -224,14 +244,35 @@ const C = {
     to_x: 515.04,
     periodBaseline: 702.04,
 
-    // Blocks 16-19 (Type of Report), cell y[674.280, 697.320]. Block 16 prints on
-    // its OWN line above 17/18/19, which is why it carries a different Cy.
-    // Block 19 "OpsCdr" is 1610/2-only and APEX has no field for it, so it stays
-    // unmarked.
+    // Blocks 16-19 (Type of Report), cell y[674.280, 697.320].
+    //
+    // ALL FOUR SQUARES ARE IN ONE ROW: measured on the blank, every one of them
+    // strokes y[676.440, 677.160] and y[688.680, 689.400], interior
+    // y[677.160, 688.680], at centres x 95.64 / 175.56 / 269.88 / 348.36. Block
+    // 16's LABEL wraps onto two lines ("16. Not Observed" then "Report"); its BOX
+    // does not, and "Type of Report" heads only 17-19 because it sits right of the
+    // divider at x[106.800, 107.520].
+    //
+    // notObservedCy was 695.14 here, which is that row plus one line — 12.2 pt
+    // above the box, with the mark's cap crossing the rule inked
+    // y[697.320, 698.040] and Block 16 printing EMPTY. A Not Observed report is
+    // routine, so that is a form a board reads with an occasion selected and no
+    // type of report marked. It came from lib/pdfOverlay.ts:114 (695.1), where it
+    // has the identical 12.2 pt error against 1616/26's own box at
+    // y[666.160, 677.680] — the one EVAL constant the offset faithfully carried
+    // that was already broken. The offset is right; that source value was not.
+    //
+    // A comment here previously asserted Block 16 "prints on its OWN line above
+    // 17/18/19, which is why it carries a different Cy." That was invented, and
+    // it is what kept the wrong number alive through a review.
+    //
+    // Block 19 "OpsCdr" is new in the REV 05-2025 forms — it prints on 1610/2 and
+    // on 1616/27, and 1616/26 has no Block 19 at all. APEX has no field for it, so
+    // it stays unmarked.
     notObservedCx: 95.64,
     regularCx: 175.64,
     concurrentCx: 269.94,
-    notObservedCy: 695.14,
+    notObservedCy: 682.94,
     regularCy: 682.94,
     concurrentCy: 682.94,
 
@@ -380,13 +421,16 @@ const C = {
     // 23.5/88.0/400.0 was not merely a cell low — 400.0 is inside the Block 33
     // trait grid.
     //
-    // The baseline is the ONE place the offset needed refining against 1610/2
-    // itself. Block 31 draws at 12 pt while Block 30 beside it draws at 10, so
-    // the 12 pt field governs: its window is [517.320 + 0.2002*12,
-    // 530.280 - 0.6909*12] = [519.722, 521.989], and the shifted 522.04 sits
-    // 0.05 pt outside it, printing on the "31. Counselor" label. 520.86 is that
-    // window's midpoint and clears both fields. The offset places the ROW; where
-    // the blank disagrees inside it, the blank wins.
+    // Block 31 draws at 12 pt while Block 30 beside it draws at 10, so the 12 pt
+    // field governs: its window is [517.320 + 0.2002*12, 530.280 - 0.6909*12] =
+    // [519.722, 521.989], and the shifted 522.04 sits 0.05 pt outside it. 520.86
+    // is that window's midpoint and clears both fields.
+    //
+    // 530.280 is BLOCK 32's label floor, not Block 31's — Blocks 30 and 31 floor
+    // 1.44 pt higher, at 531.720. The row shares one baseline across all three
+    // columns, so the lowest label in the row is the binding one; naming Block 31
+    // as the obstruction, as an earlier revision of this comment did, points the
+    // next reader at the wrong ink.
     dateCounseled_x: 215.04,
     counselor_x: 294.04,
     counselor_width: 130.0,
@@ -483,16 +527,20 @@ const C = {
     // section above for the derivation and tests/unit/fitrepTraitTable.test.ts for the
     // pins. What is still NOT fixed, measured off the blank rather than assumed:
     //
-    //   OTHER FIELDS OUTSIDE A RULE — thirteen runs at eight distinct x positions, none
-    //   of which came from FORM_LEFT (x, then what is wrong): identity + reporting-senior rows and
-    //   Block 30 date at 23.5, page 1, 9.14 pt into the margin; the Block 5/10/16 X marks
-    //   at 28.10 (cx 31.5 − 3.4), 4.54 pt into the margin — Block 16 is notObservedCx and
-    //   a Not Observed report is routine; Block 9 date reported ends at 588.47 against a
-    //   579.840 right rule; date49 at 25.0 on page 2, 6.68 into the margin; and the whole
-    //   signature-date row at y 47.0 — date49/50/51 AND date52 — whose ink floor is 45.00
-    //   under a bottom rule inked [46.440, 47.160], printed off the form altogether. Same
-    //   root cause as this fix — 1616/26 constants on a 1610/2 blank — but each needs its
-    //   own cell measured, and several are wrong on both axes, so none is a constant swap.
+    //   PAGE 2 ONLY, now. The page-1 half of this list — the identity and
+    //   reporting-senior rows and the Block 30 date at 23.5, the Block 5/10/16 X
+    //   marks at 28.10, and Block 9's date running to 588.47 against a 579.840
+    //   right rule — was ALL ONE MISSING OFFSET and is gone; the frame sweep in
+    //   tests/unit/fitrepTraitTable.test.ts asserts page 1 carries no ledger
+    //   entries at all, so it cannot come back quietly.
+    //
+    //   What remains is page 2, which is NOT a rigid shift of 1616/26 and needs
+    //   its own measurement: date49 at 25.0, 6.68 pt into the margin; and the
+    //   whole signature-date row at y 47.0 — date49/50/51 AND date52 — whose ink
+    //   floor is 45.00 under a bottom rule inked [46.440, 47.160], printed off
+    //   the form altogether. Plus p2.name_x, the page-2 identity row, still at
+    //   23.5. Each needs its own cell measured and several are wrong on both
+    //   axes, so none is a constant swap.
     b43_x: P2_RULE_L + INSET,
     b43_topBaseline: 442.2,
 

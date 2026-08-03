@@ -424,19 +424,29 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
    *
    *                          text origin   29A right stroke   gap to cover   lead 20   lead 21
    *   1610/2  (FITREP)          35.14         156.480            121.34      OVERPRINTS  clear
-   *   1616/27 (CHIEFEVAL)       34.20         149.040            114.84        clear     clear
-   *   1616/26 (EVAL)            41.00         154.440            113.44        clear       —
+   *   1616/27 (CHIEFEVAL)       34.20         149.04 / 149.00    114.84        clear     clear
+   *   1616/26 (EVAL)            41.00         154.44 / 154.48    113.44        clear       —
+   *
+   * (The two figures on the enlisted rows are a 600 dpi raster read and a
+   * stroke-operator read of the same edge, 0.04 pt apart — see the same
+   * disagreement recorded on lib/fitrepOverlay.ts's page-1 offset. 1610/2's is
+   * exact under both, which is the row the decision rests on.)
    *
    * 1610/2 and 1616/26 inset the box 7.20 pt from their left rule; 1616/27 is the outlier
    * and prints it flush at 0.72. So 21 is REQUIRED by 1610/2, merely roomier on 1616/27 —
    * which is what lets one number serve both — and 1616/26 keeps its own 20 because its
    * text origin already starts 5.86 pt further right.
    *
-   * ponytail: KNOWN COST, measured. Line 1 holds one character fewer than it did, so a
-   * stored body that filled four lines EXACTLY at lead 20 now wraps to five and
+   * ponytail: KNOWN COST. Line 1 holds one character fewer than it did, so a stored body
+   * that filled four lines EXACTLY at lead 20 can now wrap to five and
    * `narrativeWithLead`'s `.slice(0, maxLines)` drops the tail — on export, with no marker.
-   * Sampled over 200,000 realistic duty bodies: 70,423 filled four lines exactly at lead
-   * 20, and 872 of those (1.2%) overflow at 21. The stored text is never mutated and the
+   * The exposed set is narrow by construction: only bodies whose fourth line ended within
+   * one character of the boundary, since anything shorter still fits and anything longer
+   * was already over. (An earlier revision quoted 1.2% from a 200,000-body sample. That
+   * sampler was never landed, so the figure is not reproducible from this repo and is
+   * removed rather than left as an unverifiable claim.) CHIEFEVAL pays this too, for no
+   * geometric reason of its own — its box already cleared at 20 — so a release note has
+   * to name both forms. The stored text is never mutated and the
    * editor's canvas and the validator both re-measure at the new lead, so a Sailor who
    * reopens the record is told; the exposure is app/api/pdf/route.ts, which regenerates
    * from the row with no validation gate. Same class as the COMMENT_PITCH_V note above,
