@@ -262,10 +262,13 @@ describe("computeBudgets — pinned to the commentFit constants", () => {
       max_lines: 8,
       target_lines: 7,
     });
+    // The lead is 21 on the two REV 05-2025 forms and 20 on 1616/26 above — measured
+    // against each blank's own 29A abbreviation box, which is a different width on all
+    // three. 20 put line 1's first glyph on top of 1610/2's right stroke.
     expect(b.primary_duties).toEqual({
       chars_per_line: 91,
       max_lines: 4,
-      first_line_lead: 20,
+      first_line_lead: 21,
     });
     expect(b).not.toHaveProperty("qualifications");
   });

@@ -388,7 +388,11 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
     block: 28,
     charsPerLine: 91,
     maxLines: 3,
-    label: "Command Employment and Achievements",
+    // The blank prints "28. Command Employment and Command Achievements" — the
+    // second "Command" is on the form and was missing here. Checked with
+    // `pdftotext -layout public/fitrepBlank.pdf`; 1616/26 and 1616/27 print the
+    // same wording.
+    label: "Command Employment and Command Achievements",
   },
   primary_duties: {
     block: 29,
@@ -397,13 +401,72 @@ export const FIELD_FIT: Record<string, FieldFitSpec> = {
     label: "Primary/Collateral/Watchstanding Duties",
     firstLineLead: 20,
   },
-  /** Block 29B on NAVPERS 1610/2 & 1616/27 (REV 05-2025) — taller duties box than 1616/26. */
+  /**
+   * Block 29B on NAVPERS 1610/2 & 1616/27 (REV 05-2025) — taller duties box than 1616/26.
+   *
+   * FOUR lines is measured, not assumed, and it only holds because line 1 sits BESIDE the
+   * 29A abbreviation box rather than under it. Both blanks print Block 29 as a cell
+   * y[539.640, 600.840] whose lowest form ink is the 29A box floor at 577.800 — 38.16 pt
+   * clear, which holds three lines of the 9.85-9.89 pt these blocks solve and not four.
+   * The fourth line exists because the region to the RIGHT of the 29A box is clear from
+   * the header floor down, so line 1 draws there and lines 2-4 fall in the full-width
+   * remainder. That is why this spec carries a lead at all.
+   *
+   * THE LEAD IS 21, not 20, and the extra character is the whole point: 20 put line 1's
+   * first glyph ON the 29A box's right stroke on a FITREP.
+   *
+   * ALL THREE BLANKS PRINT THE SAME 29A BOX — interior 115.200 x 11.520 pt, measured at
+   * 600 dpi on each. An earlier revision of this comment said 1616/26's box "is a third
+   * size again", which is false and is exactly the kind of invented cross-form fact this
+   * file's defect history is made of; the next maintainer would have gone looking for a
+   * size difference that does not exist. What actually differs is where the box sits
+   * relative to each form's TEXT ORIGIN, and therefore how much the lead has to cover:
+   *
+   *                          text origin   29A right stroke   gap to cover   lead 20   lead 21
+   *   1610/2  (FITREP)          35.14         156.480            121.34      OVERPRINTS  clear
+   *   1616/27 (CHIEFEVAL)       34.20         149.04 / 149.00    114.84        clear     clear
+   *   1616/26 (EVAL)            41.00         154.44 / 154.48    113.44        clear       —
+   *
+   * (The two figures on the enlisted rows are a 600 dpi raster read and a
+   * stroke-operator read of the same edge, 0.04 pt apart — see the same
+   * disagreement recorded on lib/fitrepOverlay.ts's page-1 offset. 1610/2's is
+   * exact under both, which is the row the decision rests on.)
+   *
+   * 1610/2 and 1616/26 inset the box 7.20 pt from their left rule; 1616/27 is the outlier
+   * and prints it flush at 0.72. So 21 is REQUIRED by 1610/2, merely roomier on 1616/27 —
+   * which is what lets one number serve both — and 1616/26 keeps its own 20 because its
+   * text origin already starts 5.86 pt further right.
+   *
+   * ponytail: KNOWN COST. Line 1 holds one character fewer than it did, so a stored body
+   * that filled four lines EXACTLY at lead 20 can now wrap to five and
+   * `narrativeWithLead`'s `.slice(0, maxLines)` drops the tail — on export, with no marker.
+   * The exposed set is narrow by construction: only bodies whose fourth line ended within
+   * one character of the boundary, since anything shorter still fits and anything longer
+   * was already over. (An earlier revision quoted 1.2% from a 200,000-body sample. That
+   * sampler was never landed, so the figure is not reproducible from this repo and is
+   * removed rather than left as an unverifiable claim.) CHIEFEVAL pays this too, for no
+   * geometric reason of its own — its box already cleared at 20 — so a release note has
+   * to name both forms. The stored text is never mutated and the
+   * editor's canvas and the validator both re-measure at the new lead, so a Sailor who
+   * reopens the record is told; the exposure is app/api/pdf/route.ts, which regenerates
+   * from the row with no validation gate. Same class as the COMMENT_PITCH_V note above,
+   * and it belongs in the release note for the same reason.
+   * Upgrade path: make the overlays mark a truncation instead of slicing silently.
+   * `.slice(0, maxLines)` predates this change, sits in all three overlays, and is a
+   * standing hazard for every capacity constant — so it is its own change, not this one.
+   *
+   * Changing this moves the editor's measuring canvas, the validator, the brag-sheet
+   * budget and the PDF together: every one of them reads the lead off the spec
+   * getPrimaryDutiesFieldFit() returns. Do not read FIELD_FIT.primary_duties.firstLineLead
+   * from a 1610/2 or 1616/27 caller — that is the EVAL's lead, and the two overlays used
+   * to do exactly that.
+   */
   primary_duties_extended: {
     block: 29,
     charsPerLine: 91,
     maxLines: 4,
     label: "Primary/Collateral/Watchstanding Duties",
-    firstLineLead: 20,
+    firstLineLead: 21,
   },
   qualifications: {
     block: 44,

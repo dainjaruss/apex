@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runFullValidation } from "../../lib/validationEngine";
+import { getPrimaryDutiesFieldFit } from "../../lib/commentFit";
 import { Evaluation } from "../../types";
 
 const chiefBaseBlockValues = {
@@ -193,9 +194,18 @@ describe("FITREP validation (NAVPERS 1610/2)", () => {
   });
 
   it("allows four Block 29B lines on FITREP (not EVAL three-line cap)", () => {
-    const fourLineBody = Array.from({ length: 4 }, () => "A".repeat(71)).join(
-      "\n",
-    );
+    // Line 1 shares its printed line with the 29A abbreviation box, so it holds
+    // charsPerLine - firstLineLead and the rest hold charsPerLine. DERIVED from the spec:
+    // this was a hardcoded 71 sized against a lead of 20, and it silently became a
+    // FIVE-line body — failing this test for the right reason but the wrong cause — the
+    // moment the lead was measured against 1610/2's own 29A box.
+    const spec = getPrimaryDutiesFieldFit("FITREP");
+    const fourLineBody = [
+      "A".repeat(spec.charsPerLine - (spec.firstLineLead ?? 0)),
+      ...Array.from({ length: spec.maxLines - 1 }, () =>
+        "A".repeat(spec.charsPerLine),
+      ),
+    ].join("\n");
     const fitrepFour = {
       ...mockFitrep,
       block_values: {
