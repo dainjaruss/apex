@@ -922,6 +922,14 @@ async function renderProbeFitrep() {
         primary_duties: B29_TEXT,
         date_counseled: "2025-05-01",
         counselor: "JONES, CARL R",
+        // Set so the Block 12 guard has something to refuse. 1610/2 prints
+        // "Detachment of Reporting Senior" there, not the EVAL's Promotion/Frocking.
+        promotion_frocking: true,
+        // Blocks 20-21. They drew a cell low, straight over the reporting
+        // senior's title, and the sweep could not see it because the fixture
+        // never set them — the same miss-a-sibling gap as Blocks 22-27.
+        physical_readiness: "PB",
+        billet_subcategory: "NA",
         qualifications: "ESWS QUALIFIED THIS PERIOD.",
         reporting_senior_address: "1234 NAVY WAY\nNORFOLK VA 23511",
         member_statement_intent: "I INTEND TO SUBMIT A STATEMENT",
@@ -1096,6 +1104,172 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     }
   }, 30_000);
 
+  /**
+   * Every page-1 cell, measured off the blank: the eight full-width rules give
+   * the row boundaries, and each cluster below belongs in exactly one of them.
+   *
+   * This table is what makes the offset checkable. A collision sweep alone does
+   * NOT: move a field back into a different EMPTY cell and it overlaps nothing,
+   * stays inside the frame, and every other assertion in this file passes. Five
+   * of nine mutants survived on exactly that hole before this existed.
+   */
+  // [cell floor, USABLE ceiling]. The ceiling is the row's lowest printed HEADER
+  // ink, not the rule — a value that clears the rule but not the label prints on
+  // top of the label, which is what `identityBaseline: 755.3` did to "1. Name"
+  // (5.0 pt above a header flooring at 757.2) while sitting inside its cell the
+  // whole time. `occasion` is the exception and keeps the rule: Blocks 14-15 are
+  // set BESIDE their "14. From:"/"15. To:" labels, sharing the printed line.
+  const P1_CELLS: Record<string, [number, number]> = {
+    identity: [747.0, 757.2], // Blocks 1-4
+    admin: [723.24, 734.16], // Block 5 + Blocks 6-9
+    occasion: [698.04, 722.52], // Blocks 10-13 + Blocks 14-15 (value beside label)
+    type: [674.28, 685.92], // Blocks 16-19 + Blocks 20-21
+    reportingSenior: [649.08, 662.88], // Blocks 22-27
+    counselling: [517.32, 530.28], // Blocks 30-31
+  };
+
+  /**
+   * The column each field belongs to, inner ink edges of the dividers. Without
+   * these the cell check passes for a field in the RIGHT ROW and the WRONG
+   * COLUMN — `uic_x` reverted to the EVAL's 174 lands in Block 5's column and
+   * survived the row check untouched.
+   */
+  const P1_COLS: Record<string, [number, number]> = {
+    b1: [32.64, 304.08],
+    b2: [304.8, 369.6],
+    b6: [181.68, 232.08],
+    b7: [232.8, 427.92],
+    b8: [428.64, 507.12],
+    b9: [507.84, 579.84],
+    b1415: [371.76, 579.84],
+    b20: [371.76, 470.4],
+    b21: [471.12, 579.84],
+    b22: [32.64, 182.4],
+    b23: [183.12, 232.8],
+    b30: [211.92, 289.68],
+    b31: [290.4, 427.2],
+  };
+
+  /** Checkbox squares the probe actually stamps, inner ink edges off the blank. */
+  const P1_BOXES: Record<string, { x: [number, number]; y: [number, number] }> = {
+    "5_ACT": { x: [45.6, 59.28], y: [725.4, 736.92] },
+    "10_PERIODIC": { x: [88.8, 102.48], y: [701.64, 713.16] },
+    "17_REGULAR": { x: [168.72, 182.4], y: [677.16, 688.68] },
+  };
+
+  it("every page-1 field prints in the cell whose header names it", async () => {
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const find = (str: string) => {
+      const hits = runs.filter((r) => r.str === str);
+      expect(hits, `"${str}" drew ${hits.length} times`).toHaveLength(1);
+      return hits[0];
+    };
+
+    // Field text -> the cell it belongs in. Values are unique in the fixture, so
+    // a lookup cannot silently match a different block's run.
+    const FIELDS: Array<[string, keyof typeof P1_CELLS, keyof typeof P1_COLS, number]> = [
+      ["TESTMEMBERLONGNAME, SAILOR A", "identity", "b1", 1],
+      ["CDR", "identity", "b2", 2],
+      ["N00011", "admin", "b6", 6],
+      ["USS FRANKLYN", "admin", "b7", 7],
+      ["REGULAR", "admin", "b8", 8],
+      ["24AUG01", "admin", "b9", 9],
+      ["25JAN01", "occasion", "b1415", 14],
+      ["25NOV15", "occasion", "b1415", 15],
+      ["PB", "type", "b20", 20],
+      ["NA", "type", "b21", 21],
+      ["REPORTINGSENIORNAME, JOHN A", "reportingSenior", "b22", 22],
+      ["RADM", "reportingSenior", "b23", 23],
+      ["25MAY01", "counselling", "b30", 30],
+      ["JONES, CARL R", "counselling", "b31", 31],
+    ];
+    for (const [str, cell, col, block] of FIELDS) {
+      const [floor, ceiling] = P1_CELLS[cell];
+      const [left, right] = P1_COLS[col];
+      const r = find(str);
+      expect(r.bot, `Block ${block} ("${str}") sits below its cell`).toBeGreaterThanOrEqual(floor);
+      expect(r.top, `Block ${block} ("${str}") prints over its own header`).toBeLessThanOrEqual(ceiling);
+      expect(r.x, `Block ${block} starts left of its column`).toBeGreaterThanOrEqual(left);
+      expect(r.x2, `Block ${block} runs past its column`).toBeLessThanOrEqual(right);
+    }
+
+    // The three checkbox marks the probe stamps, each inside its own printed
+    // square — not merely inside the right cell.
+    // Five on page 1 from this fixture: Block 5 ACT, Block 10 Periodic, Block 16
+    // Not Observed, Block 17 Regular, and the Block 33 trait grade. Block 12 is
+    // deliberately absent even though the fixture sets its flag — see below.
+    const marks = runs.filter((r) => r.str === "X" && r.size === 11);
+    expect(marks).toHaveLength(5);
+    // By CENTRE, the idiom the trait-grid test above uses: the mark is an 11 pt
+    // "X" with no descender, so the -0.2002 em envelope that full-width narrative
+    // lines are held to reads 0.2 pt below ink that does not exist.
+    for (const [name, box] of Object.entries(P1_BOXES)) {
+      const hit = marks.filter((m) => {
+        const cx = m.x + 6.6 / 2;
+        const cy = m.base + 6.3 / 2;
+        return cx > box.x[0] && cx < box.x[1] && cy > box.y[0] && cy < box.y[1];
+      });
+      expect(hit, `no mark landed in ${name}`).toHaveLength(1);
+    }
+  }, 30_000);
+
+  it("never stamps Block 12 — on 1610/2 it is Detachment of Reporting Senior", async () => {
+    // NOT the EVAL's "Promotion/Frocking". APEX's only key for the slot is
+    // bv.promotion_frocking, so stamping it puts an occasion on a signed record
+    // the rater never selected. The probe sets that flag; the form must ignore it.
+    // Blank is recoverable, a false occasion is not — same rule 1616/27 follows.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    const marks = runs.filter((r) => r.str === "X" && r.size === 11);
+    const centre = (m: (typeof marks)[number]) => ({
+      cx: m.x + 6.6 / 2,
+      cy: m.base + 6.3 / 2,
+    });
+    // Block 12's square, measured: x[263.04, 276.72] y[701.64, 713.16].
+    expect(
+      marks.filter((m) => {
+        const { cx, cy } = centre(m);
+        return cx > 263.04 && cx < 276.72 && cy > 701.64 && cy < 713.16;
+      }),
+      "Block 12 was stamped",
+    ).toEqual([]);
+    // …and the assertion is not vacuous: Block 10, its sibling in the same cell
+    // and the same checkbox row, IS marked from the same fixture.
+    expect(
+      marks.filter((m) => {
+        const { cx, cy } = centre(m);
+        return cx > 88.8 && cx < 102.48 && cy > 701.64 && cy < 713.16;
+      }),
+    ).toHaveLength(1);
+  }, 30_000);
+
+  it("NOTHING on page 1 prints on top of anything else", async () => {
+    // The general form of the defect this PR kept re-discovering one field at a
+    // time. Blocks 28/29 drew a cell low; correcting them dropped them on Blocks
+    // 22-27, which drew a cell low; correcting those dropped Blocks 16-21 on
+    // them. Every per-block assertion in this file passed throughout, because
+    // each one filters runs to its own block's probe alphabet and a line
+    // overprinted by a DIFFERENT drawText is invisible to it.
+    //
+    // The root cause was one missing offset, not twenty wrong constants, so the
+    // right guard is one sweep over every pair of drawn runs — not another
+    // per-block bound. There is no ledger: on page 1 the answer is zero.
+    const runs = await overlayRuns(await renderProbeFitrep(), 1);
+    expect(runs.length, "the probe drew almost nothing").toBeGreaterThan(25);
+
+    const collisions: string[] = [];
+    for (let a = 0; a < runs.length; a++)
+      for (let b = a + 1; b < runs.length; b++) {
+        const p = runs[a];
+        const q = runs[b];
+        if (p.bot < q.top && p.top > q.bot && p.x < q.x2 && p.x2 > q.x)
+          collisions.push(
+            `"${p.str.slice(0, 20)}" @(${p.x.toFixed(1)}, ${p.base.toFixed(2)}) ` +
+              `over "${q.str.slice(0, 20)}" @(${q.x.toFixed(1)}, ${q.base.toFixed(2)})`,
+          );
+      }
+    expect(collisions).toEqual([]);
+  }, 30_000);
+
   it("no OTHER field prints through Block 28's or Block 29's lines", async () => {
     // The gap that let the reporting-senior row hide. Every assertion above
     // filters drawn runs to one block's probe alphabet, so a line overprinted by
@@ -1200,16 +1374,12 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
     // form's outer rules. The exemptions are the fields this PR did NOT fix — each is
     // wrong on both axes (wrong CELL, not merely a margin), and each is described in the
     // note in lib/fitrepOverlay.ts. Fixing one deletes its line; adding one fails here.
+    // PAGE 1 HAS NO ENTRIES. All seven it used to carry — the identity row, the
+    // Block 5 and 10 and 16 checkbox marks, Block 9's date running off the right
+    // rule, and the Block 30 counselling date — were the same one missing offset,
+    // and they left together. The page-1 half of this ledger is asserted EMPTY
+    // below, so a regression cannot be absorbed by adding a line here.
     const LEDGER = new Set([
-      "1|23.50|755.30", // p1.name_x — identity row
-      "1|28.10|717.40", // p1.dutyCx[0] mark (cx 31.5)
-      "1|546.50|721.50", // p1.datereported_x — overruns the RIGHT rule, ends at 588.47
-      "1|28.10|682.20", // p1.periodicCx mark (cx 31.5)
-      // p1.rsName_x's line is GONE: Blocks 22-27 are measured on both axes now.
-      // It had to be — correcting Block 28 moved its narrative on top of this row,
-      // which was drawing a whole cell low at y 616.0.
-      "1|28.10|646.20", // p1.notObservedCx mark (cx 31.5) — Block 16, a routine report
-      "1|23.50|400.00", // p1.dateCounseled_x
       "2|23.50|755.30", // p2.name_x — identity row
       "2|135.00|47.00", // p2.summaryAvg_x — ink floor 45.00 under the 47.16 bottom rule
       "2|25.00|47.00", // p2.date49_x — margin AND under the bottom rule
@@ -1246,6 +1416,13 @@ describe("NAVPERS 1610/2 overlay geometry — the horizontal axis", () => {
 
     const unlisted = seen.filter((s) => !LEDGER.has(s));
     expect(unlisted, `new field(s) printing outside the form frame`).toEqual([]);
+    // Page 1 is finished: not "everything outside the frame is listed", but
+    // nothing on page 1 is outside it at all. Page 2 still has its six.
+    expect(
+      seen.filter((s) => s.startsWith("1|")),
+      "a page-1 field is outside the printed frame again",
+    ).toEqual([]);
+    expect(Array.from(LEDGER).every((s) => s.startsWith("2|"))).toBe(true);
     // ...and every field this PR moved is off the ledger for good: no run starts at the
     // inherited FORM_LEFT.
     expect(seen.some((s) => s.includes("|17.30|"))).toBe(false);

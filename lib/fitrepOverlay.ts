@@ -140,41 +140,106 @@ const C = {
   GRADE_COLS_P2: [94.6, 223.4, 259.4, 396.2, 432.2, 569.8],
 
   p1: {
-    name_x: 23.5,
-    grade_x: 279.0,
-    desig_x: 355.0,
-    dodid_x: 452.0,
-    identityBaseline: 755.3,
+    // ── THE PAGE-1 HEADER STACK, and the offset that was missing ────────────
+    //
+    // Every constant from here down to Block 21 is lib/pdfOverlay.ts's PROVEN
+    // 1616/26 value plus a single measured offset. That is the upgrade path this
+    // file's header has named since it was written, and it is now derived rather
+    // than estimated:
+    //
+    //   1. pdfOverlay draws the EVAL inside translate(OFFSET_P1 = 13, -11), so
+    //      its constants are PRE-translate. EVAL page coords = its value + (13, -11).
+    //   2. 1610/2 page 1 IS 1616/26 page 1, rigidly shifted. Measured at 600 dpi
+    //      on both blanks: all TWELVE page-1 rules differ by exactly +11.040 pt
+    //      (769.320/746.280/722.520/697.320/673.560/648.360/600.840/538.920/
+    //      516.600/515.160/491.400/467.640 against 758.280/735.240/711.480/
+    //      686.280/662.520/637.320/589.800/527.880/505.560/504.120/480.360/
+    //      456.600), and BOTH side rules by exactly +2.040. Zero variance.
+    //
+    //   => 1610/2 page coords = pdfOverlay p1 value + (15.040, +0.040)
+    //
+    // THIS IS THE WHOLE BUG. This file inherited pdfOverlay's numbers and dropped
+    // the translate that made them mean anything, so every page-1 field except
+    // the identity row landed one CELL low — which is why correcting Block 28
+    // dropped it on top of Blocks 22-27, and correcting those dropped Blocks
+    // 16-21 on top of them. One offset, not twenty measurements.
+    //
+    // CROSS-CHECKED against coordinates measured directly off 1610/2, which is
+    // how we know the shift is the real relationship and not a coincidence that
+    // happens to land in the right cells:
+    //   Block 5's four checkbox centres   predicted 52.44/82.04/110.84/138.84
+    //                                     measured  52.44/81.96/110.76/138.84
+    //   Blocks 10-13's four centres       predicted 95.64/175.64/269.94/348.44
+    //                                     measured  95.64/175.56/269.88/348.36
+    //   GRADE_COLS_P1 (measured in #45)   predicted 95.64/224.54/260.54/396.64/
+    //                                               433.34/570.84
+    //                                     in file   95.5 /224.4 /260.4 /396.5 /
+    //                                               433.2 /570.7
+    // Maximum deviation 0.14 pt across fourteen independent landmarks.
+    //
+    // Where a coordinate has been measured off 1610/2 DIRECTLY — the trait grid,
+    // Blocks 22-27, 28, 29, 29A, 40, 41 — the direct measurement stays. The blank
+    // outranks a derivation from another form; the agreement above is the check,
+    // not the source.
 
-    dutyCx: [31.5, 107.5, 187.0, 248.5],
-    dutyCy: 721.2,
+    // Blocks 1-4, cell y[747.000, 769.320].
+    name_x: 40.04,
+    grade_x: 310.04,
+    desig_x: 375.04,
+    dodid_x: 475.04,
+    identityBaseline: 749.04,
 
-    uic_x: 337.5,
-    ship_x: 382.0,
-    promo_x: 524.5,
-    datereported_x: 546.5,
-    row69Baseline: 721.5,
+    // Block 5 ACT / TAR / INACT / AT-ADSW, cell y[723.240, 746.280].
+    dutyCx: [52.44, 82.04, 110.84, 138.84],
+    dutyCy: 731.14,
 
-    periodicCx: 31.5,
-    detachIndCx: 107.5,
-    promoFrockCx: 226.5,
-    specialCx: 326.5,
-    occasionCy: 686.0,
+    // Blocks 6-9, same cell, columns x[181.680, 232.080] / [232.800, 427.920] /
+    // [428.640, 507.120] / [507.840, 579.840]. The old promo_x 524.5 and
+    // datereported_x 546.5 sat in ONE column and overprinted each other, and the
+    // date ran off the right rule entirely (ink to 588.47 against 579.840).
+    uic_x: 189.04,
+    ship_x: 241.04,
+    promo_x: 436.04,
+    datereported_x: 515.04,
+    row69Baseline: 726.04,
 
-    from_x: 440.0,
-    to_x: 512.0,
-    periodBaseline: 686.0,
+    // Blocks 10-13 (Occasion for Report), cell y[698.040, 722.520].
+    //
+    // detachRsCx is Block 12 and is DELIBERATELY NEVER STAMPED. 1610/2 prints
+    // "12. Detachment of Reporting Senior" — the same as 1616/27 and NOT the
+    // EVAL's "Promotion/Frocking". APEX's only key for this slot is
+    // bv.promotion_frocking, which the UI labels "12: Promotion/Frocking", so
+    // marking it would put an occasion on a signed record the rater never
+    // selected. Blank is recoverable; a false occasion is not. Needs a per-form
+    // occasion label in components/blocks/Block1Name.tsx first — the same block
+    // lib/chiefEvalOverlay.ts already leaves unmarked for the same reason.
+    periodicCx: 95.64,
+    detachIndCx: 175.64,
+    detachRsCx: 269.94,
+    specialCx: 348.44,
+    occasionCy: 707.44,
 
-    notObservedCx: 31.5,
-    regularCx: 107.5,
-    concurrentCx: 187.0,
-    notObservedCy: 650.0,
-    regularCy: 650.0,
-    concurrentCy: 650.0,
+    // Blocks 14-15, same cell, right of the divider at x[371.040, 371.760].
+    from_x: 413.04,
+    to_x: 515.04,
+    periodBaseline: 702.04,
 
-    pfa_x: 325.0,
-    billet_x: 388.0,
-    pfaBilletBaseline: 651.0,
+    // Blocks 16-19 (Type of Report), cell y[674.280, 697.320]. Block 16 prints on
+    // its OWN line above 17/18/19, which is why it carries a different Cy.
+    // Block 19 "OpsCdr" is 1610/2-only and APEX has no field for it, so it stays
+    // unmarked.
+    notObservedCx: 95.64,
+    regularCx: 175.64,
+    concurrentCx: 269.94,
+    notObservedCy: 695.14,
+    regularCy: 682.94,
+    concurrentCy: 682.94,
+
+    // Blocks 20-21, same cell, right of the dividers at x[371.040, 371.760] and
+    // x[470.400, 471.120].
+    pfa_x: 380.04,
+    billet_x: 480.04,
+    pfaBilletBaseline: 677.04,
 
     // BLOCKS 22-27, the Reporting Senior identity row — cell y[649.080, 673.560]
     // between the rules at y[673.560, 674.280] and y[648.360, 649.080], split by
@@ -309,10 +374,23 @@ const C = {
     b29a_width: 155.76 - 40.56 - 2 * INSET,
     b29_abbrevSize: 9.5,
 
-    dateCounseled_x: 23.5,
-    counselor_x: 88.0,
-    counselor_width: 145.0,
-    counselBaseline: 400.0,
+    // Blocks 30-32, cell y[517.320, 538.920], header ink floor 530.280; column
+    // strokes x[211.200, 211.920] / [289.680, 290.400] / [427.200, 427.920]. EVAL
+    // cell-lefts 196.6/275.0/412.6 shift to 211.64/290.04/427.64. The old
+    // 23.5/88.0/400.0 was not merely a cell low — 400.0 is inside the Block 33
+    // trait grid.
+    //
+    // The baseline is the ONE place the offset needed refining against 1610/2
+    // itself. Block 31 draws at 12 pt while Block 30 beside it draws at 10, so
+    // the 12 pt field governs: its window is [517.320 + 0.2002*12,
+    // 530.280 - 0.6909*12] = [519.722, 521.989], and the shifted 522.04 sits
+    // 0.05 pt outside it, printing on the "31. Counselor" label. 520.86 is that
+    // window's midpoint and clears both fields. The offset places the ROW; where
+    // the blank disagrees inside it, the blank wins.
+    dateCounseled_x: 215.04,
+    counselor_x: 294.04,
+    counselor_width: 130.0,
+    counselBaseline: 520.86,
 
     // Blocks 33-37 (page 1 of the trait grid).
     traitCy: {
@@ -581,7 +659,9 @@ export async function generateFitrepOverlayPdf(
 
   if (bv.periodic) mark(page1, p1.periodicCx, p1.occasionCy);
   if (bv.detachment_individual) mark(page1, p1.detachIndCx, p1.occasionCy);
-  if (bv.promotion_frocking) mark(page1, p1.promoFrockCx, p1.occasionCy);
+  // Block 12 (p1.detachRsCx) is intentionally not stamped — 1610/2 prints
+  // "Detachment of Reporting Senior" there, not the EVAL's "Promotion/Frocking".
+  // See the note beside the constant.
   if (bv.special) mark(page1, p1.specialCx, p1.occasionCy);
 
   text(page1, formatNavpersDate(evaluation.period_from), p1.from_x, p1.periodBaseline);
