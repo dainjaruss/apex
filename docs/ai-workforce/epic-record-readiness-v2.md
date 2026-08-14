@@ -71,8 +71,11 @@ The v1.5 headline feature is **dead twice over**, and both were re-verified by h
   for. At `rubric.ts:311-314` the weight `w` is applied to both `c.met` and `c.answered`, so
   `ratio = met/answered` cancels it exactly. It has an effect only in a category holding a
   *mix* of emphasized and non-emphasized items — and `advancement_consideration` items are all
-  board-emphasis by definition. An operator who sets `board_emphasis_multiplier = 5` gets
-  identical scores for every Sailor, with no signal that the lever is inert.
+  board-emphasis by definition. Measured: `dev S = 57.142857` bit-identical at multipliers 1, 2
+  and 7. **Refinement (PR #22):** the knob is *not* globally inert — `service.ts` also flags
+  E7+-only milestones in other, mixed categories, so the full-dataset final does move
+  (63.4 → 63.2 → 63.1 across multipliers 1/4). It simply never works on the category it was
+  named for, which is the one the operator would reach for it to affect.
 - **`advancement_consideration` has zero rows in all three curated seeds.**
   `grep -c advancement_consideration scripts/ladr-data/*.ts` → `0` for IT, BM, and HM. The
   30-weight category — the heaviest in the table, and the one place a LaDR states what a board
@@ -226,15 +229,62 @@ export interface ReadinessReport {
 }
 ```
 
-Binding rules on that contract:
+Binding rules on that contract — **revised 2026-07-29 after the domain review of PR #21 returned
+BLOCKER.** Every change below was reproduced by running the shipped engine; the arithmetic was
+sound and the *sentences bolted to it* were not.
 
-- **`score` is `null` when `coverage.measured` is below the floor.** The UI then renders "Not
-  enough of your record is entered to assess" plus the missing list — never a number, never a
-  band. This is what kills the 1.0 "Drop-from-consideration risk" first impression.
-- **`status: "insufficient_data"` is visually distinct from `"needs_work"`**, never a low bar on
-  the same axis. Unknown is not a deficiency.
-- **`evidence` is rendered on every area.** `"attested"` says "you told us" on the surface, not
-  in a tooltip.
+**Evidence tiers — the original three labels were all wrong.** No area in this tool is honestly
+"corroborated": evals are `.eq("created_by", subjectUserId)` (subject-drafted), "finalized" is an
+APEX workflow state with no OMPF relationship, `rsca` is self-typed, `verified_in_ompf` is
+self-ticked, the precept is modeled, and only 2 of 82 ratings have a verified LaDR seed. "Attested"
+reads *stronger* than "the Sailor typed it" and collides with the existing PSR attestation
+checkbox. "Unknown" reads as a negative finding rather than a data state.
+
+| value | UI label | `evidenceNote` |
+| --- | --- | --- |
+| `self_reported` | **From your entries** | "You entered this. APEX has not checked it against your OMPF, PSR, or NSIPS." |
+| `peer_compared` | **From your entries, compared to your summary group** | "You entered this. The comparison uses evaluations other APEX users entered for the same summary group — those are not checked against any official record either." |
+| `not_entered` | **Not entered** | "You have not entered this yet, so APEX left it out." |
+
+- **Only `performance` may ever be `peer_compared`**, and only when
+  `summary_group_average != null && group_size >= 2`. Continuity touches *no* peer data at all —
+  tagging it from another factor's inputs is fabricated provenance. A group of one is
+  `self_reported`; `service.ts:193-207` must also **exclude the subject's own rows**, or a
+  single-member group yields an SGA equal to the Sailor's own trait average, stamped as comparison.
+- **Never render the three as a quality ladder.** `not_entered` is a data state, not the bottom rung.
+
+**Status set — `adequate` is retired.** In eval vocabulary "adequate"/"satisfactory" is where 3.0
+lives (*Meets Standards*), which to an E7 candidate reads as "you will not be selected." Use
+`strong` / `on_track` / `needs_attention` / `not_enough_entered`.
+
+- **`score` is `null` below the coverage floor** — never a number, never a band. `COVERAGE_FLOOR`
+  stays as a backstop, but **add a hard gate: no score when any factor with `weight > 0` has
+  `conf = 0`.** Zero confidence is a blind spot, not low coverage. Measured: a Sailor with 6×
+  Early Promote, MSM, and four years of sea duty scored **67.6 "Crunch — middle band" with an
+  empty action plan**, because 15 weighted points of development were earned zeros.
+- **The no-LaDR case is a first-run condition, not a permanent one** — the Sailor fetches their
+  roadmap from Navy COOL in one click. So this is not honesty-vs-coverage; it is *tell them to
+  pull their roadmap, then score them.* Render: "APEX does not have the development roadmap for
+  your rating yet, so it cannot score your record. Fetch it from Navy COOL on the LaDR Checklist
+  tab — it takes one click. Here is what APEX can see in the meantime:"
+- **Every string is gated on the data actually supporting it.** Continuity status keys on
+  `recordGapCount`, never on `f.score` (which carries the leading-span penalty and would tell a
+  three-year Sailor their record has a hole in it because they had not yet enlisted). Precept is
+  `not_enough_entered` unless every active flag has computable underlying data, and no string may
+  describe what the precept emphasizes while `source_url` is null.
+- **No string may assert a comparison nothing computes** — "the weakest part of what APEX can see"
+  fired on performance while leadership was 32 points lower.
+- `ReadinessReport` **must carry `BOARD_DISCLAIMER`**; `types.ts:5-7` requires it on every results
+  view and the new contract omitted it.
+
+**`verified_in_ompf` must not influence the score at all.** Ticking every box — changing nothing
+else — is worth **+9.7 points and a band promotion**, while disclosing honestly ("met, not yet in
+OMPF") costs **−0.24**. The tool pays for the checkbox, not the verification. The underlying
+doctrine is correct and sourced (a board sees only OMPF), but a self-tick is an *honesty* axis,
+not a *verification* axis, so correct doctrine on an unverifiable input inverts into an integrity
+penalty. Move it to the plan — "You have 4 entries not yet confirmed in your OMPF. A board sees
+only your OMPF — confirm these on BOL/NDAWS before the board" — and out of the number
+(removing `UNVERIFIED_MULT` and the `esrFlags` term is P2 arithmetic).
 - **`worth` comes from `bandDeltas(result, inputs)`** — a new pure function in `rubric.ts` that
   re-runs the affected sub-score with each candidate input flipped and returns the true marginal
   points. No model, no new data, no estimate.
@@ -301,6 +351,24 @@ fix or drop the inert ×2 multiplier; **transcribe the "Considerations for advan
 into the three curated seeds** — a data task, and per the audit "the single highest-value hour
 available in this subsystem."
 **Required:** `navy-domain-reviewer` (blocking) + `eng-adversarial-reviewer` + `ux-a11y-reviewer`.
+
+**New gap found while transcribing (PR #22): APEX has no service-component dimension.** Each LaDR
+prints its "Considerations for advancement" **three times — once per component: Active
+`(IW/SW/AW/EXW)`, TAR, and SELRES.** The schema has nowhere to record which one a milestone belongs
+to, so PR #22 transcribed **Active only**. That is the right call for now (seeding all three would
+show every Sailor criteria that do not apply), but it leaves a TAR or SELRES Sailor silently
+looking at Active-component criteria with nothing saying so. Either label the component on the
+data and the UI, or state plainly that the roadmap shown is Active-component. A Reserve Chief
+noticing this unlabeled is exactly the credibility failure this epic exists to avoid.
+
+Also found at #22: `LadrChecklist.tsx` rendered only `item` and `item_code`, so all 80 rows of
+newly transcribed substance — the FQ/BQ tier, the verbatim criteria, the examples — were stored
+and **invisible**. ~~The highest-value follow-up in Phase 2's UI half.~~ **Closed by PR #31**,
+which renders tier, verbatim `notes`, and the parenthetical examples as a list.
+
+The service-component gap above is **still open.** So is the SGA self-comparison called out
+under the evidence tiers — `service.ts:206` still filters on `summary_group_id` alone with no
+exclusion of the subject's own rows, so a group of one still compares a Sailor to themselves.
 
 ### Phase 3 — Real AI
 Spec revision to the Brag Sheet trust model; milestone names + dates + board date into the
