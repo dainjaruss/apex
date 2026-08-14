@@ -173,10 +173,18 @@ const C = {
     //   [3] title   cap 14 = 100.73 pt vs 118.14 -> unreachable.
     //   [4] uic     cap 5 = 35.98 pt vs 43.86 -> unreachable.
     //   [5] dodid   cap 10 = 71.95 pt vs 99.30 -> unreachable.
-    // The last four are belt-and-braces: correct, and load-bearing only if a cap
-    // is ever raised or a value reaches this function without passing the form.
-    // Mutating any of them to 500 leaves the suite green, and that is honest
-    // rather than a coverage hole — no input the app can produce reaches them.
+    // Reachability and test-pinning are NOT the same axis, and an earlier draft
+    // of this comment conflated them and got both halves wrong. Separately:
+    //   reachable in production: [0] always, [1] at the 5-char cap only.
+    //   pinned by the sweep:     [0] and [3]. Mutating [1], [2], [4] or [5] to
+    //                            500 leaves all 7 tests green.
+    // [3] is pinned only because the fixture's Block 25 title is 18 chars, over
+    // the form's own 14-char cap — an input no form can submit. [1]'s clamp is
+    // reachable but costs nothing when absent: a 5-char grade unclamped ends at
+    // x 228.98 against a divider at 230.76, so it eats 0.72 pt of the 2.5 pt
+    // inset and never crosses a printed rule. So [1], [2], [4] and [5] are
+    // belt-and-braces — correct, load-bearing only if a cap is raised or a value
+    // reaches this function without passing the form.
     //
     // KNOWN CEILING: text() shrinks without a floor (unlike narrative(), which
     // clamps at 5). Block 22 has no maxLength, so a 40-char name renders near
