@@ -136,8 +136,9 @@ const C = {
     to_x: 505.5,
     periodBaseline: 701.5,
 
-    // Blocks 16-19 (Type of Report). Block 19 "Ops Cdr" is 1616/27-only; APEX has no
-    // field for it, so its box is left unmarked.
+    // Blocks 16-19 (Type of Report). Block 19 "Ops Cdr" prints here and on
+    // 1610/2 — it is NOT 1616/27-only, as this comment previously claimed; only
+    // 1616/26 lacks it. APEX has no field for it, so its box is left unmarked.
     notObservedCx: 100.4,
     regularCx: 174.6,
     concurrentCx: 243.7,

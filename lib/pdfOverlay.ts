@@ -118,8 +118,12 @@ const C = {
     // notObservedCy was 695.1 here, which is that row plus one printed line, so
     // the mark drew 12.2 pt ABOVE the square — measured on a generated EVAL at
     // page (89.93, 680.14) against a box topping out at 677.640 — and Block 16
-    // printed EMPTY. A Not Observed report is routine, so that is a record a
-    // board reads with an occasion selected and no type of report marked.
+    // printed EMPTY. Block 16 is the only type-of-report square an NOB report
+    // marks, so the form went out with an occasion selected and no type of
+    // report at all — self-contradicting against the blank trait grades and NOB
+    // promotion recommendation that an NOB report requires
+    // (lib/validationEngine.ts:294), and against its exclusion from the summary
+    // group (docs/rules-reference.md:299).
     // Blocks 17 and 18 were already correct at 682.9; 16 is the same row.
     //
     // Found via NAVPERS 1610/2, which inherited these constants and the error
@@ -154,11 +158,30 @@ const C = {
     // passed one, so a long-but-ordinary Navy name ran straight through the
     // divider. Measured on a generated EVAL, "REPORTINGSENIORNAME, JOHN A" at
     // 12 pt reached x 233.21 against a Block 22 column ending at 180.360 — 52.9
-    // pt into the Grade cell. Same defect NAVPERS 1610/2 had (#48); found here
-    // by porting that PR's sweep to this form.
+    // pt past its divider, clean through Block 23 (Grade, [181.080, 230.760])
+    // and 1.73 pt into Block 24 (Desig). Two blocks corrupted, not one. Same
+    // defect NAVPERS 1610/2 had (#48); found here by porting that PR's sweep.
     //
     // Each width is its column's right edge, less this file's 2.5 pt house
     // inset, less the field's own page x (constant + OFFSET_P1.dx = +13).
+    //
+    // Which of these can actually bind, at 12 pt CourierPrime (7.1953 pt/char)
+    // against the UI's own maxLength caps (Block1Admin.tsx:294-361):
+    //   [0] name    NO cap in the UI at all -> unbounded. The live one.
+    //   [1] grade   cap 5 = 35.98 pt vs 35.26 -> binds, by 0.72 pt.
+    //   [2] desig   cap 4 = 28.78 pt vs 36.38 -> unreachable.
+    //   [3] title   cap 14 = 100.73 pt vs 118.14 -> unreachable.
+    //   [4] uic     cap 5 = 35.98 pt vs 43.86 -> unreachable.
+    //   [5] dodid   cap 10 = 71.95 pt vs 99.30 -> unreachable.
+    // The last four are belt-and-braces: correct, and load-bearing only if a cap
+    // is ever raised or a value reaches this function without passing the form.
+    // Mutating any of them to 500 leaves the suite green, and that is honest
+    // rather than a coverage hole — no input the app can produce reaches them.
+    //
+    // KNOWN CEILING: text() shrinks without a floor (unlike narrative(), which
+    // clamps at 5). Block 22 has no maxLength, so a 40-char name renders near
+    // 5.8 pt with nothing telling the user it shrank. Still strictly better than
+    // the overflow this replaced. The fix belongs on the input, not here.
     rsBaseline: 652,
     rsName_x: 26,
     rsGrade_x: 180,

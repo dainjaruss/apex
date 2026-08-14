@@ -23,8 +23,10 @@
 // independently of lib/pdfOverlay.ts — these fail when a constant drifts off the
 // FORM, not off today's output.
 //
-// Cross-check, not source: every one of these equals the 1610/2 value measured
-// in tests/unit/fitrepTraitTable.test.ts minus exactly (2.040, 11.040).
+// Cross-check, not source: every X here equals the 1610/2 value measured in
+// tests/unit/fitrepTraitTable.test.ts minus exactly 2.040, and every cell FLOOR
+// minus exactly 11.040. The cell CEILINGS do not follow that shift — they are
+// label-ink bottoms measured per form, and they land up to a pixel apart.
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";
@@ -32,12 +34,6 @@ import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { generateOverlayPdf } from "@/lib/pdfOverlay";
 import { Evaluation } from "@/types";
-
-/** CourierPrime-Regular: every printable glyph advances 1228/2048 em. */
-const ADVANCE = 1228 / 2048;
-/** Real outline extents over printable ASCII — '`' highest, 'y'/'g'/'j' deepest. */
-const INK_ABOVE = 0.6909;
-const INK_BELOW = 0.2002;
 
 /** Inner ink edges of 1616/26's page-1 side rules. */
 const RULE_L = 30.6;
@@ -55,6 +51,10 @@ const CELLS: Record<string, [number, number]> = {
   occasion: [687.0, 711.48], // Blocks 10-13 + Blocks 14-15
   type: [663.24, 675.0], // Blocks 16-18 + Blocks 20-21
   reportingSenior: [638.04, 651.96], // Blocks 22-27
+  // 519.0 is the one ceiling NOT read off the scan: Blocks 30/31 label ink
+  // bottoms out at 520.80. It is held 1.8 pt tighter on purpose, so it fails
+  // before a value touches the label rather than after. Stricter than the
+  // method, never looser — no value can pass here and collide on the form.
   counselling: [506.28, 519.0], // Blocks 30-31
 };
 
@@ -69,22 +69,37 @@ const COLS: Record<string, [number, number]> = {
   b1415: [369.72, 577.8],
   b20: [369.72, 468.36],
   b21: [469.08, 577.8],
+  b3: [368.28, 468.36],
+  b4: [469.08, 577.8],
   b22: [30.6, 180.36],
   b23: [181.08, 230.76],
+  b24: [231.48, 281.88],
+  b25: [282.6, 413.64],
+  b26: [414.36, 468.36],
+  b27: [469.08, 577.8],
   b30: [209.88, 287.64],
   b31: [288.36, 425.16],
 };
 
 /**
- * EVERY checkbox square on page 1, inner ink edges.
+ * Every checkbox square this fixture can mark, inner ink edges.
  *
- * The census has to be complete because the assertion below is inverted: "every
- * mark landed in some box", not "each listed box got a mark". The second form
- * cannot see a mark that went nowhere, which is exactly how Block 16 survived on
- * both forms.
+ * The census has to cover every square a mark could REACH, because the assertion
+ * below is inverted: "every mark landed in some box", not "each listed box got a
+ * mark". The second form cannot see a mark that went nowhere, which is exactly
+ * how Block 16 survived on both forms.
  *
- * 1616/26 prints THREE type-of-report boxes, not four — it has no Block 19
- * "OpsCdr"; that block is new in the REV 05-2025 forms (1610/2 and 1616/27).
+ * Page 1 prints 41 squares: 11 in the header band (Blocks 5, 10-13, 16-18) and
+ * 5 trait rows x 6 grade columns below it. The fixture grades ONE trait, so only
+ * trait row 1 (Block 33) can receive a mark; rows 2-5 are listed nowhere and are
+ * correspondingly unpinned by this file. That is a coverage limit, stated rather
+ * than papered over — the four rows were verified correct by hand against the
+ * scan, but nothing here would notice if they drifted.
+ *
+ * 1616/26 prints THREE type-of-report boxes, not four. Block 19 "Ops Cdr" prints
+ * on 1610/2 and 1616/27 but has no square on this form — verified on the blank:
+ * a whole-page segment census finds three squares in the type row, and the text
+ * layer has no "19." on 1616/26 where both sibling forms carry one.
  */
 const BOXES: Record<string, { x: [number, number]; y: [number, number] }> = {
   "5_ACT": { x: [43.56, 57.24], y: [714.36, 725.88] },
@@ -98,6 +113,17 @@ const BOXES: Record<string, { x: [number, number]; y: [number, number] }> = {
   "16_NOT_OBSERVED": { x: [86.76, 100.44], y: [666.12, 677.64] },
   "17_REGULAR": { x: [166.68, 180.36], y: [666.12, 677.64] },
   "18_CONCURRENT": { x: [261.0, 274.68], y: [666.12, 677.64] },
+  // Block 33 (Professional Knowledge), the one trait row this fixture grades.
+  // Interior y[375.96, 387.48] measured on all six columns; the six column
+  // interiors below are the grade scale [NOB, 1.0, 2.0, 3.0, 4.0, 5.0], so a
+  // "5.0" belongs in 33_5_0 and nowhere else. Without these listed, a mark that
+  // drifted out of the trait grid landed in no box and no assertion looked.
+  "33_NOB": { x: [86.76, 100.44], y: [375.96, 387.48] },
+  "33_1_0": { x: [215.64, 229.32], y: [375.96, 387.48] },
+  "33_2_0": { x: [251.64, 265.32], y: [375.96, 387.48] },
+  "33_3_0": { x: [387.72, 401.4], y: [375.96, 387.48] },
+  "33_4_0": { x: [424.44, 438.12], y: [375.96, 387.48] },
+  "33_5_0": { x: [561.96, 575.64], y: [375.96, 387.48] },
 };
 
 /**
@@ -197,7 +223,7 @@ async function overlayRuns(bytes: Uint8Array, page: number) {
         // that is not there, and on this form that is the difference between the
         // identity row fitting its cell and overflowing it. A comma does descend,
         // but nothing like as far, and guessing which way to round that is what
-        // `glyphFloor` exists to avoid.
+        // `glyphExtents` exists to avoid.
         bot: isMark ? y : y + size * glyphExtents(str).lo,
       };
     });
@@ -224,7 +250,10 @@ const FIXTURE = {
   grade_rate: "IT1",
   designator: "AW",
   dod_id: "1234567890",
-  uic: "N00011",
+  // A UIC is five characters (types/navpers.ts:369 is .length(5), and NAVFIT98A
+  // types the column text(5)). "N00011" was DoDAAC-shaped and would not survive
+  // this app's own validation, which makes it a poor thing to pin geometry to.
+  uic: "21847",
   ship_station: "USS FRANKLYN",
   promotion_status: "REGULAR",
   duty_status: "ACT",
@@ -247,8 +276,13 @@ const FIXTURE = {
     reporting_senior_name: "REPORTINGSENIORNAME, JOHN A",
     reporting_senior_grade: "LCDR",
     reporting_senior_designator: "1310",
+    // 18 chars, DELIBERATELY over the form's 14-char cap (types/navpers.ts:444,
+    // Block1Admin.tsx:336) — not a realistic Block 25 value, which is CO / XO /
+    // OIC / CMC. It is here only to make rsWidths[3] bind: at the legal 14-char
+    // maximum the clamp is unreachable, so an in-spec value would leave that
+    // width unpinned and a swap with Block 22's undetectable.
     reporting_senior_title: "COMMANDING OFFICER",
-    reporting_senior_uic: "N00022",
+    reporting_senior_uic: "30512",
     reporting_senior_dod_id: "1234509876",
   },
 } as unknown as Evaluation;
@@ -267,7 +301,9 @@ describe("NAVPERS 1616/26 overlay geometry — page 1", () => {
     const FIELDS: Array<[string, keyof typeof CELLS, keyof typeof COLS, number]> = [
       ["TESTMEMBERLONGNAME, SAILOR A", "identity", "b1", 1],
       ["IT1", "identity", "b2", 2],
-      ["N00011", "admin", "b6", 6],
+      ["AW", "identity", "b3", 3],
+      ["1234567890", "identity", "b4", 4],
+      ["21847", "admin", "b6", 6],
       ["USS FRANKLYN", "admin", "b7", 7],
       ["REGULAR", "admin", "b8", 8],
       ["24AUG01", "admin", "b9", 9],
@@ -277,6 +313,10 @@ describe("NAVPERS 1616/26 overlay geometry — page 1", () => {
       ["NA", "type", "b21", 21],
       ["REPORTINGSENIORNAME, JOHN A", "reportingSenior", "b22", 22],
       ["LCDR", "reportingSenior", "b23", 23],
+      ["1310", "reportingSenior", "b24", 24],
+      ["COMMANDING OFFICER", "reportingSenior", "b25", 25],
+      ["30512", "reportingSenior", "b26", 26],
+      ["1234509876", "reportingSenior", "b27", 27],
       ["25MAY01", "counselling", "b30", 30],
       ["JONES-MARTINEZ, CARL R", "counselling", "b31", 31],
     ];
@@ -312,28 +352,21 @@ describe("NAVPERS 1616/26 overlay geometry — page 1", () => {
     // Eight in the header (Blocks 5, 10-13, 16-18) plus the Block 33 trait grade.
     expect(marks).toHaveLength(9);
 
-    // Ink centre, recomputed from the drawn origin rather than by inverting
-    // mark()'s own (-3.4, -3.8) offsets — which would make the check circular.
-    const centre = (m: (typeof marks)[number]) => ({
-      cx: (m.x + m.x2) / 2,
-      cy: m.base + m.size * 0.718 / 2,
-    });
-    const inBox = (m: (typeof marks)[number], b: (typeof BOXES)[string]) => {
-      const { cx, cy } = centre(m);
-      return cx > b.x[0] && cx < b.x[1] && cy > b.y[0] && cy < b.y[1];
-    };
+    // WHOLE INK, not the centre. mark()'s own offsets are not inverted here —
+    // that would make the check circular — but a centre-only test passes an X
+    // printing halfway across its own box rule, which is a visible defect on a
+    // signed form. The glyph spans [bot, top] by [x, x2]; all four must clear.
+    const inBox = (m: (typeof marks)[number], b: (typeof BOXES)[string]) =>
+      m.x > b.x[0] && m.x2 < b.x[1] && m.bot > b.y[0] && m.top < b.y[1];
 
-    const header = marks.filter((m) => centre(m).cy > 655);
-    expect(header).toHaveLength(8);
-    for (const m of header) {
+    for (const m of marks) {
       const landed = Object.entries(BOXES).filter(([, b]) => inBox(m, b));
       expect(
         landed.map(([n]) => n),
         `a mark at (${m.x.toFixed(2)}, ${m.base.toFixed(2)}) is in no checkbox`,
       ).toHaveLength(1);
     }
-    // …and each flag marked its OWN box, so a swapped pair cannot satisfy the
-    // "every mark is in some box" rule and still be wrong.
+
     // Only the boxes the fixture SELECTS — Block 5 is a one-of-four duty status,
     // so the other three squares are correctly empty.
     for (const name of [
@@ -345,11 +378,47 @@ describe("NAVPERS 1616/26 overlay geometry — page 1", () => {
       "16_NOT_OBSERVED",
       "17_REGULAR",
       "18_CONCURRENT",
+      "33_5_0",
     ])
       expect(
-        header.filter((m) => inBox(m, BOXES[name])),
+        marks.filter((m) => inBox(m, BOXES[name])),
         `no mark landed in ${name}`,
       ).toHaveLength(1);
+  }, 30_000);
+
+  // Attribution, which the sweep above structurally cannot do. Every mark is the
+  // same "X" and the fixture sets every flag, so the census is permutation-
+  // invariant: swap notObservedCx with regularCx and all three type squares are
+  // still filled, exactly once each, and everything above stays green. On this
+  // row that swap is not cosmetic — it reports a Regular observed report as Not
+  // Observed, which inverts what the record says about whether the Sailor was
+  // graded at all. One flag at a time is the only way to tie a mark to a block.
+  it.each([
+    ["not_observed", "16_NOT_OBSERVED"],
+    ["regular_report", "17_REGULAR"],
+    ["concurrent_report", "18_CONCURRENT"],
+  ])("type-of-report flag %s marks %s and no other square", async (flag, box) => {
+    const pdf = await generateOverlayPdf(
+      {
+        ...FIXTURE,
+        trait_grades: {},
+        block_values: {
+          ...(FIXTURE as any).block_values,
+          not_observed: false,
+          regular_report: false,
+          concurrent_report: false,
+          [flag]: true,
+        },
+      } as unknown as Evaluation,
+      TEMPLATE,
+    );
+    const inBox = (m: { x: number; x2: number; bot: number; top: number }, b: (typeof BOXES)[string]) =>
+      m.x > b.x[0] && m.x2 < b.x[1] && m.bot > b.y[0] && m.top < b.y[1];
+    const typeRow = (await overlayRuns(pdf, 1))
+      .filter((r) => r.isMark)
+      .filter((m) => m.bot > 666.12 && m.top < 677.64);
+    expect(typeRow, "exactly one type-of-report square is marked").toHaveLength(1);
+    expect(inBox(typeRow[0], BOXES[box]), `the mark is not in ${box}`).toBe(true);
   }, 30_000);
 
   it("nothing on page 1 prints on top of anything else", async () => {

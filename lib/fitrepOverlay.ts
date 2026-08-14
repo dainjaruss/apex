@@ -266,9 +266,11 @@ const C = {
     // 17/18/19, which is why it carries a different Cy." That was invented, and
     // it is what kept the wrong number alive through a review.
     //
-    // Block 19 "OpsCdr" is new in the REV 05-2025 forms — it prints on 1610/2 and
-    // on 1616/27, and 1616/26 has no Block 19 at all. APEX has no field for it, so
-    // it stays unmarked.
+    // Block 19 "OpsCdr" prints on 1610/2 and on 1616/27; 1616/26 has no Block 19
+    // at all. Verified on the three blanks in public/. APEX has no field for it,
+    // so it stays unmarked. (Its revision history is deliberately NOT asserted
+    // here — the block predates REV 05-2025 and nothing in this repo sources
+    // when it was introduced.)
     notObservedCx: 95.64,
     regularCx: 175.64,
     concurrentCx: 269.94,
