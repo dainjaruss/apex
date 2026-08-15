@@ -160,34 +160,53 @@ reverted by a re-seed.
 
 ## 6. Open work, ranked, with pointers
 
-1. **FITREP blocks 28/29 print on top of the wrong boxes.** Block 28 draws from y 574.0 into Block
-   29's box; Block 29 from 486.0 over the Block 33 descriptors. A vertical fix needs `FIELD_FIT`
-   (`lib/commentFit.ts:387`, `maxLines: 3`), `b28_lines: 4`, the validator, the coach budget and the
-   brag budget to move **together**. A half-move silently drops a line the editor promised.
-2. **13 runs from 8 x-positions still print outside the FITREP frame.** Each is wrong on *both* axes
-   (wrong cell, not a margin), so none is a constant swap. Pinned by the frame-sweep ledger in
-   `tests/unit/fitrepTraitTable.test.ts` — a **new** violation fails the build.
-3. **The citation gate checks the path an item cites, never the subject its prose is about.**
-   4 of 11 constructed contradictions still pass. Requiring an area citation was rejected on live
-   evidence (legitimate `[coverage.measured]` items would be deleted). Upgrade path: have the model
-   emit the subject area as a structured field.
-4. **Brag Sheet Block 41's applied `entries` never pass the gate** (`lib/bragSheet/autofill.ts:801`),
+> **Updated 2026-08-14.** Items 1-3 of the original list shipped as #45/#48/#49/#50 — see §11 for
+> what those were and what they cost. Renumbered against current `main` (`53db7a7`).
+
+1. **CHIEFEVAL page 1 has no geometry test.** The last of the three forms with none. It shares
+   `mark()` and the same pre-translate constant lineage as 1616/26 and 1610/2 — *both of which
+   turned out to carry the identical two defects once a sweep existed*. Port
+   `tests/unit/evalOverlayGeometry.test.ts`; the 1616/27 blank is `public/chiefEvalBlank.pdf`.
+   Expect it to find something. Note 1616/27 **does** print Block 19 "Ops Cdr" (1616/26 does not),
+   so the type row is four squares here, not three.
+2. **FITREP page 2 — six frame-ledger entries remain**, and the whole signature-date row prints
+   below the bottom rule, off the form. Page 1's half of that ledger in
+   `tests/unit/fitrepTraitTable.test.ts` is now empty; page 2's is not.
+3. **SGA is pooled from other users' self-entered evals without excluding the subject's own row**
+   (`lib/boardConfidence/service.ts:206` — `.eq("summary_group_id", groupId)` and nothing else).
+   +18.9 for a group of one; +25.4 with one stacked peer, at full coverage. It is the **sole**
+   comparator since `rsca` was deleted. Re-verified still live on 2026-08-14.
+4. **Block 12's UI label is not per-form.** `Block1Name.tsx:368` shows "12: Promotion/Frocking" on a
+   FITREP and `DetailsTab.tsx:68` summarises it, but 1610/2 and 1616/27 print "Detachment of
+   Reporting Senior" there — which is why `fitrepOverlay` correctly refuses to stamp it. The PDF is
+   right and the screen is wrong.
+5. **Brag Sheet Block 41's applied `entries` never pass the gate** (`lib/bragSheet/autofill.ts:801`),
    while the new ghost rows make that card *look* gated.
-5. **Advisory withholding cause unresolved between two honest measurements** — one fixture provokes
+6. **Advisory withholding cause unresolved between two honest measurements** — one fixture provokes
    bare container roots, another placeholder rationales (12 of 36 runs). Both published. Grammar
    deliberately not widened without evidence of the cost.
-6. **EVAL/CHIEFEVAL descriptor prose has no form-reading test.** That is *how* its typos came to be
-   silently normalised — mutants on those tables survive the whole suite. The real payload of this
-   follow-up is the missing 1616/26 pin, not the three typos.
-7. **Three copies of the form-id list have drifted**: `resolveReportType`, `Block42Signatures`,
+7. **EVAL/CHIEFEVAL descriptor *prose* has no form-reading test.** That is *how* its typos came to
+   be silently normalised — mutants on those tables survive the whole suite. Note #50 added a
+   *geometry* sweep for 1616/26; the descriptor-text gap is separate and still open.
+8. **Three copies of the form-id list have drifted**: `resolveReportType`, `Block42Signatures`,
    `EvaluationForm`.
-8. **CI never runs a11y** (`verify.yml` has one step). The `style` attribute is on the guard's
+9. **CI never runs a11y** (`verify.yml` has one step). The `style` attribute is on the guard's
    denylist and is genuinely perceivable — a suppressed score can render as a bar width. Generated
    PDFs are untagged, so assistive tech reads `0.0` then `4.0` per trait.
-9. **SGA is pooled from other users' self-entered evals without excluding the subject's own row**
-   (+18.9 for a group of one; +25.4 with one stacked peer, at full coverage) — and it is now the
-   **sole** comparator since `rsca` was deleted.
 10. ~38 remaining `docs/navy-reference.md` §8 items.
+
+### Carried forward from #50's review — disclosed, not fixed
+
+- **Trait rows 2-5 of 1616/26 (24 checkbox squares) are unpinned.** The fixture grades one trait, so
+  only row 1 can receive a mark. Rows 2-5 were verified correct by hand against the scan; nothing in
+  the suite would notice if they drifted.
+- **`text()` has no minimum size floor** (`lib/pdfOverlay.ts`), unlike `narrative()` which clamps at
+  5. Block 22 has no `maxLength` in `Block1Admin.tsx`, so a 40-char name renders near 5.8 pt with
+  nothing telling the user it shrank. Strictly better than the overflow it replaced; the fix belongs
+  on the input, not the renderer.
+- **Demo-verify, never eyeballed at print scale:** legibility of a Block 22 name shrunk to ~8.6 pt
+  beside its 12 pt neighbours, and X-mark clearance against the printed box rules. The suite cannot
+  see either. Do these before the demo, not before a merge.
 
 ---
 
@@ -305,3 +324,57 @@ None of these produced a wrong answer — only a missing one.
   where it holds.
 - **"I could not verify this" is a required answer** when it is the true one. An unverifiable claim
   marked verified is worse than an unmarked one.
+
+---
+
+## 11. Session log — 2026-08-14
+
+**`main` is `53db7a7`. `npm run verify` green: 64 files, 1134 passed | 1 skipped, build clean.**
+Verified on `main` after the merge, not assumed from the branch.
+
+### Merged this session
+
+| PR | What |
+|----|------|
+| #48 | 1610/2 page 1 — the missing offset. Not twenty wrong constants: **one missing translate**. `pdfOverlay` draws the EVAL inside `translate(13, −11)`; `fitrepOverlay` copied its constants and dropped it. Proven blank-to-blank: all seventeen page-1 rules differ by exactly +11.040, all seven verticals by +2.040. |
+| #49 | Citation gate now checks the **subject** of an item's prose, not just the path it cites. Model emits `subject` as a structured field. |
+| #50 | 1616/26 page 1 — the same two defects, on the form that originated them. Block 16 "Not Observed" drew 12.2 pt above its square (box printed **empty**); Blocks 22-27 had no column width, so a long RS name ran through Block 23 into Block 24. First geometry test this form has ever had. |
+
+### PR #47 is still open
+
+`chore/resume-final`, worktree `/srv/apex-flake`. Now also carries the v2 epic's binding-rules
+revision, which had been sitting **uncommitted in a worktree, on no branch, in no PR** and existed
+nowhere else — recovered before that worktree was deleted. One claim in it was stale (the
+`LadrChecklist.tsx` "stored and invisible" note, closed by #31) and is marked rather than restated.
+
+### /srv worktrees
+
+25 of 26 `apex-*` worktrees removed (~24 GB). All were merged; verified by each PR's squash commit
+being an ancestor of `main`, **not** by `git`'s ahead/behind, which is meaningless under squash
+merges. Branches survive worktree removal — `git worktree add` recreates any of them.
+`/srv/apex-flake` kept for #47.
+
+### What the review chain caught on #50, and why it matters
+
+The geometry was right on the first pass; both reviewers re-measured the blank and confirmed every
+coordinate. **Three rounds were spent on the claims wrapped around it** — the class `tsc` and the
+suite cannot see:
+
+1. **Invented doctrine.** "Block 19 Ops Cdr is new in the REV 05-2025 forms" is unsourceable
+   revision history — and all three blanks in `public/` *are* REV 05-2025, so this repo structurally
+   cannot source it. Chasing it exposed **three in-repo comments about Block 19 that contradicted
+   each other**, two wrong. Settled on the blanks' text layers: 1610/2 yes, 1616/27 yes, 1616/26 no.
+2. **A self-graded mutation score.** The builder reported 11 of 11 killed; an independent 21-mutant
+   set had **14 survive**. Self-scored mutation testing measures nothing — you write the mutants
+   your test is already shaped to catch.
+3. **The correction to the correction.** The follow-up comment claimed `rsWidths[2][3][4][5]` all
+   survive; running them showed `[1]` survives (omitted) and `[3]` is killed (listed as alive).
+   Cause: conflating *reachable by a real submission* with *pinned by the sweep*. Different axes.
+
+The gatekeeper's own first re-run reported all six mutants surviving — its harness was line-anchored
+and the comment had grown, so it edited a comment and mutated nothing. It caught that itself. **A
+silently-failing mutation harness reports a perfect survivor set**, which is the same failure that
+produced the 11/11.
+
+Verdicts are posted as PR comments on #50, not left as builder prose — the gatekeeper refused to
+count an unposted verdict as an audit trail.
