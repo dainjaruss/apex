@@ -110,8 +110,26 @@ const C = {
     specialCx: 333.4,
 
     // type 16-18
+    // ALL THREE type-of-report squares are in ONE row: measured on the blank at
+    // 600 dpi, each strokes y[665.400, 666.120] and y[677.640, 678.360], interior
+    // y[666.120, 677.640], at centres x 93.60 / 173.52 / 267.84. Block 16's LABEL
+    // wraps onto two lines ("16. Not Observed" then "Report"); its BOX does not.
+    //
+    // notObservedCy was 695.1 here, which is that row plus one printed line, so
+    // the mark drew 12.2 pt ABOVE the square — measured on a generated EVAL at
+    // page (89.93, 680.14) against a box topping out at 677.640 — and Block 16
+    // printed EMPTY. Block 16 is the only type-of-report square an NOB report
+    // marks, so the form went out with an occasion selected and no type of
+    // report at all — self-contradicting against the blank trait grades and NOB
+    // promotion recommendation that an NOB report requires
+    // (lib/validationEngine.ts:294), and against its exclusion from the summary
+    // group (docs/rules-reference.md:299).
+    // Blocks 17 and 18 were already correct at 682.9; 16 is the same row.
+    //
+    // Found via NAVPERS 1610/2, which inherited these constants and the error
+    // with them (#48). This is the origin, not the copy.
     notObservedCx: 80.6,
-    notObservedCy: 695.1,
+    notObservedCy: 682.9,
     regularCx: 160.6,
     regularCy: 682.9,
     concurrentCx: 254.9,
@@ -128,7 +146,50 @@ const C = {
     pfa_x: 365,
     billet_x: 465,
 
-    // reporting senior 22-27 (cell-lefts measured from blank: 167.8/218.2/269.3/401.0/455.8)
+    // Blocks 22-27, cell y[638.040, 662.520] in PAGE coordinates. Column
+    // dividers measured at 600 dpi off public/navpers-1616-26_2025.pdf:
+    // x[180.360, 181.080] / [230.760, 231.480] / [281.880, 282.600] /
+    // [413.640, 414.360] / [468.360, 469.080], so the six column interiors are
+    // [30.600, 180.360] [181.080, 230.760] [231.480, 281.880] [282.600, 413.640]
+    // [414.360, 468.360] [469.080, 577.800].
+    //
+    // Every x below starts inside its own column and always did. What was
+    // missing is a WIDTH: `text()` shrinks to fit one, and these six never
+    // passed one, so a long-but-ordinary Navy name ran straight through the
+    // divider. Measured on a generated EVAL, "REPORTINGSENIORNAME, JOHN A" at
+    // 12 pt reached x 233.21 against a Block 22 column ending at 180.360 — 52.9
+    // pt past its divider, clean through Block 23 (Grade, [181.080, 230.760])
+    // and 1.73 pt into Block 24 (Desig). Two blocks corrupted, not one. Same
+    // defect NAVPERS 1610/2 had (#48); found here by porting that PR's sweep.
+    //
+    // Each width is its column's right edge, less this file's 2.5 pt house
+    // inset, less the field's own page x (constant + OFFSET_P1.dx = +13).
+    //
+    // Which of these can actually bind, at 12 pt CourierPrime (7.1953 pt/char)
+    // against the UI's own maxLength caps (Block1Admin.tsx:294-361):
+    //   [0] name    NO cap in the UI at all -> unbounded. The live one.
+    //   [1] grade   cap 5 = 35.98 pt vs 35.26 -> binds, by 0.72 pt.
+    //   [2] desig   cap 4 = 28.78 pt vs 36.38 -> unreachable.
+    //   [3] title   cap 14 = 100.73 pt vs 118.14 -> unreachable.
+    //   [4] uic     cap 5 = 35.98 pt vs 43.86 -> unreachable.
+    //   [5] dodid   cap 10 = 71.95 pt vs 99.30 -> unreachable.
+    // Reachability and test-pinning are NOT the same axis, and an earlier draft
+    // of this comment conflated them and got both halves wrong. Separately:
+    //   reachable in production: [0] always, [1] at the 5-char cap only.
+    //   pinned by the sweep:     [0] and [3]. Mutating [1], [2], [4] or [5] to
+    //                            500 leaves all 7 tests green.
+    // [3] is pinned only because the fixture's Block 25 title is 18 chars, over
+    // the form's own 14-char cap — an input no form can submit. [1]'s clamp is
+    // reachable but costs nothing when absent: a 5-char grade unclamped ends at
+    // x 228.98 against a divider at 230.76, so it eats 0.72 pt of the 2.5 pt
+    // inset and never crosses a printed rule. So [1], [2], [4] and [5] are
+    // belt-and-braces — correct, load-bearing only if a cap is raised or a value
+    // reaches this function without passing the form.
+    //
+    // KNOWN CEILING: text() shrinks without a floor (unlike narrative(), which
+    // clamps at 5). Block 22 has no maxLength, so a 40-char name renders near
+    // 5.8 pt with nothing telling the user it shrank. Still strictly better than
+    // the overflow this replaced. The fix belongs on the input, not here.
     rsBaseline: 652,
     rsName_x: 26,
     rsGrade_x: 180,
@@ -136,6 +197,7 @@ const C = {
     rsTitle_x: 280,
     rsUic_x: 409,
     rsDodid_x: 463,
+    rsWidths: [138.86, 35.26, 36.38, 118.14, 43.86, 99.3],
 
     // block 28 narrative (full width; 3 lines)
     b28_x: 21,
@@ -500,12 +562,19 @@ export async function generateOverlayPdf(
   text(page1, up(bv.billet_subcategory), p1.billet_x, p1.pfaBilletBaseline);
 
   // reporting senior 22-27
-  text(page1, up(bv.reporting_senior_name), p1.rsName_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_grade), p1.rsGrade_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_designator), p1.rsDesig_x, p1.rsBaseline);
-  text(page1, up(bv.reporting_senior_title), p1.rsTitle_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_uic, p1.rsUic_x, p1.rsBaseline);
-  text(page1, bv.reporting_senior_dod_id, p1.rsDodid_x, p1.rsBaseline);
+  // Blocks 22-27, each held to its own column's width — see rsWidths.
+  (
+    [
+      [up(bv.reporting_senior_name), p1.rsName_x],
+      [up(bv.reporting_senior_grade), p1.rsGrade_x],
+      [up(bv.reporting_senior_designator), p1.rsDesig_x],
+      [up(bv.reporting_senior_title), p1.rsTitle_x],
+      [bv.reporting_senior_uic, p1.rsUic_x],
+      [bv.reporting_senior_dod_id, p1.rsDodid_x],
+    ] as [string | undefined, number][]
+  ).forEach(([v, x], k) =>
+    text(page1, v, x, p1.rsBaseline, 12, courier, p1.rsWidths[k]),
+  );
 
   // block 28 narrative
   narrative(

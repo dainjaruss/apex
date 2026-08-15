@@ -60,7 +60,7 @@ All column names below are copied verbatim from the golden schema (case-sensitiv
 | 25 | `NOB` | bit | `not_observed` | boolean → 0/-1 | ≥1 of 25–27 | `0` |
 | 26 | `Regular` | bit | `regular_report` | boolean → 0/-1 | " | `0` |
 | 27 | `Concurrent` | bit | `concurrent_report` | boolean → 0/-1 | " | `0` |
-| 28 | `OpsCdr` | bit | — | **Always `0`.** APEX has no Ops Cdr checkbox (no block 19 on current forms). | no | `0` |
+| 28 | `OpsCdr` | bit | — | **Always `0`.** APEX has no Ops Cdr checkbox. Block 19 does print on 1610/2 and 1616/27 (not on 1616/26) — APEX simply has no field for it. | no | `0` |
 | 29 | `PhysicalReadiness` | text(4) | `physical_readiness` | Verbatim PFA codes (`^[PBFMWN]+$`); **validate ≤4 chars** | no | `""` |
 | 30 | `PhysicalReadiness2` | text(15) | — | **Leave NULL** — exact content NAVFIT expects is unobserved (open question §8) | no | `NULL` |
 | 31 | `PhysicalReadinessDt` | date | — | **Leave NULL** — APEX has no PFA date field | no | `NULL` |
