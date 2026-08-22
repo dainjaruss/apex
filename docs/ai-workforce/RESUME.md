@@ -1,100 +1,98 @@
-# Resume state — 2026-07-30
+# Resume state — epic complete
 
-## Merged to main (12)
+**25 PRs merged (#22–#46). `main` verifies green: 63 files, 1110 tests, build clean.**
+Four migrations applied to hosted and verified. Seeds converge instead of accumulating.
 
-| PR | What |
-|----|------|
-| #22 | LaDR "Considerations for advancement" transcription (80 rows) |
-| #24 | Evidence gating on scored inputs + renderable narrative |
-| #25 | Forced distribution E7–E9 + officers; per-block 2.0 count; citation corrections |
-| #26 | Three invented/inverted Navy claims corrected; migration 010 |
-| #27 | Retracted "any gap disqualifies" claim removed at the render boundary |
-| #28 | Workforce docs + `docs/navy-reference.md` |
-| #29 | Block 43 AI eval coach |
-| #30 | profiles-RLS container flake fixed at its root |
-| #31 | LaDR substance rendered in the checklist |
-| #32 | Officer FITREP trait table → NAVPERS 1610/2; migration 011 |
-| #33 | a11y gate no longer scans another worktree's app |
-| #34 | CHIEFEVAL grades are numerals in cells, not X marks in columns |
+## What the founding complaint asked for, and where it landed
 
-## Hosted database — all steps done and verified
+| Ask | State |
+|---|---|
+| "the review isn't very useful" | The 0–100 composite renders nowhere. Its arithmetic no longer scores self-attestation or roadmap completion as readiness. Coverage plus the ranked plan is the product. |
+| "the LaDR gives no true meaning" | 184 milestones live on hosted, 80 with verbatim `notes` and `tier`. Fully Qualified renders before Best Qualified with the additive relationship in the source's own words. |
+| "lean heavily on AI features" | Two shipped and working, neither of which functioned before: the Block 43 eval coach, and Brag Sheet autofill. Both bounded by what they can substantiate. |
 
-- **`board_analyses` cleared** (6 rows, all carrying the retracted "vote slates" disclaimer).
-- **Migration 010 applied.** CHIEFEVAL `form_definitions`: 49 blocks with a gapped tail → **52,
-  contiguous 1–52**; blocks 33–39 now the seven printed on 1616/27. 4 legacy rows purged.
-- **Migration 011 applied.** FITREP row: EVAL trait names + fabricated `39.1` → the seven printed on
-  1610/2. **6 records** had a phantom `work` grade removed, averages nulled, **6 audit rows** written
-  preserving the removed grade and prior average.
-- **LaDR seeded.** 53 auto-extracted milestones → **184 across 4 documents, 80 advancement
-  considerations, all 80 carrying `notes` and `tier`.** `board_precepts` deliberately **0** — the
-  seed split (#31) keeps the modeled `active: true` precept out, which is what makes #23's readiness
-  fix hold. One casualty as predicted: `NELD-03`, an auto-extraction artifact absent from the real LaDR.
-- Migration 009 (role escalation + DoD-ID exposure) still applied.
+## Hosted database
 
-## Open — all work committed and pushed; a monthly spend limit stopped the agents
+Migrations **009** (role escalation + DoD-ID exposure), **010** (CHIEFEVAL trait table),
+**011** (FITREP trait table), **012** (summary-group discriminators), **013** (nullable score).
 
-| PR | Branch / worktree | Where it stopped |
-|----|-------------------|------------------|
-| #23 | `feat/readiness-ui` @ `c610726` (`/srv/apex-p1-ui`) | All required items done and rebased. **Confirmation review died mid-run** at *"Confirmed a residual gap. Now the two Precept mutants."* — a residual gap it had not yet described. Re-run the confirmation. |
-| #36 | `fix/comment-fit-per-form` @ `3ff1cc6` (`/srv/apex-p1-commentfit`) | **Rebased already.** Died at *"REQUIRED 1 — I need to measure the EVAL 17th line myself."* Four required items outstanding: settle EVAL 10-pitch (reviewer proved the form holds **17**, not 16, three ways); finish the CHIEFEVAL composition now #34 has landed; `docs/specs/brag-sheet.md:898-899` still exports `COMMENTS_MAX_LINES = 18`; `lib/commentFit.ts:176` false claim about the fallback. |
-| #37 | `fix/rubric-arithmetic` @ `740734c` (`/srv/apex-p2-rubric`) | Complete and pushed. **Adversarial review never started** — all four lenses died on the spend limit before their first tool call. Re-run: `Workflow({scriptPath: "…/workflows/scripts/review-rubric-arithmetic-wf_03045b60-f83.js", resumeFromRunId: "wf_03045b60-f83"})`. |
-| — | `fix/citation-semantic-gate` (`/srv/apex-p1-citationsem`) | **Never started** — worktree is at `main`, no commits. Brief is in the transcript. |
+- 57 evaluations: 47 seeded (deterministic v8 UUIDs), 10 human-created and preserved.
+- 10 summary groups, all carrying real Block 5 / Block 21 values. Zero stale.
+- 184 LaDR milestones. `board_precepts` deliberately **0** — the seed split keeps the modeled
+  precept out, which is what makes the readiness fix hold.
 
-## The three biggest findings
+## Doctrine: every trait table now matches its printed form
 
-**1. Every CHIEFEVAL PDF was a defaced form.** 1616/27 has **no grade checkbox grid** — a 300 dpi
-census found 12 checkboxes on page 1 (header only) and 2 on page 2. Each trait is a numeric cell
-pre-printed `0.0`. Main stamped X marks into the comments column: **0 of 7 grades in a box, 149 ink
-blobs overprinting the form**, comments printed across Block 39's descriptions, four ISO dates below
-the footer. #34: **7/7 in box, 0 blobs.**
+CHIEFEVAL (1616/27) and FITREP (1610/2) corrected in code, in `form_definitions`, in stored
+grades, in the PDF overlays, and in the descriptor prose. Comment capacity is measured per form
+and per pitch (EVAL 17/14, CHIEFEVAL 8/6, FITREP 19/16 — the labels were inverted; 10-pitch is
+12-point for a 0.6-em font). The pitch selector no longer offers a setting the form forbids.
 
-**Root cause of the whole overlay family:** `lib/pdfOverlay.ts:286-296` wraps the EVAL overlay in a
-page `translate(13, -11)`, so EVAL constants live in **pre-translate** space. `fitrepOverlay.ts` and
-`chiefEvalOverlay.ts` both **import `pushGraphicsState` and `translate` and never call either** —
-inherited the constants, dropped the calibration. Consequence: 1610/2 page 1 is 1616/26 page 1
-shifted by exactly **(+1.9, +10.8)**, verified on five landmark clusters.
+**Fabrications found and retired:** the "vote slates" disclaimer; the inverted para 17-6 continuity
+advisory; the five-trait CHIEFEVAL table; the `tactical_performance` anchors — the one entry that
+was supposedly officer-specific; and the "18 lines" capacity that `bupersGuidelines.json` had
+contradicted for a month.
 
-**2. `checkCommentFit` reports 18 lines for every form.** That is 1616/26's number. CHIEFEVAL Block
-40 physically holds **8** at 10-pitch, 7 at 12-pitch. Validation returns `fit: true, maxLines: 18`,
-the PDF renders 8, and 10 lines vanish from a signed record with no marker. Now AI-amplified:
-`coach.ts:179` feeds `max_lines` into the model prompt as "the physical size of the block".
-In build on `fix/comment-fit-per-form`.
+## Open, ranked
 
-**3. Brag Sheet autofill never worked in direct mode.** `Output.object()` resolves via `asSchema()`
-with `useReferences: false`, so zod inlines a full copy of the block/item shapes into all seven keys.
-`useReferences: true` → 3778 B → 2358 B, semantics byte-identical after dereferencing. **The schema
-fix alone still fails 100%** — a full autofill is ~12k output tokens at 105–184 s against a 60 s
-timeout.
-
-## Still open, ranked
-
-1. **`overall_score` is invisible, not fixed.** A strong record still computes **46.8 / band 25 /
-   "Not competitive"** — `development` (a Navy COOL checklist) and `leadership` contribute
-   full-confidence zeros. #23 removed the output surface; the arithmetic is untouched and persists.
-   P2 rubric work.
-2. `summary_groups` missing `uic`, `duty_status`, `billet_subcategory` — 3 of 9 Table 1-4
-   discriminators never fire, including the Block 6 UIC guard that shipped as a feature. Fails open.
-3. `rubric.ts` P2: `UNVERIFIED_MULT`/`esrFlags`, solo-group `P4 = 100`, `scoreLeadership` on an empty
-   post-filter array.
-4. `TRAIT_STANDARDS_LOOKUP` has no report-type dimension — officer rows render EVAL descriptor prose.
-5. FITREP overlay page 1 is a deletion plus `translate(14.9, -0.2)`; page 2 needs ~15 fields measured.
-6. Long field values overrun their cells and run off the CHIEFEVAL form (needs a truncation policy).
-7. `bv.qualifications` is entered by CHIEFEVAL authors and rendered nowhere (1616/27 puts them in Block 40).
-8. Generated PDFs are untagged, so screen readers read `0.0` then `4.0` per trait.
-9. Pre-existing a11y: `.apex-wizard-nav-btn--done` 3.76:1; `.apex-narrative-gutter` 10px at 2.46:1.
+1. **FITREP blocks 28/29 still print on top of the wrong boxes.** A vertical move needs `FIELD_FIT`,
+   the validator, the coach budget and the brag budget to move together (`maxLines: 3` vs
+   `b28_lines: 4`). Deferring is right; a half-move drops a line the editor promised.
+2. **13 runs from 8 x-positions still print outside the FITREP frame**, each wrong on both axes
+   (wrong cell, not a margin) so none is a constant swap. Pinned by a frame-sweep ledger — a new
+   violation fails the build.
+3. **The citation gate checks the path an item cites, never the subject its prose is about.**
+   4 of 11 constructed contradictions still pass. Upgrade path: have the model emit the subject
+   area as a structured field.
+4. **Brag Sheet Block 41's applied `entries` never pass the gate at all**, while the new ghost rows
+   make that card look gated.
+5. **The advisory-withholding cause is unresolved between two honest measurements** — one fixture
+   provokes bare container roots, another provokes placeholder rationales (12 of 36 runs). Both
+   numbers published; grammar deliberately not widened without evidence of the cost.
+6. **EVAL/CHIEFEVAL descriptor prose has no form-reading test**, which is how its typos came to be
+   silently normalised. The real payload of that follow-up is the missing 1616/26 pin.
+7. **Three copies of the form-id list have drifted** (`resolveReportType`, `Block42Signatures`,
+   `EvaluationForm`).
+8. CI never runs a11y. The `style` attribute is denied by the guard and is genuinely perceivable —
+   a score can render as a bar width. Generated PDFs are untagged, so AT reads `0.0` then `4.0`.
+9. **SGA is pooled from other users' self-entered evals without excluding the subject's own row**
+   (+25.4 at full coverage), and is now the sole comparator since RSCA was deleted.
 10. ~38 remaining `docs/navy-reference.md` §8 items.
 
-## Traps confirmed the hard way
+## What this codebase's defects actually look like
 
-- **Probe the shipped function.** curl 403s where undici succeeds.
-- **Check the file on `main`, not a worktree.** I reported a fabricated-trait defect in `seed-e2e.ts`
-  from `/srv/apex`, which sits on a branch predating the epic. #32 had already fixed it.
-- **Verify finding *attribution*.** 9 of 10 adversarially-checked findings on #29 were refuted — real
-  symptom, wrong owner.
-- **Vacuous tests, five times**: an a11y fixture routing to the legacy component; a scan hitting an
-  empty state; a "stray `work` grade" test that never added the key; a coach a11y test skipping green
-  whenever the feature was hidden; and an authenticated a11y suite skipping entirely because a
-  gitignored fixture was missing. The fifth reported **green on every CI run**.
-- **A byte budget is the wrong guard for schema size** — counterexamples both ways (3699 B accepts,
-  2426 B rejects). The provider's real limit was "40 parameters with type arrays or anyOf".
-- `z.number().int()` makes Zod v4 emit safe-integer bounds the provider rejects.
+**A plausible sentence nobody re-checked.** A comment asserting a `translate()` that is imported and
+never called misled three separate rounds. A spec resolved a documented conflict *in favour of the
+unmeasured number*. `bupersGuidelines.json` held the right capacity for a month while the code used
+the wrong one.
+
+**Thirteen vacuous tests.** A doctrine pin slicing to end-of-file and validating the wrong record.
+A geometry suite drawing only the letter `X`, so no descender reached the renderer and a negative
+margin reported as positive. An assertion satisfied by a comment in the file it was reading. Another
+satisfied by static template text before any value was interpolated. A tautology guarding the
+deletion of a safety gate. A sentinel satisfied by the probe alphabet, in the very suite whose
+header named the previous one.
+
+**Rules that did no work.** `isEvidenceLeaf` rejected numbers to block `.length` — already blocked
+one level up. It only refused the Sailor's own data: harmless under `some()`, catastrophic under
+`every()` (26–40% of generated content deleted).
+
+**A mutation pin defending a defect.** `rec_cpl: 14` truncated career recommendations because it was
+the only caller where `min(12, …)` bound, and two assertions cemented it.
+
+## Rules that earned their place
+
+- **Probe the shipped function.** `curl` 403s where undici succeeds.
+- **Check the file on `main`, not a worktree.** Read the **exit code** of the thing you cite, and
+  make sure it checks what you claim — one agent reported green from `vitest` alone, which does not
+  typecheck.
+- **Verify finding *attribution*.** 9 of 10 adversarially-checked findings on one PR were refuted:
+  real symptom, wrong owner.
+- **Measure before fixing.** The one-word fix requested for the autofill gate would have deleted a
+  quarter of a Sailor's record.
+- **Re-run mutation *after* the fix.** That is how the eleventh, twelfth and thirteenth vacuous tests
+  were caught — each by the builder who had just written them.
+- **Don't write down a number you didn't measure yourself.** The figure that survived four reviews
+  unchanged was the only one measured against the other engine rather than generated alongside it.
+- **A mutation harness can lie.** One reported six false survivors from a kill-detection bug; caught
+  by reproducing a mutant by hand.
