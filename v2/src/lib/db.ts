@@ -54,23 +54,112 @@ export const DEFAULT_PROFILE: Profile = {
 
 // ── Sample Starter Data (Seeds IndexedDB on first run) ──
 export async function seedInitialDataIfEmpty() {
-  // Auto-migrate legacy sample record if seeded with 6-char UIC
+  // Auto-migrate legacy sample record if seeded with 6-char UIC or missing summary group cohort
   try {
     const existing = await db.evaluations.get("eval-sample-001");
-    if (existing && (existing.uic === "N00024" || existing.block_values?.reporting_senior_name === "KIRK, JAMES T")) {
-      existing.uic = "N0024";
-      existing.block_values = {
-        ...existing.block_values,
-        reporting_senior_name: "KIRK, J T",
-        reporting_senior_title: "CO",
-        reporting_senior_uic: "N0024",
-        reporting_senior_address: existing.block_values?.reporting_senior_address || "NAVSEA WASHINGTON NAVY YARD DC",
-        command_achievements: existing.block_values?.command_achievements || "C5ISR EXCELLENCE AWARD; CYBER INNOVATION OF THE YEAR",
-        primary_duty_abbrev: existing.block_values?.primary_duty_abbrev || "LPO / CYBER",
-        primary_duties: existing.block_values?.primary_duties || "PRI: LEAD PETTY OFFICER FOR ENTERPRISE CYBER DEFENSE; COLL: ACFL; WATCH: OOD IN-PORT.",
-        qualifications: existing.block_values?.qualifications || "INFORMATION WARFARE SPECIALIST, ENLISTED SURFACE WARFARE",
-      };
-      await db.evaluations.put(existing);
+    if (existing) {
+      let needsUpdate = false;
+      if (existing.uic === "N00024" || existing.block_values?.reporting_senior_name === "KIRK, JAMES T") {
+        existing.uic = "N0024";
+        existing.block_values = {
+          ...existing.block_values,
+          reporting_senior_name: "KIRK, J T",
+          reporting_senior_title: "CO",
+          reporting_senior_uic: "N0024",
+          reporting_senior_address: existing.block_values?.reporting_senior_address || "NAVSEA WASHINGTON NAVY YARD DC",
+          command_achievements: existing.block_values?.command_achievements || "C5ISR EXCELLENCE AWARD; CYBER INNOVATION OF THE YEAR",
+          primary_duty_abbrev: existing.block_values?.primary_duty_abbrev || "LPO / CYBER",
+          primary_duties: existing.block_values?.primary_duties || "PRI: LEAD PETTY OFFICER FOR ENTERPRISE CYBER DEFENSE; COLL: ACFL; WATCH: OOD IN-PORT.",
+          qualifications: existing.block_values?.qualifications || "INFORMATION WARFARE SPECIALIST, ENLISTED SURFACE WARFARE",
+        };
+        needsUpdate = true;
+      }
+      if (!existing.summary_group_id) {
+        existing.summary_group_id = "sg-nov2026-e6";
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        await db.evaluations.put(existing);
+      }
+    }
+
+    // Ensure sample group exists and is populated
+    const existingGroup = await db.summary_groups.get("sg-nov2026-e6");
+    if (!existingGroup) {
+      await db.summary_groups.put({
+        id: "sg-nov2026-e6",
+        name: "CY2026 E6 Periodic (NAVSEA)",
+        reporting_senior_name: "KIRK, JAMES T",
+        reporting_senior_dod_id: "9876543210",
+        period_to: "2026-11-15",
+        grade_rate: "E6",
+        promotion_status: "Regular",
+        duty_status: "ACT",
+        uic: "N0024",
+        billet_subcategory: "NA",
+        report_type: "EVAL",
+        status: "open",
+        member_ids: ["eval-sample-001", "eval-sample-002", "eval-sample-003", "eval-sample-004"],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // Ensure peer evals exist if missing
+    const peer2 = await db.evaluations.get("eval-sample-002");
+    if (!peer2 && existing) {
+      await db.evaluations.put({
+        ...existing,
+        id: "eval-sample-002",
+        member_name: "SULU, HIKARU",
+        dod_id: "2345678901",
+        grade_rate: "ET1",
+        designator: "SW",
+        trait_grades: { knowledge: "4.0", work: "4.0", eo: "4.0", bearing: "5.0", accomplishment: "4.0", teamwork: "4.0", leadership: "4.0" },
+        trait_average: 4.14,
+        promotion_recommendation: "Must Promote",
+        summary_group_id: "sg-nov2026-e6",
+        comments: "*** EXPERIENCED ELECTRONICS TECHNICIAN FIRST CLASS ***\nDYNAMIC LEADER WHO DIRECTED CRITICAL RADAR RESTORATION EFFORTS.",
+      });
+      await db.evaluations.put({
+        ...existing,
+        id: "eval-sample-003",
+        member_name: "CHEKOV, PAVEL A",
+        dod_id: "3456789012",
+        grade_rate: "FC1",
+        designator: "SW",
+        trait_grades: { knowledge: "4.0", work: "4.0", eo: "4.0", bearing: "3.0", accomplishment: "4.0", teamwork: "4.0", leadership: "4.0" },
+        trait_average: 3.86,
+        promotion_recommendation: "Promotable",
+        summary_group_id: "sg-nov2026-e6",
+        comments: "*** SOLID FIRE CONTROL TECHNICIAN ***\nCONSISTENT PERFORMER CAPABLE OF INCREASED COMBAT SYSTEMS RESPONSIBILITY.",
+      });
+      await db.evaluations.put({
+        ...existing,
+        id: "eval-sample-004",
+        member_name: "SCOTT, MONTGOMERY",
+        dod_id: "4567890123",
+        grade_rate: "MM1",
+        designator: "SW",
+        trait_grades: { knowledge: "5.0", work: "5.0", eo: "4.0", bearing: "4.0", accomplishment: "4.0", teamwork: "4.0", leadership: "4.0" },
+        trait_average: 4.29,
+        promotion_recommendation: "Must Promote",
+        summary_group_id: "sg-nov2026-e6",
+        comments: "*** PREEMINENT ENGINEERING PROPULSION EXPERT ***\nTIRELESS LEADER ENSURING 100% MAIN PROPULSION AVAILABILITY.",
+      });
+      await db.evaluations.put({
+        ...existing,
+        id: "eval-sample-005",
+        member_name: "UHURA, NYOTA",
+        dod_id: "5678901234",
+        grade_rate: "CTN1",
+        designator: "IW",
+        trait_grades: { knowledge: "4.0", work: "4.0", eo: "4.0", bearing: "4.0", accomplishment: "4.0", teamwork: "4.0", leadership: "4.0" },
+        trait_average: 4.00,
+        promotion_recommendation: "Promotable",
+        summary_group_id: undefined,
+        comments: "*** OUTSTANDING CRYPTOLOGIC OPERATOR ***\nMISSION CRITICAL COMMUNICATIONS SPECIALIST AWAITING SUMMARY GROUP RANKING.",
+      });
     }
   } catch (e) {
     console.warn("Legacy migration check:", e);
@@ -156,10 +245,105 @@ export async function seedInitialDataIfEmpty() {
       periodic: true,
       regular_report: true,
     },
+    summary_group_id: "sg-nov2026-e6",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
   await db.evaluations.put(sampleEval);
+
+  // Additional Peer Evaluations for the E-6 Summary Group Cohort
+  const peerEval1: Evaluation = {
+    ...sampleEval,
+    id: "eval-sample-002",
+    member_name: "SULU, HIKARU",
+    dod_id: "2345678901",
+    grade_rate: "ET1",
+    designator: "SW",
+    trait_grades: {
+      knowledge: "4.0",
+      work: "4.0",
+      eo: "4.0",
+      bearing: "5.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+    },
+    trait_average: 4.14,
+    promotion_recommendation: "Must Promote",
+    summary_group_id: "sg-nov2026-e6",
+    comments: "*** EXPERIENCED ELECTRONICS TECHNICIAN FIRST CLASS ***\nDYNAMIC LEADER WHO DIRECTED CRITICAL RADAR RESTORATION EFFORTS.",
+  };
+  await db.evaluations.put(peerEval1);
+
+  const peerEval2: Evaluation = {
+    ...sampleEval,
+    id: "eval-sample-003",
+    member_name: "CHEKOV, PAVEL A",
+    dod_id: "3456789012",
+    grade_rate: "FC1",
+    designator: "SW",
+    trait_grades: {
+      knowledge: "4.0",
+      work: "4.0",
+      eo: "4.0",
+      bearing: "3.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+    },
+    trait_average: 3.86,
+    promotion_recommendation: "Promotable",
+    summary_group_id: "sg-nov2026-e6",
+    comments: "*** SOLID FIRE CONTROL TECHNICIAN ***\nCONSISTENT PERFORMER CAPABLE OF INCREASED COMBAT SYSTEMS RESPONSIBILITY.",
+  };
+  await db.evaluations.put(peerEval2);
+
+  const peerEval3: Evaluation = {
+    ...sampleEval,
+    id: "eval-sample-004",
+    member_name: "SCOTT, MONTGOMERY",
+    dod_id: "4567890123",
+    grade_rate: "MM1",
+    designator: "SW",
+    trait_grades: {
+      knowledge: "5.0",
+      work: "5.0",
+      eo: "4.0",
+      bearing: "4.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+    },
+    trait_average: 4.29,
+    promotion_recommendation: "Must Promote",
+    summary_group_id: "sg-nov2026-e6",
+    comments: "*** PREEMINENT ENGINEERING PROPULSION EXPERT ***\nTIRELESS LEADER ENSURING 100% MAIN PROPULSION AVAILABILITY.",
+  };
+  await db.evaluations.put(peerEval3);
+
+  // Unassigned Candidate Evaluation (Demonstrating adding to summary group later!)
+  const candidateEval: Evaluation = {
+    ...sampleEval,
+    id: "eval-sample-005",
+    member_name: "UHURA, NYOTA",
+    dod_id: "5678901234",
+    grade_rate: "CTN1",
+    designator: "IW",
+    trait_grades: {
+      knowledge: "4.0",
+      work: "4.0",
+      eo: "4.0",
+      bearing: "4.0",
+      accomplishment: "4.0",
+      teamwork: "4.0",
+      leadership: "4.0",
+    },
+    trait_average: 4.00,
+    promotion_recommendation: "Promotable",
+    summary_group_id: undefined, // Unassigned! Leadership can add her to the group!
+    comments: "*** OUTSTANDING CRYPTOLOGIC OPERATOR ***\nMISSION CRITICAL COMMUNICATIONS SPECIALIST AWAITING SUMMARY GROUP RANKING.",
+  };
+  await db.evaluations.put(candidateEval);
 
   // 4. Sample Continuity Records (Demonstrating continuous service & gap check)
   const continuityRecords: ContinuityRecord[] = [
@@ -216,7 +400,7 @@ export async function seedInitialDataIfEmpty() {
     await db.continuity_records.put(c);
   }
 
-  // 5. Sample Summary Group
+  // 5. Sample Summary Group with Multi-Member Cohort
   const sampleGroup: SummaryGroup = {
     id: "sg-nov2026-e6",
     name: "CY2026 E6 Periodic (NAVSEA)",
@@ -225,9 +409,12 @@ export async function seedInitialDataIfEmpty() {
     period_to: "2026-11-15",
     grade_rate: "E6",
     promotion_status: "Regular",
+    duty_status: "ACT",
+    uic: "N0024",
+    billet_subcategory: "NA",
     report_type: "EVAL",
     status: "open",
-    member_ids: ["eval-sample-001"],
+    member_ids: ["eval-sample-001", "eval-sample-002", "eval-sample-003", "eval-sample-004"],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

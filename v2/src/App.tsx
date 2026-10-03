@@ -16,6 +16,7 @@ import { WorkspaceManager } from "@/components/workspace/WorkspaceManager";
 import { ProfileModal } from "@/components/profile/ProfileModal";
 import { getEvalSeed, getChiefEvalSeed, getFitrepSeed } from "@/lib/formDefinitions";
 import { ROUTING_STAGES } from "@/lib/routingService";
+import { canManageSummaryGroups } from "@/lib/permissions";
 import {
   FileText,
   CalendarCheck,
@@ -42,6 +43,14 @@ export function App() {
 
   const profiles = useLiveQuery(() => db.profiles.toArray(), []);
   const activeProfile: Profile = profiles?.[0] || DEFAULT_PROFILE;
+  const isLeadership = canManageSummaryGroups(activeProfile);
+
+  // Automatically switch tab away from RSCA if user switches to Sailor/Rater role
+  useEffect(() => {
+    if (!isLeadership && activeTab === "rsca") {
+      setActiveTab("evaluations");
+    }
+  }, [isLeadership, activeTab]);
 
   const evaluations = useLiveQuery(() => db.evaluations.toArray(), []);
 
@@ -204,21 +213,23 @@ export function App() {
               Continuity & Gap Inspector
             </button>
 
-            <button
-              onClick={() => {
-                setActiveTab("rsca");
-                setEditingEval(null);
-                setIsCreatingNew(false);
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === "rsca"
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              RSCA & Summary Groups
-            </button>
+            {isLeadership && (
+              <button
+                onClick={() => {
+                  setActiveTab("rsca");
+                  setEditingEval(null);
+                  setIsCreatingNew(false);
+                }}
+                className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                  activeTab === "rsca"
+                    ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                RSCA & Summary Groups
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -402,7 +413,15 @@ export function App() {
 
         {activeTab === "continuity" && <ContinuityInspector />}
 
-        {activeTab === "rsca" && <RscaMatrix />}
+        {activeTab === "rsca" && (
+          <RscaMatrix
+            activeProfile={activeProfile}
+            onSelectEval={(ev) => {
+              setEditingEval(ev);
+              setActiveTab("evaluations");
+            }}
+          />
+        )}
 
         {activeTab === "workspace" && <WorkspaceManager />}
       </main>

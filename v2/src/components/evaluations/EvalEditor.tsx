@@ -6,8 +6,10 @@
 // role-gated chain of custody routing, and context-sensitive BUPERS field helper text.
 
 import React, { useState, useEffect } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { Evaluation, Profile, ValidationIssue } from "@/types";
 import { db } from "@/lib/db";
+import { canManageSummaryGroups } from "@/lib/permissions";
 import { useLiveValidation } from "@/hooks/useLiveValidation";
 import { useFinalValidation } from "@/hooks/useFinalValidation";
 import { computeTraitAverage } from "@/lib/traitAverage";
@@ -95,6 +97,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
   // Context-sensitive field guidelines state
   const [activeField, setActiveField] = useState<string | null>("member_name");
   const [showGuidelines, setShowGuidelines] = useState<boolean>(true);
+
+  // Summary Groups & Leadership RBAC
+  const summaryGroups = useLiveQuery(() => db.summary_groups.toArray(), []);
+  const isLeadership = canManageSummaryGroups(activeProfile);
+  const currentGroup = summaryGroups?.find((g) => g.id === formData.summary_group_id);
 
   // Keep internal form data synced when prop changes
   useEffect(() => {
@@ -1460,6 +1467,94 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             <p className="text-xs text-slate-500 mt-0.5">
               Promotion recommendation (Block 45), Reporting Senior identification & address (Blocks 22–27, 48), and counseling records (Blocks 30–32).
             </p>
+          </div>
+
+          {/* Summary Group Cohort Status & Assignment */}
+          <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Summary Group Cohort
+                  </span>
+                  <span
+                    className={`text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold ${
+                      currentGroup
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                    }`}
+                  >
+                    {currentGroup ? currentGroup.name : "Pending Command Assignment"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {isLeadership
+                    ? "Assign this report to a summary group to pool trait averages and enforce Table 1-1 forced distribution limits."
+                    : "Summary groups, peer ranking boards, and forced distribution quotas are managed by Command Leadership."}
+                </p>
+              </div>
+
+              {isLeadership && summaryGroups && summaryGroups.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    Assign Group:
+                  </label>
+                  <select
+                    value={formData.summary_group_id || ""}
+                    onChange={(e) => {
+                      const val = e.target.value || undefined;
+                      handleFieldChange("summary_group_id", val);
+                    }}
+                    className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-semibold text-slate-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">-- Unassigned --</option>
+                    {summaryGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name} ({g.grade_rate})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Display stamped metrics if available */}
+            {formData.summary_group_average != null && (
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex flex-wrap items-center gap-4 text-xs font-mono">
+                <div>
+                  <span className="text-slate-500">Block 50a Summary Group Avg:</span>{" "}
+                  <strong className="text-blue-600 dark:text-blue-400 font-bold">
+                    {formData.summary_group_average.toFixed(2)}
+                  </strong>
+                </div>
+                {formData.block_values?.reporting_senior_rsca && (
+                  <div>
+                    <span className="text-slate-500">Block 50b RSCA:</span>{" "}
+                    <strong className="text-slate-900 dark:text-white font-bold">
+                      {formData.block_values.reporting_senior_rsca}
+                    </strong>
+                  </div>
+                )}
+                {formData.trait_average != null && (
+                  <div>
+                    <span className="text-slate-500">Member Trait Avg:</span>{" "}
+                    <strong className="text-slate-900 dark:text-white font-bold">
+                      {formData.trait_average.toFixed(2)}
+                    </strong>{" "}
+                    <span
+                      className={`text-[11px] font-bold ${
+                        formData.trait_average >= formData.summary_group_average
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      ({formData.trait_average - formData.summary_group_average >= 0 ? "+" : ""}
+                      {(formData.trait_average - formData.summary_group_average).toFixed(2)} vs Group)
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Block 45: Promotion Recommendation */}
