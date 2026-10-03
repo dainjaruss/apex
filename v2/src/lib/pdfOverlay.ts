@@ -1,0 +1,747 @@
+// lib/pdfOverlay.ts
+//
+// High-fidelity PDF generation by OVERLAYING our data onto the official
+// NAVPERS 1616/26 (REV 05-2025) blank — a flat, vector, letter-size PDF with no
+// AcroForm and no XFA (so no radio "bubbles", and the correct required revision).
+//
+// We draw text and literal "X" marks at measured coordinates on top of the real
+// form. Coordinates are in PDF user space (bottom-left origin, points), reverse-
+// engineered from the blank's content stream (checkbox squares, cell grid, label
+// baselines). Narrative blocks (28, 29B, 43, 44) are drawn in Courier with text
+// pre-wrapped by the same wrapTextToWidth() the on-screen measuring canvas uses,
+// so the printed wrap matches the canvas exactly (true WYSIWYG).
+//
+// See [[apex-pdf-acroform-fill]] for the prior fill-based approach (08-10 form);
+// this overlay supersedes it for the 05-2025 requirement.
+
+import {
+  PDFDocument,
+  PDFPage,
+  rgb,
+  StandardFonts,
+  pushGraphicsState,
+  popGraphicsState,
+  translate,
+} from "pdf-lib";
+import { Evaluation } from "@/types";
+import {
+  wrapTextToWidth,
+  FIELD_FIT,
+  getCommentCapacity,
+  COMMENT_PITCH,
+  resolveCommentPitch,
+} from "./commentFit";
+import { embedNarrativeFont } from "./pdfBoxText";
+import { computeTraitAverage } from "./traitAverage";
+import { formatNavpersDate } from "./navyDate";
+import { generateChiefEvalOverlayPdf } from "./chiefEvalOverlay";
+import { generateFitrepOverlayPdf } from "./fitrepOverlay";
+
+const BLACK = rgb(0, 0, 0);
+
+// Right edge of the form's data area (used to size full-width narrative boxes).
+const FORM_RIGHT = 565.2;
+const FORM_LEFT = 17.3;
+
+// APEX duty_status -> column index in the block-5 box row [ACT, TAR/FTS, INACT, AT/ADSW]
+function dutyIndex(s: string): number | null {
+  const u = (s || "").toUpperCase();
+  if (u.includes("AT/AD") || u.startsWith("AT")) return 3;
+  if (u.includes("INACT")) return 2;
+  if (u.includes("TAR") || u.includes("FTS")) return 1;
+  if (u.includes("ACT")) return 0;
+  return null;
+}
+
+// trait grade -> grade-column index [NOB, 1.0, 2.0, 3.0, 4.0, 5.0]
+function gradeIndex(grade?: string): number | null {
+  if (!grade) return null;
+  if (grade.toUpperCase() === "NOB") return 0;
+  const n = parseInt(grade, 10);
+  return n >= 1 && n <= 5 ? n : null;
+}
+
+// promotion_recommendation -> column index in the block-45 row
+const REC_COLS = [
+  "NOB",
+  "Significant Problems",
+  "Progressing",
+  "Promotable",
+  "Must Promote",
+  "Early Promote",
+];
+function recIndex(r?: string): number | null {
+  const i = REC_COLS.indexOf(r || "");
+  return i >= 0 ? i : null;
+}
+
+// ─────────────────────────── coordinate map ───────────────────────────
+// All coordinates in PDF points, bottom-left origin. cx/cy = checkbox-square CENTERS.
+const C = {
+  // grade-box column centers (NOB,1,2,3,4,5); per-trait row centers vary
+  GRADE_COLS_P1: [80.6, 209.5, 245.5, 381.6, 418.3, 555.8],
+  GRADE_COLS_P2: [80.6, 209.5, 245.5, 383.0, 418.3, 555.8],
+
+  p1: {
+    // identity row (labels at top of 23pt cell; data sits just below)
+    identityBaseline: 749,
+    name_x: 25,
+    grade_x: 295,
+    desig_x: 360,
+    dodid_x: 460,
+
+    // block 5 duty status — four square centers, single row
+    dutyCy: 731.1,
+    dutyCx: [37.4, 67.0, 95.8, 123.8],
+
+    // blocks 6-9 (UIC/Ship/Promo/DateReported share this baseline; LOWER y = lower on
+    // the page, so subtract to nudge the whole row down, add to nudge it up)
+    row69Baseline: 726,
+    uic_x: 174,
+    ship_x: 226,
+    promo_x: 421,
+    datereported_x: 500,
+
+    // occasion 10-13 (single row of square centers)
+    occasionCy: 707.4,
+    periodicCx: 80.6,
+    detachIndCx: 160.6,
+    promoFrockCx: 254.9,
+    specialCx: 333.4,
+
+    // type 16-18
+    // ALL THREE type-of-report squares are in ONE row: measured on the blank at
+    // 600 dpi, each strokes y[665.400, 666.120] and y[677.640, 678.360], interior
+    // y[666.120, 677.640], at centres x 93.60 / 173.52 / 267.84. Block 16's LABEL
+    // wraps onto two lines ("16. Not Observed" then "Report"); its BOX does not.
+    //
+    // notObservedCy was 695.1 here, which is that row plus one printed line, so
+    // the mark drew 12.2 pt ABOVE the square — measured on a generated EVAL at
+    // page (89.93, 680.14) against a box topping out at 677.640 — and Block 16
+    // printed EMPTY. Block 16 is the only type-of-report square an NOB report
+    // marks, so the form went out with an occasion selected and no type of
+    // report at all — self-contradicting against the blank trait grades and NOB
+    // promotion recommendation that an NOB report requires
+    // (lib/validationEngine.ts:294), and against its exclusion from the summary
+    // group (docs/rules-reference.md:299).
+    // Blocks 17 and 18 were already correct at 682.9; 16 is the same row.
+    //
+    // Found via NAVPERS 1610/2, which inherited these constants and the error
+    // with them (#48). This is the origin, not the copy.
+    notObservedCx: 80.6,
+    notObservedCy: 682.9,
+    regularCx: 160.6,
+    regularCy: 682.9,
+    concurrentCx: 254.9,
+    concurrentCy: 682.9,
+
+    // period of report (same line as the "14. From: / 15. To:" labels)
+    periodBaseline: 702,
+    from_x: 398,
+    to_x: 500,
+
+    // PFA 20 / billet 21 (labels at y~692; data below). The 20|21 cell divider is at
+    // x≈455.8 here (468.8 on the centered template), so billet must clear it.
+    pfaBilletBaseline: 677,
+    pfa_x: 365,
+    billet_x: 465,
+
+    // Blocks 22-27, cell y[638.040, 662.520] in PAGE coordinates. Column
+    // dividers measured at 600 dpi off public/navpers-1616-26_2025.pdf:
+    // x[180.360, 181.080] / [230.760, 231.480] / [281.880, 282.600] /
+    // [413.640, 414.360] / [468.360, 469.080], so the six column interiors are
+    // [30.600, 180.360] [181.080, 230.760] [231.480, 281.880] [282.600, 413.640]
+    // [414.360, 468.360] [469.080, 577.800].
+    //
+    // Every x below starts inside its own column and always did. What was
+    // missing is a WIDTH: `text()` shrinks to fit one, and these six never
+    // passed one, so a long-but-ordinary Navy name ran straight through the
+    // divider. Measured on a generated EVAL, "REPORTINGSENIORNAME, JOHN A" at
+    // 12 pt reached x 233.21 against a Block 22 column ending at 180.360 — 52.9
+    // pt past its divider, clean through Block 23 (Grade, [181.080, 230.760])
+    // and 1.73 pt into Block 24 (Desig). Two blocks corrupted, not one. Same
+    // defect NAVPERS 1610/2 had (#48); found here by porting that PR's sweep.
+    //
+    // Each width is its column's right edge, less this file's 2.5 pt house
+    // inset, less the field's own page x (constant + OFFSET_P1.dx = +13).
+    //
+    // Which of these can actually bind, at 12 pt CourierPrime (7.1953 pt/char)
+    // against the UI's own maxLength caps (Block1Admin.tsx:294-361):
+    //   [0] name    NO cap in the UI at all -> unbounded. The live one.
+    //   [1] grade   cap 5 = 35.98 pt vs 35.26 -> binds, by 0.72 pt.
+    //   [2] desig   cap 4 = 28.78 pt vs 36.38 -> unreachable.
+    //   [3] title   cap 14 = 100.73 pt vs 118.14 -> unreachable.
+    //   [4] uic     cap 5 = 35.98 pt vs 43.86 -> unreachable.
+    //   [5] dodid   cap 10 = 71.95 pt vs 99.30 -> unreachable.
+    // Reachability and test-pinning are NOT the same axis, and an earlier draft
+    // of this comment conflated them and got both halves wrong. Separately:
+    //   reachable in production: [0] always, [1] at the 5-char cap only.
+    //   pinned by the sweep:     [0] and [3]. Mutating [1], [2], [4] or [5] to
+    //                            500 leaves all 7 tests green.
+    // [3] is pinned only because the fixture's Block 25 title is 18 chars, over
+    // the form's own 14-char cap — an input no form can submit. [1]'s clamp is
+    // reachable but costs nothing when absent: a 5-char grade unclamped ends at
+    // x 228.98 against a divider at 230.76, so it eats 0.72 pt of the 2.5 pt
+    // inset and never crosses a printed rule. So [1], [2], [4] and [5] are
+    // belt-and-braces — correct, load-bearing only if a cap is raised or a value
+    // reaches this function without passing the form.
+    //
+    // KNOWN CEILING: text() shrinks without a floor (unlike narrative(), which
+    // clamps at 5). Block 22 has no maxLength, so a 40-char name renders near
+    // 5.8 pt with nothing telling the user it shrank. Still strictly better than
+    // the overflow this replaced. The fix belongs on the input, not here.
+    rsBaseline: 652,
+    rsName_x: 26,
+    rsGrade_x: 180,
+    rsDesig_x: 230,
+    rsTitle_x: 280,
+    rsUic_x: 409,
+    rsDodid_x: 463,
+    rsWidths: [138.86, 35.26, 36.38, 118.14, 43.86, 99.3],
+
+    // block 28 narrative (full width; 3 lines)
+    b28_x: 21,
+    b28_topBaseline: 630,
+    b28_cpl: FIELD_FIT.command_achievements.charsPerLine,
+    b28_lines: FIELD_FIT.command_achievements.maxLines,
+
+    // block 29: 29a abbreviation (12-pt, in its printed box) + 29b description flow
+    // INLINE on the first line. The body begins just past the box's right border
+    // (measured ~x=147 on this template) — ~20 narrative chars in from b29b_x at the 29B
+    // font size. That reserve lives in FIELD_FIT.primary_duties.firstLineLead so the
+    // on-screen canvas, the fit validation, and the PDF wrap line 1 identically.
+    b29_firstBaseline: 581,
+    b29_abbrevSize: 12,
+    b29b_x: 28,
+    b29b_contX: 25,
+    b29b_cpl: FIELD_FIT.primary_duties.charsPerLine,
+    b29b_lines: FIELD_FIT.primary_duties.maxLines,
+
+    // counseling 30-32 (cell-lefts measured: 196.6/275.0/412.6)
+    counselBaseline: 522,
+    dateCounseled_x: 200,
+    counselor_x: 279,
+    counselor_width: 130,
+
+    // trait rows 33-37 (grade-box row centers)
+    traitCy: {
+      knowledge: 392.8,
+      work: 309.2,
+      eo: 224.3,
+      bearing: 140.1,
+      accomplishment: 56.5,
+    } as Record<string, number>,
+  },
+
+  p2: {
+    identityBaseline: 749,
+    name_x: 22,
+    grade_x: 293,
+    desig_x: 360,
+    dodid_x: 460,
+
+    // trait rows 38-39
+    traitCy: { teamwork: 671.4, leadership: 549.7 } as Record<string, number>,
+
+    // block 40 individual trait average (drawn inside the small box ~x44-84)
+    traitAvg_x: 52,
+    traitAvg_y: 489,
+
+    // block 41 career recommendations (up to two; side-by-side on y=499)
+    rec1_x: 112,
+    rec1_y: 499,
+    rec2_x: 218,
+    rec2_y: 499,
+
+    // Block 43 comments. Neither the line count nor the top baseline is a single
+    // constant: the count is getCommentCapacity("EVAL", pitch) — 14 at 10-pitch, 17 at
+    // 12-pitch — and the baseline is PER PITCH, because no single value can serve both.
+    //
+    // Block 43's clear interior is y[253.44, 468.12] (both bounding rules exactly
+    // 0.72 pt) and its printed instruction header's lowest ink is 451.92. CourierPrime's
+    // real ink envelope is +0.6909 em above the baseline (backtick) and -0.2002 em below
+    // (y, g, j). The two pitches are now FIXED point sizes rather than sizes solved from
+    // a CPL target (see COMMENT_PITCH), so their legal first-baseline windows are:
+    //
+    //   10-pitch = 12 pt, leading 14.16, 14 lines: [439.923, 443.629]  (3.706 wide)
+    //   12-pitch = 10 pt, leading 11.80, 17 lines: [444.242, 445.011]  (0.769 wide)
+    //
+    // Those windows DO NOT INTERSECT, so the two constants stay. Both are the midpoint of
+    // their own window: 455.78 (page 441.78) and 458.63 (page 444.63). Config space is
+    // page + 14 — page 2 is drawn inside translate(12, -14).
+    //
+    // These moved from 458.8/458.0 with the pitch-label fix. 458.8 was the correct
+    // baseline for a 10.0166 pt line and this file called that "10-pitch"; it was 12
+    // pitch (11.988 CPI), and it is now b43_topBaseline12 re-derived at exactly 10 pt.
+    // 458.0 served 10.7278 pt, a size neither 1616/26 nor 1610/2 permits at all.
+    //
+    // Do not nudge either value without re-deriving against the ink envelope above.
+    // The windows are centred because centring costs nothing, NOT because the margin is
+    // uncertain: measured at 600 / 1200 / 2400 dpi the two renderers agree, and what
+    // looked like a 0.12 pt spread was the raster's own pixel size.
+    //
+    // b43_x 22 puts text at page x 34.0, inside the block's own printed side rules
+    // (ink edges x[29.640, 576.840], measured at 600 dpi): 4.36 pt clear on the left, and
+    // a full 90-char 10 pt line ends at 573.65, 3.19 pt clear on the right.
+    b43_x: 22,
+    b43_topBaseline10: 455.78,
+    b43_topBaseline12: 458.63,
+
+    // block 44 qualifications (2 lines)
+    b44_x: 22,
+    b44_topBaseline: 245,
+    b44_cpl: FIELD_FIT.qualifications.charsPerLine,
+    b44_lines: FIELD_FIT.qualifications.maxLines,
+
+    // block 45 individual promotion recommendation (X in a column, INDIVIDUAL row)
+    promoRecCy: 189,
+    promoRecCx: [110, 157, 208, 259, 310, 360], // NOB, SigProb, Progressing, Promotable, MustPromote, EarlyPromote
+    // block 46 summary row (counts), same columns one row below block 45. ESTIMATE — calibrate Y visually.
+    promoSummaryCy: 162,
+
+    // block 47 retention
+    retentionCy: 212.1,
+    retentionNotRecCx: 463.7,
+    retentionRecCx: 543.6,
+
+    // block 48 reporting senior address — cell measured at overlay-x 385–565 (≈180pt wide).
+    // Auto-fit (like 28/29/44): 30 cpl over rsAddr_width≈178 → ~9.5pt, matching block 44's
+    // size; 3 lines × 30 = 90 chars of capacity. cpl/lines from FIELD_FIT keep UI+PDF in sync.
+    rsAddr_x: 390,
+    rsAddr_topBaseline: 182,
+    rsAddr_cpl: FIELD_FIT.reporting_senior_address.charsPerLine,
+    rsAddr_lines: FIELD_FIT.reporting_senior_address.maxLines,
+    rsAddr_width: 178,
+
+    // block 51 member statement (box centers measured: 132.5 / 284.4)
+    memberStmtCy: 81,
+    intendCx: 132.5,
+    doNotIntendCx: 284.4,
+
+    // summary group average — the "Summary Group Average:" label sits in the Block 50
+    // band (label ends ≈overlay-x 405, baseline ≈y 94 on the centered template; minus the
+    // p2 offset → config ≈398, 108). Value is printed just to the right of the label.
+    summaryAvg_x: 400,
+    summaryAvg_y: 111,
+
+    // signature dates
+    date49_x: 215,
+    date49_y: 128,
+    date50_x: 515,
+    date50_y: 128,
+    date51_x: 215,
+    date51_y: 70,
+    date52_x: 515,
+    date52_y: 70,
+  },
+};
+
+export async function generateOverlayPdf(
+  evaluation: Evaluation,
+  templateBytes: ArrayBuffer | Uint8Array,
+): Promise<Uint8Array> {
+  const template =
+    templateBytes instanceof Uint8Array
+      ? templateBytes
+      : new Uint8Array(templateBytes);
+
+  if (evaluation.report_type === "CHIEFEVAL") {
+    return generateChiefEvalOverlayPdf(evaluation, template);
+  }
+  if (evaluation.report_type === "FITREP") {
+    return generateFitrepOverlayPdf(evaluation, template);
+  }
+
+  const pdf = await PDFDocument.load(template);
+  const courier = await embedNarrativeFont(pdf);
+  const markFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+  const pages = pdf.getPages();
+  const page1 = pages[0];
+  const page2 = pages[1] || pages[0];
+  const bv = evaluation.block_values || {};
+  const tg = evaluation.trait_grades || ({} as any);
+
+  // The centered 05-2025 template shifts all form graphics right & down vs. the original
+  // blank our coordinates were calibrated against. Rather than re-edit every coordinate,
+  // translate each page's overlay layer by the measured per-page offset (pure rigid
+  // shift, no scaling): page 1 = (+13, -11), page 2 = (+12, -14) PDF points.
+  // Pushed before any draw; popped just before save so the whole overlay is wrapped.
+  const OFFSET_P1 = { dx: 13, dy: -11 };
+  const OFFSET_P2 = { dx: 12, dy: -14 };
+  page1.pushOperators(
+    pushGraphicsState(),
+    translate(OFFSET_P1.dx, OFFSET_P1.dy),
+  );
+  if (page2 !== page1)
+    page2.pushOperators(
+      pushGraphicsState(),
+      translate(OFFSET_P2.dx, OFFSET_P2.dy),
+    );
+
+  // ── drawing helpers ──
+  // single-line data fields render at 12-pitch (12 pt Courier); the measured narrative
+  // blocks (28/29/44, and 43 via its toggle) use narrative()/narrativeWithLead() below.
+  const text = (
+    page: PDFPage,
+    value: string | undefined | null,
+    x: number,
+    y: number,
+    size = 12,
+    font = courier,
+    maxWidth?: number,
+  ) => {
+    if (value == null || value === "") return;
+    const str = String(value);
+    // Shrink to fit a fixed cell when maxWidth is given (e.g. Block 31 counselor);
+    // short values keep the full `size`, long ones scale down just enough to fit.
+    let s = size;
+    if (maxWidth) {
+      const w = font.widthOfTextAtSize(str, size);
+      if (w > maxWidth) s = size * (maxWidth / w);
+    }
+    page.drawText(str, { x, y, size: s, font, color: BLACK });
+  };
+  // a literal "X" centered in a checkbox square
+  const mark = (page: PDFPage, cx: number, cy: number, size = 11) => {
+    const w = markFont.widthOfTextAtSize("X", size);
+    page.drawText("X", {
+      x: cx - w / 2,
+      y: cy - size * 0.36,
+      size,
+      font: markFont,
+      color: BLACK,
+    });
+  };
+  // wrap+draw a monospace narrative. `fixedSize` sets the point size outright and is what
+  // the comment block passes, because the printed form constrains SIZE ("10 or 12 pitch
+  // (10 or 12 point) only") and lets CPL fall out of the box — see COMMENT_PITCH. Without
+  // it the size is solved so `cpl` chars fill `boxWidth`, which is still how blocks
+  // 28/29/44 and the career recommendations are set.
+  //
+  // The Math.min(12, …) cap STAYS, and is LIVE HERE: the career-recommendation fields
+  // below pass cpl 10 in an 80 pt box, which solves to 12.063 pt and is really clamped to
+  // 12 — confirmed by removing the cap and watching 12.0635 appear in the output. It
+  // never bound on the comment block (widest solved size 10.7278), which is why it looked
+  // dead there. Live in fitrepOverlay for the same reason; genuinely DEAD in
+  // chiefEvalOverlay, which draws its recommendations through text() instead — removing
+  // it there leaves the rendered output identical.
+  const narrative = (
+    page: PDFPage,
+    value: string | undefined,
+    x: number,
+    topBaseline: number,
+    cpl: number,
+    maxLines: number,
+    boxWidth = FORM_RIGHT - FORM_LEFT,
+    fixedSize?: number,
+  ) => {
+    if (!value) return;
+    const size =
+      fixedSize ??
+      Math.max(5, Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)));
+    const lh = size * 1.18;
+    const lines = wrapTextToWidth(value, cpl).slice(0, maxLines);
+    lines.forEach((ln, i) =>
+      page.drawText(ln, {
+        x,
+        y: topBaseline - i * lh,
+        size,
+        font: courier,
+        color: BLACK,
+      }),
+    );
+  };
+  // Like narrative(), but the first line begins with a short `lead` (block 29's
+  // abbreviation, drawn at `leadSize` inside its own printed box); the body flows to
+  // the right of that box on the same line, then wraps below at full cell width.
+  // `leadChars` is the number of narrative chars reserved on line 1 for the printed
+  // abbreviation box — the SAME value the measuring canvas/validation use (FIELD_FIT
+  // firstLineLead), so screen, validation, and PDF wrap identically. The body is padded
+  // by that many chars so line 1 is shorter; lines 2+ start at `contX` (a slight hanging
+  // indent left of `x`), defaulting to `x`.
+  const narrativeWithLead = (
+    page: PDFPage,
+    lead: string | undefined,
+    body: string | undefined,
+    x: number,
+    topBaseline: number,
+    cpl: number,
+    maxLines: number,
+    leadSize: number,
+    leadChars: number,
+    contX = x,
+    boxWidth = FORM_RIGHT - FORM_LEFT,
+  ) => {
+    const leadStr = (lead || "").toUpperCase().trim();
+    if (!leadStr && !body) return;
+    const size = Math.max(
+      5,
+      Math.min(12, (boxWidth - 4) / ((cpl + 0.5) * 0.6)),
+    );
+    const lh = size * 1.18;
+    if (leadStr)
+      page.drawText(leadStr, {
+        x,
+        y: topBaseline,
+        size: leadSize,
+        font: courier,
+        color: BLACK,
+      });
+    if (!body) return;
+    const padded = " ".repeat(Math.max(0, leadChars)) + body;
+    const lines = wrapTextToWidth(padded, cpl).slice(0, maxLines);
+    lines.forEach((ln, i) =>
+      page.drawText(ln, {
+        x: i === 0 ? x : contX,
+        y: topBaseline - i * lh,
+        size,
+        font: courier,
+        color: BLACK,
+      }),
+    );
+  };
+
+  const up = (s?: string) => (s || "").toUpperCase();
+
+  // ───────────────── PAGE 1 ─────────────────
+  const p1 = C.p1;
+  // identity (repeated on both page headers)
+  for (const [pg, P] of [
+    [page1, C.p1],
+    [page2, C.p2],
+  ] as [PDFPage, typeof C.p1 | typeof C.p2][]) {
+    text(pg, up(evaluation.member_name), P.name_x, P.identityBaseline);
+    text(pg, up(evaluation.grade_rate), P.grade_x, P.identityBaseline);
+    text(pg, up(evaluation.designator), P.desig_x, P.identityBaseline);
+    text(pg, evaluation.dod_id, P.dodid_x, P.identityBaseline);
+  }
+
+  // block 5 duty status
+  const di = dutyIndex(evaluation.duty_status || "");
+  if (di != null) mark(page1, p1.dutyCx[di], p1.dutyCy);
+
+  // blocks 6-9
+  text(page1, evaluation.uic, p1.uic_x, p1.row69Baseline);
+  text(page1, up(evaluation.ship_station), p1.ship_x, p1.row69Baseline);
+  text(page1, up(evaluation.promotion_status), p1.promo_x, p1.row69Baseline);
+  text(
+    page1,
+    formatNavpersDate(bv.date_reported),
+    p1.datereported_x,
+    p1.row69Baseline,
+  );
+
+  // occasion 10-13
+  if (bv.periodic) mark(page1, p1.periodicCx, p1.occasionCy);
+  if (bv.detachment_individual) mark(page1, p1.detachIndCx, p1.occasionCy);
+  if (bv.promotion_frocking) mark(page1, p1.promoFrockCx, p1.occasionCy);
+  if (bv.special) mark(page1, p1.specialCx, p1.occasionCy);
+
+  // period 14-15
+  text(
+    page1,
+    formatNavpersDate(evaluation.period_from),
+    p1.from_x,
+    p1.periodBaseline,
+  );
+  text(
+    page1,
+    formatNavpersDate(evaluation.period_to),
+    p1.to_x,
+    p1.periodBaseline,
+  );
+
+  // type 16-18
+  if (bv.not_observed) mark(page1, p1.notObservedCx, p1.notObservedCy);
+  if (bv.regular_report) mark(page1, p1.regularCx, p1.regularCy);
+  if (bv.concurrent_report) mark(page1, p1.concurrentCx, p1.concurrentCy);
+
+  // PFA 20 / billet 21
+  text(page1, up(bv.physical_readiness), p1.pfa_x, p1.pfaBilletBaseline);
+  text(page1, up(bv.billet_subcategory), p1.billet_x, p1.pfaBilletBaseline);
+
+  // reporting senior 22-27
+  // Blocks 22-27, each held to its own column's width — see rsWidths.
+  (
+    [
+      [up(bv.reporting_senior_name), p1.rsName_x],
+      [up(bv.reporting_senior_grade), p1.rsGrade_x],
+      [up(bv.reporting_senior_designator), p1.rsDesig_x],
+      [up(bv.reporting_senior_title), p1.rsTitle_x],
+      [bv.reporting_senior_uic, p1.rsUic_x],
+      [bv.reporting_senior_dod_id, p1.rsDodid_x],
+    ] as [string | undefined, number][]
+  ).forEach(([v, x], k) =>
+    text(page1, v, x, p1.rsBaseline, 12, courier, p1.rsWidths[k]),
+  );
+
+  // block 28 narrative
+  narrative(
+    page1,
+    bv.command_achievements,
+    p1.b28_x,
+    p1.b28_topBaseline,
+    p1.b28_cpl,
+    p1.b28_lines,
+  );
+
+  // block 29: 29a abbreviation + 29b description inline on the first line. The reserved
+  // first-line span comes from the shared FIELD_FIT lead so the PDF wraps exactly like
+  // the on-screen 29B canvas and the fit validation.
+  narrativeWithLead(
+    page1,
+    bv.primary_duty_abbrev,
+    bv.primary_duties,
+    p1.b29b_x,
+    p1.b29_firstBaseline,
+    p1.b29b_cpl,
+    p1.b29b_lines,
+    p1.b29_abbrevSize,
+    FIELD_FIT.primary_duties.firstLineLead ?? 0,
+    p1.b29b_contX,
+  );
+
+  // counseling 30-32 (block 30 ISO date -> YYMMMDD; NOT REQ / NOT PERF pass through)
+  text(
+    page1,
+    formatNavpersDate(bv.date_counseled),
+    p1.dateCounseled_x,
+    p1.counselBaseline,
+  );
+  text(
+    page1,
+    up(bv.counselor),
+    p1.counselor_x,
+    p1.counselBaseline,
+    12,
+    courier,
+    p1.counselor_width,
+  );
+
+  // trait grades 33-37
+  const p1Trait = (key: string, grade?: string) => {
+    const gi = gradeIndex(grade);
+    if (gi != null && p1.traitCy[key] != null)
+      mark(page1, C.GRADE_COLS_P1[gi], p1.traitCy[key]);
+  };
+  p1Trait("knowledge", tg.knowledge); // 33 Professional Knowledge
+  p1Trait("work", tg.work); // 34 Quality of Work
+  p1Trait("eo", tg.eo); // 35 Command/Org Climate-EO
+  p1Trait("bearing", tg.bearing); // 36 Military Bearing/Character
+  p1Trait("accomplishment", tg.accomplishment); // 37 Job Accomplishment/Initiative
+
+  // ───────────────── PAGE 2 ─────────────────
+  const p2 = C.p2;
+  const p2Trait = (key: string, grade?: string) => {
+    const gi = gradeIndex(grade);
+    if (gi != null && p2.traitCy[key] != null)
+      mark(page2, C.GRADE_COLS_P2[gi], p2.traitCy[key]);
+  };
+  p2Trait("teamwork", tg.teamwork); // 38 Teamwork
+  p2Trait("leadership", tg.leadership); // 39 Leadership
+
+  // block 40 individual trait average — computed from the grades at render time (the
+  // stored trait_average can go stale), NOB-excluded, X.XX.
+  const indivAvg = computeTraitAverage(evaluation.trait_grades).average;
+  text(
+    page2,
+    indivAvg != null ? indivAvg.toFixed(2) : "",
+    p2.traitAvg_x,
+    p2.traitAvg_y,
+  );
+
+  // block 41 career recommendations (wrap at 10 chars per line, up to 2 lines per recommendation)
+  const recs = evaluation.career_recommendations || [];
+  narrative(page2, up(recs[0]), p2.rec1_x, p2.rec1_y, 10, 2, 80);
+  narrative(page2, up(recs[1]), p2.rec2_x, p2.rec2_y, 10, 2, 80);
+
+  // block 43 comments — point size, cpl, line count AND top baseline all follow the pitch
+  const pitch = resolveCommentPitch(bv);
+  narrative(
+    page2,
+    evaluation.comments,
+    p2.b43_x,
+    pitch === "10" ? p2.b43_topBaseline10 : p2.b43_topBaseline12,
+    COMMENT_PITCH[pitch].charsPerLine,
+    getCommentCapacity(evaluation.report_type, pitch),
+    undefined,
+    COMMENT_PITCH[pitch].points,
+  );
+
+  // block 44 qualifications
+  narrative(
+    page2,
+    bv.qualifications,
+    p2.b44_x,
+    p2.b44_topBaseline,
+    p2.b44_cpl,
+    p2.b44_lines,
+  );
+
+  // block 45 individual promotion recommendation
+  const ri = recIndex(evaluation.promotion_recommendation);
+  if (ri != null) mark(page2, p2.promoRecCx[ri], p2.promoRecCy);
+
+  // block 46 promotion-recommendation SUMMARY — the count of the summary group's OBSERVED reports
+  // in each of the five ranked columns. The NOB column already has a pre-printed "X" on the blank
+  // form (NOB reports aren't part of a summary group, BUPERSINST 1610.10H Table 1-3), so we never
+  // draw it. Left entirely blank when THIS report is itself NOB.
+  if (
+    evaluation.promotion_recommendation !== "NOB" &&
+    evaluation.summary_group_distribution
+  ) {
+    const dist = evaluation.summary_group_distribution;
+    for (let i = 1; i < REC_COLS.length; i++) {
+      const n = String(dist[REC_COLS[i]] ?? 0);
+      const w = courier.widthOfTextAtSize(n, 11);
+      text(page2, n, p2.promoRecCx[i] - w / 2, p2.promoSummaryCy, 11);
+    }
+  }
+
+  // block 47 retention
+  const ret = (evaluation.retention || "").toUpperCase();
+  if (ret.includes("NOT")) mark(page2, p2.retentionNotRecCx, p2.retentionCy);
+  else if (ret.includes("RECOMMEND"))
+    mark(page2, p2.retentionRecCx, p2.retentionCy);
+
+  // block 48 RS address (wrapped to fit the narrow cell; size auto-fits from cpl + width)
+  narrative(
+    page2,
+    up(bv.reporting_senior_address),
+    p2.rsAddr_x,
+    p2.rsAddr_topBaseline,
+    p2.rsAddr_cpl,
+    p2.rsAddr_lines,
+    p2.rsAddr_width,
+  );
+
+  // block 51 member statement
+  const stmt = (bv.member_statement_intent || "").toUpperCase();
+  if (stmt.includes("NOT") || stmt.includes("DO NOT"))
+    mark(page2, p2.doNotIntendCx, p2.memberStmtCy);
+  else if (stmt.includes("INTEND")) mark(page2, p2.intendCx, p2.memberStmtCy);
+
+  // signature dates (typed signatures/images are applied by the signing flow)
+  // block 50 summary group average — computed by the caller (export screen) and passed
+  // on the payload; blank when the eval isn't in a summary group.
+  text(
+    page2,
+    evaluation.summary_group_average != null
+      ? evaluation.summary_group_average.toFixed(2)
+      : "",
+    p2.summaryAvg_x,
+    p2.summaryAvg_y,
+  );
+
+  text(page2, bv.senior_rater_signature_date, p2.date49_x, p2.date49_y);
+  text(page2, bv.reporting_senior_signature_date, p2.date50_x, p2.date50_y);
+  text(page2, bv.member_signature_date, p2.date51_x, p2.date51_y);
+  text(page2, bv.concurrent_rs_signature_date, p2.date52_x, p2.date52_y);
+
+  // close the per-page overlay translation pushed above
+  page1.pushOperators(popGraphicsState());
+  if (page2 !== page1) page2.pushOperators(popGraphicsState());
+
+  return await pdf.save();
+}
