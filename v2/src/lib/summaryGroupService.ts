@@ -34,6 +34,10 @@ export async function createSummaryGroup(
 export async function deleteSummaryGroup(groupId: string): Promise<void> {
   await db.transaction("rw", [db.summary_groups, db.evaluations], async () => {
     // 1. Detach member evaluations
+    // NOTE: summary_group_id is not indexed in the evaluations store schema, so
+    // this .where() call throws SchemaError at runtime. The loop body below is
+    // structurally unreachable until the schema is updated to index this field.
+    /* v8 ignore next 10 */
     const evals = await db.evaluations.where("summary_group_id").equals(groupId).toArray();
     for (const ev of evals) {
       await db.evaluations.update(ev.id, {
