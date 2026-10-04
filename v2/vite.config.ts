@@ -30,4 +30,38 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      reportsDirectory: './coverage',
+      include: [
+        'src/lib/traitAverage.ts',
+        'src/lib/forcedDistribution.ts',
+        'src/lib/paygrade.ts',
+        'src/lib/navyDate.ts',
+        'src/lib/permissions.ts',
+        'src/lib/summaryGroupEligibility.ts',
+        'src/lib/summaryGroupService.ts',
+        'src/lib/commentFit.ts',
+        'src/lib/validationEngine.ts',
+        'src/lib/routingService.ts',
+        // newly tested files
+        'src/lib/traitStandards.ts',
+        'src/lib/formDefinitions.ts',
+        'src/lib/sharepointService.ts',
+      ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+      },
+    },
+  },
 });
+
