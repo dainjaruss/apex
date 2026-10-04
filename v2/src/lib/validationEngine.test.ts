@@ -210,7 +210,7 @@ describe('runFullValidation — trait grading (Block 33-39)', () => {
       trait_grades: { knowledge: '4.0' }, // only one trait graded
     });
     const result = runFullValidation(ev);
-    const traitErrors = result.errors.filter(e => e.field.startsWith('trait_grades.'));
+    const traitErrors = result.errors.filter(e => e.field?.startsWith('trait_grades.'));
     expect(traitErrors.length).toBeGreaterThan(0);
   });
 
@@ -226,7 +226,7 @@ describe('runFullValidation — trait grading (Block 33-39)', () => {
       promotion_recommendation: 'NOB',
     });
     const result = runFullValidation(ev);
-    const traitErrors = result.errors.filter(e => e.field.startsWith('trait_grades.'));
+    const traitErrors = result.errors.filter(e => e.field?.startsWith('trait_grades.'));
     expect(traitErrors).toHaveLength(0);
   });
 });

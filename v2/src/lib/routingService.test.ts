@@ -160,7 +160,7 @@ describe('generateRoutingEmailUrl', () => {
       '',
       'SMITH',
       'SHAREPOINT',
-      { enabled: true, siteUrl: 'https://navy.sharepoint.com/apex', listName: 'APEX_Evals', emailNotify: true },
+      { enabled: true, siteUrl: 'https://navy.sharepoint.com/apex', listName: 'APEX_Evals', autoSync: false, emailNotify: true },
     );
     expect(bodyText).toContain('SHAREPOINT');
     expect(bodyText).toContain('https://navy.sharepoint.com/apex');
@@ -189,7 +189,7 @@ describe('generateRoutingEmailUrl', () => {
 });
 
 // ─── DB-integration: forwardEvaluationCustody ─────────────────────────────────
-import { beforeEach } from 'vitest';
+import { beforeEach, afterEach, vi } from 'vitest';
 import { db } from './db';
 import { forwardEvaluationCustody, returnEvaluationCustody, executeEvaluationHandoff } from './routingService';
 import type { Profile } from '@/types';
@@ -425,7 +425,6 @@ describe('executeEvaluationHandoff — PACK_AND_ROUTE mode', () => {
 });
 
 // ─── executeEvaluationHandoff — SHAREPOINT mode ───────────────────────────────
-import { vi } from 'vitest';
 
 describe('executeEvaluationHandoff — SHAREPOINT mode', () => {
   afterEach(() => {

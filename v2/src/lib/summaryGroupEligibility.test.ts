@@ -248,7 +248,7 @@ describe('visibleSummaryGroupsForEval', () => {
 
   it('returns empty array when no groups match', () => {
     const ev = makeEval({ grade_rate: 'PO2' });
-    const groups = [makeGroup({ grade_rate: 'E-7' }), makeGroup({ grade_rate: 'E-5', id: 'sg-x', grade_rate: 'E-9' } as any)];
+    const groups = [makeGroup({ grade_rate: 'E-7' }), makeGroup({ grade_rate: 'E-9', id: 'sg-x' } as any)];
     // Only check no crashes
     expect(Array.isArray(visibleSummaryGroupsForEval(ev, groups))).toBe(true);
   });
