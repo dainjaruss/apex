@@ -6,6 +6,7 @@ import React, { useState } from "react";
 import { Profile } from "@/types";
 import { db } from "@/lib/db";
 import { User, HardDrive, ShieldCheck, Check, X, AlertCircle } from "lucide-react";
+import { NmciSafeForm } from "@/components/NmciSafeForm";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -33,8 +34,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async () => {
+    const visibleRate = (formData.rate || formData.navy_rank || "").trim();
+    if (
+      !formData.last_name.trim() ||
+      !formData.first_name.trim() ||
+      !visibleRate ||
+      !formData.dod_id.trim() ||
+      !formData.uic.trim()
+    ) {
+      alert("Last name, first name, rate, DoD ID, and UIC are required.");
+      return;
+    }
     await db.profiles.put({
       ...formData,
       last_name: formData.last_name.toUpperCase().trim(),
@@ -69,7 +80,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </p>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
           >
@@ -78,7 +89,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSave} className="p-6 space-y-5">
+        <NmciSafeForm className="p-6 space-y-5">
           {/* Storage Architecture Callout */}
           <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl flex items-start gap-3 text-xs text-blue-900 dark:text-blue-200">
             <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
@@ -207,7 +218,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
+                data-nmci-submit=""
+                onClick={() => void handleSave()}
                 className="px-5 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
               >
                 {saveSuccess ? (
@@ -220,7 +233,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
             </div>
           </div>
-        </form>
+        </NmciSafeForm>
       </div>
     </div>
   );

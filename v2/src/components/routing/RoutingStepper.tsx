@@ -306,7 +306,7 @@ export const RoutingStepper: React.FC<Props> = ({
                     : "Return Evaluation with Notes"}
                 </h3>
               </div>
-              <button
+              <button type="button"
                 onClick={() => setModalMode(null)}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -454,7 +454,7 @@ export const RoutingStepper: React.FC<Props> = ({
                   Official Chain of Custody Log
                 </h3>
               </div>
-              <button
+              <button type="button"
                 onClick={() => setModalMode(null)}
                 className="text-slate-400 hover:text-slate-600"
               >

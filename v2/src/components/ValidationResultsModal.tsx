@@ -104,7 +104,7 @@ export const ValidationResultsModal: React.FC<Props> = ({
             </div>
           </div>
 
-          <button
+          <button type="button"
             onClick={onClose}
             className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
           >
@@ -244,7 +244,7 @@ export const ValidationResultsModal: React.FC<Props> = ({
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
-          <button
+          <button type="button"
             onClick={onClose}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
           >

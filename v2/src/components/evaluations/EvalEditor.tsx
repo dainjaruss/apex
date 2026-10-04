@@ -305,7 +305,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             {onBack && (
-              <button
+              <button type="button"
                 onClick={onBack}
                 className="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-700 transition-colors"
               >
@@ -313,7 +313,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               </button>
             )}
 
-            <button
+            <button type="button"
               onClick={handleTriggerVerify}
               disabled={isValidating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
@@ -323,7 +323,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               {isValidating ? "Auditing Rules..." : "Verify Rules"}
             </button>
 
-            <button
+            <button type="button"
               onClick={saveToDb}
               disabled={isSaving}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
@@ -332,7 +332,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               {isSaving ? "Saving..." : "Save Draft"}
             </button>
 
-            <button
+            <button type="button"
               onClick={() => exportSingleEvalTransfer(formData.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
               title="Pack and Route single file for review without database"
@@ -341,7 +341,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               Route Draft (.apex.json)
             </button>
 
-            <button
+            <button type="button"
               onClick={handleFinalizeAndDownloadPdf}
               disabled={isGeneratingPdf}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
@@ -355,7 +355,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
         {/* ── Zod Live Validation & BUPERS Helper Status Rail ── */}
         <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <button type="button"
               onClick={handleTriggerVerify}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-semibold transition-all cursor-pointer ${
                 isValid
@@ -377,7 +377,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             </button>
 
             {warnings.length > 0 && (
-              <button
+              <button type="button"
                 onClick={handleTriggerVerify}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-xs cursor-pointer"
               >
@@ -386,7 +386,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               </button>
             )}
 
-            <button
+            <button type="button"
               onClick={handleTriggerVerify}
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
@@ -420,7 +420,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             const isCurrent = currentStep === step.id;
             const isPast = currentStep > step.id;
             return (
-              <button
+              <button type="button"
                 key={step.id}
                 onClick={() => setCurrentStep(step.id)}
                 className={`py-2 px-3 rounded-lg text-xs font-semibold text-left transition-all flex items-center justify-between ${
@@ -457,7 +457,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
               <span>Errors on this section ({stepErrors.length}):</span>
             </div>
-            <button
+            <button type="button"
               onClick={handleTriggerVerify}
               className="text-[11px] underline text-red-700 dark:text-red-300 hover:text-red-900"
             >

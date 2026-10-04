@@ -191,7 +191,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             />
 
             {/* Pack & Route Import Button */}
-            <button
+            <button type="button"
               onClick={() => fileInputRef.current?.click()}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium transition-colors border border-slate-300 dark:border-slate-700"
               title="Import a routed evaluation packet (.apex.json) received via email or shared drive"
@@ -201,7 +201,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             </button>
 
             {/* SharePoint Settings Button */}
-            <button
+            <button type="button"
               onClick={() => setShowSpModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium transition-colors border border-slate-300 dark:border-slate-700"
               title="Configure command SharePoint List sync and REST email notifications"
@@ -211,7 +211,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             </button>
 
             {onStartNewFlow && (
-              <button
+              <button type="button"
                 onClick={onStartNewFlow}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
               >
@@ -220,19 +220,19 @@ export const EvalList: React.FC<EvalListProps> = ({
               </button>
             )}
 
-            <button
+            <button type="button"
               onClick={() => onCreateEval("EVAL")}
               className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
             >
               + Quick EVAL
             </button>
-            <button
+            <button type="button"
               onClick={() => onCreateEval("CHIEFEVAL")}
               className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
             >
               + Quick CHIEF
             </button>
-            <button
+            <button type="button"
               onClick={() => onCreateEval("FITREP")}
               className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
             >
@@ -246,7 +246,7 @@ export const EvalList: React.FC<EvalListProps> = ({
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Queue View Tabs */}
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold overflow-x-auto">
-          <button
+          <button type="button"
             onClick={() => setActiveQueueTab("ACTION_REQUIRED")}
             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap ${
               activeQueueTab === "ACTION_REQUIRED"
@@ -263,7 +263,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             )}
           </button>
 
-          <button
+          <button type="button"
             onClick={() => setActiveQueueTab("IN_ROUTING")}
             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap ${
               activeQueueTab === "IN_ROUTING"
@@ -274,7 +274,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             <span>In-Routing ({inRoutingEvals.length})</span>
           </button>
 
-          <button
+          <button type="button"
             onClick={() => setActiveQueueTab("COMPLETED")}
             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap ${
               activeQueueTab === "COMPLETED"
@@ -286,7 +286,7 @@ export const EvalList: React.FC<EvalListProps> = ({
             <span>Locked / Signed ({completedEvals.length})</span>
           </button>
 
-          <button
+          <button type="button"
             onClick={() => setActiveQueueTab("ALL")}
             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap ${
               activeQueueTab === "ALL"
@@ -302,7 +302,7 @@ export const EvalList: React.FC<EvalListProps> = ({
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
             {["ALL", "EVAL", "CHIEFEVAL", "FITREP"].map((t) => (
-              <button
+              <button type="button"
                 key={t}
                 onClick={() => setFilterType(t)}
                 className={`px-2.5 py-1 rounded font-medium transition-colors ${
@@ -438,7 +438,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
+                          <button type="button"
                             onClick={() => onSelectEval(ev)}
                             className="p-1.5 text-blue-600 hover:text-blue-800 dark:hover:text-blue-400 transition-colors"
                             title="Open Editor & Routing Stepper"
@@ -447,7 +447,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                           </button>
 
                           {/* Quick Pack & Route download */}
-                          <button
+                          <button type="button"
                             onClick={() => handleQuickPackDownload(ev)}
                             className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             title="Pack & Route (.apex.json custody packet)"
@@ -457,7 +457,7 @@ export const EvalList: React.FC<EvalListProps> = ({
 
                           {/* Quick SharePoint sync if enabled */}
                           {spConfig.enabled && (
-                            <button
+                            <button type="button"
                               onClick={() => handleQuickSpSync(ev)}
                               className="p-1.5 text-emerald-600 hover:text-emerald-700 transition-colors"
                               title="Sync to SharePoint List"
@@ -466,7 +466,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                             </button>
                           )}
 
-                          <button
+                          <button type="button"
                             onClick={() => downloadEvaluationPdf(ev)}
                             className="p-1.5 text-slate-500 hover:text-blue-600 transition-colors"
                             title="Download Official PDF"
@@ -474,7 +474,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                             <FileDown className="w-4 h-4" />
                           </button>
 
-                          <button
+                          <button type="button"
                             onClick={() => handleDelete(ev.id, ev.member_name)}
                             className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
                             title="Delete report"
@@ -511,7 +511,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                   SharePoint List Integration & Notifications
                 </h3>
               </div>
-              <button onClick={() => setShowSpModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={() => setShowSpModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>

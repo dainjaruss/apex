@@ -46,7 +46,7 @@ export const BupersGuidelinesInline: React.FC<Props> = ({
             {guideline.block}
           </span>
           {onDismiss && (
-            <button
+            <button type="button"
               onClick={onDismiss}
               className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200 p-0.5"
               title="Dismiss reference"

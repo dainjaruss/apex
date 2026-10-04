@@ -181,7 +181,7 @@ export function App() {
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl text-xs font-semibold">
-            <button
+            <button type="button"
               onClick={() => {
                 setActiveTab("evaluations");
                 setEditingEval(null);
@@ -197,7 +197,7 @@ export function App() {
               Evaluations
             </button>
 
-            <button
+            <button type="button"
               onClick={() => {
                 setActiveTab("continuity");
                 setEditingEval(null);
@@ -214,7 +214,7 @@ export function App() {
             </button>
 
             {isLeadership && (
-              <button
+              <button type="button"
                 onClick={() => {
                   setActiveTab("rsca");
                   setEditingEval(null);
@@ -231,7 +231,7 @@ export function App() {
               </button>
             )}
 
-            <button
+            <button type="button"
               onClick={() => {
                 setActiveTab("workspace");
                 setEditingEval(null);
@@ -251,7 +251,7 @@ export function App() {
           {/* User Profile, Notifications, & Role Switcher */}
           <div className="flex items-center gap-3">
             {/* Clickable Sailor Profile Badge */}
-            <button
+            <button type="button"
               onClick={() => setShowProfileModal(true)}
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-right group cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
               title="Click to view & edit your Sailor Profile and Local Storage"
@@ -271,7 +271,7 @@ export function App() {
 
             {/* Notification Bell with Badge Popover */}
             <div className="relative">
-              <button
+              <button type="button"
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Action Notifications"
@@ -292,7 +292,7 @@ export function App() {
                         Action Inbox ({pendingActionEvals.length})
                       </span>
                     </div>
-                    <button
+                    <button type="button"
                       onClick={() => setShowNotifications(false)}
                       className="text-slate-400 hover:text-slate-600"
                     >
@@ -329,7 +329,7 @@ export function App() {
                               </div>
                             )}
 
-                            <button
+                            <button type="button"
                               onClick={() => {
                                 setEditingEval(ev);
                                 setActiveTab("evaluations");
@@ -371,7 +371,7 @@ export function App() {
             </div>
 
             {/* Dark Mode Toggle */}
-            <button
+            <button type="button"
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title="Toggle theme"

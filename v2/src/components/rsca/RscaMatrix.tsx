@@ -8,6 +8,7 @@
 import React, { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
+import { NmciSafeForm } from "@/components/NmciSafeForm";
 import { Evaluation, SummaryGroup, RscaHistoricalRecord, Profile } from "@/types";
 import {
   computeSummaryGroupMetrics,
@@ -209,8 +210,11 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
   };
 
   // Handler: Create new Summary Group
-  const handleCreateGroupSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateGroupSubmit = async () => {
+    if (!newGroupName.trim() || !newGroupPeriodTo) {
+      alert("Summary group name and period ending date are required.");
+      return;
+    }
     const created = await createSummaryGroup({
       name: newGroupName.trim() || `CY2026 ${newGroupPaygrade} Periodic Group`,
       grade_rate: newGroupPaygrade,
@@ -262,7 +266,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
+            <button type="button"
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
             >
@@ -270,7 +274,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               Create Summary Group
             </button>
 
-            <button
+            <button type="button"
               onClick={() => setShowLedgerConfig(!showLedgerConfig)}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors"
             >
@@ -311,7 +315,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               <span className="text-xs px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
                 Period Ending: <strong className="text-slate-900 dark:text-white">{activeGroup.period_to}</strong>
               </span>
-              <button
+              <button type="button"
                 onClick={() => handleDeleteGroup(activeGroup.id)}
                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors"
                 title="Delete this summary group"
@@ -469,7 +473,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               </p>
             </div>
 
-            <button
+            <button type="button"
               onClick={handleSaveLedger}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
             >
@@ -549,7 +553,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <button type="button"
               onClick={handleStampMetrics}
               disabled={!activeGroup || groupEvals.length === 0}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
@@ -559,7 +563,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               Stamp Metrics to Block 50
             </button>
 
-            <button
+            <button type="button"
               onClick={handleGenerateSamplePeer}
               disabled={!activeGroup}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors"
@@ -569,7 +573,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               Add Sample Peer
             </button>
 
-            <button
+            <button type="button"
               onClick={() => setShowCandidateDrawer(!showCandidateDrawer)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-lg text-xs font-semibold border border-blue-200 dark:border-blue-800 transition-colors"
             >
@@ -607,7 +611,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                       </td>
 
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
-                        <button
+                        <button type="button"
                           onClick={() => onSelectEval && onSelectEval(ev)}
                           className="hover:underline text-left flex items-center gap-1.5"
                           title="Open evaluation editor"
@@ -684,14 +688,14 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {onSelectEval && (
-                            <button
+                            <button type="button"
                               onClick={() => onSelectEval(ev)}
                               className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-xs font-medium transition-colors"
                             >
                               Edit
                             </button>
                           )}
-                          <button
+                          <button type="button"
                             onClick={() => handleRemoveMember(ev.id)}
                             className="px-2 py-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-xs font-medium transition-colors"
                             title="Remove from this summary group"
@@ -730,7 +734,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
             </div>
 
             {candidateEvals.length > 0 && (
-              <button
+              <button type="button"
                 onClick={handleAddAllCandidates}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
               >
@@ -761,7 +765,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                     )}
                   </div>
 
-                  <button
+                  <button type="button"
                     onClick={() => handleAddMember(cand.id)}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition-colors shrink-0"
                   >
@@ -787,7 +791,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                 <Layers className="w-5 h-5 text-blue-600" />
                 Create New Summary Group
               </h3>
-              <button
+              <button type="button"
                 onClick={() => setShowCreateModal(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm"
               >
@@ -795,7 +799,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               </button>
             </div>
 
-            <form onSubmit={handleCreateGroupSubmit} className="space-y-4 text-xs">
+            <NmciSafeForm className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
                   Summary Group Name / Cycle Title
@@ -952,13 +956,15 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  data-nmci-submit=""
+                  onClick={() => void handleCreateGroupSubmit()}
                   className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold shadow-xs transition-colors"
                 >
                   Create & Open Group
                 </button>
               </div>
-            </form>
+            </NmciSafeForm>
           </div>
         </div>
       )}
