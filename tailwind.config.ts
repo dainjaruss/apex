@@ -11,13 +11,9 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
-          '"IBM Plex Sans"',
-          '"Outfit"',
+          "var(--font-inter)",
+          "Inter",
           "system-ui",
-          "-apple-system",
-          "BlinkMacSystemFont",
-          '"Segoe UI"',
-          "Roboto",
           "sans-serif",
         ],
       },
