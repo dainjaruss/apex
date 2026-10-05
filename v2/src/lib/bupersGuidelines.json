@@ -31,13 +31,12 @@
     ]
   },
   "dod_id": {
-    "title": "DoD ID Number",
+    "title": "SSN",
     "block": "Block 4",
-    "excerpt": "Department of Defense (DoD) ID/SSN. Enter the Service member's full SSN with hyphens after the third and fifth digits. It should be used for all reports that are mailed (e.g., 000-00-0000). [Note: In the APEX web interface, enter the member's 10-digit DoD ID instead of the SSN to protect personally identifiable information (PII).]",
+    "excerpt": "Enter the Service member's full SSN with hyphens after the third and fifth digits. It should be used for all reports that are mailed (e.g., 000-00-0000).",
     "rules": [
-      "Must be exactly 10 numeric digits.",
-      "Cannot be empty.",
-      "SSN must not be entered here."
+      "Full SSN uses hyphens after the third and fifth digits (000-00-0000).",
+      "Blank or all zeros is an accepted reduction. The member makes that choice."
     ]
   },
   "duty_status": {
@@ -205,13 +204,13 @@
     ]
   },
   "reporting_senior_dod_id": {
-    "title": "Reporting Senior — DoD ID",
+    "title": "Reporting Senior SSN",
     "block": "Block 27",
-    "excerpt": "Enter the reporting senior's full SSN with hyphens after the third and fifth digits (e.g., 000-00-0000). It is optional for reporting seniors to provide a copy of a report without their SSN to the member and command files. The copy for filing to the member's OMPF must have the reporting senior's full SSN to track the reporting senior's cumulative average. Protect PII. [Note: In the APEX web interface, enter the reporting senior's 10-digit DoD ID instead of the SSN to protect personally identifiable information (PII), consistent with Block 4.]",
+    "excerpt": "Enter the reporting senior's full SSN with hyphens after the third and fifth digits (e.g., 000-00-0000). It is optional for reporting seniors to provide a copy of a report without their SSN to the member and command files. The copy for filing to the member's OMPF must have the reporting senior's full SSN to track the reporting senior's cumulative average.",
     "rules": [
-      "Must be exactly 10 numeric digits.",
-      "Cannot be empty.",
-      "SSN must not be entered here — APEX uses the DoD ID in lieu of the SSN (see Block 4)."
+      "Full SSN uses hyphens after the third and fifth digits (000-00-0000).",
+      "Blank or all zeros is an accepted reduction.",
+      "The OMPF copy needs the reporting senior's full SSN so the cumulative average can be tracked."
     ]
   },
   "command_achievements": {

@@ -23,6 +23,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
+vi.mock("next/font/google", () => ({
+  Inter: () => ({ variable: "--font-inter", className: "font-inter" }),
+}));
+
 vi.mock("next/headers", () => ({
   cookies: () => ({
     get: () => ({ value: "test-token" }),

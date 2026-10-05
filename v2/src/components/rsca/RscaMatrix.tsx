@@ -10,6 +10,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { NmciSafeForm } from "@/components/NmciSafeForm";
 import { Evaluation, SummaryGroup, RscaHistoricalRecord, Profile } from "@/types";
+import { UIC_PATTERN } from "@/types/navpers";
 import {
   computeSummaryGroupMetrics,
   stampSummaryGroupMetrics,
@@ -68,7 +69,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
   const [newGroupPeriodTo, setNewGroupPeriodTo] = useState("2026-11-15");
   const [newGroupPromotionStatus, setNewGroupPromotionStatus] = useState("Regular");
   const [newGroupDutyStatus, setNewGroupDutyStatus] = useState("ACT");
-  const [newGroupUic, setNewGroupUic] = useState(activeProfile?.uic || "N0024");
+  const [newGroupUic, setNewGroupUic] = useState(activeProfile?.uic || "00024");
   const [newGroupReportType, setNewGroupReportType] = useState<"EVAL" | "CHIEFEVAL" | "FITREP">("EVAL");
   const [newGroupBillet, setNewGroupBillet] = useState("NA");
 
@@ -215,13 +216,18 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
       alert("Summary group name and period ending date are required.");
       return;
     }
+    const groupUic = newGroupUic.trim().toUpperCase();
+    if (groupUic && !UIC_PATTERN.test(groupUic)) {
+      alert("UIC must be exactly 5 characters, and the first four must be numbers (for example 00024). Leave it blank if this group is not split by UIC.");
+      return;
+    }
     const created = await createSummaryGroup({
       name: newGroupName.trim() || `CY2026 ${newGroupPaygrade} Periodic Group`,
       grade_rate: newGroupPaygrade,
       period_to: newGroupPeriodTo,
       promotion_status: newGroupPromotionStatus,
       duty_status: newGroupDutyStatus,
-      uic: newGroupUic,
+      uic: groupUic,
       billet_subcategory: newGroupBillet,
       report_type: newGroupReportType,
       status: "open",
@@ -497,7 +503,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
 
             <div>
               <label className="block text-slate-600 dark:text-slate-400 mb-1 font-medium">
-                Reporting Senior DoD ID
+                Reporting Senior SSN
               </label>
               <input
                 type="text"
@@ -620,7 +626,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                           <ExternalLink className="w-3 h-3 text-slate-400 opacity-60" />
                         </button>
                         <div className="text-[11px] font-normal text-slate-500 font-mono">
-                          DoD ID: {ev.dod_id}
+                          SSN: {ev.dod_id || "blank"}
                         </div>
                       </td>
 

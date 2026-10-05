@@ -107,13 +107,14 @@ function BlockInput({
   evalData: Evaluation;
   handleBlockValueChange: (f: Record<string, any>) => void;
   maxLength?: number;
-  transform?: "uppercase" | "digits" | "pfa" | "none";
+  transform?: "uppercase" | "digits" | "ssn" | "pfa" | "none";
   issues: ValidationIssue[];
   onFocusField?: (field: string | null) => void;
 }) {
   const xform = (v: string) => {
     if (transform === "uppercase") return v.toUpperCase();
     if (transform === "digits") return v.replace(/[^0-9]/g, "");
+    if (transform === "ssn") return v.replace(/[^0-9-]/g, "");
     // Block 20 PFA codes: uppercase and strip anything that isn't a valid code.
     if (transform === "pfa") return v.toUpperCase().replace(/[^PBFMWN]/g, "");
     return v;
@@ -354,11 +355,11 @@ function CommandDetailsSection({
         </div>
         <div className="md:col-span-3">
           <BlockInput
-            label="27: RS DoD ID"
+            label="27: RS SSN"
             fieldKey="reporting_senior_dod_id"
-            placeholder="10-digit DoD ID"
-            transform="digits"
-            maxLength={10}
+            placeholder="000-00-0000"
+            transform="ssn"
+            maxLength={11}
             evalData={evalData}
             handleBlockValueChange={handleBlockValueChange}
             issues={issues}

@@ -85,7 +85,13 @@ export const registerSchema = z
       message: "Select a valid Navy rank/rate",
     }),
 
-    uic: z.string().max(5, "UIC must be 5 characters or fewer").optional(),
+    uic: z
+      .string()
+      .refine((v) => !v || /^[0-9]{4}[A-Za-z0-9]$/.test(v), {
+        message:
+          "UIC must be exactly 5 characters, and the first four must be numbers",
+      })
+      .optional(),
 
     command: z.string().min(1, "Command name is required"),
 

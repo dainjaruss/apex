@@ -131,7 +131,7 @@ describe("EvaluationForm On-Demand Rules Check Integration Tests", () => {
       screen.getAllByText(/Name must be in LAST, FIRST MI format/i).length,
     ).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getAllByText(/DoD ID must be exactly 10 digits/i).length,
+      screen.getAllByText(/SSN must be blank, all zeros, or written as 000-00-0000/i).length,
     ).toBeGreaterThanOrEqual(1);
 
     // Close modal

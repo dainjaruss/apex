@@ -70,7 +70,7 @@ export const ContinuityInspector: React.FC = () => {
     individual_trait_avg: 4.0,
     rsca: 3.85,
     reporting_senior_name: "REPORTING SENIOR",
-    uic: activeProfile?.uic || "N0024",
+    uic: activeProfile?.uic || "00024",
     status: "verified",
   });
 
@@ -164,7 +164,7 @@ export const ContinuityInspector: React.FC = () => {
       individual_trait_avg: Number(newRecord.individual_trait_avg) || 3.8,
       rsca: Number(newRecord.rsca) || 3.8,
       reporting_senior_name: newRecord.reporting_senior_name || "REPORTING SENIOR",
-      uic: newRecord.uic || activeProfile?.uic || "N0024",
+      uic: newRecord.uic || activeProfile?.uic || "00024",
       status: "verified",
       notes: newRecord.notes || "Historical PSR Entry",
     };
@@ -220,7 +220,7 @@ export const ContinuityInspector: React.FC = () => {
           individual_trait_avg: ita,
           rsca: rsca,
           reporting_senior_name: "HISTORICAL SENIOR",
-          uic: activeProfile?.uic || "N0024",
+          uic: activeProfile?.uic || "00024",
           status: "verified",
           notes: "Imported from PSR Part III text",
         });
@@ -753,7 +753,7 @@ export const ContinuityInspector: React.FC = () => {
                     value={newRecord.uic}
                     onChange={(e) => setNewRecord({ ...newRecord, uic: e.target.value })}
                     className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                    placeholder="e.g. N0024"
+                    placeholder="e.g. 00024"
                   />
                 </div>
               </div>
@@ -806,7 +806,7 @@ export const ContinuityInspector: React.FC = () => {
               <div className="text-center font-bold pb-2 border-b border-slate-300 dark:border-slate-700">
                 DEPARTMENT OF THE NAVY<br />
                 {selectedGap.currRecord.reporting_senior_name || "COMMANDING OFFICER"}<br />
-                UIC: {selectedGap.currRecord.uic || "N0024"}
+                UIC: {selectedGap.currRecord.uic || "00024"}
               </div>
 
               <div>
@@ -816,7 +816,7 @@ export const ContinuityInspector: React.FC = () => {
               </div>
 
               <div>
-                From: Commanding Officer, {selectedGap.currRecord.uic || "N0024"}<br />
+                From: Commanding Officer, {selectedGap.currRecord.uic || "00024"}<br />
                 To:   Commander, Navy Personnel Command (PERS-32)<br />
                 Subj: CONTINUITY OF EVALUATION SERVICE EXPLANATION ICO {selectedGap.currRecord.member_name}
               </div>

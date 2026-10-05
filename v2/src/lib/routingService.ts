@@ -124,7 +124,7 @@ Shipmate,
 The following performance evaluation has transitioned in the APEX routing pipeline and requires your review/action per BUPERSINST 1610.10H:
 
 • Member: ${evaluation.member_name}
-• DoD ID: ${evaluation.dod_id}
+• SSN: ${evaluation.dod_id || "blank"}
 • Rate / Paygrade: ${evaluation.grade_rate}
 • Form / Report Type: NAVPERS ${evaluation.report_type}
 • Period Ending: ${evaluation.period_to}

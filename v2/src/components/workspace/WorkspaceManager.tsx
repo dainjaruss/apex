@@ -70,7 +70,7 @@ export const WorkspaceManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       {/* Header Banner */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
         <div className="flex items-center gap-2">

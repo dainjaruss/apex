@@ -92,7 +92,7 @@ export interface Evaluation {
     reporting_senior_designator?: string;
     reporting_senior_title?: string;
     reporting_senior_uic?: string;
-    reporting_senior_dod_id?: string; // Block 27 (DoD ID in lieu of SSN — APEX PII policy, cf. Block 4)
+    reporting_senior_dod_id?: string; // Block 27 SSN. Field key kept so stored reports still open.
     reporting_senior_date_signed?: string;
     reporting_senior_address?: string; // Block 48 (text — NOT a signature)
     date_counseled?: string; // Block 30

@@ -295,7 +295,7 @@ const C = {
     // 28's cell y[601.560, 648.360]. That was invisible while Block 28 itself
     // drew at 574.0, because both were displaced and neither was where the other
     // was. Correcting Block 28 to 628.87 put its second line at 617.195, 1.195 pt
-    // from this row: rendered, the name, grade, designator, title, UIC and DoD ID
+    // from this row: rendered, the name, grade, designator, title, UIC and SSN
     // print straight through Block 28's narrative. Fixing one field into a cell
     // another field is squatting in is not a fix.
     //

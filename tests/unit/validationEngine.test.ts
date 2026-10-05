@@ -75,7 +75,7 @@ describe("APEX Validation Engine Unit Tests", () => {
     const invalidAdmin = {
       ...mockValidEvaluation,
       member_name: "John Doe", // Invalid format
-      dod_id: "12345", // Must be 10 digits
+      dod_id: "12345", // Too short to be an SSN
       uic: "ABC", // Must be 5 characters
       grade_rate: "PO-2", // Special characters not allowed
     };
@@ -86,6 +86,49 @@ describe("APEX Validation Engine Unit Tests", () => {
     expect(result.errors.some((e) => e.field === "dod_id")).toBe(true);
     expect(result.errors.some((e) => e.field === "uic")).toBe(true);
     expect(result.errors.some((e) => e.field === "grade_rate")).toBe(true);
+  });
+
+  it("accepts a blank, zeroed, or hyphenated SSN in Block 4 and Block 27", () => {
+    for (const dod_id of ["", "000000000", "000-00-0000"]) {
+      const result = runFullValidation({
+        ...mockValidEvaluation,
+        dod_id,
+        block_values: {
+          ...mockValidEvaluation.block_values,
+          reporting_senior_dod_id: dod_id,
+        },
+      });
+      expect(result.errors.some((e) => e.field === "dod_id")).toBe(false);
+      expect(result.errors.some((e) => e.field === "reporting_senior_dod_id")).toBe(false);
+    }
+  });
+
+  it("rejects a UIC or reporting-senior UIC that starts with a letter", () => {
+    const letterUic = { ...mockValidEvaluation, uic: "N0024" };
+    expect(
+      runFullValidation(letterUic).errors.some(
+        (e) => e.field === "uic" && e.block === 6,
+      ),
+    ).toBe(true);
+
+    const letterRs = {
+      ...mockValidEvaluation,
+      block_values: {
+        ...mockValidEvaluation.block_values,
+        reporting_senior_uic: "N0002",
+      },
+    };
+    expect(
+      runFullValidation(letterRs).errors.some(
+        (e) => e.field === "reporting_senior_uic" && e.block === 26,
+      ),
+    ).toBe(true);
+
+    // Fifth character may be a letter. First four must be numbers.
+    const fifthLetter = { ...mockValidEvaluation, uic: "0002A" };
+    expect(
+      runFullValidation(fifthLetter).errors.some((e) => e.field === "uic"),
+    ).toBe(false);
   });
 
   it("should flag errors if member name contains disallowed special characters", () => {

@@ -85,7 +85,7 @@ app/evaluations/[id]/export/page.tsx
 - **Pre-export gate:** reuse `runFullValidation`; add **NAVFIT-specific** checks (fields Access marks NOT NULL, date formats, trait completeness).
 - **No silent truncation:** if Access column width < APEX field, **block export** with block-number message (same UX as PDF gate).
 - **Audit:** log export events in `auditService` (who, when, eval id, file hash).
-- **PII:** export uses same DoD ID policy as PDF (no SSN in APEX fields).
+- **PII:** the APEX form calls Block 4 and Block 27 SSN. The NAVFIT export still leaves those columns blank.
 
 ---
 

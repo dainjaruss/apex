@@ -42,7 +42,7 @@ All column names below are copied verbatim from the golden schema (case-sensitiv
 | 7 | `Suffix` | text(10) | — | APEX name regex captures no suffix — **leave NULL** | no | `NULL` |
 | 8 | `Rate` | text(5) | `grade_rate` | Verbatim; validate ≤5 | yes | `""` |
 | 9 | `Desig` | text(12) | `designator` | Verbatim (FITREP: 4-digit officer designator) | FITREP only | `""` |
-| 10 | `SSN` | text(9) | — | **Leave NULL.** APEX stores 10-digit DoD ID (`dod_id`), no SSN; 10 digits do not fit 9 chars. See Gaps/§8. | no | `NULL` |
+| 10 | `SSN` | text(9) | — | **Leave NULL.** The APEX form calls Block 4 SSN (blank, all zeros, or 000-00-0000; a stored 10-digit value may also be present). This export does not write that value. A 10-digit value does not fit text(9). See Gaps/§8. | no | `NULL` |
 | 11 | `Active` | bit | `duty_status` | `-1` if `"ACT"`, else `0` | yes | `0` |
 | 12 | `TAR` | bit | `duty_status` | `-1` if `"TAR"`, else `0` | yes | `0` |
 | 13 | `Inactive` | bit | `duty_status` | `-1` if `"INACT"`, else `0` | yes | `0` |
@@ -73,7 +73,7 @@ All column names below are copied verbatim from the golden schema (case-sensitiv
 | 38 | `RSDesig` | text(5) | `reporting_senior_designator` | Verbatim (4-digit or `LTR`/`USAF`/`USA`/`USMC`/`USCG`/`USSF`/`USPH`/`NOAA` — all ≤5) | no | `""` |
 | 39 | `RSTitle` | text(14) | `reporting_senior_title` | Verbatim (APEX ≤14) | yes | `""` |
 | 40 | `RSUIC` | text(5) | `reporting_senior_uic` | Verbatim (APEX exactly 5) | yes | `""` |
-| 41 | `RSSSN` | text(9) | — | **Leave NULL.** APEX has `reporting_senior_dod_id` (10 digits); does not fit. See Gaps. | no | `NULL` |
+| 41 | `RSSSN` | text(9) | — | **Leave NULL.** Block 27 is the reporting senior SSN on the APEX form. This export does not write `reporting_senior_dod_id`. See Gaps. | no | `NULL` |
 | 42 | `Achievements` | memo | `command_achievements` | Verbatim (form fit already enforced: 91 cpl × 3 lines) | yes | `""` |
 | 43 | `PrimaryDuty` | text(14) | `primary_duty_abbrev` | Verbatim (APEX ≤14) | no | `""` |
 | 44 | `Duties` | memo | `primary_duties` | Verbatim (91 cpl, 20-char first-line lead) | yes | `""` |
@@ -278,7 +278,7 @@ The exporter runs **server-side**, on the DB row (never a client-supplied body),
 8. `Reports.Parent` exactly `"a " + FolderID` (with the space); every report's Parent resolves to an existing `FolderID` (dangling = silently invisible in NAVFIT).
 9. `FolderID`/`ReportID` explicitly seeded, unique, ≥1.
 10. Legacy-vs-new NULL pattern per the Empty column in §1 (golden-row fidelity).
-11. `Psswrd` NULL in both tables; no `dod_id` written anywhere (see Gaps — prevents a 10-digit ID masquerading as an SSN).
+11. `Psswrd` NULL in both tables; no `dod_id` written anywhere (see Gaps — a stored 10-digit value must not be written into the 9-character SSN column).
 12. Dates written as midnight OLE dates with no TZ shift.
 13. Audit: insert `audit_logs` row (action `NAVFIT_EXPORTED`) per export, service-role client, like eval-finalize.
 
@@ -287,7 +287,7 @@ The exporter runs **server-side**, on the DB row (never a client-supplied body),
 ## 7. Gap list
 
 **APEX fields with no NAVFIT column (not exported):**
-- `dod_id` (block 4) and `reporting_senior_dod_id` (block 27) — NAVFIT has `SSN`/`RSSSN` Text(9); APEX 10-digit DoD IDs do not fit and are not SSNs. Blocks 4/27 arrive **blank** in NAVFIT; the command fills SSNs there. (Deliberate: writing DoD IDs into SSN fields would corrupt downstream BUPERS processing.)
+- `dod_id` (block 4) and `reporting_senior_dod_id` (block 27) — the APEX form treats these as SSN. NAVFIT `SSN`/`RSSSN` are Text(9). This export still leaves them blank. Do not write a stored 10-digit value into those columns.
 - `trait_average` (block 40) — no column; NAVFIT recomputes.
 - `summary_group_average` (block 50a) — no column.
 - `reporting_senior_signature`, `reporting_senior_signature_date` (block 50) — no columns.

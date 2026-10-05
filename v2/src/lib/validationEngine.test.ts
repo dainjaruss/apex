@@ -88,7 +88,7 @@ function makeFullEval(overrides: Partial<Evaluation> = {}): Evaluation {
     period_from: '2025-01-01',
     period_to: '2025-09-30',
     duty_status: 'ACT',
-    uic: 'N1234',
+    uic: '01234',
     ship_station: 'USS TEST DDG-99',
     promotion_status: 'Regular',
     trait_grades: {
@@ -108,7 +108,7 @@ function makeFullEval(overrides: Partial<Evaluation> = {}): Evaluation {
       reporting_senior_grade: 'CAPT',
       reporting_senior_designator: '1110',
       reporting_senior_title: 'CO',
-      reporting_senior_uic: 'N0002',
+      reporting_senior_uic: '00002',
       reporting_senior_dod_id: '9876543210',
       command_achievements: 'BATTLE E RECIPIENT FY26',
       primary_duty_abbrev: 'IT1',
@@ -137,6 +137,58 @@ describe('runFullValidation — clean evaluation', () => {
   it('returns success:true for a clean eval', () => {
     const result = runFullValidation(makeFullEval());
     expect(result.success).toBe(true);
+  });
+
+  it('rejects a UIC that starts with a letter and accepts a numeric prefix', () => {
+    const letter = runFullValidation(makeFullEval({ uic: 'N0024' }));
+    expect(letter.errors.some((e) => e.field === 'uic' && e.block === 6)).toBe(true);
+
+    const fifthLetter = runFullValidation(makeFullEval({ uic: '0002A' }));
+    expect(fifthLetter.errors.some((e) => e.field === 'uic')).toBe(false);
+  });
+
+  it('accepts a blank, zeroed, hyphenated, or stored 10-digit SSN', () => {
+    const base = makeFullEval().block_values;
+    for (const value of ['', '000000000', '000-00-0000', '1234567890']) {
+      const result = runFullValidation(
+        makeFullEval({
+          dod_id: value,
+          block_values: { ...base, reporting_senior_dod_id: value },
+        }),
+      );
+      expect(result.errors.some((e) => e.field === 'dod_id')).toBe(false);
+      expect(result.errors.some((e) => e.field === 'reporting_senior_dod_id')).toBe(false);
+    }
+
+    const short = runFullValidation(makeFullEval({ dod_id: '12345' }));
+    expect(short.errors.some((e) => e.field === 'dod_id' && e.block === 4)).toBe(true);
+  });
+
+  it('rejects a reporting senior UIC that starts with a letter', () => {
+    const ev = makeFullEval({
+      block_values: {
+        ...makeFullEval().block_values,
+        reporting_senior_uic: 'N0002',
+      },
+    });
+    const result = runFullValidation(ev);
+    expect(result.errors.some((e) => e.field === 'reporting_senior_uic' && e.block === 26)).toBe(true);
+  });
+
+  it('rejects a third Block 41 career recommendation', () => {
+    const three = runFullValidation(
+      makeFullEval({ career_recommendations: ['LCPO', 'LPO', 'DLCPO ASSISTANT'] }),
+    );
+    expect(
+      three.errors.some(
+        (e) => e.field === 'career_recommendations' && /at most 2/.test(e.message),
+      ),
+    ).toBe(true);
+
+    const two = runFullValidation(
+      makeFullEval({ career_recommendations: ['CHIEF PETTY OFFICER', 'LPO'] }),
+    );
+    expect(two.errors.some((e) => e.field === 'career_recommendations')).toBe(false);
   });
 });
 
@@ -435,7 +487,7 @@ describe('runFullValidation — FITREP EO Block 34 substantiation', () => {
       period_from: '2025-01-01',
       period_to: '2025-09-30',
       duty_status: 'ACT',
-      uic: 'N1234',
+      uic: '01234',
       ship_station: 'USS TEST DDG-99',
       promotion_status: 'Regular',
       trait_grades: {
@@ -455,7 +507,7 @@ describe('runFullValidation — FITREP EO Block 34 substantiation', () => {
         reporting_senior_grade: 'CAPT',
         reporting_senior_designator: '1110',
         reporting_senior_title: 'CO',
-        reporting_senior_uic: 'N0002',
+        reporting_senior_uic: '00002',
         reporting_senior_dod_id: '9876543210',
         command_achievements: 'BATTLE E RECIPIENT FY26',
         primary_duty_abbrev: 'OPS',
@@ -540,7 +592,7 @@ describe('runFullValidation — CHIEFEVAL all-2.0 substantiation', () => {
       period_from: '2025-01-01',
       period_to: '2025-09-30',
       duty_status: 'ACT',
-      uic: 'N1234',
+      uic: '01234',
       ship_station: 'USS TEST DDG-99',
       promotion_status: 'Regular',
       trait_grades: {
@@ -561,7 +613,7 @@ describe('runFullValidation — CHIEFEVAL all-2.0 substantiation', () => {
         reporting_senior_grade: 'CAPT',
         reporting_senior_designator: '1110',
         reporting_senior_title: 'CO',
-        reporting_senior_uic: 'N0002',
+        reporting_senior_uic: '00002',
         reporting_senior_dod_id: '9876543210',
         command_achievements: 'BATTLE E RECIPIENT FY26',
         primary_duty_abbrev: 'ITC',
@@ -666,7 +718,7 @@ describe('runFullValidation — FITREP 1.0 mark', () => {
       period_from: '2025-01-01',
       period_to: '2025-09-30',
       duty_status: 'ACT',
-      uic: 'N1234',
+      uic: '01234',
       ship_station: 'USS TEST DDG-99',
       promotion_status: 'Regular',
       trait_grades: {
@@ -686,7 +738,7 @@ describe('runFullValidation — FITREP 1.0 mark', () => {
         reporting_senior_grade: 'CAPT',
         reporting_senior_designator: '1110',
         reporting_senior_title: 'CO',
-        reporting_senior_uic: 'N0002',
+        reporting_senior_uic: '00002',
         reporting_senior_dod_id: '9876543210',
         command_achievements: 'BATTLE E FY26',
         primary_duty_abbrev: 'OPS',
@@ -747,7 +799,7 @@ describe('runFullValidation — CHIEFEVAL 1.0 mark', () => {
       period_from: '2025-01-01',
       period_to: '2025-09-30',
       duty_status: 'ACT',
-      uic: 'N1234',
+      uic: '01234',
       ship_station: 'USS TEST DDG-99',
       promotion_status: 'Regular',
       trait_grades: {
@@ -768,7 +820,7 @@ describe('runFullValidation — CHIEFEVAL 1.0 mark', () => {
         reporting_senior_grade: 'CAPT',
         reporting_senior_designator: '1110',
         reporting_senior_title: 'CO',
-        reporting_senior_uic: 'N0002',
+        reporting_senior_uic: '00002',
         reporting_senior_dod_id: '9876543210',
         command_achievements: 'BATTLE E FY26',
         primary_duty_abbrev: 'ITC',
