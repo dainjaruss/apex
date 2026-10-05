@@ -47,7 +47,7 @@ export const DEFAULT_PROFILE: Profile = {
   email: "dain.a.franklyn.mil@us.navy.mil",
   navy_rank: "PO1",
   rate: "IT1",
-  uic: "N0024",
+  uic: "00024",
   ship_station: "NAVSEA WASHINGTON DC",
   preferred_role: "Reporting Senior",
 };
@@ -59,13 +59,17 @@ export async function seedInitialDataIfEmpty() {
     const existing = await db.evaluations.get("eval-sample-001");
     if (existing) {
       let needsUpdate = false;
-      if (existing.uic === "N00024" || existing.block_values?.reporting_senior_name === "KIRK, JAMES T") {
-        existing.uic = "N0024";
+      if (
+        existing.uic === "N00024" ||
+        existing.uic === "N0024" ||
+        existing.block_values?.reporting_senior_name === "KIRK, JAMES T"
+      ) {
+        existing.uic = "00024";
         existing.block_values = {
           ...existing.block_values,
           reporting_senior_name: "KIRK, J T",
           reporting_senior_title: "CO",
-          reporting_senior_uic: "N0024",
+          reporting_senior_uic: "00024",
           reporting_senior_address: existing.block_values?.reporting_senior_address || "NAVSEA WASHINGTON NAVY YARD DC",
           command_achievements: existing.block_values?.command_achievements || "C5ISR EXCELLENCE AWARD; CYBER INNOVATION OF THE YEAR",
           primary_duty_abbrev: existing.block_values?.primary_duty_abbrev || "LPO / CYBER",
@@ -78,8 +82,52 @@ export async function seedInitialDataIfEmpty() {
         existing.summary_group_id = "sg-nov2026-e6";
         needsUpdate = true;
       }
+      if (
+        Array.isArray(existing.career_recommendations) &&
+        existing.career_recommendations.length > 2
+      ) {
+        existing.career_recommendations = existing.career_recommendations.slice(0, 2);
+        needsUpdate = true;
+      }
       if (needsUpdate) {
         await db.evaluations.put(existing);
+      }
+    }
+
+    // Peers were copied from the sample, so they kept the hidden third Block 41
+    // entry and the letter-leading UIC. The form can only edit two slots, and a
+    // UIC's first four characters have to be numbers.
+    const stored = await db.evaluations.toArray();
+    for (const ev of stored) {
+      const uic =
+        ev.uic === "N0024" || ev.uic === "N00024" ? "00024" : ev.uic;
+      const rsUic = ev.block_values?.reporting_senior_uic;
+      const nextRs =
+        rsUic === "N0024" || rsUic === "N00024" ? "00024" : rsUic;
+      const recs = ev.career_recommendations;
+      const nextRecs =
+        Array.isArray(recs) && recs.length > 2 ? recs.slice(0, 2) : recs;
+      if (uic !== ev.uic || nextRs !== rsUic || nextRecs !== recs) {
+        await db.evaluations.put({
+          ...ev,
+          uic,
+          career_recommendations: nextRecs,
+          block_values: ev.block_values
+            ? { ...ev.block_values, reporting_senior_uic: nextRs }
+            : ev.block_values,
+        });
+      }
+    }
+    const storedProfiles = await db.profiles.toArray();
+    for (const profile of storedProfiles) {
+      if (profile.uic === "N0024" || profile.uic === "N00024") {
+        await db.profiles.put({ ...profile, uic: "00024" });
+      }
+    }
+    const storedGroups = await db.summary_groups.toArray();
+    for (const group of storedGroups) {
+      if (group.uic === "N0024" || group.uic === "N00024") {
+        await db.summary_groups.put({ ...group, uic: "00024" });
       }
     }
 
@@ -95,7 +143,7 @@ export async function seedInitialDataIfEmpty() {
         grade_rate: "E6",
         promotion_status: "Regular",
         duty_status: "ACT",
-        uic: "N0024",
+        uic: "00024",
         billet_subcategory: "NA",
         report_type: "EVAL",
         status: "open",
@@ -197,7 +245,7 @@ export async function seedInitialDataIfEmpty() {
     period_from: "2025-11-16",
     period_to: "2026-11-15",
     duty_status: "ACT",
-    uic: "N0024",
+    uic: "00024",
     ship_station: "NAVSEA WASHINGTON DC",
     promotion_status: "Regular",
     trait_grades: {
@@ -217,7 +265,7 @@ export async function seedInitialDataIfEmpty() {
       "- MISSION COMMAND: Supervised 14 technicians across 3 divisions during C5ISR lifecycle certification, achieving 98.4% operational readiness score.\n" +
       "- DECKPLATE IMPACT: Mentored 8 junior Sailors resulting in 4 advancements, 2 Junior Sailor of the Quarter selections, and 100% retention.\n\n" +
       "PETTY OFFICER FRANKLYN HAS EARNED MY HIGHEST RECOMMENDATION FOR EARLY SELECTION TO CHIEF PETTY OFFICER!",
-    career_recommendations: ["CHIEF PETTY OFFICER", "LPO", "DLCPO ASSISTANT"],
+    career_recommendations: ["CHIEF PETTY OFFICER", "LPO"],
     promotion_recommendation: "Early Promote",
     retention: "Recommended",
     status: "ready_for_review",
@@ -230,7 +278,7 @@ export async function seedInitialDataIfEmpty() {
       reporting_senior_grade: "CAPT",
       reporting_senior_designator: "1110",
       reporting_senior_title: "CO",
-      reporting_senior_uic: "N0024",
+      reporting_senior_uic: "00024",
       reporting_senior_dod_id: "9876543210",
       reporting_senior_address: "NAVSEA WASHINGTON NAVY YARD DC",
       date_counseled: "2026-05-15",
@@ -359,7 +407,7 @@ export async function seedInitialDataIfEmpty() {
       individual_trait_avg: 4.14,
       rsca: 3.86,
       reporting_senior_name: "PIKE, CHRISTOPHER",
-      uic: "N00024",
+      uic: "00024",
       status: "verified",
       notes: "Annual E-6 Periodic",
     },
@@ -375,7 +423,7 @@ export async function seedInitialDataIfEmpty() {
       individual_trait_avg: 4.29,
       rsca: 3.88,
       reporting_senior_name: "KIRK, JAMES T",
-      uic: "N00024",
+      uic: "00024",
       status: "verified",
       notes: "Annual E-6 Periodic",
     },
@@ -391,7 +439,7 @@ export async function seedInitialDataIfEmpty() {
       individual_trait_avg: 4.43,
       rsca: 3.90,
       reporting_senior_name: "KIRK, JAMES T",
-      uic: "N00024",
+      uic: "00024",
       status: "verified",
       notes: "Current In-Progress Report",
     },
@@ -410,7 +458,7 @@ export async function seedInitialDataIfEmpty() {
     grade_rate: "E6",
     promotion_status: "Regular",
     duty_status: "ACT",
-    uic: "N0024",
+    uic: "00024",
     billet_subcategory: "NA",
     report_type: "EVAL",
     status: "open",

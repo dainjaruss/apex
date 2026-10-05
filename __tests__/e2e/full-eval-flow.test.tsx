@@ -100,7 +100,7 @@ describe("APEX Full Evaluation Lifecycle E2E Integration Test", () => {
     // Step 1: Create a draft evaluation with some validation errors
     const initialReport: Partial<Evaluation> = {
       member_name: "John Doe", // Invalid name format (must be LAST, FIRST MI)
-      dod_id: "12345", // Invalid dod_id format (must be 10 digits)
+      dod_id: "12345", // Invalid SSN (too short)
       report_type: "EVAL",
       form_definition_id: "EVAL",
       status: "draft",

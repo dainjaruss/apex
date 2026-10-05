@@ -129,6 +129,57 @@ export const COUNSELOR_MAX = 22;
 export const CAREER_REC_SLOTS = 2;
 export const CAREER_REC_MAX = 20;
 
+// The printed block has two boxes. Anything past the second is not editable, so a
+// stored third entry (the sample eval shipped one) fails "at most 2" with no way
+// to clear it. Keep exactly the two slots the form shows.
+export function careerRecommendationSlots(
+  value: readonly string[] | null | undefined,
+): [string, string] {
+  const recs = Array.isArray(value) ? value : [];
+  return [recs[0] ?? "", recs[1] ?? ""];
+}
+
+export function withCareerRecommendationSlots<
+  T extends { career_recommendations?: string[] | null },
+>(evaluation: T): T {
+  const slots = careerRecommendationSlots(evaluation.career_recommendations);
+  const current = evaluation.career_recommendations ?? [];
+  if (
+    current.length === 2 &&
+    current[0] === slots[0] &&
+    current[1] === slots[1]
+  ) {
+    return evaluation;
+  }
+  return { ...evaluation, career_recommendations: [...slots] };
+}
+
+// BUPERSINST 1610.10H Block 6 / Block 26, as transcribed in bupersGuidelines.json:
+// exactly 5 alphanumeric characters, and the first four must be numbers.
+// The fifth may be a letter. "00000" is the no-UIC entry.
+export const UIC_PATTERN = /^[0-9]{4}[A-Za-z0-9]$/;
+
+export function uicField(block: 6 | 26) {
+  const who = block === 6 ? "UIC" : "Reporting Senior UIC";
+  return z.string().regex(
+    UIC_PATTERN,
+    `${who} must be exactly 5 characters, and the first four must be numbers (Block ${block})`,
+  );
+}
+
+// Block 4 and Block 27 are the SSN on the form. Blank and all zeros are the
+// usual reduction. 10 digits still pass so reports saved under the old label remain valid.
+export const SSN_PATTERN =
+  /^(?:[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{10})?$/;
+
+export function ssnField(block: 4 | 27) {
+  const who = block === 4 ? "SSN" : "Reporting Senior SSN";
+  return z.string().regex(
+    SSN_PATTERN,
+    `${who} must be blank, all zeros, or written as 000-00-0000 (Block ${block})`,
+  );
+}
+
 // Helper to validate Navy dates in YYMMMDD format (e.g. 25JAN15)
 
 const NAVY_DATE_REGEX =
@@ -360,13 +411,11 @@ export const EvalSchema = z
 
     designator: z.string().optional(),
 
-    dod_id: z
-      .string()
-      .regex(/^[0-9]{10}$/, "DoD ID must be exactly 10 digits (Block 4)"),
+    dod_id: ssnField(4),
 
     duty_status: z.string().min(1, "Duty status is required (Block 5)"),
 
-    uic: z.string().length(5, "UIC must be exactly 5 characters (Block 6)"),
+    uic: uicField(6),
 
     ship_station: z.string().min(1, "Ship/Station is required (Block 7)"),
 
@@ -449,19 +498,9 @@ export const EvalSchema = z
         "Reporting Senior title must be 14 characters or fewer (Block 25)",
       ),
 
-    reporting_senior_uic: z
-      .string()
-      .length(
-        5,
-        "Reporting Senior UIC must be exactly 5 characters (Block 26)",
-      ),
+    reporting_senior_uic: uicField(26),
 
-    reporting_senior_dod_id: z
-      .string()
-      .regex(
-        /^[0-9]{10}$/,
-        "Reporting Senior DoD ID must be exactly 10 digits (Block 27)",
-      ),
+    reporting_senior_dod_id: ssnField(27),
 
     command_achievements: z
       .string()
@@ -573,11 +612,9 @@ export const ChiefEvalSchema = z
         "Grade/Rate must contain letters and numbers only (Block 2)",
       ),
     designator: z.string().optional(),
-    dod_id: z
-      .string()
-      .regex(/^[0-9]{10}$/, "DoD ID must be exactly 10 digits (Block 4)"),
+    dod_id: ssnField(4),
     duty_status: z.string().min(1, "Duty status is required (Block 5)"),
-    uic: z.string().length(5, "UIC must be exactly 5 characters (Block 6)"),
+    uic: uicField(6),
     ship_station: z.string().min(1, "Ship/Station is required (Block 7)"),
     promotion_status: z
       .string()
@@ -640,18 +677,8 @@ export const ChiefEvalSchema = z
         14,
         "Reporting Senior title must be 14 characters or fewer (Block 25)",
       ),
-    reporting_senior_uic: z
-      .string()
-      .length(
-        5,
-        "Reporting Senior UIC must be exactly 5 characters (Block 26)",
-      ),
-    reporting_senior_dod_id: z
-      .string()
-      .regex(
-        /^[0-9]{10}$/,
-        "Reporting Senior DoD ID must be exactly 10 digits (Block 27)",
-      ),
+    reporting_senior_uic: uicField(26),
+    reporting_senior_dod_id: ssnField(27),
     command_achievements: z
       .string()
       .min(1, "Command Employment and achievements are required (Block 28)"),
@@ -747,11 +774,9 @@ export const FitrepSchema = z
         "Grade must contain letters and numbers only (Block 2)",
       ),
     designator: z.string().optional(),
-    dod_id: z
-      .string()
-      .regex(/^[0-9]{10}$/, "DoD ID must be exactly 10 digits (Block 4)"),
+    dod_id: ssnField(4),
     duty_status: z.string().min(1, "Duty status is required (Block 5)"),
-    uic: z.string().length(5, "UIC must be exactly 5 characters (Block 6)"),
+    uic: uicField(6),
     ship_station: z.string().min(1, "Ship/Station is required (Block 7)"),
     promotion_status: z
       .string()
@@ -814,18 +839,8 @@ export const FitrepSchema = z
         14,
         "Reporting Senior title must be 14 characters or fewer (Block 25)",
       ),
-    reporting_senior_uic: z
-      .string()
-      .length(
-        5,
-        "Reporting Senior UIC must be exactly 5 characters (Block 26)",
-      ),
-    reporting_senior_dod_id: z
-      .string()
-      .regex(
-        /^[0-9]{10}$/,
-        "Reporting Senior DoD ID must be exactly 10 digits (Block 27)",
-      ),
+    reporting_senior_uic: uicField(26),
+    reporting_senior_dod_id: ssnField(27),
     command_achievements: z
       .string()
       .min(1, "Command Employment and achievements are required (Block 28)"),

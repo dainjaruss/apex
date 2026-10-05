@@ -12,6 +12,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Evaluation, SummaryGroup, ValidationIssue } from "@/types";
+import { withCareerRecommendationSlots } from "@/types/navpers";
 import {
   listOpenGroups,
   fetchGroupAveragePool,
@@ -101,7 +102,9 @@ export default function EvaluationForm({
 
   // SSR-safe initial state: deterministic on server and first client render. Any
   // locally-saved draft is applied after mount in the hydrate effect below.
-  const [formData, setFormData] = useState<Evaluation>(initialData);
+  const [formData, setFormData] = useState<Evaluation>(() =>
+    withCareerRecommendationSlots(initialData),
+  );
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [recoveredAt, setRecoveredAt] = useState<number | null>(null);
   const [committed, setCommitted] = useState(false);
@@ -167,7 +170,7 @@ export default function EvaluationForm({
     }
     const draft = readEvalDraft<Evaluation>(autosaveKey);
     if (draft) {
-      setFormData(draft.data);
+      setFormData(withCareerRecommendationSlots(draft.data));
       setCurrentStep(draft.step ?? 0);
       setRecoveredAt(draft.savedAt);
     }
@@ -319,7 +322,7 @@ export default function EvaluationForm({
 
   const handleDiscardRecovered = () => {
     clear();
-    setFormData(initialData);
+    setFormData(withCareerRecommendationSlots(initialData));
     setCurrentStep(0);
     setActiveField(null);
     setRecoveredAt(null);

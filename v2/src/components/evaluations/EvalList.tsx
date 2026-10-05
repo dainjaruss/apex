@@ -322,7 +322,7 @@ export const EvalList: React.FC<EvalListProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, rate, DoD ID..."
+              placeholder="Search name, rate, SSN..."
               className="pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white w-48 sm:w-60"
             />
           </div>
@@ -335,7 +335,7 @@ export const EvalList: React.FC<EvalListProps> = ({
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-xs uppercase font-medium">
               <tr>
-                <th className="px-4 py-3">Member Name / DoD ID</th>
+                <th className="px-4 py-3">Member Name / SSN</th>
                 <th className="px-4 py-3">Form / Rate</th>
                 <th className="px-4 py-3">Period Ending</th>
                 <th className="px-4 py-3">Custody Stage & Holder</th>
@@ -368,7 +368,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                           </div>
                         </div>
                         <div className="text-xs font-mono text-slate-500 pl-3.5">
-                          DOD ID: {ev.dod_id || "--"}
+                          SSN: {ev.dod_id || "blank"}
                         </div>
                       </td>
 

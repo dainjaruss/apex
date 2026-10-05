@@ -8,6 +8,10 @@
 import React, { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Evaluation, Profile, ValidationIssue } from "@/types";
+import {
+  careerRecommendationSlots,
+  withCareerRecommendationSlots,
+} from "@/types/navpers";
 import { db } from "@/lib/db";
 import { canManageSummaryGroups } from "@/lib/permissions";
 import { useLiveValidation } from "@/hooks/useLiveValidation";
@@ -87,7 +91,9 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
   onSave,
   onBack,
 }) => {
-  const [formData, setFormData] = useState<Evaluation>(evaluation);
+  const [formData, setFormData] = useState<Evaluation>(() =>
+    withCareerRecommendationSlots(evaluation),
+  );
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -105,7 +111,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
 
   // Keep internal form data synced when prop changes
   useEffect(() => {
-    setFormData(evaluation);
+    setFormData(withCareerRecommendationSlots(evaluation));
   }, [evaluation.id]);
 
   // Live Zod Schema Validation Engine (Central Feature - dynamic keystroke evaluation)
@@ -255,6 +261,45 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
 
   const activeTraits = formData.report_type === "CHIEFEVAL" ? CHIEFEVAL_TRAITS : EVAL_TRAITS;
 
+  // Traits step: open the guide on the card nearest the top of the viewport.
+  // A dismissed guide (activeField null) stays dismissed until this step is entered again.
+  useEffect(() => {
+    if (currentStep !== 1) return;
+    const traits = formData.report_type === "CHIEFEVAL" ? CHIEFEVAL_TRAITS : EVAL_TRAITS;
+    const first = `trait_grades.${traits[0].key}`;
+    setActiveField((current) =>
+      current && String(current).startsWith("trait_grades.") ? current : first,
+    );
+
+    const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-trait-key]"));
+    if (cards.length === 0) return;
+    const seen = new Map<string, number>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const key = (entry.target as HTMLElement).dataset.traitKey;
+          if (!key) continue;
+          if (entry.isIntersecting) seen.set(key, entry.boundingClientRect.top);
+          else seen.delete(key);
+        }
+        let bestKey = "";
+        let bestTop = Number.POSITIVE_INFINITY;
+        for (const [key, top] of seen) {
+          if (top < bestTop) {
+            bestTop = top;
+            bestKey = key;
+          }
+        }
+        if (!bestKey) return;
+        const next = `trait_grades.${bestKey}`;
+        setActiveField((current) => (current === null ? current : next));
+      },
+      { threshold: [0.2, 0.5, 0.8], rootMargin: "-8% 0px -35% 0px" },
+    );
+    cards.forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, [currentStep, formData.report_type]);
+
   // Filter errors accurately for the active step
   const stepErrors = errors.filter((err) => {
     const b = err.block || 0;
@@ -281,8 +326,18 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
     );
   });
 
+  const guideOpen = showGuidelines && activeField;
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
+      <div
+        className={
+          guideOpen
+            ? "flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-x-4 lg:gap-y-6"
+            : "space-y-6"
+        }
+      >
+      <div className="order-1 min-w-0 lg:col-span-2 lg:row-start-1">
       {/* ── Top Header Bar ── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -299,7 +354,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               {formData.member_name || "UNTITLED RECORD"}
             </h1>
             <p className="text-xs text-slate-500 font-mono mt-0.5">
-              {formData.grade_rate || "RATE"} | DOD ID: {formData.dod_id || "NOT SET"} | Ending: {formData.period_to || "YYYY-MM-DD"}
+              {formData.grade_rate || "RATE"} | SSN: {formData.dod_id || "blank"} | Ending: {formData.period_to || "YYYY-MM-DD"}
             </p>
           </div>
 
@@ -422,7 +477,12 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             return (
               <button type="button"
                 key={step.id}
-                onClick={() => setCurrentStep(step.id)}
+                onClick={() => {
+                  setCurrentStep(step.id);
+                  if (step.id === 1 && !String(activeField).startsWith("trait_grades.")) {
+                    setActiveField(`trait_grades.${activeTraits[0].key}`);
+                  }
+                }}
                 className={`py-2 px-3 rounded-lg text-xs font-semibold text-left transition-all flex items-center justify-between ${
                   isCurrent
                     ? "bg-blue-600 text-white shadow-sm"
@@ -438,7 +498,16 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
           })}
         </div>
       </div>
+      </div>
 
+      {guideOpen && (
+        <BupersGuidelinesInline
+          activeField={activeField}
+          onDismiss={() => setActiveField(null)}
+        />
+      )}
+
+      <div className="order-3 min-w-0 lg:col-start-1 lg:row-start-2">
       {/* ── Chain of Custody & Routing Stepper ── */}
       <RoutingStepper
         evaluation={formData}
@@ -448,7 +517,9 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
           if (onSave) onSave(updated);
         }}
       />
+      </div>
 
+      <div className="order-4 min-w-0 space-y-6 lg:col-start-1 lg:row-start-3">
       {/* ── Step-Specific Validation Errors Banner ── */}
       {stepErrors.length > 0 && (
         <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-xl text-xs space-y-1">
@@ -475,14 +546,6 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
         </div>
       )}
 
-      {/* ── Contextual BUPERS Field Guideline Sticky Card ── */}
-      {showGuidelines && activeField && (
-        <BupersGuidelinesInline
-          activeField={activeField}
-          onDismiss={() => setActiveField(null)}
-        />
-      )}
-
       {/* ── STEP 1: Admin & Command Info (Blocks 1-15, 20-21, 28-29) ── */}
       {currentStep === 0 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-6">
@@ -495,7 +558,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs [&>div]:grid [&>div]:min-w-0 [&>div]:grid-rows-subgrid [&>div]:row-span-4 [&>div]:mb-3 [&_input]:box-border [&_select]:box-border [&_input]:h-9 [&_select]:h-9 [&_input]:min-h-9 [&_select]:min-h-9 [&_input]:max-h-9 [&_select]:max-h-9 [&_input]:py-0 [&_select]:py-0">
             {/* Block 1 */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -611,7 +674,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="field-dod_id" className="font-semibold text-slate-700 dark:text-slate-300">
-                  Block 4: DoD ID Number
+                  Block 4: SSN
                 </label>
                 <button
                   type="button"
@@ -623,16 +686,16 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 mb-1">
-                Exactly 10 numeric digits (do not enter SSN).
+                Blank, all zeros, or full SSN (000-00-0000).
               </p>
               <input
                 id="field-dod_id"
                 type="text"
-                maxLength={10}
+                maxLength={11}
                 value={formData.dod_id}
                 onFocus={() => setActiveField("dod_id")}
-                onChange={(e) => handleFieldChange("dod_id", e.target.value.replace(/[^0-9]/g, ""))}
-                placeholder="10-digit DoD ID"
+                onChange={(e) => handleFieldChange("dod_id", e.target.value.replace(/[^0-9-]/g, ""))}
+                placeholder="000-00-0000"
                 className={formFieldClass("dod_id")}
               />
               {hasError("dod_id") && (
@@ -697,7 +760,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 mb-1">
-                Exactly 5 alphanumeric characters (e.g. N0024).
+                Exactly 5 characters. The first four must be numbers (e.g. 00024).
               </p>
               <input
                 id="field-uic"
@@ -1188,6 +1251,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 <div
                   key={t.key}
                   id={`field-trait_grades.${t.key}`}
+                  data-trait-key={t.key}
                   className={`p-4 rounded-xl border transition-all ${
                     traitError
                       ? "border-red-500 ring-2 ring-red-500/20 bg-red-50/10 dark:bg-red-950/20"
@@ -1204,7 +1268,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                       </h3>
                       <button
                         type="button"
-                        onClick={() => setActiveField(t.key)}
+                        onClick={() => setActiveField(`trait_grades.${t.key}`)}
                         className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5 ml-1"
                       >
                         <HelpCircle className="w-3 h-3" /> Standards
@@ -1217,7 +1281,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                         <button
                           key={grade}
                           type="button"
-                          onFocus={() => setActiveField(t.key)}
+                          onFocus={() => setActiveField(`trait_grades.${t.key}`)}
                           onClick={() => handleTraitGradeChange(t.key, grade)}
                           className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
                             currentGrade === grade
@@ -1349,7 +1413,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                   value={formData.career_recommendations?.[0] || ""}
                   onFocus={() => setActiveField("career_recommendations")}
                   onChange={(e) => {
-                    const next = [...(formData.career_recommendations || ["", ""])];
+                    const next = careerRecommendationSlots(formData.career_recommendations);
                     next[0] = e.target.value.toUpperCase();
                     handleFieldChange("career_recommendations", next);
                   }}
@@ -1369,7 +1433,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                   value={formData.career_recommendations?.[1] || ""}
                   onFocus={() => setActiveField("career_recommendations")}
                   onChange={(e) => {
-                    const next = [...(formData.career_recommendations || ["", ""])];
+                    const next = careerRecommendationSlots(formData.career_recommendations);
                     next[1] = e.target.value.toUpperCase();
                     handleFieldChange("career_recommendations", next);
                   }}
@@ -1881,7 +1945,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                   value={formData.block_values?.reporting_senior_uic || ""}
                   onFocus={() => setActiveField("reporting_senior_uic")}
                   onChange={(e) => handleBlockValueChange("reporting_senior_uic", e.target.value.toUpperCase())}
-                  placeholder="N0024"
+                  placeholder="00024"
                   className={formFieldClass("reporting_senior_uic", "uppercase")}
                 />
                 {hasError("reporting_senior_uic") && (
@@ -1894,16 +1958,16 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
 
               <div>
                 <label htmlFor="field-reporting_senior_dod_id" className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Block 27: Reporting Senior DoD ID
+                  Block 27: Reporting Senior SSN
                 </label>
                 <input
                   id="field-reporting_senior_dod_id"
                   type="text"
-                  maxLength={10}
+                  maxLength={11}
                   value={formData.block_values?.reporting_senior_dod_id || ""}
                   onFocus={() => setActiveField("reporting_senior_dod_id")}
-                  onChange={(e) => handleBlockValueChange("reporting_senior_dod_id", e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="10-digit DoD ID"
+                  onChange={(e) => handleBlockValueChange("reporting_senior_dod_id", e.target.value.replace(/[^0-9-]/g, ""))}
+                  placeholder="000-00-0000"
                   className={formFieldClass("reporting_senior_dod_id")}
                 />
                 {hasError("reporting_senior_dod_id") && (
@@ -1965,6 +2029,8 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               {isGeneratingPdf ? "Generating..." : "Finalize & Download Official PDF"}
             </button>
           )}
+        </div>
+      </div>
         </div>
       </div>
 

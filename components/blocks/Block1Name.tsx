@@ -141,16 +141,16 @@ export default function Block1Name({
 
         <div className="md:col-span-3">
           <label className={labelClass} htmlFor={evalFieldId("dod_id")}>
-            4: DoD ID
+            4: SSN
           </label>
           <input
             id={evalFieldId("dod_id")}
             type="text"
-            placeholder="10-digit number"
-            maxLength={10}
+            placeholder="000-00-0000"
+            maxLength={11}
             value={evalData.dod_id}
             onChange={(e) =>
-              onChange({ dod_id: e.target.value.replace(/[^0-9]/g, "") })
+              onChange({ dod_id: e.target.value.replace(/[^0-9-]/g, "") })
             }
             onFocus={() => onFocusField?.("dod_id")}
             className={fieldClass(!!getError("dod_id"))}

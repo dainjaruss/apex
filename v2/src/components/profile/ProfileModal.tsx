@@ -1,9 +1,10 @@
 // src/components/profile/ProfileModal.tsx
 //
-// Modal for managing the active Sailor Profile, DOD ID, UIC, and Local Storage status.
+// Modal for managing the active Sailor Profile, SSN, UIC, and Local Storage status.
 
 import React, { useState } from "react";
 import { Profile } from "@/types";
+import { UIC_PATTERN } from "@/types/navpers";
 import { db } from "@/lib/db";
 import { User, HardDrive, ShieldCheck, Check, X, AlertCircle } from "lucide-react";
 import { NmciSafeForm } from "@/components/NmciSafeForm";
@@ -36,14 +37,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleSave = async () => {
     const visibleRate = (formData.rate || formData.navy_rank || "").trim();
+    const uic = (formData.uic || "").toUpperCase().trim();
     if (
       !formData.last_name.trim() ||
       !formData.first_name.trim() ||
       !visibleRate ||
-      !formData.dod_id.trim() ||
-      !formData.uic.trim()
+      !uic
     ) {
-      alert("Last name, first name, rate, DoD ID, and UIC are required.");
+      alert("Last name, first name, rate, and UIC are required.");
+      return;
+    }
+    if (!UIC_PATTERN.test(uic)) {
+      alert("UIC must be exactly 5 characters, and the first four must be numbers (for example 00024).");
       return;
     }
     await db.profiles.put({
@@ -52,7 +57,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       first_name: formData.first_name.toUpperCase().trim(),
       middle_initial: (formData.middle_initial || "").toUpperCase().trim(),
       rate: (formData.rate || "").toUpperCase().trim(),
-      uic: (formData.uic || "").toUpperCase().trim(),
+      uic,
       ship_station: (formData.ship_station || "").toUpperCase().trim(),
     });
     setSaveSuccess(true);
@@ -159,16 +164,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                DoD ID Number (Block 6)
+                SSN
               </label>
               <input
                 type="text"
-                maxLength={10}
-                required
+                maxLength={11}
                 value={formData.dod_id}
-                onChange={(e) => setFormData({ ...formData, dod_id: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, dod_id: e.target.value.replace(/[^0-9-]/g, "") })}
                 className="w-full px-3 py-2 text-sm font-mono bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg"
-                placeholder="10-digit DoD ID"
+                placeholder="000-00-0000"
               />
             </div>
           </div>
@@ -185,7 +189,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 value={formData.uic}
                 onChange={(e) => setFormData({ ...formData, uic: e.target.value })}
                 className="w-full px-3 py-2 text-sm font-mono uppercase bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg"
-                placeholder="e.g. N0024"
+                placeholder="e.g. 00024"
               />
             </div>
             <div>

@@ -26,6 +26,7 @@ import {
   ForcedDistributionResult,
 } from "@/lib/forcedDistribution";
 import {
+  UIC_PATTERN,
   PROMOTION_STATUS_OPTIONS,
   DUTY_STATUS_OPTIONS,
   BILLET_SUBCATEGORY_OPTIONS,
@@ -152,8 +153,10 @@ function GroupForm({
       setError("All fields are required (only UIC may be blank).");
       return;
     }
-    if (g.uic && g.uic.length !== 5) {
-      setError("UIC must be exactly 5 characters, or blank.");
+    if (g.uic && !UIC_PATTERN.test(g.uic)) {
+      setError(
+        "UIC must be exactly 5 characters, and the first four must be numbers, or blank.",
+      );
       return;
     }
     setSaving(true);

@@ -137,7 +137,7 @@ export function mapEvaluationToNavfit(evaluation: Evaluation): NavfitReportRow {
     Suffix: null,
     Rate: evaluation.grade_rate || "",
     Desig: evaluation.designator || "",
-    SSN: null, // APEX stores 10-digit DoD IDs, never SSNs (§7 gap — deliberate)
+    SSN: null, // Block 4 is SSN on the APEX form. Export stays blank; NAVFIT SSN is text(9).
     Active: duty === "ACT",
     TAR: duty === "TAR",
     Inactive: duty === "INACT",
@@ -168,7 +168,7 @@ export function mapEvaluationToNavfit(evaluation: Evaluation): NavfitReportRow {
     RSDesig: bv.reporting_senior_designator || "",
     RSTitle: bv.reporting_senior_title || "",
     RSUIC: bv.reporting_senior_uic || "",
-    RSSSN: null,
+    RSSSN: null, // Block 27 is the reporting senior SSN. Not written into the 9-character column.
     Achievements: bv.command_achievements || "",
     PrimaryDuty: bv.primary_duty_abbrev || "",
     Duties: bv.primary_duties || "",

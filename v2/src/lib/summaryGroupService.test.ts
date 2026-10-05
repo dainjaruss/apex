@@ -456,7 +456,7 @@ describe('generateSamplePeerEval — IndexedDB', () => {
       promotion_status: 'Regular',
       report_type: 'EVAL',
       status: 'open',
-      uic: 'N0024',
+      uic: '00024',
     });
 
     const peerEval = await generateSamplePeerEval(group.id, group as any);

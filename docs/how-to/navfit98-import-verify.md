@@ -20,9 +20,10 @@ You get `NAVFIT98_<MEMBER_NAME>.accdb`.
    *A report missing here means a broken `Reports.Parent` link (must be
    `"a " + FolderID`).*
 3. Open each report and walk the blocks against the APEX PDF export:
-   - Blocks 1–5: name, rate, designator. **Block 4 (SSN) is blank by
-     design** — APEX stores DoD IDs, never SSNs. Key the SSN in NAVFIT if
-     the command requires it.
+   - Blocks 1–5: name, rate, designator. **Block 4 on the NAVFIT export is
+     still blank.** The APEX form calls that block SSN and the member may
+     leave it blank or enter zeros. Key the SSN in NAVFIT if the command
+     requires it.
    - Blocks 10–13 / 16–18: occasion and type checkboxes.
    - Blocks 14–15: period from/to dates (watch for off-by-one-day — would
      indicate a timezone bug; report it).

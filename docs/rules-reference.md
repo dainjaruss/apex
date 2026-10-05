@@ -80,11 +80,11 @@ The Block 45 → PMA conversion (Early Promote 4.0, Must Promote 3.8, Promotable
 - **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 2 GRADE/RATE", p. 1-1 — "Enter the grade or rate the Service member is actually wearing on the ending date of the report."
 - **Code Enforcement:** `types/navpers.ts` (`EvalSchema.grade_rate` regex validation).
 
-### Block 4: DoD ID / SSN
+### Block 4: SSN
 
-- **Rule:** DoD ID must be exactly 10 digits. APEX restricts records to synthetic/test data and strictly prohibits PII (SSNs).
-- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 4", p. 1-2. (The 10-digit DoD ID in lieu of SSN is APEX's own PII policy, not an instruction requirement.)
-- **Code Enforcement:** `types/navpers.ts` (`EvalSchema.dod_id` regex validation).
+- **Rule:** Block 4 is the member SSN. The form writes it with hyphens after the third and fifth digits (000-00-0000). Blank and all zeros are accepted. The same shape applies to the reporting senior SSN in Block 27. A value already stored as 10 digits still passes.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 4", p. 1-2. The hyphenated example is the excerpt stored in `lib/bupersGuidelines.json`.
+- **Code Enforcement:** `types/navpers.ts` (`ssnField`, used for `dod_id` and `reporting_senior_dod_id`).
 
 ### Block 5: Duty/Competitive Status
 
@@ -94,9 +94,9 @@ The Block 45 → PMA conversion (Early Promote 4.0, Must Promote 3.8, Promotable
 
 ### Block 6: UIC
 
-- **Rule:** UIC must be exactly 5 alphanumeric characters.
-- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 6 UIC", p. 1-2.
-- **Code Enforcement:** `types/navpers.ts` (`EvalSchema.uic` length restriction).
+- **Rule:** UIC must be exactly 5 alphanumeric characters, and the first four must be numbers. The fifth may be a letter. A command with no UIC uses `00000`. The same shape applies to the reporting senior UIC in Block 26.
+- **Citation:** BUPERSINST 1610.10H, Encl (2), ch. 1, para 1-2, "BLOCK 6 UIC", p. 1-2. The first-four-numbers sentence is the Block 6 excerpt in `lib/bupersGuidelines.json`.
+- **Code Enforcement:** `types/navpers.ts` (`uicField`, Blocks 6 and 26).
 
 ### Block 8: Promotion Status
 
@@ -212,7 +212,7 @@ Both forms use the **same validation pipeline** as EVAL: `runFullValidation()` i
 | Blocks 14–15 period order | Period To ≥ Period From |
 | Block 20 PFA codes | `PBFMWN` only, oldest-to-most-recent |
 | Block 21 billet subcategory | Table 1-1 codes; starred ↔ Block 29 warning |
-| Blocks 22–27 reporting senior | RS name/grade/title/UIC/DoD ID; Block 24 designator pattern |
+| Blocks 22–27 reporting senior | RS name/grade/title/UIC/SSN; Block 24 designator pattern |
 | Blocks 28–29 narratives | `FIELD_FIT` line wrap (same canvas/PDF algorithm as EVAL) |
 | Blocks 30–31 counseling | ISO / YYMMMDD / `NOT REQ` / `NOT PERF`; counselor max 22 chars |
 | Blocks 10–13 / 16–18 | Occasion and type multi-select (same engine rules as EVAL) |

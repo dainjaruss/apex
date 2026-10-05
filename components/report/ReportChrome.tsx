@@ -63,7 +63,7 @@ export function ReportBanner({
           {evaluation.member_name}
         </h2>
         <p className="text-sm apex-text-secondary">
-          DoD ID {evaluation.dod_id} · {evaluation.grade_rate} · UIC{" "}
+          SSN {evaluation.dod_id || "blank"} · {evaluation.grade_rate} · UIC{" "}
           {evaluation.uic}
         </p>
       </div>

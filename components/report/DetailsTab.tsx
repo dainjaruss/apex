@@ -50,7 +50,7 @@ function IdentitySection({ e }: { e: Evaluation }) {
         <Field label="1: Name" value={e.member_name} />
         <Field label="2: Grade/Rate" value={e.grade_rate} />
         <Field label="3: Designator" value={e.designator || "N/A"} />
-        <Field label="4: DoD ID" value={e.dod_id} />
+        <Field label="4: SSN" value={e.dod_id} />
         <Field label="5: Duty Status" value={e.duty_status} />
         <Field label="6: UIC" value={e.uic} />
         <Field label="7: Ship/Station" value={e.ship_station} />

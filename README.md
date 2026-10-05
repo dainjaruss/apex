@@ -165,7 +165,7 @@ APEX enforces a structured, role-based chain of command workflow modeled directl
 ### Step 2: Drafting a New NAVPERS 1616/26 Evaluation
 
 1. From the dashboard, click **"Draft New Evaluation"** (or select an existing draft to edit).
-2. **Administrative Blocks (1–19, 21, 28, 29):** Enter the evaluated member's full name (`LAST, FIRST MI`), rate, designator, DoD ID (synthetic 10-digit number), UIC, ship/station, duty status, promotion status, date reported, and report period (`From` / `To`). Select the appropriate multi-select **Occasion for Report** (Blocks 10–13) and **Type of Report** (Blocks 16–18).
+2. **Administrative Blocks (1–19, 21, 28, 29):** Enter the evaluated member's full name (`LAST, FIRST MI`), rate, designator, SSN (blank, all zeros, or `000-00-0000`), UIC, ship/station, duty status, promotion status, date reported, and report period (`From` / `To`). Select the appropriate multi-select **Occasion for Report** (Blocks 10–13) and **Type of Report** (Blocks 16–18).
 3. **Performance Trait Grades (Blocks 33–39):** Grade the seven core performance traits (`Professional Knowledge`, `Quality of Work`, `Command/Org Climate/EO`, `Military Bearing/Character`, `Personal Job Accomplishment/Initiative`, `Teamwork`, `Leadership`) from `1.0` to `5.0` or `NOB` (Not Observed). The system automatically calculates the Block 40 **Individual Trait Average**.
 4. **Narrative Comments (Block 43) & Qualifications (Block 44):** Enter performance substantiations, command achievements, and earned qualifications.
 

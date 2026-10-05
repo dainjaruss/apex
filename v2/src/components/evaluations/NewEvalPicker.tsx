@@ -51,7 +51,7 @@ const FORM_OPTIONS = [
 
 export const NewEvalPicker: React.FC<Props> = ({ onSelectForm, onCancel }) => {
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm flex items-center justify-between">
         <div>
