@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
         ? "chiefEvalBlank.pdf"
         : reportType === "FITREP"
           ? "fitrepBlank.pdf"
-          : "navpers-1616-26_2025.pdf";
+          : "evalBlank.pdf";
 
     const templatePath = path.join(
       process.cwd(),

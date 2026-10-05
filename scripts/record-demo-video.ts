@@ -1336,10 +1336,6 @@ async function main() {
             "Substantiate any 1.0 mark, three or more 2.0s, or a 2.0 in EO",
           ],
           [
-            "Blocks 33–39",
-            "Any 1.0 or 5.0 trait grade requires Block 43 comments",
-          ],
-          [
             "Block 45",
             "No Promotable-or-higher recommendation with any 1.0 trait",
           ],

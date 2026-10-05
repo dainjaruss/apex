@@ -561,6 +561,10 @@ describe("NAVPERS 1610/2 trait descriptors are the officer form's own words", ()
       screen.getByText("Lacks basic professional knowledge to perform effectively"),
     ).toBeTruthy();
     expect(screen.getByText("Exemplary Navy representative")).toBeTruthy();
+    // A 1.0 still names the narrative block. A 5.0 does not.
+    expect(
+      screen.getAllByText(/Requires written justification \(Block 41\)/),
+    ).toHaveLength(1);
     // …and not as 1616/26 prints the traits it numbers 33 and 36.
     expect(screen.queryByText(/Marginal knowledge of rating/)).toBeNull();
     expect(screen.queryByText(/Model of conduct, on and off duty/)).toBeNull();

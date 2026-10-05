@@ -1,21 +1,18 @@
 // src/components/evaluations/EvalList.tsx
 //
 // Evaluation Dashboard: Role-tailored Action Queues, Custody Stage Indicators,
-// Pack & Route Fallback (.apex.json), SharePoint List Sync, and 1-Click PDF Export.
+// Pack & Route (.apex.json) and 1-Click PDF Export.
 
 import React, { useState, useRef } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
+import { custodyLabel, custodyStatus } from "@/lib/reportLock";
+import { recallLockToken } from "@/lib/workspaceSession";
+import { canSeeRanking } from "@/lib/workspaceScope";
+import { useWorkspaceIdentity } from "@/lib/useWorkspaceIdentity";
 import { Evaluation, Profile, RoutingStage } from "@/types";
 import { downloadEvaluationPdf } from "@/lib/pdfClient";
 import { exportSingleEvalTransfer, importSingleEvalTransfer } from "@/lib/sessionTransfer";
-import {
-  getSharePointConfig,
-  saveSharePointConfig,
-  testSharePointConnection,
-  syncEvaluationToSharePoint,
-  SharePointConfig,
-} from "@/lib/sharepointService";
 import { ROUTING_STAGES } from "@/lib/routingService";
 import {
   FileText,
@@ -26,14 +23,10 @@ import {
   Edit3,
   Filter,
   Package,
-  Cloud,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Settings,
-  X,
   Search,
-  Check,
 } from "lucide-react";
 
 interface EvalListProps {
@@ -51,6 +44,7 @@ export const EvalList: React.FC<EvalListProps> = ({
   onCreateEval,
   onStartNewFlow,
 }) => {
+  const identity = useWorkspaceIdentity();
   const evaluations = useLiveQuery(() => db.evaluations.orderBy("updated_at").reverse().toArray(), []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,22 +52,16 @@ export const EvalList: React.FC<EvalListProps> = ({
   const [filterType, setFilterType] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // SharePoint Modal State
-  const [showSpModal, setShowSpModal] = useState<boolean>(false);
-  const [spConfig, setSpConfig] = useState<SharePointConfig>(getSharePointConfig());
-  const [spTestResult, setSpTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [isTestingSp, setIsTestingSp] = useState<boolean>(false);
-
   // Import Handler (.apex.json)
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const imported = await importSingleEvalTransfer(file);
-      alert(`Successfully imported custody packet for ${imported.member_name} (${imported.period_to}).`);
+      alert(`Imported report for ${imported.member_name} (${imported.period_to}).`);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
-      alert(`Import failed: ${err.message}`);
+      alert(`Could not import the report: ${err.message}`);
     }
   };
 
@@ -87,26 +75,8 @@ export const EvalList: React.FC<EvalListProps> = ({
     try {
       await exportSingleEvalTransfer(ev.id);
     } catch (err: any) {
-      alert(`Pack & Route export failed: ${err.message}`);
+      alert(`Could not export the report: ${err.message}`);
     }
-  };
-
-  const handleQuickSpSync = async (ev: Evaluation) => {
-    const res = await syncEvaluationToSharePoint(ev, spConfig);
-    alert(res.message);
-  };
-
-  const handleSaveSpConfig = () => {
-    saveSharePointConfig(spConfig);
-    setShowSpModal(false);
-  };
-
-  const handleRunSpTest = async () => {
-    setIsTestingSp(true);
-    setSpTestResult(null);
-    const result = await testSharePointConnection(spConfig);
-    setSpTestResult({ ok: result.success, message: result.message });
-    setIsTestingSp(false);
   };
 
   // Role Action Gating Helper
@@ -176,7 +146,7 @@ export const EvalList: React.FC<EvalListProps> = ({
               Command Performance Reports
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-              Track custody pipelines, calibrate trait grades, enforce Table 1-1 quotas, and route reports via SharePoint or portable Pack & Route (.apex.json) packets.
+              Track custody pipelines, calibrate trait grades, enforce Table 1-1 quotas, and export or import one report at a time.
             </p>
           </div>
 
@@ -190,24 +160,13 @@ export const EvalList: React.FC<EvalListProps> = ({
               className="hidden"
             />
 
-            {/* Pack & Route Import Button */}
             <button type="button"
               onClick={() => fileInputRef.current?.click()}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium transition-colors border border-slate-300 dark:border-slate-700"
-              title="Import a routed evaluation packet (.apex.json) received via email or shared drive"
+              title="Load one report from a .apex.json file"
             >
               <Package className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              Import Custody Packet (.apex.json)
-            </button>
-
-            {/* SharePoint Settings Button */}
-            <button type="button"
-              onClick={() => setShowSpModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium transition-colors border border-slate-300 dark:border-slate-700"
-              title="Configure command SharePoint List sync and REST email notifications"
-            >
-              <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              SharePoint Sync {spConfig.enabled ? "(On)" : "(Off)"}
+              Import Report
             </button>
 
             {onStartNewFlow && (
@@ -404,6 +363,9 @@ export const EvalList: React.FC<EvalListProps> = ({
                               {ev.current_holder_name || ev.member_name} ({ev.current_holder_role || "Sailor"})
                             </span>
                           </div>
+                          <div className="text-[11px] text-slate-500">
+                            {custodyLabel(custodyStatus(ev, recallLockToken(ev.id), Date.now()))}
+                          </div>
 
                           {/* Rework Banner */}
                           {ev.return_notes && (
@@ -431,7 +393,9 @@ export const EvalList: React.FC<EvalListProps> = ({
                               : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                           }`}
                         >
-                          {ev.promotion_recommendation || "Unassigned"}
+                          {canSeeRanking(identity?.scope ?? null, ev)
+                            ? ev.promotion_recommendation || "Unassigned"
+                            : "—"}
                         </span>
                       </td>
 
@@ -450,21 +414,10 @@ export const EvalList: React.FC<EvalListProps> = ({
                           <button type="button"
                             onClick={() => handleQuickPackDownload(ev)}
                             className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                            title="Pack & Route (.apex.json custody packet)"
+                            title="Export Report"
                           >
                             <Package className="w-4 h-4" />
                           </button>
-
-                          {/* Quick SharePoint sync if enabled */}
-                          {spConfig.enabled && (
-                            <button type="button"
-                              onClick={() => handleQuickSpSync(ev)}
-                              className="p-1.5 text-emerald-600 hover:text-emerald-700 transition-colors"
-                              title="Sync to SharePoint List"
-                            >
-                              <Cloud className="w-4 h-4" />
-                            </button>
-                          )}
 
                           <button type="button"
                             onClick={() => downloadEvaluationPdf(ev)}
@@ -491,7 +444,7 @@ export const EvalList: React.FC<EvalListProps> = ({
                   <td colSpan={7} className="px-4 py-10 text-center text-slate-500 text-xs">
                     {activeQueueTab === "ACTION_REQUIRED"
                       ? `No evaluations currently require action for your active role (${activeProfile.preferred_role}).`
-                      : "No evaluations match your search or filter. Draft a report or import a custody packet."}
+                      : "No evaluations match your search or filter. Draft a report or import one."}
                   </td>
                 </tr>
               )}
@@ -500,130 +453,6 @@ export const EvalList: React.FC<EvalListProps> = ({
         </div>
       </div>
 
-      {/* ── SharePoint Settings Modal ── */}
-      {showSpModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Cloud className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  SharePoint List Integration & Notifications
-                </h3>
-              </div>
-              <button type="button" onClick={() => setShowSpModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                Connect APEX directly to your command SharePoint portal. When enabled, routed evaluations will sync to the designated SharePoint List and can trigger automated REST email alerts.
-              </p>
-
-              {/* Offline / Airgap Notice */}
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-blue-900 dark:text-blue-200 flex items-start gap-2">
-                <Package className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Offline & Air-Gap Fallback:</span> If your division is deployed, underway, or lacks SharePoint list creation privileges, APEX's <strong>Pack & Route</strong> fallback works 100% offline via downloadable <code>.apex.json</code> files and Outlook <code>mailto:</code> drafts.
-                </div>
-              </div>
-
-              {/* Enable Toggle */}
-              <label className="flex items-center gap-2 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={spConfig.enabled}
-                  onChange={(e) => setSpConfig({ ...spConfig, enabled: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                />
-                <span className="font-bold text-slate-800 dark:text-slate-200">
-                  Enable SharePoint Custom List Sync
-                </span>
-              </label>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  SharePoint Site / Team URL
-                </label>
-                <input
-                  type="url"
-                  value={spConfig.siteUrl}
-                  onChange={(e) => setSpConfig({ ...spConfig, siteUrl: e.target.value })}
-                  placeholder="https://flankers.navy.mil/teams/DIV1"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  SharePoint Custom List Name
-                </label>
-                <input
-                  type="text"
-                  value={spConfig.listName}
-                  onChange={(e) => setSpConfig({ ...spConfig, listName: e.target.value })}
-                  placeholder="APEX_Evaluations"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono"
-                />
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  checked={spConfig.emailNotify}
-                  onChange={(e) => setSpConfig({ ...spConfig, emailNotify: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                />
-                <span className="text-slate-700 dark:text-slate-300">
-                  Trigger SharePoint REST Email Utility (SP.Utilities.Utility.SendEmail) on routing
-                </span>
-              </label>
-
-              {/* Test Connection Button & Result */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  disabled={isTestingSp || !spConfig.siteUrl}
-                  onClick={handleRunSpTest}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors disabled:opacity-50"
-                >
-                  {isTestingSp ? "Testing REST Endpoint..." : "Test SharePoint REST Connection"}
-                </button>
-
-                {spTestResult && (
-                  <div
-                    className={`mt-2 p-3 rounded-lg border text-xs ${
-                      spTestResult.ok
-                        ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 text-emerald-900 dark:text-emerald-200"
-                        : "bg-amber-50 dark:bg-amber-950/50 border-amber-300 text-amber-900 dark:text-amber-200"
-                    }`}
-                  >
-                    {spTestResult.message}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowSpModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveSpConfig}
-                className="px-4 py-2 text-xs font-bold bg-blue-700 hover:bg-blue-800 text-white rounded-lg transition-colors shadow-sm"
-              >
-                Save SharePoint Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

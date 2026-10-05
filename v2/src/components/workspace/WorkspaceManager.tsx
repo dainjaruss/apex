@@ -7,7 +7,15 @@
 import React, { useState, useRef } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, seedInitialDataIfEmpty } from "@/lib/db";
-import { exportWorkspaceToFile, importWorkspaceFromFile } from "@/lib/sessionTransfer";
+import { downloadWorkspaceCard, exportWorkspaceToFile, importWorkspaceFromFile } from "@/lib/sessionTransfer";
+import { importWorkspaceCard } from "@/lib/workspaceScope";
+import { useWorkspaceIdentity } from "@/lib/useWorkspaceIdentity";
+import {
+  downloadOpenWorkspace,
+  importWorkspaceSqlite,
+  isSqliteWorkspace,
+  WorkspaceReplaceNeeded,
+} from "@/lib/workspaceSqlite";
 import {
   Download,
   Upload,
@@ -15,21 +23,35 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
-  FolderSync,
   FileCheck,
   Shield,
 } from "lucide-react";
 
 export const WorkspaceManager: React.FC = () => {
+  const identity = useWorkspaceIdentity();
   const evalCount = useLiveQuery(() => db.evaluations.count(), []);
   const contCount = useLiveQuery(() => db.continuity_records.count(), []);
   const rscaCount = useLiveQuery(() => db.rsca_records.count(), []);
+  const roster = useLiveQuery(() => db.roster.toArray(), []);
 
   const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cardInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await downloadOpenWorkspace("APEX_Navy_Workspace");
+      setImportStatus("Saved the open workspace as a SQLite file.");
+    } catch (err: any) {
+      setImportStatus(`Save Error: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleJsonExport = async () => {
     setIsExporting(true);
     try {
       await exportWorkspaceToFile("APEX_Navy_Workspace");
@@ -43,30 +65,76 @@ export const WorkspaceManager: React.FC = () => {
     if (!file) return;
 
     try {
-      setImportStatus("Importing workspace data...");
-      const result = await importWorkspaceFromFile(file);
-      setImportStatus(
-        `Successfully restored: ${result.evalCount} evaluations, ${result.continuityCount} continuity records, ${result.rscaCount} RSCA records!`
-      );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (isSqliteWorkspace(bytes)) {
+        setImportStatus("Opening workspace file...");
+        try {
+          const result = await importWorkspaceSqlite(bytes);
+          setImportStatus(
+            `Opened workspace: ${result.evalCount} evaluations, ${result.continuityCount} continuity records, ${result.rscaCount} RSCA records.`,
+          );
+        } catch (err: any) {
+          if (err instanceof WorkspaceReplaceNeeded && confirm(`${err.message} Continue?`)) {
+            const result = await importWorkspaceSqlite(bytes, { force: true });
+            setImportStatus(
+              `Opened workspace: ${result.evalCount} evaluations, ${result.continuityCount} continuity records, ${result.rscaCount} RSCA records.`,
+            );
+          } else if (!(err instanceof WorkspaceReplaceNeeded)) {
+            throw err;
+          } else {
+            setImportStatus("Left the open workspace in place.");
+          }
+        }
+      } else {
+        setImportStatus("Importing workspace data...");
+        const result = await importWorkspaceFromFile(file);
+        setImportStatus(
+          `Successfully restored: ${result.evalCount} evaluations, ${result.continuityCount} continuity records, ${result.rscaCount} RSCA records!`
+        );
+      }
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
       setImportStatus(`Import Error: ${err.message}`);
     }
   };
 
-  const handleResetData = async () => {
-    if (
-      confirm(
-        "Are you sure you want to reset your local database? All current local records will be re-seeded to factory defaults. Make sure you have exported your workspace file first!"
-      )
-    ) {
-      await db.evaluations.clear();
-      await db.continuity_records.clear();
-      await db.rsca_records.clear();
-      await db.summary_groups.clear();
-      await seedInitialDataIfEmpty();
-      alert("Local database reset to default demo records.");
+  const handleCardExport = () => {
+    try {
+      downloadWorkspaceCard();
+      setImportStatus("Saved this workspace card. It has no report in it.");
+    } catch (err: unknown) {
+      setImportStatus(`Card error: ${err instanceof Error ? err.message : "Could not export the card."}`);
     }
+  };
+
+  const handleCardSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const entry = await importWorkspaceCard(file);
+      setImportStatus(`Roster now includes ${entry.holder_name} (${entry.holder_role}).`);
+    } catch (err: unknown) {
+      setImportStatus(`Card error: ${err instanceof Error ? err.message : "Could not import the card."}`);
+    } finally {
+      if (cardInputRef.current) cardInputRef.current.value = "";
+    }
+  };
+
+  const handleResetData = async () => {
+    const reseed = identity?.scope === "command";
+    const confirmed = confirm(
+      reseed
+        ? "Reset the command workspace to the demo records? Save the .sqlite file first if you need this roster."
+        : "Clear the reports in this workspace? Save the .sqlite file first if you need this report.",
+    );
+    if (!confirmed) return;
+    await db.evaluations.clear();
+    await db.continuity_records.clear();
+    await db.rsca_records.clear();
+    await db.summary_groups.clear();
+    await db.roster.clear();
+    if (reseed) await seedInitialDataIfEmpty();
+    alert(reseed ? "Command workspace reset to the demo records." : "Reports in this workspace were cleared.");
   };
 
   return (
@@ -102,7 +170,7 @@ export const WorkspaceManager: React.FC = () => {
                 Save Complete Workspace
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                Packages your current browser database into an encrypted, portable <code className="font-mono text-blue-600 font-semibold">.apex</code> file. Store this on your personal OneDrive or Flank Speed Teams.
+                Writes the open workspace to a <code className="font-mono text-blue-600 font-semibold">.sqlite</code> file. That file is the record you keep or hand to the next person. One person saves it at a time.
               </p>
             </div>
 
@@ -119,7 +187,14 @@ export const WorkspaceManager: React.FC = () => {
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
           >
             <Download className="w-4 h-4" />
-            {isExporting ? "Packaging File..." : "Download Workspace (.apex)"}
+            {isExporting ? "Packaging File..." : "Save Workspace (.sqlite)"}
+          </button>
+          <button type="button"
+            onClick={handleJsonExport}
+            disabled={isExporting}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-slate-600 dark:text-slate-300 text-xs font-medium"
+          >
+            Download JSON copy (.apex)
           </button>
         </div>
 
@@ -134,7 +209,7 @@ export const WorkspaceManager: React.FC = () => {
                 Load Workspace Session
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                Switched workstations or working from a laptop? Select your saved <code className="font-mono text-emerald-600 font-semibold">.apex</code> file to immediately restore your entire session.
+                Select a <code className="font-mono text-emerald-600 font-semibold">.sqlite</code> workspace file to replace the open workspace. A JSON <code className="font-mono text-emerald-600 font-semibold">.apex</code> file still loads too.
               </p>
             </div>
 
@@ -150,7 +225,7 @@ export const WorkspaceManager: React.FC = () => {
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
-              accept=".apex,.json"
+              accept=".sqlite,.apex,.json"
               className="hidden"
             />
             <button type="button"
@@ -164,14 +239,63 @@ export const WorkspaceManager: React.FC = () => {
         </div>
       </div>
 
-      {/* SharePoint Lists / Forge Integration Banner */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-3">
         <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
-          <FolderSync className="w-5 h-5 text-blue-600" />
-          DON Forge / SharePoint Enterprise Persistence
+          <FileCheck className="w-5 h-5 text-blue-600" />
+          Workspace card
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          On Forge, APEX connects directly to your command's SharePoint Lists using your active CAC credentials. This enables cross-user routing (Sailor $\rightarrow$ Rater $\rightarrow$ Reporting Senior) and centralized command RSCA tracking without requiring a custom database server.
+          The card is this file's address: a name, a role, and an id. It contains no report and no ranking. The command workspace imports each sailor's card onto the roster.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleCardExport}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export workspace card
+          </button>
+          {identity?.scope === "command" && (
+            <button
+              type="button"
+              onClick={() => cardInputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Import workspace card
+            </button>
+          )}
+        </div>
+        <input
+          type="file"
+          ref={cardInputRef}
+          onChange={(event) => void handleCardSelect(event)}
+          accept=".json"
+          className="hidden"
+        />
+        {identity?.scope === "command" && (
+          <ul className="text-xs font-mono text-slate-600 dark:text-slate-300 space-y-1">
+            {roster && roster.length > 0 ? (
+              roster.map((entry) => (
+                <li key={entry.id}>
+                  {entry.holder_name} · {entry.holder_role} · {entry.id}
+                </li>
+              ))
+            ) : (
+              <li>No cards imported yet.</li>
+            )}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
+          <HardDrive className="w-5 h-5 text-blue-600" />
+          Local workspace
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          This browser keeps the open workspace in IndexedDB. Save Workspace writes the .sqlite file you share. A forwarded report leaves as one .apex.json file and an Outlook draft. The next person loads it with Import Report.
         </p>
         <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-200 dark:border-slate-800">
           <span className="text-slate-500 flex items-center gap-1.5">

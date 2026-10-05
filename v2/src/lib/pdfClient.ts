@@ -5,6 +5,7 @@
 
 import { Evaluation } from "@/types";
 import { generateOverlayPdf } from "./pdfOverlay";
+import { applyLiveSummaryFigures } from "./summaryGroupService";
 import { TEMPLATE_BASE64, base64ToUint8Array } from "./pdfTemplateData";
 
 /**
@@ -25,7 +26,7 @@ export async function loadTemplateBuffer(reportType: "EVAL" | "CHIEFEVAL" | "FIT
 export async function downloadEvaluationPdf(evaluation: Evaluation): Promise<void> {
   const reportType = evaluation.report_type || "EVAL";
   const templateBuffer = await loadTemplateBuffer(reportType);
-  const pdfBytes = await generateOverlayPdf(evaluation, templateBuffer);
+  const pdfBytes = await generateOverlayPdf(await applyLiveSummaryFigures(evaluation), templateBuffer);
 
   const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
@@ -48,7 +49,7 @@ export async function downloadEvaluationPdf(evaluation: Evaluation): Promise<voi
 export async function previewEvaluationPdf(evaluation: Evaluation): Promise<string> {
   const reportType = evaluation.report_type || "EVAL";
   const templateBuffer = await loadTemplateBuffer(reportType);
-  const pdfBytes = await generateOverlayPdf(evaluation, templateBuffer);
+  const pdfBytes = await generateOverlayPdf(await applyLiveSummaryFigures(evaluation), templateBuffer);
 
   const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
   return URL.createObjectURL(blob);

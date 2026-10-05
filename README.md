@@ -212,7 +212,7 @@ Once an evaluation passes all validation checks and forced distribution rules:
 
 ## Citations and Attribution
 
-All official Navy documents are attached as PDFs (`BUPERSINST 1610.10.pdf` and `navpers-1616-26_2025.pdf`) and cited in the report (MLA style). Every open-source library is listed with exact versions in `package.json` and attributed with license notices and inline comments throughout the source code.
+All official Navy documents are attached as PDFs (`BUPERSINST 1610.10.pdf` and `evalBlank.pdf`) and cited in the report (MLA style). Every open-source library is listed with exact versions in `package.json` and attributed with license notices and inline comments throughout the source code.
 
 **AI Attribution & Code Assistance Disclosure:**
 To accelerate development and maintain alignment with modern software engineering practices, AI assistance was utilized in the following project areas:

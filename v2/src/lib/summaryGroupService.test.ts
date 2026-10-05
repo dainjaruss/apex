@@ -242,6 +242,7 @@ describe('computeSummaryGroupMetrics — RSCA projection', () => {
 // ─── DB-integration tests (IndexedDB via fake-indexeddb) ──────────────────────
 import { beforeEach, vi } from 'vitest';
 import { db } from './db';
+import { noteWorkspaceIdentity } from './workspaceSession';
 import {
   createSummaryGroup,
   deleteSummaryGroup,
@@ -249,9 +250,15 @@ import {
   removeEvalFromSummaryGroup,
   stampSummaryGroupMetrics,
   generateSamplePeerEval,
+  closeSummaryGroup,
+  reopenSummaryGroup,
+  buildDebriefPackages,
+  applyLiveSummaryFigures,
+  persistSummaryGroupFigures,
 } from './summaryGroupService';
 
 beforeEach(async () => {
+  localStorage.clear();
   await db.evaluations.clear();
   await db.summary_groups.clear();
 });
@@ -412,6 +419,75 @@ describe('deleteSummaryGroup — IndexedDB', () => {
 });
 
 // ─── stampSummaryGroupMetrics ─────────────────────────────────────────────────
+describe('persistSummaryGroupFigures — IndexedDB', () => {
+  it('writes the summary group average and Block 46 counts when a report joins the group', async () => {
+    const group = await createSummaryGroup({
+      name: 'Live Group',
+      reporting_senior_name: 'SMITH, J A',
+      period_to: '2025-09-30',
+      grade_rate: 'E-6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    const early = makeEval({
+      id: 'eval-live-ep',
+      promotion_recommendation: 'Early Promote',
+      trait_grades: {
+        knowledge: '5.0', work: '5.0', eo: '5.0', bearing: '5.0',
+        accomplishment: '5.0', teamwork: '5.0', leadership: '5.0',
+      },
+    });
+    const promotable = makeEval({ id: 'eval-live-p', promotion_recommendation: 'Promotable' });
+    await db.evaluations.bulkPut([early, promotable]);
+
+    await addEvalToSummaryGroup(early.id, group.id);
+    await addEvalToSummaryGroup(promotable.id, group.id);
+
+    const storedEarly = await db.evaluations.get(early.id);
+    const storedPromotable = await db.evaluations.get(promotable.id);
+    expect(storedEarly?.summary_group_average).toBe(4.5);
+    expect(storedPromotable?.summary_group_average).toBe(4.5);
+    expect(storedEarly?.summary_group_distribution).toMatchObject({
+      'Early Promote': 1,
+      'Must Promote': 0,
+      Promotable: 1,
+      Progressing: 0,
+      'Significant Problems': 0,
+    });
+    expect(storedEarly?.summary_group_distribution?.NOB).toBeUndefined();
+  });
+
+  it('recalculates the remaining reports when one leaves the group', async () => {
+    const group = await createSummaryGroup({
+      name: 'Leave Group',
+      reporting_senior_name: 'SMITH, J A',
+      period_to: '2025-09-30',
+      grade_rate: 'E-6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    const early = makeEval({ id: 'eval-leave-ep', promotion_recommendation: 'Early Promote' });
+    const promotable = makeEval({ id: 'eval-leave-p', promotion_recommendation: 'Promotable' });
+    await db.evaluations.bulkPut([early, promotable]);
+    await addEvalToSummaryGroup(early.id, group.id);
+    await addEvalToSummaryGroup(promotable.id, group.id);
+
+    await removeEvalFromSummaryGroup(early.id, group.id);
+
+    const gone = await db.evaluations.get(early.id);
+    const stayed = await db.evaluations.get(promotable.id);
+    expect(gone?.summary_group_id).toBeNull();
+    expect(gone?.summary_group_average).toBeNull();
+    expect(stayed?.summary_group_distribution).toMatchObject({
+      'Early Promote': 0,
+      Promotable: 1,
+    });
+    expect(stayed?.summary_group_average).toBe(4);
+  });
+});
+
 describe('stampSummaryGroupMetrics — IndexedDB', () => {
   it('stamps Block 50 metrics into all member evaluations', async () => {
     const group = await createSummaryGroup({
@@ -474,5 +550,304 @@ describe('generateSamplePeerEval — IndexedDB', () => {
     // Verify group member_ids updated
     const updatedGroup = await db.summary_groups.get(group.id);
     expect(updatedGroup?.member_ids).toContain(peerEval.id);
+  });
+});
+
+function asCommand() {
+  noteWorkspaceIdentity({
+    scope: 'command',
+    workspaceId: 'ws-command',
+    holderName: 'KIRK, JAMES T',
+    holderRole: 'Reporting Senior',
+  });
+}
+
+const FIVES = {
+  knowledge: '5.0', work: '5.0', eo: '5.0', bearing: '5.0',
+  accomplishment: '5.0', teamwork: '5.0', leadership: '5.0',
+};
+const THREES = {
+  knowledge: '3.0', work: '3.0', eo: '3.0', bearing: '3.0',
+  accomplishment: '3.0', teamwork: '3.0', leadership: '3.0',
+};
+const NOB_GRADES = {
+  knowledge: 'NOB', work: 'NOB', eo: 'NOB', bearing: 'NOB',
+  accomplishment: 'NOB', teamwork: 'NOB', leadership: 'NOB',
+};
+
+describe('closeSummaryGroup and debrief copies', () => {
+  it('refuses to close while a member has no promotion mark', async () => {
+    asCommand();
+    const group = await createSummaryGroup({
+      name: 'Open Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.put(makeEval({
+      id: 'eval-blank',
+      summary_group_id: group.id,
+      promotion_recommendation: '',
+      member_name: 'UHURA, NYOTA',
+    }));
+    await db.summary_groups.update(group.id, { member_ids: ['eval-blank'] });
+    await expect(closeSummaryGroup(group.id)).rejects.toThrow(/no promotion recommendation/);
+    expect((await db.summary_groups.get(group.id))?.status).toBe('open');
+  });
+
+  it('refuses to close while a report is still with a reviewer', async () => {
+    asCommand();
+    const group = await createSummaryGroup({
+      name: 'Out Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.put(makeEval({
+      id: 'eval-out',
+      summary_group_id: group.id,
+      routing_stage: 'rater',
+      member_name: 'UHURA, NYOTA',
+    }));
+    await db.summary_groups.update(group.id, { member_ids: ['eval-out'] });
+    await expect(closeSummaryGroup(group.id)).rejects.toThrow(/still with a reviewer/);
+  });
+
+  it('gives both members the same frozen average and the same five counts', async () => {
+    asCommand();
+    const group = await createSummaryGroup({
+      name: 'Closed Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.bulkPut([
+      makeEval({
+        id: 'eval-high',
+        member_name: 'UHURA, NYOTA',
+        summary_group_id: group.id,
+        trait_grades: FIVES,
+        promotion_recommendation: 'Early Promote',
+        source_workspace_id: 'ws-uhura',
+        trait_average: 5,
+      }),
+      makeEval({
+        id: 'eval-low',
+        member_name: 'SULU, HIKARU',
+        summary_group_id: group.id,
+        trait_grades: THREES,
+        promotion_recommendation: 'Promotable',
+        source_workspace_id: 'ws-sulu',
+        trait_average: 3,
+      }),
+    ]);
+    await db.summary_groups.update(group.id, { member_ids: ['eval-high', 'eval-low'] });
+
+    const figures = await closeSummaryGroup(group.id);
+    expect(figures.summaryGroupAverage).toBe(4);
+    expect(figures.distribution).toMatchObject({
+      'Early Promote': 1,
+      'Must Promote': 0,
+      Promotable: 1,
+      Progressing: 0,
+      'Significant Problems': 0,
+    });
+    expect(figures.distribution).not.toHaveProperty('NOB');
+
+    const packages = await buildDebriefPackages(group.id);
+    expect(packages).toHaveLength(2);
+    for (const pkg of packages) {
+      expect(pkg.release).toBe('debrief');
+      expect(pkg.evaluation.summary_group_average).toBe(4);
+      expect(pkg.evaluation.summary_group_distribution).toEqual(figures.distribution);
+      expect(pkg.evaluation.ranking_released).toBe(true);
+      expect(pkg.evaluation.trait_average).toBeTypeOf('number');
+    }
+    const uhura = packages.find((pkg) => pkg.evaluation.id === 'eval-high');
+    const sulu = packages.find((pkg) => pkg.evaluation.id === 'eval-low');
+    expect(uhura?.addressed_to).toBe('ws-uhura');
+    expect(uhura?.evaluation.promotion_recommendation).toBe('Early Promote');
+    expect(JSON.stringify(uhura)).not.toContain('SULU');
+    expect(sulu?.addressed_to).toBe('ws-sulu');
+    expect(sulu?.evaluation.promotion_recommendation).toBe('Promotable');
+    expect(JSON.stringify(sulu)).not.toContain('UHURA');
+  });
+
+  it('keeps NOB out of the frozen counts and the frozen average', async () => {
+    asCommand();
+    const group = await createSummaryGroup({
+      name: 'NOB Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.bulkPut([
+      makeEval({
+        id: 'eval-graded',
+        summary_group_id: group.id,
+        trait_grades: FIVES,
+        promotion_recommendation: 'Promotable',
+        source_workspace_id: 'ws-graded',
+      }),
+      makeEval({
+        id: 'eval-nob',
+        summary_group_id: group.id,
+        trait_grades: NOB_GRADES,
+        promotion_recommendation: 'NOB',
+        source_workspace_id: 'ws-nob',
+      }),
+    ]);
+    await db.summary_groups.update(group.id, { member_ids: ['eval-graded', 'eval-nob'] });
+    const figures = await closeSummaryGroup(group.id);
+    expect(figures.summaryGroupAverage).toBe(5);
+    expect(figures.distribution.Promotable).toBe(1);
+    expect(figures.distribution).not.toHaveProperty('NOB');
+    const packages = await buildDebriefPackages(group.id);
+    expect(packages.every((pkg) => pkg.evaluation.summary_group_average === 5)).toBe(true);
+    expect(packages.every((pkg) => pkg.evaluation.summary_group_distribution?.Promotable === 1)).toBe(true);
+  });
+
+  it('clears the frozen release when the group is reopened', async () => {
+    asCommand();
+    const group = await createSummaryGroup({
+      name: 'Reopen Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.put(makeEval({
+      id: 'eval-one',
+      summary_group_id: group.id,
+      source_workspace_id: 'ws-one',
+    }));
+    await db.summary_groups.update(group.id, { member_ids: ['eval-one'] });
+    await closeSummaryGroup(group.id);
+    await reopenSummaryGroup(group.id);
+    const stored = await db.summary_groups.get(group.id);
+    expect(stored?.status).toBe('open');
+    expect(stored?.frozen_at).toBeNull();
+    expect(stored?.frozen_average).toBeNull();
+    await expect(buildDebriefPackages(group.id)).rejects.toThrow(/Close the summary group/);
+  });
+});
+
+describe('member and reviewer live pool', () => {
+  it('does not write the live pool from a member workspace', async () => {
+    noteWorkspaceIdentity({
+      scope: 'member',
+      workspaceId: 'ws-sailor',
+      holderName: 'UHURA, NYOTA',
+      holderRole: 'Sailor',
+    });
+    const group = await createSummaryGroup({
+      name: 'Hidden Group',
+      reporting_senior_name: 'KIRK, JAMES T',
+      period_to: '2026-11-15',
+      grade_rate: 'E6',
+      promotion_status: 'Regular',
+      report_type: 'EVAL',
+      status: 'open',
+    });
+    await db.evaluations.bulkPut([
+      makeEval({ id: 'eval-self', summary_group_id: group.id, trait_grades: FIVES }),
+      makeEval({ id: 'eval-peer', summary_group_id: group.id, trait_grades: THREES, member_name: 'SULU, HIKARU' }),
+    ]);
+    const result = await persistSummaryGroupFigures(group.id);
+    expect(result.memberCount).toBe(0);
+    expect((await db.evaluations.get('eval-self'))?.summary_group_average).toBeUndefined();
+    expect((await db.evaluations.get('eval-peer'))?.summary_group_average).toBeUndefined();
+  });
+
+  it('does not read another report when a member workspace prepares a draft PDF', async () => {
+    noteWorkspaceIdentity({
+      scope: 'member',
+      workspaceId: 'ws-sailor',
+      holderName: 'UHURA, NYOTA',
+      holderRole: 'Sailor',
+    });
+    const self = makeEval({
+      id: 'eval-self',
+      summary_group_id: 'sg-shared',
+      summary_group_average: 4.75,
+      promotion_recommendation: 'Early Promote',
+      trait_grades: THREES,
+      trait_average: 3,
+    });
+    const peer = makeEval({
+      id: 'eval-peer',
+      summary_group_id: 'sg-shared',
+      member_name: 'SULU, HIKARU',
+      trait_grades: FIVES,
+      summary_group_average: 5,
+    });
+    await db.evaluations.bulkPut([self, peer]);
+    const reads = vi.spyOn(db.evaluations, 'toArray');
+    const printed = await applyLiveSummaryFigures(self);
+    expect(reads).not.toHaveBeenCalled();
+    expect(printed.summary_group_average).toBeNull();
+    expect(printed.summary_group_distribution).toBeNull();
+    expect(printed.promotion_recommendation).toBeUndefined();
+    expect(printed.trait_average).toBe(3);
+    expect(printed.member_name).toBe('DOE, JOHN A');
+    reads.mockRestore();
+  });
+
+  it('prints the frozen average and the five counts from a debrief copy', async () => {
+    noteWorkspaceIdentity({
+      scope: 'member',
+      workspaceId: 'ws-sailor',
+      holderName: 'UHURA, NYOTA',
+      holderRole: 'Sailor',
+    });
+    const frozen = {
+      'Significant Problems': 0,
+      Progressing: 0,
+      Promotable: 1,
+      'Must Promote': 0,
+      'Early Promote': 1,
+    };
+    const self = makeEval({
+      id: 'eval-self',
+      summary_group_id: 'sg-shared',
+      summary_group_average: 4,
+      summary_group_distribution: frozen,
+      promotion_recommendation: 'Early Promote',
+      ranking_released: true,
+      trait_average: 5,
+      trait_grades: FIVES,
+    });
+    await db.evaluations.bulkPut([
+      self,
+      makeEval({
+        id: 'eval-peer',
+        summary_group_id: 'sg-shared',
+        member_name: 'SULU, HIKARU',
+        trait_grades: THREES,
+        summary_group_average: 3,
+      }),
+    ]);
+    const reads = vi.spyOn(db.evaluations, 'toArray');
+    const printed = await applyLiveSummaryFigures(self);
+    expect(reads).not.toHaveBeenCalled();
+    expect(printed.summary_group_average).toBe(4);
+    expect(printed.summary_group_distribution).toEqual(frozen);
+    expect(printed.promotion_recommendation).toBe('Early Promote');
+    expect(printed.trait_average).toBe(5);
+    reads.mockRestore();
   });
 });

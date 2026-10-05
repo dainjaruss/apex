@@ -7,6 +7,10 @@
 import { db } from "@/lib/db";
 import { Evaluation, SummaryGroup, RscaHistoricalRecord } from "@/types";
 import { computeTraitAverage, computeSummaryGroupAverage } from "@/lib/traitAverage";
+import { emptyDistribution, OBSERVED_RECS, tallyRecommendations, type RecDistribution } from "@/lib/forcedDistribution";
+import { readWorkspaceIdentity } from "@/lib/workspaceSession";
+import { copyForRelease } from "@/lib/workspaceScope";
+import type { ApexTransferPackage } from "@/lib/sessionTransfer";
 
 /**
  * Creates a new Summary Group in IndexedDB.
@@ -75,17 +79,19 @@ export async function addEvalToSummaryGroup(evalId: string, groupId: string): Pr
       updated_at: new Date().toISOString(),
     });
   });
+  await persistSummaryGroupFigures(groupId);
 }
 
 /**
  * Removes an evaluation from a summary group.
  */
 export async function removeEvalFromSummaryGroup(evalId: string, groupId?: string): Promise<void> {
+  let targetGroupId = groupId;
   await db.transaction("rw", [db.summary_groups, db.evaluations], async () => {
     const ev = await db.evaluations.get(evalId);
     if (!ev) return;
 
-    const targetGroupId = groupId || ev.summary_group_id;
+    targetGroupId = groupId || ev.summary_group_id || undefined;
     if (targetGroupId) {
       const group = await db.summary_groups.get(targetGroupId);
       if (group) {
@@ -104,6 +110,7 @@ export async function removeEvalFromSummaryGroup(evalId: string, groupId?: strin
       updated_at: new Date().toISOString(),
     });
   });
+  if (targetGroupId) await persistSummaryGroupFigures(targetGroupId);
 }
 
 export interface SummaryGroupMetrics {
@@ -226,6 +233,246 @@ export function computeSummaryGroupMetrics(
     isCombinedOverQuota,
     members: rankedMembers,
   };
+}
+
+export interface SummaryFigures {
+  summaryGroupAverage: number | null;
+  /** Counts for the five observed promotion recommendations. NOB is not a count. */
+  distribution: RecDistribution;
+  traitAverageById: Map<string, number | null>;
+}
+
+/** Block 46 counts (EVAL; Block 48 CHIEFEVAL; Block 43 FITREP) and the summary group average. */
+export function summaryFigures(members: Evaluation[]): SummaryFigures {
+  const summaryGroupAverage = computeSummaryGroupAverage(members.map((e) => e.trait_grades)).average;
+  const { distribution } = tallyRecommendations(members.map((e) => e.promotion_recommendation));
+  const traitAverageById = new Map<string, number | null>();
+  for (const ev of members) {
+    traitAverageById.set(ev.id, computeTraitAverage(ev.trait_grades).average);
+  }
+  return { summaryGroupAverage, distribution, traitAverageById };
+}
+
+function sameDistribution(
+  stored: Evaluation["summary_group_distribution"],
+  next: RecDistribution,
+): boolean {
+  if (!stored) return false;
+  return OBSERVED_RECS.every((key) => stored[key] === next[key]);
+}
+
+/**
+ * Writes the live summary-group average and promotion-recommendation counts onto every
+ * report in the group. The PDF prints the average in the summary-group-average cell
+ * (under the EVAL Block 50 signature; CHIEFEVAL Block 45) and the counts on the breakdown row.
+ */
+export async function persistSummaryGroupFigures(groupId: string): Promise<{
+  summaryGroupAverage: number | null;
+  distribution: RecDistribution;
+  memberCount: number;
+}> {
+  const scope = readWorkspaceIdentity()?.scope;
+  if (scope === "member" || scope === "reviewer") {
+    return { summaryGroupAverage: null, distribution: emptyDistribution(), memberCount: 0 };
+  }
+  const group = await db.summary_groups.get(groupId);
+  if (!group) {
+    return { summaryGroupAverage: null, distribution: emptyDistribution(), memberCount: 0 };
+  }
+
+  const evals = await db.evaluations.toArray();
+  const groupEvals = evals.filter(
+    (e) => e.summary_group_id === groupId || group.member_ids?.includes(e.id),
+  );
+  const figures = summaryFigures(groupEvals);
+  const now = new Date().toISOString();
+
+  await db.transaction("rw", db.evaluations, async () => {
+    for (const ev of groupEvals) {
+      const traitAverage = figures.traitAverageById.get(ev.id) ?? null;
+      const unchanged =
+        (ev.summary_group_average ?? null) === figures.summaryGroupAverage &&
+        (ev.trait_average ?? null) === traitAverage &&
+        sameDistribution(ev.summary_group_distribution, figures.distribution);
+      if (unchanged) continue;
+      await db.evaluations.update(ev.id, {
+        summary_group_average: figures.summaryGroupAverage,
+        summary_group_distribution: { ...figures.distribution },
+        trait_average: traitAverage ?? undefined,
+        updated_at: now,
+      });
+    }
+  });
+
+  return {
+    summaryGroupAverage: figures.summaryGroupAverage,
+    distribution: figures.distribution,
+    memberCount: groupEvals.length,
+  };
+}
+
+/**
+ * Uses the report being printed as the current copy of itself, and the saved group for the rest.
+ */
+export async function applyLiveSummaryFigures(evaluation: Evaluation): Promise<Evaluation> {
+  const scope = readWorkspaceIdentity()?.scope;
+  if (scope === "member" || scope === "reviewer") {
+    if (evaluation.ranking_released) return evaluation;
+    const { promotion_recommendation: _mark, ...rest } = evaluation;
+    return { ...rest, summary_group_average: null, summary_group_distribution: null } as Evaluation;
+  }
+  if (!evaluation.summary_group_id) {
+    return {
+      ...evaluation,
+      summary_group_average: null,
+      summary_group_distribution: null,
+    };
+  }
+  const group = await db.summary_groups.get(evaluation.summary_group_id);
+  const evals = await db.evaluations.toArray();
+  const members = evals
+    .filter(
+      (e) =>
+        e.summary_group_id === evaluation.summary_group_id ||
+        group?.member_ids?.includes(e.id),
+    )
+    .map((e) => (e.id === evaluation.id ? evaluation : e));
+  if (!members.some((e) => e.id === evaluation.id)) members.push(evaluation);
+  const figures = summaryFigures(members);
+  return {
+    ...evaluation,
+    summary_group_average: figures.summaryGroupAverage,
+    summary_group_distribution: { ...figures.distribution },
+    trait_average: figures.traitAverageById.get(evaluation.id) ?? evaluation.trait_average,
+  };
+}
+
+/**
+ * Keeps summary_groups.member_ids aligned when a report's group is changed from the editor,
+ * then rewrites the calculated figures for each group involved.
+ */
+export async function recordSummaryGroupMembership(
+  evalId: string,
+  previousGroupId: string | null | undefined,
+  nextGroupId: string | null | undefined,
+): Promise<void> {
+  if (previousGroupId && previousGroupId !== nextGroupId) {
+    const old = await db.summary_groups.get(previousGroupId);
+    if (old) {
+      await db.summary_groups.update(old.id, {
+        member_ids: (old.member_ids || []).filter((id) => id !== evalId),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    await persistSummaryGroupFigures(previousGroupId);
+  }
+  if (!nextGroupId) {
+    await db.evaluations.update(evalId, {
+      summary_group_average: null,
+      summary_group_distribution: null,
+    });
+    return;
+  }
+  const group = await db.summary_groups.get(nextGroupId);
+  if (group && !(group.member_ids || []).includes(evalId)) {
+    await db.summary_groups.update(group.id, {
+      member_ids: [...(group.member_ids || []), evalId],
+      updated_at: new Date().toISOString(),
+    });
+  }
+  await persistSummaryGroupFigures(nextGroupId);
+}
+
+function membersOf(group: SummaryGroup, evals: Evaluation[]): Evaluation[] {
+  return evals.filter(
+    (evaluation) => evaluation.summary_group_id === group.id || group.member_ids?.includes(evaluation.id),
+  );
+}
+
+/**
+ * Freezes one average and one set of counts for every debrief copy.
+ * Refuses while a mark is missing or a report is still with a reviewer.
+ */
+export async function closeSummaryGroup(groupId: string): Promise<SummaryFigures> {
+  if (readWorkspaceIdentity()?.scope !== "command") {
+    throw new Error("Only the command workspace can close a summary group.");
+  }
+  const group = await db.summary_groups.get(groupId);
+  if (!group) throw new Error("Summary group not found");
+  const members = membersOf(group, await db.evaluations.toArray());
+  if (members.length === 0) throw new Error("The summary group has no reports.");
+  for (const evaluation of members) {
+    if (!evaluation.promotion_recommendation || !String(evaluation.promotion_recommendation).trim()) {
+      throw new Error(`${evaluation.member_name || "A report"} has no promotion recommendation.`);
+    }
+    if (evaluation.routing_stage === "rater" || evaluation.routing_stage === "senior_rater") {
+      throw new Error(`${evaluation.member_name || "A report"} is still with a reviewer.`);
+    }
+  }
+  const figures = summaryFigures(members);
+  const now = new Date().toISOString();
+  await db.summary_groups.update(group.id, {
+    status: "closed",
+    frozen_average: figures.summaryGroupAverage,
+    frozen_distribution: { ...figures.distribution },
+    frozen_at: now,
+    updated_at: now,
+  });
+  return figures;
+}
+
+export async function reopenSummaryGroup(groupId: string): Promise<void> {
+  if (readWorkspaceIdentity()?.scope !== "command") {
+    throw new Error("Only the command workspace can reopen a summary group.");
+  }
+  const group = await db.summary_groups.get(groupId);
+  if (!group) throw new Error("Summary group not found");
+  await db.summary_groups.update(group.id, {
+    status: "open",
+    frozen_average: null,
+    frozen_distribution: null,
+    frozen_at: null,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+/** One debrief file per member. Each copy carries the frozen figures and that sailor's own mark. */
+export async function buildDebriefPackages(groupId: string): Promise<ApexTransferPackage[]> {
+  if (readWorkspaceIdentity()?.scope !== "command") {
+    throw new Error("Only the command workspace can issue a debrief copy.");
+  }
+  const group = await db.summary_groups.get(groupId);
+  if (!group || group.status !== "closed" || group.frozen_at == null) {
+    throw new Error("Close the summary group before issuing debrief copies.");
+  }
+  const identity = readWorkspaceIdentity();
+  const members = membersOf(group, await db.evaluations.toArray());
+  const missing = members.filter((evaluation) => !evaluation.source_workspace_id);
+  if (missing.length > 0) {
+    const names = missing.map((evaluation) => evaluation.member_name || "A report").join(", ");
+    throw new Error(`${names} has no workspace address. Import a draft exported from that sailor's workspace.`);
+  }
+  return members.map((evaluation) => {
+    const released = copyForRelease(
+      {
+        ...evaluation,
+        summary_group_average: group.frozen_average ?? null,
+        summary_group_distribution: group.frozen_distribution ? { ...group.frozen_distribution } : null,
+      },
+      "debrief",
+    );
+    const pkg: ApexTransferPackage = {
+      format: "APEX_EVAL_TRANSFER",
+      version: "2.0.0",
+      exportedAt: new Date().toISOString(),
+      evaluation: released,
+      base_ratchet: evaluation.lock_ratchet ?? "",
+      from_workspace_id: identity?.workspaceId,
+      addressed_to: evaluation.source_workspace_id,
+      release: "debrief",
+    };
+    return pkg;
+  });
 }
 
 /**
@@ -369,5 +616,6 @@ export async function generateSamplePeerEval(
     });
   }
 
+  await persistSummaryGroupFigures(groupId);
   return newEval;
 }

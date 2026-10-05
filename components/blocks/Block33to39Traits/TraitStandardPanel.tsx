@@ -39,7 +39,9 @@ export default function TraitStandardPanel({
   const isAnchor = std.anchors
     ? (ANCHOR_GRADES as readonly string[]).includes(grade)
     : true;
-  const needsJustification = grade === "1.0" || grade === "5.0";
+  // A 5.0 does not require Block 43 comments. Written explanations of 5.0 marks
+  // belong to the rater and senior rater certifications, not this narrative.
+  const needsJustification = grade === "1.0";
   const headingColor = ANCHOR_HEADING[grade] ?? "var(--muted-foreground)";
 
   return (

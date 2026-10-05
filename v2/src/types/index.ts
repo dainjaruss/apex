@@ -29,8 +29,19 @@ export interface SummaryGroup {
   report_type: "EVAL" | "CHIEFEVAL" | "FITREP";
   status: "open" | "closed";
   member_ids: string[];
+  /** Set when the reporting senior closes the group. Debrief copies use these, not the live pool. */
+  frozen_average?: number | null;
+  frozen_distribution?: { [category: string]: number } | null;
+  frozen_at?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/** A person registered in the command workspace. The id is their workspace address. */
+export interface RosterEntry {
+  id: string;
+  holder_name: string;
+  holder_role: "Sailor" | "Rater" | "Senior Rater" | "Reporting Senior";
 }
 
 export interface CustodyRecord {
@@ -81,7 +92,18 @@ export interface Evaluation {
   current_holder_email?: string;
   return_notes?: string;
   custody_chain?: CustodyRecord[];
+  // Report custody. The token is also kept in this browser. A different
+  // computer that opens the file can see the holder, and cannot save until
+  // the holder releases the report or 24 hours pass with no save.
+  lock_holder_name?: string | null;
+  lock_token?: string | null;
+  lock_ratchet?: string | null;
+  lock_activity_at?: string | null;
   summary_group_id?: string | null;
+  /** Workspace that exported this report. The debrief copy is addressed back to it. */
+  source_workspace_id?: string;
+  /** True only after a debrief copy is imported. Member screens use this, not the live pool. */
+  ranking_released?: boolean;
   block_values: {
     physical_readiness?: string;
     billet_subcategory?: string;

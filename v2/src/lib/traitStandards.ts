@@ -8,7 +8,7 @@
 //   CHIEFEVAL NAVPERS 1616/27 (E7-E9)  → CHIEFEVAL_TRAIT_STANDARDS
 //   FITREP    NAVPERS 1610/2  (W2-O6)  → FITREP_TRAIT_STANDARDS
 //
-// Source of truth: the printed grids on public/navpers-1616-26_2025.pdf,
+// Source of truth: the printed grids on public/evalBlank.pdf,
 // public/chiefEvalBlank.pdf and public/fitrepBlank.pdf (all REV 05-2025), transcribed
 // from the PDF text layer and verified against the rendered forms. These are the
 // verbatim standards shown to the rater — do NOT paraphrase, and do NOT reuse one
@@ -99,6 +99,98 @@ export function getCommentsBlock(reportType?: string): number {
   if (reportType === "CHIEFEVAL") return 40;
   if (reportType === "FITREP") return 41;
   return 43;
+}
+
+/** NAVPERS form number in the header. An unknown type is the enlisted EVAL. */
+export function navpersFormNumber(reportType?: string): string {
+  if (reportType === "CHIEFEVAL") return "1616/27";
+  if (reportType === "FITREP") return "1610/2";
+  return "1616/26";
+}
+
+/**
+ * Career-recommendation block stored on a ValidationIssue.
+ * EVAL prints Block 41. CHIEFEVAL prints Blocks 46 and 47; the issue cites 46.
+ * FITREP prints Block 40. Read off the REV 05-2025 blanks.
+ */
+export function careerRecommendationBlock(reportType?: string): number {
+  if (reportType === "CHIEFEVAL") return 46;
+  if (reportType === "FITREP") return 40;
+  return 41;
+}
+
+/** Printed career-recommendation heading. CHIEFEVAL is two blocks. */
+export function careerRecommendationLabel(reportType?: string): string {
+  if (reportType === "CHIEFEVAL") return "Blocks 46 and 47";
+  if (reportType === "FITREP") return "Block 40";
+  return "Block 41";
+}
+
+/** "allows" for one block; "allow" when the heading names Blocks 46 and 47. */
+export function careerRecommendationLimitVerb(
+  reportType?: string,
+): "allow" | "allows" {
+  return reportType === "CHIEFEVAL" ? "allow" : "allows";
+}
+
+/**
+ * Individual promotion recommendation on the REV 05-2025 blank.
+ * EVAL Block 45, CHIEFEVAL Block 41, FITREP Block 42.
+ * The instruction heading that calls FITREP/CHIEFEVAL promotion "BLOCK 48"
+ * does not match these blanks: CHIEFEVAL Block 48 is the summary-group breakdown.
+ */
+export function promotionBlock(reportType?: string): number {
+  if (reportType === "CHIEFEVAL") return 41;
+  if (reportType === "FITREP") return 42;
+  return 45;
+}
+
+/**
+ * Qualifications / Achievements. EVAL Block 44 only.
+ * CHIEFEVAL Block 44 is RSCA. FITREP Block 44 is the reporting senior address.
+ */
+export function qualificationsBlock(reportType?: string): number | null {
+  if (reportType === "CHIEFEVAL" || reportType === "FITREP") return null;
+  return 44;
+}
+
+/** Reporting senior mailing address. EVAL 48, CHIEFEVAL 51, FITREP 44. */
+export function reportingSeniorAddressBlock(reportType?: string): number {
+  if (reportType === "CHIEFEVAL") return 51;
+  if (reportType === "FITREP") return 44;
+  return 48;
+}
+
+/**
+ * Member trait average, as printed.
+ * EVAL numbers it Block 40. CHIEFEVAL numbers it Block 43.
+ * FITREP prints the words with no block number.
+ */
+export function traitAverageLabel(reportType?: string): string {
+  if (reportType === "CHIEFEVAL") return "Block 43 Member Trait Average";
+  if (reportType === "FITREP") return "Member Trait Average";
+  return "Block 40 Individual Trait Average";
+}
+
+/**
+ * Summary-group average, as printed.
+ * EVAL and FITREP print "Summary Group Average" with no block number.
+ * The EVAL figure sits under the Block 50 signature; the blank does not say "50a".
+ * CHIEFEVAL numbers it Block 45, Group Summary.
+ */
+export function summaryGroupAverageLabel(reportType?: string): string {
+  if (reportType === "CHIEFEVAL") return "Block 45 Group Summary";
+  return "Summary Group Average";
+}
+
+/**
+ * Summary-group breakdown row.
+ * EVAL Block 46, FITREP Block 43, CHIEFEVAL Block 48.
+ */
+export function summaryBreakdownLabel(reportType?: string): string {
+  if (reportType === "CHIEFEVAL") return "Block 48";
+  if (reportType === "FITREP") return "Block 43";
+  return "Block 46";
 }
 
 export function getSubstantiationNote(

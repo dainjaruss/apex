@@ -1,7 +1,7 @@
 // tests/unit/evalOverlayGeometry.test.ts
 //
 // Page-1 geometry of the EVAL overlay (lib/pdfOverlay.ts) against NAVPERS
-// 1616/26 — the blank that ships in public/navpers-1616-26_2025.pdf.
+// 1616/26 — the blank that ships in public/evalBlank.pdf.
 //
 // ── Why this file exists ────────────────────────────────────────────────────
 // The EVAL is the form APEX shipped FIRST and the one most Sailors get, and its
@@ -16,7 +16,7 @@
 // pdfOverlay.ts, where it is still live. Verified here rather than assumed.
 //
 // ── Method (re-runnable) ────────────────────────────────────────────────────
-//   pdftoppm -gray -r 600 public/navpers-1616-26_2025.pdf out
+//   pdftoppm -gray -r 600 public/evalBlank.pdf out
 // then, per row: columns dark on >85% of the band are cell dividers; columns
 // dark on 30-85% are checkbox sides; and the lowest ink inside a column is that
 // block's printed label. Every bound below is transcribed from that scan,
@@ -230,7 +230,7 @@ async function overlayRuns(bytes: Uint8Array, page: number) {
 }
 
 const TEMPLATE = new Uint8Array(
-  fs.readFileSync(path.join(process.cwd(), "public", "navpers-1616-26_2025.pdf")),
+  fs.readFileSync(path.join(process.cwd(), "public", "evalBlank.pdf")),
 );
 
 /**

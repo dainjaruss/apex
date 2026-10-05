@@ -5,21 +5,26 @@
 // pooled Summary Group Average (SGA) calculations, Reporting Senior Cumulative Average (RSCA)
 // baseline ledger, interactive breakout ranking, and candidate evaluation assignment.
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { NmciSafeForm } from "@/components/NmciSafeForm";
 import { Evaluation, SummaryGroup, RscaHistoricalRecord, Profile } from "@/types";
 import { UIC_PATTERN } from "@/types/navpers";
+import { summaryBreakdownLabel, summaryGroupAverageLabel } from "@/lib/traitStandards";
 import {
   computeSummaryGroupMetrics,
-  stampSummaryGroupMetrics,
+  persistSummaryGroupFigures,
   createSummaryGroup,
   deleteSummaryGroup,
   addEvalToSummaryGroup,
   removeEvalFromSummaryGroup,
   generateSamplePeerEval,
+  closeSummaryGroup,
+  reopenSummaryGroup,
+  buildDebriefPackages,
 } from "@/lib/summaryGroupService";
+import { downloadTransferPackage } from "@/lib/sessionTransfer";
 import {
   Calculator,
   Save,
@@ -31,7 +36,6 @@ import {
   Award,
   Plus,
   Trash2,
-  CheckCircle2,
   ExternalLink,
   ChevronDown,
   UserPlus,
@@ -60,8 +64,9 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
   // Modal and drawer states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCandidateDrawer, setShowCandidateDrawer] = useState(false);
-  const [stampStatus, setStampStatus] = useState<string | null>(null);
   const [showLedgerConfig, setShowLedgerConfig] = useState(false);
+  const [groupNotice, setGroupNotice] = useState<string | null>(null);
+  const [groupError, setGroupError] = useState<string | null>(null);
 
   // New Summary Group Form state
   const [newGroupName, setNewGroupName] = useState("");
@@ -90,6 +95,14 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
       (e) => e.summary_group_id === activeGroup.id || activeGroup.member_ids?.includes(e.id)
     );
   }, [activeGroup, evaluations]);
+
+  const figureKey = groupEvals
+    .map((e) => `${e.id}|${e.promotion_recommendation}|${JSON.stringify(e.trait_grades)}`)
+    .join(";");
+  useEffect(() => {
+    if (!activeGroup) return;
+    void persistSummaryGroupFigures(activeGroup.id);
+  }, [activeGroup?.id, figureKey]);
 
   // RSCA record for active group paygrade & reporting senior
   const activePaygrade = activeGroup?.grade_rate || "E6";
@@ -181,18 +194,6 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
     await generateSamplePeerEval(activeGroup.id, activeGroup, seniorName, seniorDodId);
   };
 
-  // Handler: Stamp metrics to Block 50
-  const handleStampMetrics = async () => {
-    if (!activeGroup) return;
-    try {
-      const res = await stampSummaryGroupMetrics(activeGroup.id, currentRscaRecord);
-      setStampStatus(`Successfully stamped SGA (${res.sga?.toFixed(2) ?? "N/A"}) and RSCA (${res.rsca.toFixed(2)}) across ${res.memberCount} evaluations!`);
-      setTimeout(() => setStampStatus(null), 4000);
-    } catch (e: any) {
-      alert(`Error stamping metrics: ${e.message}`);
-    }
-  };
-
   // Handler: Save RSCA Ledger configuration
   const handleSaveLedger = async () => {
     const record: RscaHistoricalRecord = {
@@ -248,6 +249,55 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
     }
   };
 
+  const handleCloseGroup = async () => {
+    if (!activeGroup) return;
+    setGroupError(null);
+    setGroupNotice(null);
+    try {
+      const figures = await closeSummaryGroup(activeGroup.id);
+      const average = figures.summaryGroupAverage != null ? figures.summaryGroupAverage.toFixed(2) : "—";
+      setGroupNotice(`Summary group closed. Debrief copies will carry average ${average}.`);
+    } catch (err: unknown) {
+      setGroupError(err instanceof Error ? err.message : "Could not close the summary group.");
+    }
+  };
+
+  const handleReopenGroup = async () => {
+    if (!activeGroup) return;
+    if (
+      !confirm(
+        "Reopening clears the frozen average and counts. Copies already handed to sailors stay as they are. Closing again requires a new debrief file.",
+      )
+    ) {
+      return;
+    }
+    setGroupError(null);
+    setGroupNotice(null);
+    try {
+      await reopenSummaryGroup(activeGroup.id);
+      setGroupNotice("Summary group reopened. The pool is live again and is not the final average.");
+    } catch (err: unknown) {
+      setGroupError(err instanceof Error ? err.message : "Could not reopen the summary group.");
+    }
+  };
+
+  const handleIssueDebrief = async () => {
+    if (!activeGroup) return;
+    setGroupError(null);
+    setGroupNotice(null);
+    try {
+      const packages = await buildDebriefPackages(activeGroup.id);
+      for (const pkg of packages) downloadTransferPackage(pkg);
+      setGroupNotice(
+        packages.length === 1
+          ? "Issued 1 debrief copy. It contains that sailor's report only."
+          : `Issued ${packages.length} debrief copies. Each file contains one sailor's report.`,
+      );
+    } catch (err: unknown) {
+      setGroupError(err instanceof Error ? err.message : "Could not issue debrief copies.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -257,7 +307,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
             <div className="flex items-center gap-2">
               <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400" />
-                Leadership Portal (Reporting Senior & Admin)
+                Command workspace
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                 BUPERSINST 1610.10H Ch. 1
@@ -267,7 +317,7 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               Summary Groups & RSCA Matrix
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-              Command leadership cockpit for managing competitive summary groups, enforcing BUPERS Table 1-1 forced distribution ceilings, calculating authoritative pooled trait averages, and stamping Block 50 / 46 metrics.
+              The summary group lives in this file. The open pool is calculated here. It is not the final average until the group is closed.
             </p>
           </div>
 
@@ -333,14 +383,6 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
         </div>
       </div>
 
-      {/* Stamp Status Banner */}
-      {stampStatus && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl p-4 flex items-center gap-3 text-emerald-900 dark:text-emerald-200 text-xs font-medium">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>{stampStatus}</span>
-        </div>
-      )}
-
       {/* Quota & RSCA Metrics Cockpit Cards */}
       {metrics && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -349,14 +391,22 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
               <span>Summary Group Average (SGA)</span>
               <span className="text-[10px] font-mono bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                Block 50a / 46a
+                {summaryGroupAverageLabel(activeGroup?.report_type)}
               </span>
             </span>
             <div className="text-3xl font-extrabold font-mono text-blue-600 dark:text-blue-400 mt-2">
-              {metrics.summaryGroupAverage !== null ? metrics.summaryGroupAverage.toFixed(2) : "0.00"}
+              {activeGroup?.status === "closed"
+                ? activeGroup.frozen_average != null
+                  ? activeGroup.frozen_average.toFixed(2)
+                  : "—"
+                : metrics.summaryGroupAverage !== null
+                  ? metrics.summaryGroupAverage.toFixed(2)
+                  : "—"}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Pooled across {metrics.totalMembers} Sailors ({metrics.gradedMembers} graded)
+              {activeGroup?.status === "closed"
+                ? `Closed pool of ${metrics.totalMembers} reports. Debrief copies use this average.`
+                : `Open pool of ${metrics.totalMembers} reports. This is not the final average.`}
             </p>
           </div>
 
@@ -549,25 +599,49 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 Summary Group Cohort Roster ({metrics?.totalMembers || 0} Members)
               </h2>
-              <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-mono">
-                Breakout Order
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Ranked in descending order of Individual Trait Average (ITA). Adjust promotion recommendations to fit Table 1-1 ceilings.
+              Assign the promotion marks here. The list is sorted by each sailor's own trait average.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button"
-              onClick={handleStampMetrics}
-              disabled={!activeGroup || groupEvals.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
-              title="Stamp pooled SGA and RSCA into Block 50 of all evaluations"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Stamp Metrics to Block 50
-            </button>
+            {metrics && (
+              <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                <span className="font-semibold">{summaryBreakdownLabel(activeGroup?.report_type)}:</span>{" "}
+                {activeGroup?.status === "closed" && activeGroup.frozen_distribution
+                  ? `SP ${activeGroup.frozen_distribution["Significant Problems"] ?? 0} · Prog ${activeGroup.frozen_distribution["Progressing"] ?? 0} · P ${activeGroup.frozen_distribution["Promotable"] ?? 0} · MP ${activeGroup.frozen_distribution["Must Promote"] ?? 0} · EP ${activeGroup.frozen_distribution["Early Promote"] ?? 0}`
+                  : `SP ${metrics.counts.sp} · Prog ${metrics.counts.prog} · P ${metrics.counts.p} · MP ${metrics.counts.mp} · EP ${metrics.counts.ep}`}
+              </div>
+            )}
+
+            {activeGroup?.status === "closed" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleReopenGroup()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors"
+                >
+                  Reopen Group
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleIssueDebrief()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Issue Debrief Copy
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleCloseGroup()}
+                disabled={!activeGroup}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                Close Group
+              </button>
+            )}
 
             <button type="button"
               onClick={handleGenerateSamplePeer}
@@ -589,12 +663,23 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
           </div>
         </div>
 
+        {(groupError || groupNotice) && (
+          <div
+            className={`px-4 py-2 text-xs border-b ${
+              groupError
+                ? "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 border-red-200 dark:border-red-900"
+                : "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-900"
+            }`}
+          >
+            {groupError || groupNotice}
+          </div>
+        )}
+
         {/* Member Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 text-xs uppercase font-medium">
               <tr>
-                <th className="px-4 py-3">Rank / Breakout</th>
                 <th className="px-4 py-3">Member Name</th>
                 <th className="px-4 py-3">Rate / Desig</th>
                 <th className="px-4 py-3 text-center">ITA (Block 40)</th>
@@ -610,12 +695,6 @@ export const RscaMatrix: React.FC<RscaMatrixProps> = ({ activeProfile, onSelectE
                   const ev = m.evaluation;
                   return (
                     <tr key={ev.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-700 dark:text-slate-300">
-                        <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 inline-flex items-center justify-center text-xs">
-                          #{m.rank}
-                        </span>
-                      </td>
-
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
                         <button type="button"
                           onClick={() => onSelectEval && onSelectEval(ev)}

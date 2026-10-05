@@ -147,7 +147,7 @@ const C = {
     billet_x: 465,
 
     // Blocks 22-27, cell y[638.040, 662.520] in PAGE coordinates. Column
-    // dividers measured at 600 dpi off public/navpers-1616-26_2025.pdf:
+    // dividers measured at 600 dpi off public/evalBlank.pdf:
     // x[180.360, 181.080] / [230.760, 231.480] / [281.880, 282.600] /
     // [413.640, 414.360] / [468.360, 469.080], so the six column interiors are
     // [30.600, 180.360] [181.080, 230.760] [231.480, 281.880] [282.600, 413.640]

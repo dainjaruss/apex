@@ -22,19 +22,42 @@ export default function ValidationResultsModal({
 }: ValidationResultsModalProps) {
   if (!isOpen) return null;
 
-  // Categorize errors/warnings for better visualization
-  const getCategory = (block?: number) => {
+  // Field first: CHIEFEVAL comments are Block 40, which a block<=40 test
+  // would file under traits. The issue.block is already the printed number.
+  const getCategory = (issue: ValidationIssue) => {
+    const field = issue.field || "";
+    const block = issue.block;
+    if (field === "comments" || field.startsWith("comments.")) {
+      return block
+        ? `Performance narrative comments (Block ${block})`
+        : "Performance narrative comments";
+    }
+    if (
+      field === "career_recommendations" ||
+      field.startsWith("career_recommendations")
+    ) {
+      return block
+        ? `Career recommendations (Block ${block})`
+        : "Career recommendations";
+    }
+    if (field === "promotion_recommendation") {
+      return block
+        ? `Promotion recommendation (Block ${block})`
+        : "Promotion recommendation";
+    }
+    if (field === "qualifications") {
+      return block ? `Qualifications (Block ${block})` : "Qualifications";
+    }
     if (!block) return "General/Metadata";
     if (block <= 8) return "Administrative (Blocks 1-8)";
     if (block <= 32) return "Service & Counseling (Blocks 14-32)";
-    if (block <= 40) return "Performance Traits (Blocks 33-40)";
-    if (block === 43) return "Performance narrative comments (Block 43)";
+    if (block >= 33 && block <= 39) return "Performance Traits (Blocks 33-39)";
     return "Recommendations & Signatures (Blocks 41-52)";
   };
 
   const groupedErrors = errors.reduce(
     (acc, issue) => {
-      const cat = getCategory(issue.block);
+      const cat = getCategory(issue);
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(issue);
       return acc;
@@ -44,9 +67,9 @@ export default function ValidationResultsModal({
 
   const groupedWarnings = warnings.reduce(
     (acc, issue) => {
-      const cat = getCategory(issue.block);
+      const cat = getCategory(issue);
       if (!acc[cat]) acc[cat] = [];
-      acc[acc[cat] ? cat : getCategory(issue.block)].push(issue);
+      acc[acc[cat] ? cat : getCategory(issue)].push(issue);
       return acc;
     },
     {} as Record<string, ValidationIssue[]>,

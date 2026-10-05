@@ -1,11 +1,10 @@
 // components/blocks/EvaluationFormParts/Block42Signatures.tsx
 //
-// Authoring fields for Blocks 41 (career recommendations), 45 (promotion),
-// 47 (retention), and 48 (reporting senior address). Block 44 (qualifications) is
-// authored in section 3 (Block43Comments) — it is NOT duplicated here.
-// Signatures (Blocks 42/49/50/51/52) are NOT captured here — they are applied on
-// the report screen with credential verification (see app/evaluations/[id]/page.tsx
-// and components/CredentialSignatureModal.tsx).
+// Authoring fields for career recommendations, the promotion recommendation,
+// retention (EVAL only), and the reporting senior address. Printed block numbers
+// come from lib/traitStandards.ts. Qualifications (EVAL Block 44) are authored
+// in section 3. Signature buttons use the stored keys 42/49/50/51/52 and are
+// applied on the report screen — those keys are not relabeled here.
 
 import React from "react";
 import { Evaluation, ValidationIssue } from "@/types";
@@ -15,6 +14,12 @@ import {
   CAREER_REC_MAX,
 } from "@/types/navpers";
 import { FIELD_FIT } from "@/lib/commentFit";
+import {
+  careerRecommendationLabel,
+  promotionBlock,
+  reportingSeniorAddressBlock,
+  resolveReportType,
+} from "@/lib/traitStandards";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 
@@ -27,7 +32,7 @@ type Props = {
   activeField?: string | null;
 };
 
-// Fields in this section that have BUPERSINST field-guide entries (Blocks 41, 45, 47, 48).
+// Fields in this section that have BUPERSINST field-guide entries.
 const SECTION_FIELDS = [
   "career_recommendations",
   "promotion_recommendation",
@@ -55,22 +60,19 @@ export default function Block42Signatures({
     issues.find((i) => i.field === field && i.severity === "error");
   const addrSpec = FIELD_FIT.reporting_senior_address;
 
-  const isChiefevalOrFitrep =
-    evalData.report_type === "CHIEFEVAL" ||
-    evalData.report_type === "FITREP" ||
-    evalData.form_definition_id?.startsWith("CHIEFEVAL") ||
-    evalData.form_definition_id?.startsWith("FITREP") ||
-    evalData.form_definition_id?.includes("c1616270") ||
-    evalData.form_definition_id?.includes("f1610020") ||
-    evalData.form_definition_id?.includes("f1610050");
+  const reportType = resolveReportType(evalData);
+  const isEval = reportType === "EVAL";
+  const careerLabel = careerRecommendationLabel(reportType);
+  const promoBlock = promotionBlock(reportType);
+  const addressBlock = reportingSeniorAddressBlock(reportType);
 
-  const activeSectionFields = isChiefevalOrFitrep
-    ? [
+  const activeSectionFields = isEval
+    ? SECTION_FIELDS
+    : [
         "career_recommendations",
         "promotion_recommendation",
         "reporting_senior_address",
-      ]
-    : SECTION_FIELDS;
+      ];
 
   return (
     <div className={FORM_PANEL}>
@@ -79,9 +81,9 @@ export default function Block42Signatures({
           className="h-2 w-2 rounded-full bg-[var(--accent-cyan)]"
           aria-hidden
         />
-        {isChiefevalOrFitrep
-          ? "Recommendations & Reporting Senior (Blocks 41, 45, 48)"
-          : "Recommendations & Reporting Senior (Blocks 41, 45 - 48)"}
+        {`Recommendations & Reporting Senior (${careerLabel}, Block ${promoBlock}${
+          isEval ? ", Block 47" : ""
+        }, Block ${addressBlock})`}
       </h2>
 
       {/* Contextual BUPERS field guide for whichever section-4 field is focused. */}
@@ -90,13 +92,14 @@ export default function Block42Signatures({
         sectionFields={activeSectionFields}
       />
 
-      {/* Block 41 / 45 / (47 if EVAL) */}
       <RecommendationsRow
         evalData={evalData}
         onChange={onChange}
         issueFor={issueFor}
         onFocusField={onFocusField}
-        isChiefevalOrFitrep={Boolean(isChiefevalOrFitrep)}
+        isEval={isEval}
+        careerLabel={careerLabel}
+        promoBlock={promoBlock}
       />
 
       {/* Block 48: Reporting Senior Address (text field, NOT a signature) — measured
@@ -104,7 +107,7 @@ export default function Block42Signatures({
           ({addrSpec.charsPerLine} chars/line × {addrSpec.maxLines} lines). */}
       <div className="mb-2">
         <MeasuredCourierField
-          label="48: Reporting Senior Address"
+          label={`${addressBlock}: Reporting Senior Address`}
           fieldId={evalFieldId("bv-reporting_senior_address")}
           value={evalData.block_values?.reporting_senior_address || ""}
           onChange={(v) =>
@@ -134,25 +137,29 @@ function RecommendationsRow({
   onChange,
   issueFor,
   onFocusField,
-  isChiefevalOrFitrep,
+  isEval,
+  careerLabel,
+  promoBlock,
 }: {
   evalData: Evaluation;
   onChange: (fields: Partial<Evaluation>) => void;
   issueFor: (f: string) => ValidationIssue | undefined;
   onFocusField?: (field: string | null) => void;
-  isChiefevalOrFitrep: boolean;
+  isEval: boolean;
+  careerLabel: string;
+  promoBlock: number;
 }) {
   return (
     <div
       className={`grid grid-cols-1 ${
-        isChiefevalOrFitrep ? "md:grid-cols-2" : "md:grid-cols-3"
+        isEval ? "md:grid-cols-3" : "md:grid-cols-2"
       } gap-6 mb-6`}
     >
       {/* Block 41 — exactly two slots (slot 1 required, slot 2 optional), max 20 chars each
           per BUPERSINST 1610.10H. "Do not leave blank" — enter NA/NONE if none applies. */}
       <fieldset className="border-0 p-0 m-0 min-w-0">
         <legend className={`${FORM_LABEL} float-left w-full mb-1.5`}>
-          41: Career Recommendations
+          {careerLabel}: Career Recommendations
         </legend>
         {[0, 1].map((i) => {
           const recs = evalData.career_recommendations || [];
@@ -201,7 +208,7 @@ function RecommendationsRow({
           className={FORM_LABEL}
           htmlFor={evalFieldId("promotion_recommendation")}
         >
-          45: Promotion Recommendation
+          {promoBlock}: Promotion Recommendation
         </label>
         <select
           id={evalFieldId("promotion_recommendation")}
@@ -225,7 +232,7 @@ function RecommendationsRow({
         )}
       </div>
 
-      {!isChiefevalOrFitrep && (
+      {isEval && (
         <div>
           <label className={FORM_LABEL} htmlFor={evalFieldId("retention")}>
             47: Retention Recommendation

@@ -9,7 +9,15 @@ import {
   COMMENT_PITCH,
   resolveCommentPitch,
 } from "@/lib/commentFit";
-import { getCommentsBlock } from "@/lib/traitStandards";
+import {
+  careerRecommendationLabel,
+  getCommentsBlock,
+  promotionBlock,
+  qualificationsBlock,
+  reportingSeniorAddressBlock,
+  resolveReportType,
+  summaryBreakdownLabel,
+} from "@/lib/traitStandards";
 import { SIGNATURE_BLOCKS, SignatureBlockMeta } from "@/lib/signatures";
 
 export type OnSign = (block: number, label: string, signer: string) => void;
@@ -215,13 +223,14 @@ function TraitRatingsSection({ e }: { e: Evaluation }) {
 }
 
 function NarrativeSection({ e }: { e: Evaluation }) {
+  const reportType = resolveReportType(e);
   const pitch = resolveCommentPitch(e.block_values);
-  const fit = checkCommentFit(e.comments || "", pitch, e.report_type);
+  const fit = checkCommentFit(e.comments || "", pitch, reportType);
   return (
     <div className={PANEL}>
       <div className="flex items-center justify-between mb-4 border-b apex-report-divider pb-2">
         <h3 className="text-sm font-bold gold-accent uppercase tracking-wider">
-          Block {getCommentsBlock(e.report_type)}: Narrative Comments
+          Block {getCommentsBlock(reportType)}: Narrative Comments
         </h3>
         <span
           className={`text-[10px] font-mono ${fit.fit ? "apex-report-faint" : "apex-text-field-error font-bold"}`}
@@ -305,13 +314,17 @@ function RecommendationsSection({
   canSign: CanSign;
 }) {
   const bv = e.block_values || {};
+  const reportType = resolveReportType(e);
   const recs = (e.career_recommendations || []).filter(Boolean).slice(0, 2);
+  const qualsBlock = qualificationsBlock(reportType);
   return (
     <div className={PANEL}>
-      <h3 className={H3}>Blocks 41, 44 - 52: Recommendations & Signatures</h3>
+      <h3 className={H3}>Recommendations & Signatures</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-6">
         <div>
-          <div className={LBL}>Block 41: Career Recommendations</div>
+          <div className={LBL}>
+            {careerRecommendationLabel(reportType)}: Career Recommendations
+          </div>
           <ul className="list-disc pl-5 mt-1 font-semibold apex-heading">
             {recs.length ? (
               recs.map((r, i) => <li key={i}>{r}</li>)
@@ -321,17 +334,20 @@ function RecommendationsSection({
           </ul>
         </div>
         <Field
-          label="45: Promotion Recommendation"
+          label={`${promotionBlock(reportType)}: Promotion Recommendation`}
           value={e.promotion_recommendation || "NOB"}
         />
-        <Field
-          label="47: Retention Recommendation"
-          value={e.retention || "N/A"}
-        />
+        {reportType === "EVAL" && (
+          <Field
+            label="47: Retention Recommendation"
+            value={e.retention || "N/A"}
+          />
+        )}
       </div>
       <div className="mb-6">
         <div className={`${LBL} mb-1`}>
-          46: Promotion Recommendation Summary (Summary Group)
+          {summaryBreakdownLabel(reportType)}: Promotion Recommendation Summary
+          (Summary Group)
         </div>
         {e.promotion_recommendation === "NOB" ? (
           <p className="apex-report-faint text-sm italic">
@@ -358,14 +374,20 @@ function RecommendationsSection({
           <p className="apex-report-faint text-sm italic">Not available.</p>
         )}
       </div>
-      <div className="mb-6">
-        <div className={`${LBL} mb-1`}>44: Qualifications/Achievements</div>
-        <p className="apex-report-body text-sm whitespace-pre-wrap">
-          {bv.qualifications || "None listed."}
-        </p>
-      </div>
+      {qualsBlock != null && (
+        <div className="mb-6">
+          <div className={`${LBL} mb-1`}>
+            {qualsBlock}: Qualifications/Achievements
+          </div>
+          <p className="apex-report-body text-sm whitespace-pre-wrap">
+            {bv.qualifications || "None listed."}
+          </p>
+        </div>
+      )}
       <div className="mb-4">
-        <div className={`${LBL} mb-1`}>48: Reporting Senior Address</div>
+        <div className={`${LBL} mb-1`}>
+          {reportingSeniorAddressBlock(reportType)}: Reporting Senior Address
+        </div>
         <p className="apex-report-body text-sm whitespace-pre-wrap">
           {bv.reporting_senior_address || "None listed."}
         </p>

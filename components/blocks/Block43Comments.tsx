@@ -1,11 +1,11 @@
 // components/blocks/Block43Comments.tsx
 //
-// Narrative step: Block 43 (Comments on Performance) and Block 44 (Qualifications /
-// Achievements). Both use the shared MeasuredCourierField canvas, which wraps exactly as
-// the printed form. Block 43 keeps its 10/12-pitch toggle, now offering only the two
-// settings the form permits — "Font must be 10 or 12 pitch (10 or 12 point) only"
-// (1616/26 Blk 43, printed on the blank) — at 75 and 90 CPL respectively; see
-// COMMENT_PITCH. Block 44 is a fixed 91 CPL / 2-line block.
+// Narrative step: the comments block (EVAL 43, CHIEFEVAL 40, FITREP 41) and, on
+// the enlisted EVAL only, Block 44 (Qualifications / Achievements). CHIEFEVAL 44
+// is RSCA and FITREP 44 is the reporting senior address, so those forms do not
+// collect qualifications here. Both fields use MeasuredCourierField. The comments
+// box keeps its 10/12-pitch toggle — the two settings the form permits — at 75
+// and 90 CPL; see COMMENT_PITCH. EVAL Block 44 is a fixed 91 CPL / 2-line block.
 //
 // Block 43 also hosts the narrative coach (POST /api/eval-coach): does this
 // narrative substantiate the trait grades already set? Advisory only — the coach
@@ -25,7 +25,11 @@ import {
   resolveCommentPitch,
   type CommentPitch,
 } from "@/lib/commentFit";
-import { getCommentsBlock, resolveReportType } from "@/lib/traitStandards";
+import {
+  getCommentsBlock,
+  qualificationsBlock,
+  resolveReportType,
+} from "@/lib/traitStandards";
 import BupersGuidelinesInline from "@/components/blocks/BupersGuidelinesInline";
 import MeasuredCourierField from "@/components/blocks/MeasuredCourierField";
 import { FORM_PANEL, evalFieldId } from "@/lib/formStyles";
@@ -61,6 +65,7 @@ export default function Block43Comments({
   // 1616/27 numbers this block 40 and 1610/2 numbers it 41. The heading said "43" on all
   // three; DetailsTab was fixed to ask, the editor the Sailor actually types into was not.
   const commentsBlock = getCommentsBlock(reportType);
+  const qualsBlock = qualificationsBlock(reportType);
 
   // commentPitchFields, not a bare comment_pitch: an unstamped write is indistinguishable
   // from a legacy draft and would read back as 12-pitch whatever the Sailor picked.
@@ -140,11 +145,12 @@ export default function Block43Comments({
         <NarrativeCoach evalData={evalData} pitch={pitch} />
       </div>
 
-      {/* ── Block 44: Qualifications / Achievements ── */}
+      {/* Qualifications — EVAL Block 44 only. */}
+      {qualsBlock != null && (
       <div>
         <div className="mb-3 border-b apex-report-divider pb-2">
           <h2 className="apex-form-section-heading">
-            44: Qualifications / Achievements
+            {qualsBlock}: Qualifications / Achievements
           </h2>
           <p className="text-xs apex-text-muted">
             Education, awards, community involvement, etc., during this period (
@@ -168,6 +174,7 @@ export default function Block43Comments({
           fieldId={evalFieldId("bv-qualifications")}
         />
       </div>
+      )}
     </div>
   );
 }

@@ -34,19 +34,43 @@ export const ValidationResultsModal: React.FC<Props> = ({
 }) => {
   if (!isOpen) return null;
 
-  const getCategory = (block?: number) => {
+  // Field first: CHIEFEVAL comments are Block 40, which a block<=40 test
+  // would file under traits. The issue.block is already the printed number.
+  const getCategory = (issue: ValidationIssue) => {
+    const field = issue.field || "";
+    const block = issue.block;
+    if (field === "comments" || field.startsWith("comments.")) {
+      return block
+        ? `Narrative Comments & Monospace Fit (Block ${block})`
+        : "Narrative Comments & Monospace Fit";
+    }
+    if (
+      field === "career_recommendations" ||
+      field.startsWith("career_recommendations")
+    ) {
+      return block
+        ? `Career recommendations (Block ${block})`
+        : "Career recommendations";
+    }
+    if (field === "promotion_recommendation") {
+      return block
+        ? `Promotion recommendation (Block ${block})`
+        : "Promotion recommendation";
+    }
+    if (field === "qualifications") {
+      return block ? `Qualifications (Block ${block})` : "Qualifications";
+    }
     if (!block) return "General / Metadata";
     if (block <= 9) return "Administrative Identification (Blocks 1–9)";
     if (block <= 21) return "Service Occasion & Period (Blocks 10–21)";
     if (block <= 32) return "Command & Counseling (Blocks 22–32)";
-    if (block <= 40) return "Performance Traits (Blocks 33–40)";
-    if (block === 43) return "Narrative Comments & Monospace Fit (Block 43)";
-    return "Recommendations & Signatures (Blocks 44–52)";
+    if (block >= 33 && block <= 39) return "Performance Traits (Blocks 33–39)";
+    return "Recommendations & Signatures";
   };
 
   const groupedErrors = errors.reduce(
     (acc, issue) => {
-      const cat = getCategory(issue.block);
+      const cat = getCategory(issue);
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(issue);
       return acc;
@@ -56,7 +80,7 @@ export const ValidationResultsModal: React.FC<Props> = ({
 
   const groupedWarnings = warnings.reduce(
     (acc, issue) => {
-      const cat = getCategory(issue.block);
+      const cat = getCategory(issue);
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(issue);
       return acc;

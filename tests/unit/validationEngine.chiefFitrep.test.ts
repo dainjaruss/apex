@@ -188,8 +188,9 @@ describe("FITREP validation (NAVPERS 1610/2)", () => {
       comments: "LT CHEN COMMENTS ADDRESS EO CONCERNS WITH EXAMPLES.",
     };
     const w = runFullValidation(eo2).warnings.find(
-      (i) => i.field === "comments" && i.block === 43,
+      (i) => i.field === "comments" && i.block === 41,
     );
+    expect(w?.message).toMatch(/Block 41/);
     expect(w?.message).toMatch(/Block 34/);
   });
 
@@ -254,7 +255,7 @@ describe("FITREP validation (NAVPERS 1610/2)", () => {
 // Blocks 34 (Climate/EO) and 35 (Bearing/Character) are separately gated at a
 // single 2.0 by the Zod refinement, so these cases use the ungated traits.
 // ─────────────────────────────────────────────────────────────────────────────
-describe("FITREP Block 45 — 2.0 count is per block, not per trait key", () => {
+describe("FITREP promotion recommendation — 2.0 count is per block, not per trait key", () => {
   const fitrepWith = (t: Record<string, string>, rec: string): Evaluation =>
     ({
       ...mockFitrep,
@@ -287,7 +288,7 @@ describe("FITREP Block 45 — 2.0 count is per block, not per trait key", () => 
     );
     const issue = barIssue(res);
     expect(issue).toBeDefined();
-    expect(issue!.block).toBe(45);
+    expect(issue!.block).toBe(42);
     expect(issue!.message).toContain("3 trait grades of 2.0");
     // Blocks 33 (knowledge), 36 (teamwork), 37 (accomplishment) — each exactly once.
     for (const b of ["Block 33", "Block 36", "Block 37"])
@@ -302,9 +303,9 @@ describe("FITREP Block 45 — 2.0 count is per block, not per trait key", () => 
       fitrepWith({ work: "2.0", eo: "2.0", teamwork: "2.0" }, "Promotable"),
     );
     expect(barIssue(res)).toBeUndefined();
-    // The Block 43 substantiation ask shares the count and must not double-name it.
+    // The FITREP Block 41 substantiation ask shares the count and must not double-name it.
     const subst = [...res.errors, ...res.warnings].find(
-      (e) => e.block === 43 && /substantiate/i.test(e.message),
+      (e) => e.block === 41 && /substantiate/i.test(e.message),
     );
     expect(subst?.message).not.toContain("three or more 2.0 marks");
     expect((subst?.message.split("Block 34").length ?? 1) - 1).toBe(1);

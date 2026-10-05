@@ -5,7 +5,7 @@
 // measuring engine, Courier monospace pitch formatting, client-side PDF export,
 // role-gated chain of custody routing, and context-sensitive BUPERS field helper text.
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Evaluation, Profile, ValidationIssue } from "@/types";
 import {
@@ -14,11 +14,38 @@ import {
 } from "@/types/navpers";
 import { db } from "@/lib/db";
 import { canManageSummaryGroups } from "@/lib/permissions";
+import { recordSummaryGroupMembership, summaryFigures } from "@/lib/summaryGroupService";
+import { canSeeRanking } from "@/lib/workspaceScope";
+import { useWorkspaceIdentity } from "@/lib/useWorkspaceIdentity";
 import { useLiveValidation } from "@/hooks/useLiveValidation";
 import { useFinalValidation } from "@/hooks/useFinalValidation";
 import { computeTraitAverage } from "@/lib/traitAverage";
+import {
+  CHIEFEVAL_TRAIT_ORDER,
+  careerRecommendationLabel,
+  getCommentsBlock,
+  getTraitStandards,
+  GRADE_SCALE_NOTE,
+  navpersFormNumber,
+  promotionBlock,
+  qualificationsBlock,
+  reportingSeniorAddressBlock,
+  summaryBreakdownLabel,
+  summaryGroupAverageLabel,
+  TRAIT_GRADE_LABELS,
+  traitAverageLabel,
+  type TraitStandard,
+} from "@/lib/traitStandards";
 import { downloadEvaluationPdf } from "@/lib/pdfClient";
 import { exportSingleEvalTransfer } from "@/lib/sessionTransfer";
+import {
+  custodyLabel,
+  custodyStatus,
+  prepareReportSave,
+  releaseReportLock,
+  takeReportCustody,
+} from "@/lib/reportLock";
+import { recallLockToken } from "@/lib/workspaceSession";
 import { MeasuredCourierField } from "@/components/blocks/MeasuredCourierField";
 import { CanvasCommentVisualizer } from "@/components/blocks/CanvasCommentVisualizer";
 import { ValidationResultsModal } from "@/components/ValidationResultsModal";
@@ -65,25 +92,18 @@ const STEPS = [
   { id: 3, title: "4. Signatures & RS Info" },
 ];
 
-const EVAL_TRAITS = [
-  { key: "knowledge", block: 33, label: "Professional Knowledge", standard1: "Deficient in rating knowledge; requires supervision.", standard3: "Solid rating expertise; completes work independently.", standard5: "Exceptional mastery; consulted across the command." },
-  { key: "work", block: 34, label: "Quality of Work", standard1: "Needs rework; frequent errors or delays.", standard3: "Consistent, high-quality output meeting standards.", standard5: "Flawless accuracy; sets the benchmark for quality." },
-  { key: "eo", block: 35, label: "Command Climate / Equal Opportunity", standard1: "Tolerates discrimination or harassment.", standard3: "Supports Navy core values and command harmony.", standard5: "Proactively champions equality and inclusion command-wide." },
-  { key: "bearing", block: 36, label: "Military Bearing / Character", standard1: "Fails standards in uniform, conduct, or fitness.", standard3: "Maintains exemplary personal bearing and fitness.", standard5: "Impeccable appearance; model Sailor of the command." },
-  { key: "accomplishment", block: 37, label: "Personal Job Accomplishment", standard1: "Fails to meet assigned goals without constant guidance.", standard3: "Consistently achieves mission objectives on time.", standard5: "Inspires others to exceed demanding milestones." },
-  { key: "teamwork", block: 38, label: "Teamwork", standard1: "Disrupts cohesion; works poorly with others.", standard3: "Reliable team player; contributes to group success.", standard5: "Catalyst for team synergy and unit pride." },
-  { key: "leadership", block: 39, label: "Leadership", standard1: "Avoids responsibility; fails to guide subordinates.", standard3: "Effective leader; guides subordinates to advance.", standard5: "Visionary deckplate leader; commands total respect." },
-];
+type TraitRow = TraitStandard & { key: string };
 
-const CHIEFEVAL_TRAITS = [
-  { key: "technical_mastery", block: 33, label: "Technical Mastery", standard1: "Substandard technical skills.", standard3: "Expert deckplate technician.", standard5: "Preeminent subject matter authority." },
-  { key: "institutional_expertise", block: 34, label: "Institutional Expertise", standard1: "Unfamiliar with Navy instructions.", standard3: "Thorough understanding of naval regulations.", standard5: "Command advisor on all naval policies." },
-  { key: "professionalism", block: 35, label: "Professionalism", standard1: "Conduct reflects poorly on the Mess.", standard3: "Exemplifies Chief standards.", standard5: "Gold standard of CPO professionalism." },
-  { key: "integrity", block: 36, label: "Integrity", standard1: "Compromises moral standards.", standard3: "Honest, trustworthy, ethical.", standard5: "Unwavering moral courage and integrity." },
-  { key: "accountability", block: 37, label: "Accountability (3.0 Gate)", standard1: "Avoids ownership of problems.", standard3: "Holds self and subordinates accountable.", standard5: "Demands uncompromising deckplate excellence." },
-  { key: "deckplate_leadership", block: 38, label: "Deckplate Leadership", standard1: "Absent from workspace; poor presence.", standard3: "Visible, engaged deckplate leader.", standard5: "Beloved mentor with exceptional presence." },
-  { key: "team_effectiveness", block: 39, label: "Team Effectiveness", standard1: "Creates division in the Mess.", standard3: "Builds a unified Chiefs Mess.", standard5: "Drives maximum combat readiness across unit." },
-];
+/** Printed trait rows for this form, in block order. FITREP is not the EVAL list. */
+function traitsForReport(reportType?: string): TraitRow[] {
+  const table = getTraitStandards(reportType);
+  const order =
+    reportType === "CHIEFEVAL" ? [...CHIEFEVAL_TRAIT_ORDER] : Object.keys(table);
+  return order.flatMap((key) => {
+    const row = table[key];
+    return row ? [{ key, ...row }] : [];
+  });
+}
 
 export const EvalEditor: React.FC<EvalEditorProps> = ({
   evaluation,
@@ -106,8 +126,24 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
 
   // Summary Groups & Leadership RBAC
   const summaryGroups = useLiveQuery(() => db.summary_groups.toArray(), []);
+  const workspaceEvals = useLiveQuery(() => db.evaluations.toArray(), []);
   const isLeadership = canManageSummaryGroups(activeProfile);
+  const workspaceIdentity = useWorkspaceIdentity();
+  const seesRanking = canSeeRanking(workspaceIdentity?.scope ?? null, formData);
   const currentGroup = summaryGroups?.find((g) => g.id === formData.summary_group_id);
+  const liveFigures = useMemo(() => {
+    if (workspaceIdentity?.scope !== "command") return null;
+    if (!formData.summary_group_id || !workspaceEvals) return null;
+    const members = workspaceEvals
+      .filter(
+        (e) =>
+          e.summary_group_id === formData.summary_group_id ||
+          currentGroup?.member_ids?.includes(e.id),
+      )
+      .map((e) => (e.id === formData.id ? formData : e));
+    if (!members.some((e) => e.id === formData.id)) members.push(formData);
+    return summaryFigures(members);
+  }, [formData, workspaceEvals, currentGroup, workspaceIdentity?.scope]);
 
   // Keep internal form data synced when prop changes
   useEffect(() => {
@@ -141,7 +177,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
         : "border border-slate-300 dark:border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
     } ${extraClasses}`;
 
-  // Pitch resolution for Block 43
+  // Pitch resolution for the comments block
   const pitch = resolveCommentPitch(formData.block_values);
   const charsPerLine = COMMENT_PITCH[pitch].charsPerLine;
   const maxLines = getCommentCapacity(formData.report_type, pitch);
@@ -188,16 +224,80 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
     handleBlockValueChange("comment_pitch", newPitch.toString());
   };
 
-  const saveToDb = async () => {
-    setIsSaving(true);
+  const holderLabel = `${activeProfile.last_name}, ${activeProfile.first_name}`;
+  const custody = custodyStatus(formData, recallLockToken(formData.id), Date.now());
+
+  const applyLockPatch = async (patch: Partial<Evaluation>) => {
     const updated: Evaluation = {
       ...formData,
-      trait_average: traitAvgResult.average ?? undefined,
+      ...patch,
       updated_at: new Date().toISOString(),
     };
     await db.evaluations.put(updated);
+    setFormData(withCareerRecommendationSlots(updated));
     if (onSave) onSave(updated);
-    setTimeout(() => setIsSaving(false), 300);
+  };
+
+  const handleTakeCustody = async () => {
+    const stored = await db.evaluations.get(formData.id);
+    if (!stored) {
+      alert("This report is not in the open workspace.");
+      return;
+    }
+    const taken = await takeReportCustody(stored, holderLabel, Date.now());
+    if (!taken.ok) {
+      alert(taken.message);
+      return;
+    }
+    await applyLockPatch(taken.patch);
+  };
+
+  const handleReleaseCustody = async () => {
+    const stored = await db.evaluations.get(formData.id);
+    if (!stored) {
+      alert("This report is not in the open workspace.");
+      return;
+    }
+    const released = await releaseReportLock(stored, Date.now());
+    if (!released.ok) {
+      alert(released.message);
+      return;
+    }
+    await applyLockPatch(released.patch);
+  };
+
+  const saveToDb = async (): Promise<boolean> => {
+    const stored = await db.evaluations.get(formData.id);
+    if (!stored) {
+      alert("This report is not in the open workspace.");
+      return false;
+    }
+    const gate = await prepareReportSave(stored, formData.lock_ratchet, Date.now());
+    if (!gate.ok) {
+      alert(gate.message);
+      return false;
+    }
+    setIsSaving(true);
+    try {
+      const updated: Evaluation = {
+        ...formData,
+        ...gate.patch,
+        trait_average: traitAvgResult.average ?? undefined,
+        updated_at: new Date().toISOString(),
+      };
+      await db.evaluations.put(updated);
+      await recordSummaryGroupMembership(
+        updated.id,
+        stored.summary_group_id,
+        updated.summary_group_id,
+      );
+      const fresh = (await db.evaluations.get(updated.id)) ?? updated;
+      setFormData(withCareerRecommendationSlots(fresh));
+      if (onSave) onSave(fresh);
+      return true;
+    } finally {
+      setTimeout(() => setIsSaving(false), 300);
+    }
   };
 
   // Run full final validation check on demand
@@ -210,7 +310,8 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
   const handleDownloadPdf = async () => {
     try {
       setIsGeneratingPdf(true);
-      await saveToDb();
+      const saved = await saveToDb();
+      if (!saved) return;
       await downloadEvaluationPdf(formData);
     } catch (err: any) {
       alert(`PDF Generation failed: ${err.message}`);
@@ -259,13 +360,13 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
     }
   };
 
-  const activeTraits = formData.report_type === "CHIEFEVAL" ? CHIEFEVAL_TRAITS : EVAL_TRAITS;
+  const activeTraits = traitsForReport(formData.report_type);
 
   // Traits step: open the guide on the card nearest the top of the viewport.
   // A dismissed guide (activeField null) stays dismissed until this step is entered again.
   useEffect(() => {
     if (currentStep !== 1) return;
-    const traits = formData.report_type === "CHIEFEVAL" ? CHIEFEVAL_TRAITS : EVAL_TRAITS;
+    const traits = traitsForReport(formData.report_type);
     const first = `trait_grades.${traits[0].key}`;
     setActiveField((current) =>
       current && String(current).startsWith("trait_grades.") ? current : first,
@@ -300,7 +401,17 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
     return () => observer.disconnect();
   }, [currentStep, formData.report_type]);
 
-  // Filter errors accurately for the active step
+  // Block numbers past 39 differ by form. File narrative and recommendation
+  // errors by field so a FITREP career recommendation (Block 40) stays on
+  // step 3 and a CHIEFEVAL comment (Block 40) is not treated as a trait.
+  const reportType = formData.report_type;
+  const commentsBlock = getCommentsBlock(reportType);
+  const careerLabel = careerRecommendationLabel(reportType);
+  const promoBlock = promotionBlock(reportType);
+  const qualsBlock = qualificationsBlock(reportType);
+  const addressBlock = reportingSeniorAddressBlock(reportType);
+  const formNumber = navpersFormNumber(reportType);
+
   const stepErrors = errors.filter((err) => {
     const b = err.block || 0;
     const f = err.field || "";
@@ -308,15 +419,20 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
       return (b >= 1 && b <= 21) || b === 28 || b === 29 || f === "occasion" || f === "type";
     }
     if (currentStep === 1) {
-      return (b >= 33 && b <= 40) || f.startsWith("trait_grades");
+      return (b >= 33 && b <= 39) || f.startsWith("trait_grades");
     }
     if (currentStep === 2) {
-      return b === 41 || b === 43 || b === 44 || f === "comments" || f === "qualifications" || f === "career_recommendations";
+      return (
+        f === "comments" ||
+        f.startsWith("comments.") ||
+        f === "qualifications" ||
+        f === "career_recommendations" ||
+        f.startsWith("career_recommendations.")
+      );
     }
     return (
       (b >= 22 && b <= 27) ||
       (b >= 30 && b <= 32) ||
-      b >= 45 ||
       f.startsWith("reporting_senior") ||
       f === "date_counseled" ||
       f === "counselor" ||
@@ -344,7 +460,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
-                {formData.report_type} (NAVPERS {formData.report_type === "CHIEFEVAL" ? "1616/27" : "1616/26"})
+                {formData.report_type || "EVAL"} (NAVPERS {formNumber})
               </span>
               <span className="text-xs text-slate-500 font-mono">
                 {formData.status.toUpperCase()}
@@ -355,6 +471,10 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             </h1>
             <p className="text-xs text-slate-500 font-mono mt-0.5">
               {formData.grade_rate || "RATE"} | SSN: {formData.dod_id || "blank"} | Ending: {formData.period_to || "YYYY-MM-DD"}
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+              {custodyLabel(custody)}
+              {custody.state === "theirs" ? ` until ${custody.until}` : ""}
             </p>
           </div>
 
@@ -377,6 +497,24 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               <ShieldCheck className="w-3.5 h-3.5" />
               {isValidating ? "Auditing Rules..." : "Verify Rules"}
             </button>
+
+            {custody.state === "ours" ? (
+              <button type="button"
+                onClick={handleReleaseCustody}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Release custody
+              </button>
+            ) : (
+              <button type="button"
+                onClick={handleTakeCustody}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Take custody
+              </button>
+            )}
 
             <button type="button"
               onClick={saveToDb}
@@ -465,7 +603,12 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
           </div>
 
           <div className="font-mono text-slate-500 text-xs">
-            Trait Avg: <span className="font-bold text-slate-900 dark:text-white">{traitAvgResult.average ? traitAvgResult.average.toFixed(2) : "0.00"}</span> | Rec: <span className="font-bold text-slate-900 dark:text-white">{formData.promotion_recommendation}</span>
+            Trait Avg: <span className="font-bold text-slate-900 dark:text-white">{traitAvgResult.average ? traitAvgResult.average.toFixed(2) : "0.00"}</span>
+            {seesRanking && (
+              <>
+                {" "}| Rec: <span className="font-bold text-slate-900 dark:text-white">{formData.promotion_recommendation || "—"}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -1034,13 +1177,19 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-slate-500 mb-2">
-              Select one primary occasion. Special reports require justification narrative in Block 43.
+              Select one primary occasion. Special reports require justification narrative in Block {commentsBlock}.
             </p>
             <div className="flex flex-wrap gap-4 text-xs">
               {[
                 { key: "periodic", label: "Block 10: Periodic" },
                 { key: "detachment_individual", label: "Block 11: Detachment of Individual" },
-                { key: "promotion_frocking", label: "Block 12: Promotion / Frocking" },
+                {
+                  key: "promotion_frocking",
+                  label:
+                    reportType === "CHIEFEVAL" || reportType === "FITREP"
+                      ? "Block 12: Detachment of Reporting Senior"
+                      : "Block 12: Promotion / Frocking",
+                },
                 { key: "special", label: "Block 13: Special (Exclusive)" },
               ].map((occ) => (
                 <label
@@ -1225,13 +1374,14 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 Step 2: Performance Traits (Blocks 33–39)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Grade each trait from 1.0 to 5.0 against printed Navy behavioral anchor standards, or select NOB.
+                Grade each trait 1.0 to 5.0, or NOB. The standards under each trait are the ones printed on this form.
+                {" "}2.0: {GRADE_SCALE_NOTE["2.0"]} 4.0: {GRADE_SCALE_NOTE["4.0"]}
               </p>
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-4 py-2 rounded-xl text-right">
               <span className="text-[11px] text-blue-700 dark:text-blue-300 font-semibold uppercase tracking-wider block">
-                Block 40 Trait Average
+                {traitAverageLabel(reportType)}
               </span>
               <span className="text-2xl font-bold font-mono text-blue-900 dark:text-blue-100">
                 {traitAvgResult.average ? traitAvgResult.average.toFixed(2) : "0.00"}
@@ -1264,7 +1414,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                         Block {t.block}
                       </span>
                       <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                        {t.label}
+                        {t.title}
                       </h3>
                       <button
                         type="button"
@@ -1295,21 +1445,35 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                     </div>
                   </div>
 
-                  {/* Standards Descriptions */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400">
-                    <div className="p-2 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60">
-                      <span className="font-bold text-red-600 dark:text-red-400 block mb-0.5">1.0 Below Standard:</span>
-                      {t.standard1}
+                  {t.definition && (
+                    <p className="text-xs text-slate-500 -mt-1 mb-2">{t.definition}</p>
+                  )}
+
+                  {t.anchors ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400">
+                      {(["1.0", "3.0", "5.0"] as const).map((grade) => (
+                        <div
+                          key={grade}
+                          className="p-2 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60"
+                        >
+                          <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                            {grade} {TRAIT_GRADE_LABELS[grade]}
+                          </span>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {t.anchors?.[grade].map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
                     </div>
-                    <div className="p-2 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60">
-                      <span className="font-bold text-blue-600 dark:text-blue-400 block mb-0.5">3.0 Meets Standard:</span>
-                      {t.standard3}
-                    </div>
-                    <div className="p-2 rounded bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60">
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 block mb-0.5">5.0 Greatly Exceeds:</span>
-                      {t.standard5}
-                    </div>
-                  </div>
+                  ) : (
+                    <ul className="list-disc pl-4 space-y-1 text-xs mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-400">
+                      {(t.standards ?? []).map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  )}
 
                   {traitError && (
                     <p className="text-xs text-red-600 dark:text-red-400 font-medium mt-2 flex items-center gap-1">
@@ -1324,16 +1488,16 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
         </div>
       )}
 
-      {/* ── STEP 3: Narrative & Comments (Blocks 41, 43, 44) ── */}
+      {/* ── STEP 3: Narrative & comments ── */}
       {currentStep === 2 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Step 3: Narrative & Comments (Blocks 41, 43, 44 · Monospace Canvas)
+                Step 3: Narrative & Comments
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Full-fidelity Courier monospace layout matching NAVPERS 1616/26 PDF boundaries.
+                Full-fidelity Courier monospace layout matching NAVPERS {formNumber} PDF boundaries.
               </p>
             </div>
 
@@ -1384,11 +1548,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             </div>
           </div>
 
-          {/* Block 41: Career Recommendations */}
+          {/* Career recommendations */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Block 41: Career Recommendations (2 Slots)
+                {careerLabel}: Career Recommendations (2 Slots)
               </label>
               <button
                 type="button"
@@ -1450,11 +1614,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             )}
           </div>
 
-          {/* Block 43 Editor View (Canvas Measured) */}
+          {/* Comments */}
           <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="field-comments" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Block 43: Comments on Performance
+                Block {commentsBlock}: Comments on Performance
               </label>
               <button
                 type="button"
@@ -1485,16 +1649,17 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 charsPerLine={charsPerLine}
                 maxLines={maxLines}
                 pitch={pitch}
-                blockNumber={formData.report_type === "CHIEFEVAL" ? 40 : 43}
+                blockNumber={commentsBlock}
               />
             )}
           </div>
 
-          {/* Block 44: Qualifications / Achievements (Canvas Measured) */}
+          {/* Qualifications — EVAL Block 44 only. CHIEFEVAL 44 is RSCA; FITREP 44 is the address. */}
+          {qualsBlock != null && (
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="field-qualifications" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Block 44: Qualifications / Achievements
+                Block {qualsBlock}: Qualifications / Achievements
               </label>
               <button
                 type="button"
@@ -1518,10 +1683,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               error={getError("qualifications")}
             />
           </div>
+          )}
         </div>
       )}
 
-      {/* ── STEP 4: Signatures & RS Info (Blocks 22-27, 30-32, 45, 47, 48) ── */}
+      {/* ── STEP 4: Recommendations, counseling, reporting senior ── */}
       {currentStep === 3 && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm space-y-6">
           <div className="border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -1529,7 +1695,9 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               Step 4: Recommendations, Counseling & Reporting Senior Signatures
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Promotion recommendation (Block 45), Reporting Senior identification & address (Blocks 22–27, 48), and counseling records (Blocks 30–32).
+              {seesRanking
+                ? `Promotion recommendation (Block ${promoBlock}), Reporting Senior identification and address (Blocks 22–27, ${addressBlock}), and counseling records (Blocks 30–32).`
+                : "Reporting Senior identification and counseling records. The promotion recommendation is issued with the debrief copy."}
             </p>
           </div>
 
@@ -1548,7 +1716,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                         : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
                     }`}
                   >
-                    {currentGroup ? currentGroup.name : "Pending Command Assignment"}
+                    {currentGroup
+                      ? currentGroup.name
+                      : formData.ranking_released
+                        ? "Issued with this debrief copy"
+                        : "Pending Command Assignment"}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
@@ -1582,13 +1754,22 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               )}
             </div>
 
-            {/* Display stamped metrics if available */}
-            {formData.summary_group_average != null && (
+            {seesRanking && (liveFigures || formData.ranking_released) && (
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex flex-wrap items-center gap-4 text-xs font-mono">
                 <div>
-                  <span className="text-slate-500">Block 50a Summary Group Avg:</span>{" "}
+                  <span className="text-slate-500">{summaryGroupAverageLabel(reportType)}:</span>{" "}
                   <strong className="text-blue-600 dark:text-blue-400 font-bold">
-                    {formData.summary_group_average.toFixed(2)}
+                    {(liveFigures ? liveFigures.summaryGroupAverage : formData.summary_group_average) != null
+                      ? Number(liveFigures ? liveFigures.summaryGroupAverage : formData.summary_group_average).toFixed(2)
+                      : "—"}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-500">{summaryBreakdownLabel(reportType)}:</span>{" "}
+                  <strong className="text-slate-900 dark:text-white font-bold">
+                    {(["Significant Problems", "Progressing", "Promotable", "Must Promote", "Early Promote"] as const)
+                      .map((name) => `${name} ${(liveFigures ? liveFigures.distribution : formData.summary_group_distribution)?.[name] ?? 0}`)
+                      .join(" · ")}
                   </strong>
                 </div>
                 {formData.block_values?.reporting_senior_rsca && (
@@ -1599,21 +1780,21 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                     </strong>
                   </div>
                 )}
-                {formData.trait_average != null && (
+                {traitAvgResult.average != null && (liveFigures?.summaryGroupAverage ?? formData.summary_group_average) != null && (
                   <div>
-                    <span className="text-slate-500">Member Trait Avg:</span>{" "}
+                    <span className="text-slate-500">{traitAverageLabel(reportType)}:</span>{" "}
                     <strong className="text-slate-900 dark:text-white font-bold">
-                      {formData.trait_average.toFixed(2)}
+                      {traitAvgResult.average.toFixed(2)}
                     </strong>{" "}
                     <span
                       className={`text-[11px] font-bold ${
-                        formData.trait_average >= formData.summary_group_average
+                        traitAvgResult.average >= Number(liveFigures?.summaryGroupAverage ?? formData.summary_group_average)
                           ? "text-emerald-600 dark:text-emerald-400"
                           : "text-amber-600 dark:text-amber-400"
                       }`}
                     >
-                      ({formData.trait_average - formData.summary_group_average >= 0 ? "+" : ""}
-                      {(formData.trait_average - formData.summary_group_average).toFixed(2)} vs Group)
+                      ({traitAvgResult.average - Number(liveFigures?.summaryGroupAverage ?? formData.summary_group_average) >= 0 ? "+" : ""}
+                      {(traitAvgResult.average - Number(liveFigures?.summaryGroupAverage ?? formData.summary_group_average)).toFixed(2)} vs Group)
                     </span>
                   </div>
                 )}
@@ -1621,11 +1802,17 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             )}
           </div>
 
-          {/* Block 45: Promotion Recommendation */}
+          {/* Promotion recommendation. Hidden until debrief on a member workspace. */}
+          {!seesRanking && (
+            <p className="text-xs text-slate-500">
+              The promotion recommendation, the summary breakdown, and the summary group average are issued with the debrief copy.
+            </p>
+          )}
+          {seesRanking && (
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Block 45: Promotion Recommendation
+                Block {promoBlock}: Promotion Recommendation
               </label>
               <div className="flex items-center gap-2">
                 <button
@@ -1635,7 +1822,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 >
                   <HelpCircle className="w-3 h-3" /> Table 1-1 Quota Rules
                 </button>
-                {activeProfile.preferred_role !== "Reporting Senior" && activeProfile.preferred_role !== "Admin" && (
+                {workspaceIdentity?.scope !== "command" && (
                   <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 font-mono">
                     <Lock className="w-3 h-3" /> Locked: Assigned by Reporting Senior
                   </span>
@@ -1656,7 +1843,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
                 { val: "Significant Problems", desc: "Unsatisfactory performance. Requires documentation." },
                 { val: "NOB", desc: "Not Observed report." },
               ].map((rec) => {
-                const isLocked = activeProfile.preferred_role !== "Reporting Senior" && activeProfile.preferred_role !== "Admin";
+                const isLocked = workspaceIdentity?.scope !== "command";
                 return (
                   <button
                     key={rec.val}
@@ -1686,6 +1873,7 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
               </p>
             )}
           </div>
+          )}
 
           {/* Block 47: Retention (for Enlisted EVAL) */}
           {formData.report_type === "EVAL" && (
@@ -1726,11 +1914,11 @@ export const EvalEditor: React.FC<EvalEditorProps> = ({
             </div>
           )}
 
-          {/* Block 48: Reporting Senior Address (Canvas Measured) */}
+          {/* Reporting senior address */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between mb-1">
               <label htmlFor="field-reporting_senior_address" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Block 48: Reporting Senior Address (Courier Monospace Canvas)
+                Block {addressBlock}: Reporting Senior Address (Courier Monospace Canvas)
               </label>
               <button
                 type="button"

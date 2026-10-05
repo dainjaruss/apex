@@ -24,6 +24,15 @@ describe('getBlockForField', () => {
     expect(getBlockForField('billet_subcategory')).toBe(21);
     expect(getBlockForField('comments')).toBe(43);
     expect(getBlockForField('promotion_recommendation')).toBe(45);
+    expect(getBlockForField('career_recommendations')).toBe(41);
+    expect(getBlockForField('comments', 'FITREP')).toBe(41);
+    expect(getBlockForField('comments', 'CHIEFEVAL')).toBe(40);
+    expect(getBlockForField('career_recommendations', 'FITREP')).toBe(40);
+    expect(getBlockForField('career_recommendations', 'CHIEFEVAL')).toBe(46);
+    expect(getBlockForField('promotion_recommendation', 'FITREP')).toBe(42);
+    expect(getBlockForField('promotion_recommendation', 'CHIEFEVAL')).toBe(41);
+    expect(getBlockForField('qualifications', 'FITREP')).toBeUndefined();
+    expect(getBlockForField('reporting_senior_address', 'CHIEFEVAL')).toBe(51);
   });
 
   it('maps trait_grades.knowledge → Block 33 (EVAL)', () => {
@@ -535,9 +544,9 @@ describe('runFullValidation — FITREP EO Block 34 substantiation', () => {
       comments: '',
     });
     const result = runFullValidation(ev);
-    // The engine emits substantiation errors on block 43 regardless of form type
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('substantiate'));
+    const substErr = result.errors.find(e => e.block === 41 && e.message.includes('substantiate'));
     expect(substErr).toBeDefined();
+    expect(substErr?.message).toContain('Block 41');
     expect(substErr?.message).toContain('2.0');
   });
 
@@ -551,9 +560,10 @@ describe('runFullValidation — FITREP EO Block 34 substantiation', () => {
       comments: 'Command climate was impacted by the following factors...',
     });
     const result = runFullValidation(ev);
-    const substWarn = result.warnings.find(w => w.block === 43);
+    const substWarn = result.warnings.find(w => w.block === 41);
     expect(substWarn).toBeDefined();
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('substantiate'));
+    expect(substWarn?.message).toContain('Block 41');
+    const substErr = result.errors.find(e => e.block === 41 && e.message.includes('substantiate'));
     expect(substErr).toBeUndefined();
   });
 
@@ -568,8 +578,9 @@ describe('runFullValidation — FITREP EO Block 34 substantiation', () => {
       promotion_recommendation: 'Progressing',
     });
     const result = runFullValidation(ev);
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('substantiate'));
+    const substErr = result.errors.find(e => e.block === 41 && e.message.includes('substantiate'));
     expect(substErr).toBeDefined();
+    expect(substErr?.message).toContain('Block 41');
   });
 
   it('clean FITREP returns success:true', () => {
@@ -642,10 +653,9 @@ describe('runFullValidation — CHIEFEVAL all-2.0 substantiation', () => {
       comments: '',
     });
     const result = runFullValidation(ev);
-    // Engine hard-codes block 43 for substantiation errors across all form types
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('substantiate'));
+    const substErr = result.errors.find(e => e.block === 40 && e.message.includes('substantiate'));
     expect(substErr).toBeDefined();
-    expect(substErr?.message).toContain('substantiate');
+    expect(substErr?.message).toContain('Block 40');
   });
 
   it('warns when single CHIEFEVAL 2.0 is present and comments are non-empty', () => {
@@ -659,9 +669,10 @@ describe('runFullValidation — CHIEFEVAL all-2.0 substantiation', () => {
       comments: 'Technical mastery was limited due to ...',
     });
     const result = runFullValidation(ev);
-    const substWarn = result.warnings.find(w => w.block === 43);
+    const substWarn = result.warnings.find(w => w.block === 40);
     expect(substWarn).toBeDefined();
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('substantiate'));
+    expect(substWarn?.message).toContain('Block 40');
+    const substErr = result.errors.find(e => e.block === 40 && e.message.includes('substantiate'));
     expect(substErr).toBeUndefined();
   });
 
@@ -767,8 +778,9 @@ describe('runFullValidation — FITREP 1.0 mark', () => {
       promotion_recommendation: 'Progressing',
     });
     const result = runFullValidation(ev);
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('1.0'));
+    const substErr = result.errors.find(e => e.block === 41 && e.message.includes('1.0'));
     expect(substErr).toBeDefined();
+    expect(substErr?.message).toContain('Block 41');
   });
 
   it('warns on non-empty comments when FITREP has a 1.0 trait', () => {
@@ -782,7 +794,7 @@ describe('runFullValidation — FITREP 1.0 mark', () => {
       promotion_recommendation: 'Progressing',
     });
     const result = runFullValidation(ev);
-    const substWarn = result.warnings.find(w => w.block === 43);
+    const substWarn = result.warnings.find(w => w.block === 41);
     expect(substWarn).toBeDefined();
   });
 });
@@ -850,7 +862,8 @@ describe('runFullValidation — CHIEFEVAL 1.0 mark', () => {
       promotion_recommendation: 'Progressing',
     });
     const result = runFullValidation(ev);
-    const substErr = result.errors.find(e => e.block === 43 && e.message.includes('1.0'));
+    const substErr = result.errors.find(e => e.block === 40 && e.message.includes('1.0'));
     expect(substErr).toBeDefined();
+    expect(substErr?.message).toContain('Block 40');
   });
 });
