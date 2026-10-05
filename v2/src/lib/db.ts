@@ -4,6 +4,7 @@
 // 100% serverless, zero external network dependency, persists across sessions.
 
 import Dexie, { Table } from "dexie";
+import { markWorkspaceDirty } from "./workspaceSession";
 import {
   Evaluation,
   SummaryGroup,
@@ -11,6 +12,7 @@ import {
   RscaHistoricalRecord,
   BragSheet,
   Profile,
+  RosterEntry,
 } from "@/types";
 
 export class ApexNavyDB extends Dexie {
@@ -20,6 +22,7 @@ export class ApexNavyDB extends Dexie {
   rsca_records!: Table<RscaHistoricalRecord, string>;
   brag_sheets!: Table<BragSheet, string>;
   profiles!: Table<Profile, string>;
+  roster!: Table<RosterEntry, string>;
 
   constructor() {
     super("ApexNavyLocalDB");
@@ -32,10 +35,34 @@ export class ApexNavyDB extends Dexie {
       brag_sheets: "id, member_dod_id, cycle_year, updated_at",
       profiles: "id, dod_id, preferred_role",
     });
+
+    this.version(2).stores({
+      roster: "id, holder_role",
+    });
   }
 }
 
 export const db = new ApexNavyDB();
+
+for (const table of [
+  db.evaluations,
+  db.summary_groups,
+  db.continuity_records,
+  db.rsca_records,
+  db.brag_sheets,
+  db.profiles,
+  db.roster,
+]) {
+  table.hook("creating", () => {
+    markWorkspaceDirty();
+  });
+  table.hook("updating", () => {
+    markWorkspaceDirty();
+  });
+  table.hook("deleting", () => {
+    markWorkspaceDirty();
+  });
+}
 
 // ── Default Active User Profile (Can be modified by user) ──
 export const DEFAULT_PROFILE: Profile = {

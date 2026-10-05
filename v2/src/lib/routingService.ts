@@ -7,6 +7,7 @@
 
 import { Evaluation, RoutingStage, CustodyRecord, Profile } from "@/types";
 import { db } from "./db";
+import { releaseReportLock } from "./reportLock";
 import { exportSingleEvalTransfer } from "./sessionTransfer";
 import {
   getSharePointConfig,
@@ -114,7 +115,7 @@ export function generateRoutingEmailUrl(
   const methodInstructions =
     mode === "SHAREPOINT"
       ? `• Delivery Method: COMMAND SHAREPOINT LIST\n• Location: ${spConfig?.siteUrl || "Command Portal"} [List: ${spConfig?.listName || "APEX_Evaluations"}]\n• Instruction: Open APEX v2 on Forge to load and review the synchronized evaluation.`
-      : `• Delivery Method: PACK & ROUTE FALLBACK (.apex.json Custody Packet)\n• Attached File: ROUTE_${(evaluation.member_name || "EVAL").replace(/[^a-zA-Z0-9]/g, "_")}_${evaluation.period_to}.apex.json\n• Instruction: Please find the attached .apex.json packet. Open APEX v2 in your browser, click 'Import Routed Draft', and load the file to continue your review.`;
+      : `• Delivery Method: ONE REPORT FILE (.apex.json)\n• Attached File: ROUTE_${(evaluation.member_name || "EVAL").replace(/[^a-zA-Z0-9]/g, "_")}_${evaluation.period_to}.apex.json\n• Instruction: Open APEX v2 in your browser, click Import Report, and choose the attached file.`;
 
   const bodyText = `CLASSIFICATION: CUI // FEDCON // PRIVACY SENSITIVE - 10 U.S.C. 130e
 SUBJ: NAVY PERFORMANCE EVALUATION CUSTODY NOTIFICATION
@@ -164,6 +165,9 @@ export async function forwardEvaluationCustody(
   const nextStage = NEXT_STAGE_MAP[currentStage] || "locked";
   const targetStageInfo = ROUTING_STAGES.find((s) => s.id === nextStage);
 
+  const released = await releaseReportLock(evaluation, Date.now());
+  if (!released.ok) throw new Error(released.message);
+
   const record: CustodyRecord = {
     id: `custody-${Date.now()}`,
     stage: nextStage,
@@ -177,6 +181,7 @@ export async function forwardEvaluationCustody(
 
   const updated: Evaluation = {
     ...evaluation,
+    ...released.patch,
     routing_stage: nextStage,
     current_holder_name: toHolderName,
     current_holder_role: targetStageInfo?.role || "Rater",
@@ -205,6 +210,9 @@ export async function returnEvaluationCustody(
   const prevStage = PREV_STAGE_MAP[currentStage] || "sailor";
   const targetStageInfo = ROUTING_STAGES.find((s) => s.id === prevStage);
 
+  const released = await releaseReportLock(evaluation, Date.now());
+  if (!released.ok) throw new Error(released.message);
+
   const record: CustodyRecord = {
     id: `custody-${Date.now()}`,
     stage: prevStage,
@@ -218,6 +226,7 @@ export async function returnEvaluationCustody(
 
   const updated: Evaluation = {
     ...evaluation,
+    ...released.patch,
     routing_stage: prevStage,
     current_holder_name: toHolderName,
     current_holder_role: targetStageInfo?.role || "Sailor",

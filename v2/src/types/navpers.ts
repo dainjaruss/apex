@@ -7,6 +7,12 @@
 
 import { z } from "zod";
 import { PRIMARY_DUTY_ABBREV_MAX } from "@/lib/commentFit";
+import {
+  careerRecommendationLabel,
+  careerRecommendationLimitVerb,
+  getCommentsBlock,
+  promotionBlock,
+} from "@/lib/traitStandards";
 
 export const TRAIT_KEYS = [
   "knowledge",
@@ -123,11 +129,34 @@ export const STARRED_BILLET_SUBCATEGORIES = [
 // the font when a name approaches this length).
 export const COUNSELOR_MAX = 22;
 
-// Block 41 Career Recommendations — the form provides exactly two slots; the second is
+// Career recommendations — each form provides exactly two slots; the second is
 // optional but at least one is mandatory ("do not leave blank" — enter NA/NONE if none).
 // Each entry is capped at 20 characters and spaces per BUPERSINST 1610.10H.
+// The printed block is EVAL 41, CHIEFEVAL 46 and 47, FITREP 40.
 export const CAREER_REC_SLOTS = 2;
 export const CAREER_REC_MAX = 20;
+
+/** Two slots, 20 characters. The block named in the message follows the blank. */
+export function careerRecommendationsSchema(reportType?: string) {
+  const label = careerRecommendationLabel(reportType);
+  const verb = careerRecommendationLimitVerb(reportType);
+  return z
+    .array(
+      z
+        .string()
+        .max(
+          CAREER_REC_MAX,
+          `Each career recommendation must be ${CAREER_REC_MAX} characters or fewer, including spaces (${label})`,
+        ),
+    )
+    .max(
+      CAREER_REC_SLOTS,
+      `${label} ${verb} at most ${CAREER_REC_SLOTS} career recommendations`,
+    )
+    .refine((arr) => arr.some((r) => r.trim().length > 0), {
+      message: `At least one career recommendation is required — do not leave blank; enter NA or NONE if none applies (${label})`,
+    });
+}
 
 // The printed block has two boxes. Anything past the second is not editable, so a
 // stored third entry (the sample eval shipped one) fails "at most 2" with no way
@@ -549,28 +578,15 @@ export const EvalSchema = z
 
     comments: z
       .string()
-      .min(1, "Comments on performance are required (Block 43)"),
+      .min(
+        1,
+        `Comments on performance are required (Block ${getCommentsBlock()})`,
+      ),
 
-    career_recommendations: z
-      .array(
-        z
-          .string()
-          .max(
-            CAREER_REC_MAX,
-            `Each career recommendation must be ${CAREER_REC_MAX} characters or fewer, including spaces (Block 41)`,
-          ),
-      )
-      .max(
-        CAREER_REC_SLOTS,
-        `Block 41 allows at most ${CAREER_REC_SLOTS} career recommendations`,
-      )
-      .refine((arr) => arr.some((r) => r.trim().length > 0), {
-        message:
-          "At least one career recommendation is required — do not leave blank; enter NA or NONE if none applies (Block 41)",
-      }),
+    career_recommendations: careerRecommendationsSchema(),
 
     promotion_recommendation: z.enum(PROMOTION_RECOMMENDATIONS, {
-      message: "Invalid promotion recommendation (Block 45)",
+      message: `Invalid promotion recommendation (Block ${promotionBlock()})`,
     }),
 
     retention: z.enum(RETENTION_OPTIONS, {
@@ -718,26 +734,13 @@ export const ChiefEvalSchema = z
     }),
     comments: z
       .string()
-      .min(1, "Comments on performance are required (Block 43)"),
-    career_recommendations: z
-      .array(
-        z
-          .string()
-          .max(
-            CAREER_REC_MAX,
-            `Each career recommendation must be ${CAREER_REC_MAX} characters or fewer, including spaces (Block 41)`,
-          ),
-      )
-      .max(
-        CAREER_REC_SLOTS,
-        `Block 41 allows at most ${CAREER_REC_SLOTS} career recommendations`,
-      )
-      .refine((arr) => arr.some((r) => r.trim().length > 0), {
-        message:
-          "At least one career recommendation is required — do not leave blank; enter NA or NONE if none applies (Block 41)",
-      }),
+      .min(
+        1,
+        `Comments on performance are required (Block ${getCommentsBlock("CHIEFEVAL")})`,
+      ),
+    career_recommendations: careerRecommendationsSchema("CHIEFEVAL"),
     promotion_recommendation: z.enum(PROMOTION_RECOMMENDATIONS, {
-      message: "Invalid promotion recommendation (Block 45)",
+      message: `Invalid promotion recommendation (Block ${promotionBlock("CHIEFEVAL")})`,
     }),
   })
   .superRefine((data, ctx) => {
@@ -881,26 +884,13 @@ export const FitrepSchema = z
     }),
     comments: z
       .string()
-      .min(1, "Comments on performance are required (Block 43)"),
-    career_recommendations: z
-      .array(
-        z
-          .string()
-          .max(
-            CAREER_REC_MAX,
-            `Each career recommendation must be ${CAREER_REC_MAX} characters or fewer, including spaces (Block 41)`,
-          ),
-      )
-      .max(
-        CAREER_REC_SLOTS,
-        `Block 41 allows at most ${CAREER_REC_SLOTS} career recommendations`,
-      )
-      .refine((arr) => arr.some((r) => r.trim().length > 0), {
-        message:
-          "At least one career recommendation is required — do not leave blank; enter NA or NONE if none applies (Block 41)",
-      }),
+      .min(
+        1,
+        `Comments on performance are required (Block ${getCommentsBlock("FITREP")})`,
+      ),
+    career_recommendations: careerRecommendationsSchema("FITREP"),
     promotion_recommendation: z.enum(PROMOTION_RECOMMENDATIONS, {
-      message: "Invalid promotion recommendation (Block 45)",
+      message: `Invalid promotion recommendation (Block ${promotionBlock("FITREP")})`,
     }),
   })
   .superRefine((data, ctx) => {

@@ -253,6 +253,23 @@ describe('forwardEvaluationCustody — DB integration', () => {
     expect(stored?.routing_stage).toBe('rater');
   });
 
+  it('refuses to forward a report another user still holds', async () => {
+    const ev = makeTestEval({
+      routing_stage: 'sailor',
+      lock_holder_name: 'UHURA, N',
+      lock_token: 'someone-else',
+      lock_ratchet: 'abc',
+      lock_activity_at: new Date().toISOString(),
+    });
+    await db.evaluations.put(ev);
+    await expect(
+      forwardEvaluationCustody(ev, fromProfile, 'JONES', 'j@navy.mil'),
+    ).rejects.toThrow(/UHURA, N/);
+    const stored = await db.evaluations.get(ev.id);
+    expect(stored?.routing_stage).toBe('sailor');
+    expect(stored?.lock_token).toBe('someone-else');
+  });
+
   it('advances rater → senior_rater', async () => {
     const ev = makeTestEval({ routing_stage: 'rater' });
     await db.evaluations.put(ev);

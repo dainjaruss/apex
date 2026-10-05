@@ -63,7 +63,7 @@ const localFormDefs: Record<string, any> = {
         { number: 5, name: "Duty Status", type: "text", required: true },
         { number: 6, name: "UIC", type: "text", required: true, length: 5 },
         { number: 7, name: "Ship/Station", type: "text", required: true },
-        { number: 43, name: "Comments on Performance", type: "textarea", required: true },
+        { number: 41, name: "Comments on Performance", type: "textarea", required: true },
       ],
     },
   },

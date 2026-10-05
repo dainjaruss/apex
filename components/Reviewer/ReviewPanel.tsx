@@ -27,6 +27,11 @@ import {
   visibleSummaryGroupsForEval,
 } from "@/lib/summaryGroupEligibility";
 import { paygradeOf } from "@/lib/paygrade";
+import {
+  getCommentsBlock,
+  qualificationsBlock,
+  resolveReportType,
+} from "@/lib/traitStandards";
 
 const BTN_PRIMARY = "apex-btn-primary";
 const BTN_SECONDARY = "apex-btn-secondary";
@@ -401,25 +406,38 @@ function MinorCorrectionForm({
   loading: boolean;
 }) {
   const bv = evaluation.block_values || {};
-  const [patch, setPatch] = useState<Record<string, string>>({
-    comments: evaluation.comments || "",
-    qualifications: bv.qualifications || "",
+  const reportType = resolveReportType(evaluation);
+  const qualsBlock = qualificationsBlock(reportType);
+  const [patch, setPatch] = useState<Record<string, string>>(() => {
+    const next: Record<string, string> = {
+      comments: evaluation.comments || "",
+    };
+    if (qualsBlock != null) next.qualifications = bv.qualifications || "";
+    return next;
   });
   const set = (k: string, v: string) => setPatch((p) => ({ ...p, [k]: v }));
   return (
     <div className="space-y-2">
-      <label className="apex-label">Block 43: Comments</label>
+      <label className="apex-label">
+        Block {getCommentsBlock(reportType)}: Comments
+      </label>
       <textarea
         className={`${FIELD} h-20`}
         value={patch.comments}
         onChange={(e) => set("comments", e.target.value)}
       />
-      <label className="apex-label">Block 44: Qualifications</label>
-      <textarea
-        className={`${FIELD} h-14`}
-        value={patch.qualifications}
-        onChange={(e) => set("qualifications", e.target.value)}
-      />
+      {qualsBlock != null && (
+        <>
+          <label className="apex-label">
+            Block {qualsBlock}: Qualifications
+          </label>
+          <textarea
+            className={`${FIELD} h-14`}
+            value={patch.qualifications}
+            onChange={(e) => set("qualifications", e.target.value)}
+          />
+        </>
+      )}
       <button
         className={BTN_PRIMARY}
         disabled={loading}

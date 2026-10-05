@@ -1,8 +1,7 @@
 // src/components/routing/RoutingStepper.tsx
 //
 // Visual BUPERS 5-Stage Routing Pipeline with Custody Handoffs,
-// SharePoint List Synchronization, Pack & Route Fallback (.apex.json),
-// and Automated Navy CUI Email Notifications.
+// Pack & Route (.apex.json), and Outlook mailto notification.
 
 import React, { useState } from "react";
 import { Evaluation, RoutingStage, Profile } from "@/types";
@@ -11,10 +10,8 @@ import {
   NEXT_STAGE_MAP,
   PREV_STAGE_MAP,
   executeEvaluationHandoff,
-  HandoffMode,
 } from "@/lib/routingService";
 import { exportSingleEvalTransfer } from "@/lib/sessionTransfer";
-import { getSharePointConfig } from "@/lib/sharepointService";
 import {
   Send,
   RotateCcw,
@@ -23,9 +20,6 @@ import {
   X,
   Mail,
   Package,
-  Cloud,
-  CheckCircle2,
-  ExternalLink,
 } from "lucide-react";
 
 interface Props {
@@ -41,12 +35,8 @@ export const RoutingStepper: React.FC<Props> = ({
 }) => {
   const currentStage: RoutingStage = evaluation.routing_stage || "sailor";
   const currentStageIndex = ROUTING_STAGES.findIndex((s) => s.id === currentStage);
-  const spConfig = getSharePointConfig();
 
   const [modalMode, setModalMode] = useState<"FORWARD" | "RETURN" | "HISTORY" | null>(null);
-  const [handoffMode, setHandoffMode] = useState<HandoffMode>(
-    spConfig.enabled ? "SHAREPOINT" : "PACK_AND_ROUTE"
-  );
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [routingNotes, setRoutingNotes] = useState("");
@@ -111,17 +101,11 @@ export const RoutingStepper: React.FC<Props> = ({
         toHolderName: recipientName,
         toHolderEmail: recipientEmail,
         notes: routingNotes,
-        mode: handoffMode,
+        mode: "PACK_AND_ROUTE",
         sendEmail,
       });
 
       onEvaluationUpdated(result.updatedEvaluation);
-
-      if (result.sharePointResult && !result.sharePointResult.success) {
-        alert(
-          `SharePoint Notice: ${result.sharePointResult.message}\n\nA Pack & Route copy was preserved in local memory.`
-        );
-      }
 
       if (sendEmail && result.mailtoUrl) {
         // Trigger Outlook email client
@@ -154,17 +138,8 @@ export const RoutingStepper: React.FC<Props> = ({
               BUPERS Chain of Custody Pipeline
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              {spConfig.enabled ? (
-                <>
-                  <Cloud className="w-3 h-3 text-emerald-500" />
-                  SharePoint Synced
-                </>
-              ) : (
-                <>
-                  <Package className="w-3 h-3 text-blue-500" />
-                  Pack & Route Ready
-                </>
-              )}
+              <Package className="w-3 h-3 text-blue-500" />
+              One report file
             </span>
           </div>
 
@@ -186,10 +161,10 @@ export const RoutingStepper: React.FC<Props> = ({
             type="button"
             onClick={handleQuickPackDownload}
             className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 transition-colors"
-            title="Download portable .apex.json packet for offline transfer or attachment"
+            title="Download this one report as a .apex.json file"
           >
             <Package className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            Pack (.apex.json)
+            Export Report
           </button>
 
           <button
@@ -315,48 +290,14 @@ export const RoutingStepper: React.FC<Props> = ({
             </div>
 
             <div className="space-y-3.5 text-xs">
-              {/* Routing Mode Picker */}
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Custody Delivery Method
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setHandoffMode("PACK_AND_ROUTE")}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      handoffMode === "PACK_AND_ROUTE"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 ring-1 ring-blue-500"
-                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
-                    }`}
-                  >
-                    <div className="font-bold flex items-center gap-1.5 text-slate-900 dark:text-white">
-                      <Package className="w-3.5 h-3.5 text-blue-600" />
-                      Pack & Route (Recommended)
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
-                      Exports `.apex.json` packet & opens Outlook mailto draft. 100% offline & NMCI ready.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHandoffMode("SHAREPOINT")}
-                    className={`p-2.5 rounded-lg border text-left transition-all ${
-                      handoffMode === "SHAREPOINT"
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/60 ring-1 ring-blue-500"
-                        : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
-                    }`}
-                  >
-                    <div className="font-bold flex items-center gap-1.5 text-slate-900 dark:text-white">
-                      <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-                      SharePoint List Sync
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
-                      Syncs to command list via REST & triggers notification.
-                    </div>
-                  </button>
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-blue-900 dark:text-blue-200">
+                <div className="font-bold flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-blue-600" />
+                  One report file
                 </div>
+                <p className="text-[11px] mt-0.5 text-blue-800 dark:text-blue-300">
+                  Forwarding downloads this report. Outlook opens an email draft when email notification is checked. The next person loads it with Import Report.
+                </p>
               </div>
 
               <div>

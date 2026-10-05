@@ -19,9 +19,17 @@ import {
   getPrimaryDutiesFieldFit,
   resolveCommentPitch,
 } from "./commentFit";
-import { getCommentsBlock } from "./traitStandards";
+import {
+  careerRecommendationBlock,
+  getCommentsBlock,
+  promotionBlock,
+  qualificationsBlock,
+  reportingSeniorAddressBlock,
+} from "./traitStandards";
 
-// Static lookup table mapping field names to NAVPERS block numbers
+// Blocks whose numbers are the same on EVAL, CHIEFEVAL, and FITREP.
+// Comments, career recommendations, promotion, qualifications, and the
+// reporting senior address differ by form. getBlockForField owns those.
 const fieldBlockMap: Record<string, number> = {
   member_name: 1,
   grade_rate: 2,
@@ -47,9 +55,6 @@ const fieldBlockMap: Record<string, number> = {
   primary_duties: 29,
   date_counseled: 30,
   counselor: 31,
-  career_recommendations: 41,
-  comments: 43,
-  promotion_recommendation: 45,
   retention: 47,
 };
 
@@ -94,9 +99,14 @@ const fitrepTraitBlockMap: Record<string, number> = {
 };
 
 /**
- * Maps a Zod schema path string to the corresponding official NAVPERS 1616/26 block number.
+ * Maps a field name to the block number printed on this form.
+ * An omitted report type is EVAL, so NAVFIT export and older callers keep
+ * career recommendations at 41 and promotion at 45.
  */
-export function getBlockForField(field: string): number | undefined {
+export function getBlockForField(
+  field: string,
+  reportType?: string,
+): number | undefined {
   if (field.startsWith("trait_grades")) {
     // Path may be "trait_grades" or "trait_grades.<key>" depending on Zod flatten depth.
     const key = field.split(".")[1];
@@ -108,6 +118,15 @@ export function getBlockForField(field: string): number | undefined {
       33
     );
   }
+  const base = field.split(".")[0];
+  if (base === "comments") return getCommentsBlock(reportType);
+  if (base === "career_recommendations")
+    return careerRecommendationBlock(reportType);
+  if (base === "promotion_recommendation") return promotionBlock(reportType);
+  if (base === "reporting_senior_address")
+    return reportingSeniorAddressBlock(reportType);
+  if (base === "qualifications")
+    return qualificationsBlock(reportType) ?? undefined;
   return fieldBlockMap[field];
 }
 
@@ -197,7 +216,7 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
       );
       errors.push({
         field: uiField,
-        block: getBlockForField(uiField),
+        block: getBlockForField(uiField, evalData.report_type),
         message: issue.message,
         severity: "error",
       });
@@ -347,12 +366,12 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     }
   }
 
-  // 10. Block 43 substantiation (BUPERSINST 1610.10H / form footnote): a 1.0 in any trait,
-  //     three or more 2.0 marks, or a 2.0 in Block 35 (Command/Org Climate/EO) must be
-  //     specifically substantiated in the Block 43 comments. We can verify presence, not
-  //     prose — so empty comments with a triggering mark is a hard error, while present
-  //     comments yield a warning naming the marks the rater must address. NOB reports
-  //     leave traits blank, so the rule does not apply.
+  // 10. Narrative substantiation (BUPERSINST 1610.10H / the form footnote).
+  //     The comments block is EVAL 43, CHIEFEVAL 40, FITREP 41. A 1.0 in any trait,
+  //     and that form's 2.0 rule, must be specifically substantiated there. We can
+  //     verify presence, not prose — so empty comments with a triggering mark is a
+  //     hard error, while present comments yield a warning naming the marks the
+  //     rater must address. NOB reports leave traits blank, so the rule does not apply.
   const grades = (evalData.trait_grades || {}) as Record<string, string>;
   const traitKeys = Object.keys(activeTraitMap) as string[];
   // The instruction counts TRAITS, and a trait is a block on the form — so count distinct
@@ -410,18 +429,19 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
     !bv.not_observed;
   if (substApplies) {
     const reasonText = substReasons.join("; ");
+    const commentsBlock = getCommentsBlock(evalData.report_type);
     if (!(evalData.comments || "").trim()) {
       errors.push({
         field: "comments",
-        block: 43,
-        message: `Block 43 comments must specifically substantiate ${reasonText} (BUPERSINST 1610.10H), but comments are empty.`,
+        block: commentsBlock,
+        message: `Block ${commentsBlock} comments must specifically substantiate ${reasonText} (BUPERSINST 1610.10H), but comments are empty.`,
         severity: "error",
       });
     } else {
       warnings.push({
         field: "comments",
-        block: 43,
-        message: `Block 43 comments must specifically substantiate ${reasonText} (BUPERSINST 1610.10H). Comments must be verifiable.`,
+        block: commentsBlock,
+        message: `Block ${commentsBlock} comments must specifically substantiate ${reasonText} (BUPERSINST 1610.10H). Comments must be verifiable.`,
         severity: "warning",
       });
     }
@@ -474,7 +494,7 @@ export function runFullValidation(evalData: Evaluation): ValidationResult {
   ) {
     errors.push({
       field: "promotion_recommendation",
-      block: 45,
+      block: promotionBlock(evalData.report_type),
       message: `${twoCount} trait grades of 2.0 (${twoBlocks.join(", ")}) bar a promotion recommendation of Promotable or higher — a Promotable recommendation allows at most two 2.0 trait grades (BUPERSINST 1610.10H, Encl (2), ch. 1, p. 1-16).`,
       severity: "error",
     });

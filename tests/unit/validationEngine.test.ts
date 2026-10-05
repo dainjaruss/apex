@@ -61,7 +61,24 @@ describe("APEX Validation Engine Unit Tests", () => {
     expect(getBlockForField("dod_id")).toBe(4);
     expect(getBlockForField("comments")).toBe(43);
     expect(getBlockForField("promotion_recommendation")).toBe(45);
+    expect(getBlockForField("career_recommendations")).toBe(41);
     expect(getBlockForField("non_existent_field")).toBeUndefined();
+  });
+
+  it("maps comments, career recommendations, and promotion by form", () => {
+    expect(getBlockForField("comments", "FITREP")).toBe(41);
+    expect(getBlockForField("comments", "CHIEFEVAL")).toBe(40);
+    expect(getBlockForField("career_recommendations", "FITREP")).toBe(40);
+    expect(getBlockForField("career_recommendations", "CHIEFEVAL")).toBe(46);
+    expect(getBlockForField("career_recommendations.0", "CHIEFEVAL")).toBe(46);
+    expect(getBlockForField("promotion_recommendation", "FITREP")).toBe(42);
+    expect(getBlockForField("promotion_recommendation", "CHIEFEVAL")).toBe(41);
+    expect(getBlockForField("qualifications", "FITREP")).toBeUndefined();
+    expect(getBlockForField("qualifications", "CHIEFEVAL")).toBeUndefined();
+    expect(getBlockForField("qualifications")).toBe(44);
+    expect(getBlockForField("reporting_senior_address", "FITREP")).toBe(44);
+    expect(getBlockForField("reporting_senior_address", "CHIEFEVAL")).toBe(51);
+    expect(getBlockForField("reporting_senior_address")).toBe(48);
   });
 
   it("should pass validation for a perfectly formatted evaluation report", () => {

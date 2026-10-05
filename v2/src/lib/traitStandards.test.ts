@@ -14,6 +14,16 @@ import {
   SUBSTANTIATION_NOTE_CHIEFEVAL,
   SUBSTANTIATION_NOTE_FITREP,
   ANCHOR_GRADES,
+  navpersFormNumber,
+  careerRecommendationBlock,
+  careerRecommendationLabel,
+  careerRecommendationLimitVerb,
+  promotionBlock,
+  qualificationsBlock,
+  reportingSeniorAddressBlock,
+  traitAverageLabel,
+  summaryGroupAverageLabel,
+  summaryBreakdownLabel,
 } from './traitStandards';
 
 // ─── getCommentsBlock ─────────────────────────────────────────────────────────
@@ -234,5 +244,44 @@ describe('ANCHOR_GRADES', () => {
     expect(ANCHOR_GRADES).toContain('3.0');
     expect(ANCHOR_GRADES).toContain('5.0');
     expect(ANCHOR_GRADES).toHaveLength(3);
+  });
+});
+
+describe('printed block numbers follow the REV 05-2025 blanks', () => {
+  it('keeps an unknown report type on the enlisted EVAL', () => {
+    expect(navpersFormNumber()).toBe('1616/26');
+    expect(careerRecommendationBlock()).toBe(41);
+    expect(promotionBlock()).toBe(45);
+    expect(qualificationsBlock()).toBe(44);
+    expect(reportingSeniorAddressBlock()).toBe(48);
+    expect(traitAverageLabel()).toBe('Block 40 Individual Trait Average');
+    expect(summaryGroupAverageLabel()).toBe('Summary Group Average');
+    expect(summaryBreakdownLabel()).toBe('Block 46');
+  });
+
+  it('uses the CHIEFEVAL blank, including the two career-recommendation blocks', () => {
+    expect(navpersFormNumber('CHIEFEVAL')).toBe('1616/27');
+    expect(careerRecommendationBlock('CHIEFEVAL')).toBe(46);
+    expect(careerRecommendationLabel('CHIEFEVAL')).toBe('Blocks 46 and 47');
+    expect(careerRecommendationLimitVerb('CHIEFEVAL')).toBe('allow');
+    expect(promotionBlock('CHIEFEVAL')).toBe(41);
+    expect(qualificationsBlock('CHIEFEVAL')).toBeNull();
+    expect(reportingSeniorAddressBlock('CHIEFEVAL')).toBe(51);
+    expect(traitAverageLabel('CHIEFEVAL')).toBe('Block 43 Member Trait Average');
+    expect(summaryGroupAverageLabel('CHIEFEVAL')).toBe('Block 45 Group Summary');
+    expect(summaryBreakdownLabel('CHIEFEVAL')).toBe('Block 48');
+  });
+
+  it('uses the FITREP blank and does not invent a number for the trait average', () => {
+    expect(navpersFormNumber('FITREP')).toBe('1610/2');
+    expect(careerRecommendationBlock('FITREP')).toBe(40);
+    expect(careerRecommendationLabel('FITREP')).toBe('Block 40');
+    expect(careerRecommendationLimitVerb('FITREP')).toBe('allows');
+    expect(promotionBlock('FITREP')).toBe(42);
+    expect(qualificationsBlock('FITREP')).toBeNull();
+    expect(reportingSeniorAddressBlock('FITREP')).toBe(44);
+    expect(traitAverageLabel('FITREP')).toBe('Member Trait Average');
+    expect(summaryGroupAverageLabel('FITREP')).toBe('Summary Group Average');
+    expect(summaryBreakdownLabel('FITREP')).toBe('Block 43');
   });
 });

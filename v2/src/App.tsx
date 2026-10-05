@@ -16,7 +16,8 @@ import { WorkspaceManager } from "@/components/workspace/WorkspaceManager";
 import { ProfileModal } from "@/components/profile/ProfileModal";
 import { getEvalSeed, getChiefEvalSeed, getFitrepSeed } from "@/lib/formDefinitions";
 import { ROUTING_STAGES } from "@/lib/routingService";
-import { canManageSummaryGroups } from "@/lib/permissions";
+import { WorkspaceScopeSetup } from "@/components/workspace/WorkspaceScopeSetup";
+import { useWorkspaceIdentity } from "@/lib/useWorkspaceIdentity";
 import {
   FileText,
   CalendarCheck,
@@ -31,26 +32,35 @@ import {
   X,
 } from "lucide-react";
 
+const THEME_KEY = "apex_v2_theme";
+
+function initialDarkMode(): boolean {
+  try {
+    return localStorage.getItem(THEME_KEY) === "dark";
+  } catch {
+    return false;
+  }
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<"evaluations" | "continuity" | "rsca" | "workspace">("evaluations");
   const [editingEval, setEditingEval] = useState<Evaluation | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(initialDarkMode);
 
   const profiles = useLiveQuery(() => db.profiles.toArray(), []);
   const activeProfile: Profile = profiles?.[0] || DEFAULT_PROFILE;
-  const isLeadership = canManageSummaryGroups(activeProfile);
+  const workspaceIdentity = useWorkspaceIdentity();
+  const isCommand = workspaceIdentity?.scope === "command";
 
   // Automatically switch tab away from RSCA if user switches to Sailor/Rater role
   useEffect(() => {
-    if (!isLeadership && activeTab === "rsca") {
+    if (!isCommand && activeTab === "rsca") {
       setActiveTab("evaluations");
     }
-  }, [isLeadership, activeTab]);
+  }, [isCommand, activeTab]);
 
   const evaluations = useLiveQuery(() => db.evaluations.toArray(), []);
 
@@ -81,12 +91,13 @@ export function App() {
     seedInitialDataIfEmpty();
   }, []);
 
-  // Sync dark mode class to html document
+  // Light is the default. A saved choice overrides it on the next visit.
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    try {
+      localStorage.setItem(THEME_KEY, isDarkMode ? "dark" : "light");
+    } catch {
+      // Private mode can block storage. The class above still applies for this visit.
     }
   }, [isDarkMode]);
 
@@ -122,7 +133,7 @@ export function App() {
       trait_grades: {},
       comments: "",
       career_recommendations: ["", ""],
-      promotion_recommendation: "Promotable",
+      promotion_recommendation: "",
       retention: "Recommended",
       status: "draft",
       routing_stage: "sailor",
@@ -147,11 +158,6 @@ export function App() {
     db.evaluations.put(newEval);
     setIsCreatingNew(false);
     setEditingEval(newEval);
-  };
-
-  const handleRoleChange = async (role: Profile["preferred_role"]) => {
-    const updated = { ...activeProfile, preferred_role: role };
-    await db.profiles.put(updated);
   };
 
   return (
@@ -213,7 +219,7 @@ export function App() {
               Continuity & Gap Inspector
             </button>
 
-            {isLeadership && (
+            {isCommand && (
               <button type="button"
                 onClick={() => {
                   setActiveTab("rsca");
@@ -354,20 +360,10 @@ export function App() {
               )}
             </div>
 
-            {/* Role Switcher */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 text-xs">
-              <select
-                value={activeProfile.preferred_role}
-                onChange={(e) => handleRoleChange(e.target.value as any)}
-                className="bg-transparent border-0 font-semibold text-slate-800 dark:text-slate-200 text-xs focus:ring-0 cursor-pointer"
-                title="Active Role Perspective"
-              >
-                <option value="Sailor">Role: Sailor</option>
-                <option value="Rater">Role: Rater (LPO)</option>
-                <option value="Senior Rater">Role: Senior Rater (CPO)</option>
-                <option value="Reporting Senior">Role: Reporting Senior</option>
-                <option value="Admin">Role: Admin Officer</option>
-              </select>
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+              {workspaceIdentity
+                ? `${workspaceIdentity.scope === "command" ? "Command" : workspaceIdentity.scope === "reviewer" ? "Reviewer" : "Member"} · ${workspaceIdentity.holderRole}`
+                : "No workspace"}
             </div>
 
             {/* Dark Mode Toggle */}
@@ -384,46 +380,49 @@ export function App() {
 
       {/* Main Content View */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
-        {activeTab === "evaluations" && (
-          isCreatingNew ? (
-            <NewEvalPicker
-              onSelectForm={handleStartNewEval}
-              onCancel={() => setIsCreatingNew(false)}
-            />
-          ) : editingEval ? (
-            <EvalEditor
-              evaluation={editingEval}
-              activeProfile={activeProfile}
-              onBack={() => setEditingEval(null)}
-              onSave={(updated) => setEditingEval(updated)}
-            />
-          ) : (
-            <EvalList
-              activeProfile={activeProfile}
-              onSelectEval={(ev) => setEditingEval(ev)}
-              onCreateEval={(reportType) => {
-                if (reportType === "CHIEFEVAL") handleStartNewEval("CHIEFEVAL");
-                else if (reportType === "FITREP") handleStartNewEval("FITREP_W2_O6");
-                else handleStartNewEval("EVAL");
-              }}
-              onStartNewFlow={() => setIsCreatingNew(true)}
-            />
-          )
+        {!workspaceIdentity ? (
+          <WorkspaceScopeSetup />
+        ) : (
+          <>
+            {activeTab === "evaluations" && (
+              isCreatingNew ? (
+                <NewEvalPicker
+                  onSelectForm={handleStartNewEval}
+                  onCancel={() => setIsCreatingNew(false)}
+                />
+              ) : editingEval ? (
+                <EvalEditor
+                  evaluation={editingEval}
+                  activeProfile={activeProfile}
+                  onBack={() => setEditingEval(null)}
+                  onSave={(updated) => setEditingEval(updated)}
+                />
+              ) : (
+                <EvalList
+                  activeProfile={activeProfile}
+                  onSelectEval={(ev) => setEditingEval(ev)}
+                  onCreateEval={(reportType) => {
+                    if (reportType === "CHIEFEVAL") handleStartNewEval("CHIEFEVAL");
+                    else if (reportType === "FITREP") handleStartNewEval("FITREP_W2_O6");
+                    else handleStartNewEval("EVAL");
+                  }}
+                  onStartNewFlow={() => setIsCreatingNew(true)}
+                />
+              )
+            )}
+            {activeTab === "continuity" && <ContinuityInspector />}
+            {activeTab === "rsca" && (
+              <RscaMatrix
+                activeProfile={activeProfile}
+                onSelectEval={(ev) => {
+                  setEditingEval(ev);
+                  setActiveTab("evaluations");
+                }}
+              />
+            )}
+            {activeTab === "workspace" && <WorkspaceManager />}
+          </>
         )}
-
-        {activeTab === "continuity" && <ContinuityInspector />}
-
-        {activeTab === "rsca" && (
-          <RscaMatrix
-            activeProfile={activeProfile}
-            onSelectEval={(ev) => {
-              setEditingEval(ev);
-              setActiveTab("evaluations");
-            }}
-          />
-        )}
-
-        {activeTab === "workspace" && <WorkspaceManager />}
       </main>
 
       {/* Sailor Profile Modal */}
@@ -437,7 +436,7 @@ export function App() {
       <footer className="border-t border-slate-200 dark:border-slate-800 py-4 px-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>APEX v2 — Designed for Department of the Navy (DON) Forge Runtime</span>
-          <span className="font-mono text-[11px]">BUPERSINST 1610.10H Compliant | IndexedDB Local Engine | Pack & Route Fallback</span>
+          <span className="font-mono text-[11px]">BUPERSINST 1610.10H Compliant | IndexedDB Local Engine | Export / Import Report</span>
         </div>
       </footer>
     </div>
